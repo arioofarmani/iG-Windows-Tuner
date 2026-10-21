@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "name": "Intel laptop: Core i7-13700H, Iris Xe + RTX 4060 Laptop, Modern Standby",
+  "cpu": { "name": "13th Gen Intel(R) Core(TM) i7-13700H", "vendor": "GenuineIntel", "family": 6, "model": 186, "cores": 14, "threads": 20 },
+  "gpus": [
+    { "name": "Intel(R) Iris(R) Xe Graphics", "vendor": "Intel Corporation", "pnp": "VEN_8086&DEV_A7A0", "enabled": true },
+    { "name": "NVIDIA GeForce RTX 4060 Laptop GPU", "vendor": "NVIDIA", "pnp": "VEN_10DE&DEV_28A0", "enabled": true }
+  ],
+  "nics": [
+    { "name": "Intel(R) Wi-Fi 6E AX211 160MHz", "pnp": "VEN_8086&DEV_51F1", "enabled": true },
+    { "name": "Realtek PCIe GbE Family Controller", "pnp": "VEN_10EC&DEV_8168", "enabled": true }
+  ],
+  "memoryGB": 16,
+  "battery": true,
+  "portableChassis": true,
+  "modernStandby": true,
+  "systemDisk": { "model": "SAMSUNG MZVL21T0HCLR", "bus": "NVMe", "media": "SSD" },
+  "system": { "manufacturer": "LENOVO", "model": "82WM" },
+  "os": { "build": 26100 }
+}

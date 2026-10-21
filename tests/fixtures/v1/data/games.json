@@ -1,0 +1,18 @@
+{
+  "comment": "Executable names and read-only discovery hints. Steam games are found through steamapps\\libraryfolders.vdf. 'qos' marks games whose UDP traffic gets DSCP 46 with net.qos-dscp-games. AegisTune never writes to game folders or processes.",
+  "games": [
+    { "id": "dota2", "name": "Dota 2", "exe": [ "dota2.exe" ], "steamAppId": 570, "steamDir": "dota 2 beta", "relativeExe": "game\\bin\\win64\\dota2.exe", "antiCheat": "VAC", "qos": true, "knownPaths": [] },
+    { "id": "cs2", "name": "Counter-Strike 2", "exe": [ "cs2.exe" ], "steamAppId": 730, "steamDir": "Counter-Strike Global Offensive", "relativeExe": "game\\bin\\win64\\cs2.exe", "antiCheat": "VAC / FACEIT AC", "qos": true, "knownPaths": [] },
+    { "id": "valorant", "name": "VALORANT", "exe": [ "VALORANT-Win64-Shipping.exe" ], "antiCheat": "Riot Vanguard", "qos": true,
+      "knownPaths": [ "C:\\Riot Games\\VALORANT\\live\\ShooterGame\\Binaries\\Win64\\VALORANT-Win64-Shipping.exe" ] },
+    { "id": "lol", "name": "League of Legends", "exe": [ "League of Legends.exe" ], "antiCheat": "Riot Vanguard", "qos": true,
+      "knownPaths": [ "C:\\Riot Games\\League of Legends\\Game\\League of Legends.exe" ] },
+    { "id": "apex", "name": "Apex Legends", "exe": [ "r5apex.exe" ], "steamAppId": 1172470, "steamDir": "Apex Legends", "relativeExe": "r5apex.exe", "antiCheat": "Easy Anti-Cheat", "qos": false, "knownPaths": [] },
+    { "id": "fortnite", "name": "Fortnite", "exe": [ "FortniteClient-Win64-Shipping.exe" ], "antiCheat": "Easy Anti-Cheat / BattlEye", "qos": false,
+      "knownPaths": [ "%ProgramFiles%\\Epic Games\\Fortnite\\FortniteGame\\Binaries\\Win64\\FortniteClient-Win64-Shipping.exe" ] },
+    { "id": "pubg", "name": "PUBG: BATTLEGROUNDS", "exe": [ "TslGame.exe" ], "steamAppId": 578080, "steamDir": "PUBG", "relativeExe": "TslGame\\Binaries\\Win64\\TslGame.exe", "antiCheat": "BattlEye", "qos": false, "knownPaths": [] },
+    { "id": "r6siege", "name": "Rainbow Six Siege", "exe": [ "RainbowSix.exe" ], "steamAppId": 359550, "steamDir": "Tom Clancy's Rainbow Six Siege", "relativeExe": "RainbowSix.exe", "antiCheat": "BattlEye", "qos": false, "knownPaths": [] },
+    { "id": "cod", "name": "Call of Duty", "exe": [ "cod.exe" ], "steamAppId": 1938090, "steamDir": "Call of Duty HQ", "relativeExe": "cod.exe", "antiCheat": "RICOCHET", "qos": false, "knownPaths": [] },
+    { "id": "bf6", "name": "Battlefield 6", "exe": [ "bf6.exe" ], "steamAppId": 2807960, "steamDir": "Battlefield 6", "relativeExe": "bf6.exe", "antiCheat": "Javelin", "qos": false, "knownPaths": [] }
+  ]
+}

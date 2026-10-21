@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://igwindowstuner.local/schema/tweak.schema.json",
+  "title": "iG Windows Tuner tweak catalog file (schema v2)",
+  "type": "object",
+  "required": [ "schemaVersion", "tweaks" ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "category": { "type": "string" },
+    "tweaks": { "type": "array", "items": { "$ref": "#/definitions/tweak" } }
+  },
+  "definitions": {
+    "level": { "enum": [ "Standard", "Advanced", "Expert", "Lab" ], "description": "Who should use the item and how it is gated (separate from the evidence tier)." },
+    "antiCheat": {
+      "description": "\"safe\", \"unknown\", or the anti-cheats the item breaks.",
+      "oneOf": [
+        { "enum": [ "safe", "unknown" ] },
+        { "type": "object", "required": [ "breaks" ], "properties": { "breaks": { "type": "array", "minItems": 1, "items": { "type": "string" } } }, "additionalProperties": false }
+      ]
+    },
+    "hardware": {
+      "type": "object",
+      "description": "Hardware tags from data/hardware/tags.json that the item needs (tags) or must not run on (excludeTags).",
+      "properties": {
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "excludeTags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tweak": {
+      "type": "object",
+      "required": [ "id", "name", "category", "level", "hint", "description", "evidence", "impact", "risk", "antiCheat", "reversible", "sideEffects", "requires", "appliesTo", "hardware", "source", "actions" ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z]+\\.[a-z0-9\\-]+$" },
+        "name": { "type": "string" },
+        "category": { "enum": [ "Power & CPU", "Graphics & Display", "Input", "Network", "Background & Privacy", "Storage", "Security" ] },
+        "group": { "type": "string" },
+        "order": { "type": "integer", "description": "Apply order (lower first); revert runs in reverse." },
+        "level": { "$ref": "#/definitions/level" },
+        "hint": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "description": { "type": "string", "minLength": 40 },
+        "warning": { "type": "string", "description": "Required for Expert and Lab items." },
+        "evidence": {
+          "type": "object",
+          "required": [ "tier", "sources" ],
+          "properties": {
+            "tier": { "enum": [ "A", "B" ] },
+            "sources": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^https://" } },
+            "notes": { "type": "string" }
+          }
+        },
+        "impact": {
+          "type": "object",
+          "required": [ "performance", "latency", "security" ],
+          "properties": {
+            "performance": { "enum": [ "none", "low", "medium", "high" ] },
+            "latency": { "enum": [ "none", "low", "medium", "high" ] },
+            "security": { "enum": [ "+", "0", "-" ] }
+          }
+        },
+        "risk": { "enum": [ "low", "medium", "high" ] },
+        "antiCheat": { "$ref": "#/definitions/antiCheat" },
+        "reversible": { "enum": [ "full", "partial", "none" ] },
+        "sideEffects": { "type": "string", "description": "Empty when there are none; required text when reversible is not full." },
+        "requires": { "enum": [ "none", "logoff", "reboot" ] },
+        "appliesTo": {
+          "type": "object",
+          "properties": {
+            "minBuild": { "type": "integer" },
+            "maxBuild": { "type": "integer" },
+            "editions": { "type": "array", "items": { "type": "string" } },
+            "conditions": { "type": "array", "items": { "enum": [ "wiredAdapter", "multipleGpus", "nvidiaGpu", "defenderActive", "notRdp" ] } }
+          }
+        },
+        "hardware": { "$ref": "#/definitions/hardware" },
+        "source": { "enum": [ "igwt", "winutil", "microsoft" ] },
+        "attribution": { "type": "string", "description": "Required when source is winutil." },
+        "status": { "enum": [ "Active", "NotApplicable" ] },
+        "statusReason": { "type": "string" },
+        "conflictsWith": { "type": "array", "items": { "type": "string" } },
+        "policyKeys": { "type": "array", "items": { "type": "object", "required": [ "path", "name" ], "properties": { "path": { "type": "string" }, "name": { "type": "string" } } } },
+        "postApply": { "enum": [ "MouseParameters", "KeyboardRepeat", "AccessibilityFlags" ] },
+        "revertNote": { "type": "string" },
+        "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/action" } }
+      },
+      "not": { "anyOf": [ { "required": [ "antiCheatSafe" ] }, { "required": [ "expert" ] } ] }
+    },
+    "action": {
+      "type": "object",
+      "required": [ "type" ],
+      "properties": {
+        "type": { "enum": [ "registry", "registryListMerge", "adapterRegistry", "netAdapterPower", "powercfgScheme", "powercfgSetting", "service", "netAdapterAdvanced", "netQosPolicy", "dnsDoh", "mpPreference", "asrRule", "optionalFeature", "custom", "check" ] },
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "valueType": { "enum": [ "DWord", "QWord", "String", "ExpandString", "MultiString", "Binary" ] },
+        "on": {},
+        "off": {},
+        "default": { "description": "Documented Windows default; \"<absent>\" means the value does not exist by default." },
+        "absentValue": { "description": "What Windows uses when the value is missing (for state detection)." },
+        "equivalentOn": { "type": "array", "description": "Other existing values that also count as on." },
+        "bitClear": { "type": "integer", "description": "Clear these flag bits from the current value instead of writing a fixed value." },
+        "onlyIfAbsent": { "type": "boolean", "description": "Write only when the value does not exist." },
+        "item": { "type": "string", "description": "registryListMerge: key inside the semicolon string." },
+        "scheme": { "type": "string" },
+        "subgroup": { "type": "string" },
+        "setting": { "type": "string" },
+        "label": { "type": "string" },
+        "ac": { "type": "integer" },
+        "dc": { "type": "integer" },
+        "defaultAc": { "type": "integer" },
+        "defaultFromScheme": { "type": "string" },
+        "startupType": { "enum": [ "Automatic", "AutomaticDelayed", "Manual", "Disabled" ] },
+        "stop": { "type": "boolean" },
+        "keyword": { "type": "string" },
+        "fallback": { "type": "array", "items": { "type": "object", "properties": { "displayName": { "type": "string" }, "displayValue": { "type": "string" } } } },
+        "allowTurnOff": { "type": "boolean" },
+        "dscp": { "type": "integer", "minimum": 0, "maximum": 63 },
+        "protocol": { "enum": [ "UDP", "TCP", "Both" ] },
+        "namePrefix": { "type": "string" },
+        "provider": { "enum": [ "quad9", "cloudflare" ] },
+        "allowFallbackToUdp": { "type": "boolean" },
+        "id": { "type": "string" },
+        "feature": { "type": "string" },
+        "handler": { "enum": [ "UltimatePlan", "Hibernate", "TcpAutoTuning", "FirewallProfiles", "WifiAdapter", "GameGpuPreference", "CfaAllowGames" ] },
+        "checker": { "enum": [ "HvciRunning", "HvciNotRunning", "KernelShadowStacksRunning" ] }
+      }
+    }
+  }
+}

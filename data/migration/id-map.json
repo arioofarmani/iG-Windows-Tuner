@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 2,
+  "description": "Item ids renamed between catalog versions (old id -> new id). Applied when v1 snapshots and presets are read, so old snapshots still revert after a rename. Empty: no ids were renamed in 2.0.",
+  "renamed": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "name": "Intel Arc desktop: Core i5-12400F (no E-cores), Arc A770, I226-V, hard-disk system drive",
+  "cpu": { "name": "12th Gen Intel(R) Core(TM) i5-12400F", "vendor": "GenuineIntel", "family": 6, "model": 151, "cores": 6, "threads": 12 },
+  "gpus": [
+    { "name": "Intel(R) Arc(TM) A770 Graphics", "vendor": "Intel Corporation", "pnp": "VEN_8086&DEV_56A0", "enabled": true }
+  ],
+  "nics": [
+    { "name": "Intel(R) Ethernet Controller I226-V", "pnp": "VEN_8086&DEV_125C", "enabled": true }
+  ],
+  "memoryGB": 16,
+  "battery": false,
+  "portableChassis": false,
+  "modernStandby": false,
+  "systemDisk": { "model": "WDC WD10EZEX-08WN4A0", "bus": "SATA", "media": "HDD" },
+  "system": { "manufacturer": "Micro-Star International Co., Ltd.", "model": "MS-7D25" },
+  "os": { "build": 26100 }
+}

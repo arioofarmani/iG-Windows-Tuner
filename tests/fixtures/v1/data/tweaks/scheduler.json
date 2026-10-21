@@ -1,0 +1,76 @@
+{
+  "category": "Power & CPU",
+  "tweaks": [
+    {
+      "id": "sched.system-responsiveness",
+      "name": "MMCSS SystemResponsiveness 10%",
+      "category": "Power & CPU",
+      "group": "Scheduler & multimedia",
+      "order": 40,
+      "hint": "Lowers the CPU share MMCSS reserves for background tasks from 20% to 10% (the documented minimum). Measure before/after.",
+      "description": "Sets SystemResponsiveness to 10. The Multimedia Class Scheduler reserves this percentage of CPU for low-priority work while MMCSS-registered threads (audio, some games) run. Microsoft documents that values below 10 are clamped to 20, so 10 is the lowest effective value. Only affects threads registered with MMCSS; measure frametimes and audio before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ],
+        "notes": "Microsoft: values not divisible by 10 are rounded down; values below 10 or above 100 are clamped to 20; 100 disables MMCSS. Corrected from common advice to use 0."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile", "name": "SystemResponsiveness", "valueType": "DWord", "on": 10, "default": 20, "absentValue": 20 }
+      ]
+    },
+    {
+      "id": "sched.network-throttling-off",
+      "name": "MMCSS network throttling off",
+      "category": "Power & CPU",
+      "group": "Scheduler & multimedia",
+      "order": 40,
+      "hint": "Disables the legacy MMCSS packet-processing limit used during media playback. Measure ping and frametimes before/after.",
+      "description": "Sets NetworkThrottlingIndex to 0xFFFFFFFF. Since Windows Vista, MMCSS can limit non-multimedia network packet processing while multimedia playback is active (default 10 packets per millisecond). Disabling it can help when audio runs alongside online games. It is a legacy mechanism with situational benefit; measure before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service",
+          "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics"
+        ],
+        "notes": "Value lives in the documented MMCSS SystemProfile key; its effect is legacy and situational."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile", "name": "NetworkThrottlingIndex", "valueType": "DWord", "on": "0xFFFFFFFF", "default": 10, "absentValue": 10 }
+      ]
+    },
+    {
+      "id": "sched.global-timer-resolution",
+      "name": "Global timer resolution requests (expert)",
+      "category": "Power & CPU",
+      "group": "Scheduler & multimedia",
+      "order": 41,
+      "hint": "Restores pre-2004 behavior where one app's timer request applies system-wide. Raises idle power. Measure before/after.",
+      "description": "Sets GlobalTimerResolutionRequests to 1. Since Windows 10 2004 a process's timeBeginPeriod request only affects that process, and Windows 11 ignores requests from minimized or fully occluded windows. Games set their own timer resolution, so this only matters for tools that depend on another process's request. Trade-off: more timer interrupts and higher idle power. Measure before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod",
+          "https://randomascii.wordpress.com/2020/10/04/windows-timer-resolution-the-great-rule-change/"
+        ],
+        "notes": "Registry value is honored on Windows 11 and Server 2022+, measured and documented by Bruce Dawson; not a BCD change."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "medium",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "expert": true,
+      "warning": "Raises idle power and timer interrupt rate for the whole system. Games already request their own timer resolution, so most players gain nothing.",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\kernel", "name": "GlobalTimerResolutionRequests", "valueType": "DWord", "on": 1, "default": "<absent>" }
+      ]
+    }
+  ]
+}

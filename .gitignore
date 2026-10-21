@@ -1,0 +1,27 @@
+# Local quality-check output (contains the machine name and user profile paths)
+artifacts/
+
+# Local runs and reports
+*.log
+*.jsonl
+report*.html
+system-report*.html
+persistence*.html
+
+# Release builds (created by tools\New-Release.ps1)
+release/
+dist/
+*.zip
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.claude/
+
+# Local development notes and machine-specific files
+CLAUDE.md
+PROGRESS.md
+tools/iGWindowsTuner.wsb

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://igwindowstuner.local/schema/preset.schema.json",
+  "title": "iG Windows Tuner intent preset (schema v2)",
+  "type": "object",
+  "required": [ "schemaVersion", "id", "name", "hint", "description", "levelCeiling", "antiCheatPolicy", "include" ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9\\-]*$" },
+    "name": { "type": "string" },
+    "order": { "type": "integer" },
+    "tagline": { "type": "string" },
+    "hint": { "type": "string", "minLength": 1, "maxLength": 140 },
+    "description": { "type": "string", "minLength": 40 },
+    "gaming": { "type": "boolean", "description": "Gaming presets may only contain anti-cheat safe items." },
+    "levelCeiling": { "enum": [ "Standard", "Advanced", "Expert" ], "description": "Highest item level the preset may include; Lab items are never in presets." },
+    "antiCheatPolicy": { "enum": [ "safeOnly", "any" ] },
+    "include": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "exclude": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "description": "Items explicitly kept out, even when a hardware overlay would add them." }
+  },
+  "not": { "required": [ "tweaks" ] }
+}

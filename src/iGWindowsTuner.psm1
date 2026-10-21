@@ -1,0 +1,43 @@
+# iGWindowsTuner.psm1
+# Loads the iG Windows Tuner engine. Plain, readable PowerShell: every source file below is
+# dot-sourced from this folder; nothing is downloaded, decoded or generated at runtime.
+
+$script:IgwtModuleRoot = $PSScriptRoot
+$script:IgwtProjectRoot = Split-Path -Parent $PSScriptRoot
+
+$folders = @('Core', 'Actions', 'Health', 'Hardware', 'Cleaner', 'Security', 'Inspectors', 'Manage', 'Gui')
+foreach ($folder in $folders) {
+    $path = Join-Path $PSScriptRoot $folder
+    if (-not (Test-Path -LiteralPath $path)) { continue }
+    foreach ($file in (Get-ChildItem -LiteralPath $path -Filter '*.ps1' -File | Sort-Object Name)) {
+        . $file.FullName
+    }
+}
+
+Export-ModuleMember -Function (
+    'Get-IgwtCatalog', 'Get-IgwtTweak', 'Get-IgwtPreset', 'Get-IgwtGameDefinitions', 'Get-IgwtInstalledGames', 'Get-IgwtRejectedTweaks',
+    'Test-IgwtCatalog', 'Get-IgwtTweakRevertDescription',
+    'New-IgwtContext', 'Get-IgwtTweakState', 'Get-IgwtAllTweakStates', 'Get-IgwtPlan', 'Get-IgwtPresetPlan',
+    'Invoke-IgwtApply', 'Invoke-IgwtRevert', 'Get-IgwtSnapshotList',
+    'Get-IgwtHealthReport', 'Format-IgwtHealthReport', 'Export-IgwtHealthReport', 'Get-IgwtHardwareSummary', 'Get-IgwtAntiCheatReadiness',
+    'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
+    'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',
+    'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled',
+    'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Set-IgwtLogSink',
+    'Set-IgwtEnvironment', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
+    'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
+    'Get-IgwtDiskUsage', 'Format-IgwtBytes',
+    'Convert-IgwtDataToV2', 'Convert-IgwtSnapshotToV2', 'Get-IgwtHardwareTagDefinitions',
+    'Get-IgwtHardwareFacts', 'Get-IgwtHardwareProfile', 'Get-IgwtHardwareOverlays', 'Resolve-IgwtPresetSelection', 'Test-IgwtHardwareCatalog',
+    'Get-IgwtAsrCatalog', 'Get-IgwtAsrStatus', 'Get-IgwtAsrRecommendationPlan', 'Invoke-IgwtAsrChange', 'Test-IgwtAsrExclusion', 'Test-IgwtAsrCatalog',
+    'Get-IgwtProtectionEvents', 'Get-IgwtAsrAudit', 'Format-IgwtAsrAudit',
+    'Get-IgwtSecurityScore', 'ConvertTo-IgwtSecurityScore', 'Get-IgwtSecurityCheckDefinitions', 'Format-IgwtSecurityScore', 'Get-IgwtLocalAccountAudit', 'Get-IgwtNetworkSurface',
+    'Get-IgwtInspection', 'Format-IgwtInspection', 'Get-IgwtPowerSettingsInspection', 'Get-IgwtPowerSettingCatalog', 'Invoke-IgwtPowerSettingChange', 'Get-IgwtPowerSettingChangePlan', 'Test-IgwtPowerSettingCatalog',
+    'Get-IgwtInterruptInspection', 'Get-IgwtNicQueueInspection', 'Get-IgwtKernelInspection', 'Get-IgwtTimerInspection', 'Get-IgwtCrashInspection', 'Test-IgwtKernelInspectorCatalog',
+    'Invoke-IgwtManagedChange', 'Get-IgwtManagedChangePlan', 'Get-IgwtServiceInventory', 'Get-IgwtTaskInventory', 'Get-IgwtAppInventory', 'Get-IgwtFeatureInventory', 'Test-IgwtManageCatalog',
+    'Get-IgwtPersistenceInventory', 'Export-IgwtPersistenceReport', 'Get-IgwtUpdateStatus',
+    'Get-IgwtAdapterPropertyInspection', 'Invoke-IgwtDnsBenchmark', 'Test-IgwtNetworkLatency', 'Get-IgwtFirewallRuleList', 'Get-IgwtHostsFile',
+    'Get-IgwtDiagnostics', 'Format-IgwtDiagnostics', 'Get-IgwtDpcIsrSample', 'Get-IgwtReliabilityHistory', 'Get-IgwtCrashHistory', 'Get-IgwtBootPerformance', 'Get-IgwtDriverInventory',
+    'Get-IgwtSystemReport', 'Export-IgwtSystemReport',
+    'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
+)

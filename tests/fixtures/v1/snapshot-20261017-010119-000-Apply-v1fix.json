@@ -1,0 +1,173 @@
+{
+    "schema":  1,
+    "tool":  "AegisTune",
+    "version":  "1.0.0",
+    "id":  "27a56f50-7c99-40bc-b9a2-ab8f20235822",
+    "created":  "2026-10-17T01:01:19.4071344Z",
+    "operation":  "Apply",
+    "detail":  "4 tweak(s)",
+    "computer":  "FIXTURE-PC",
+    "build":  "26300.9711",
+    "userSid":  "S-1-5-21-1000000000-1000000000-1000000000-1001",
+    "userHiveSid":  null,
+    "entries":  [
+                    {
+                        "tweakId":  "gfx.game-mode",
+                        "result":  "Applied",
+                        "message":  "",
+                        "time":  "2026-10-17T01:01:19.4671883Z",
+                        "actions":  [
+                                        {
+                                            "index":  0,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKCU:\\Software\\Microsoft\\GameBar|name=AutoGameModeEnabled",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKCU:\\Software\\Microsoft\\GameBar",
+                                                                           "name":  "AutoGameModeEnabled",
+                                                                           "exists":  true,
+                                                                           "kind":  "DWord",
+                                                                           "value":  0,
+                                                                           "missingDepth":  0
+                                                                       }
+                                                                   ]
+                                                     }
+                                        }
+                                    ]
+                    },
+                    {
+                        "tweakId":  "gfx.windowed-optimizations",
+                        "result":  "Applied",
+                        "message":  "",
+                        "time":  "2026-10-17T01:01:19.4967016Z",
+                        "actions":  [
+                                        {
+                                            "index":  0,
+                                            "type":  "registryListMerge",
+                                            "fingerprint":  "registryListMerge|path=HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences|name=DirectXUserGlobalSettings|item=SwapEffectUpgradeEnable",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences",
+                                                                           "name":  "DirectXUserGlobalSettings",
+                                                                           "exists":  true,
+                                                                           "kind":  "String",
+                                                                           "value":  "VRROptimizeEnable=1;",
+                                                                           "missingDepth":  0
+                                                                       }
+                                                                   ]
+                                                     }
+                                        }
+                                    ]
+                    },
+                    {
+                        "tweakId":  "input.pointer-precision-off",
+                        "result":  "Applied",
+                        "message":  "",
+                        "time":  "2026-10-17T01:01:19.5552486Z",
+                        "actions":  [
+                                        {
+                                            "index":  0,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKCU:\\Control Panel\\Mouse|name=MouseSpeed",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKCU:\\Control Panel\\Mouse",
+                                                                           "name":  "MouseSpeed",
+                                                                           "exists":  true,
+                                                                           "kind":  "String",
+                                                                           "value":  "1",
+                                                                           "missingDepth":  0
+                                                                       }
+                                                                   ]
+                                                     }
+                                        },
+                                        {
+                                            "index":  1,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKCU:\\Control Panel\\Mouse|name=MouseThreshold1",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKCU:\\Control Panel\\Mouse",
+                                                                           "name":  "MouseThreshold1",
+                                                                           "exists":  true,
+                                                                           "kind":  "String",
+                                                                           "value":  "6",
+                                                                           "missingDepth":  0
+                                                                       }
+                                                                   ]
+                                                     }
+                                        },
+                                        {
+                                            "index":  2,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKCU:\\Control Panel\\Mouse|name=MouseThreshold2",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKCU:\\Control Panel\\Mouse",
+                                                                           "name":  "MouseThreshold2",
+                                                                           "exists":  true,
+                                                                           "kind":  "String",
+                                                                           "value":  "10",
+                                                                           "missingDepth":  0
+                                                                       }
+                                                                   ]
+                                                     }
+                                        }
+                                    ]
+                    },
+                    {
+                        "tweakId":  "sec.autorun-off",
+                        "result":  "Applied",
+                        "message":  "",
+                        "time":  "2026-10-17T01:01:19.6338083Z",
+                        "actions":  [
+                                        {
+                                            "index":  0,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer|name=NoDriveTypeAutoRun",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+                                                                           "name":  "NoDriveTypeAutoRun",
+                                                                           "exists":  false,
+                                                                           "kind":  null,
+                                                                           "value":  null,
+                                                                           "missingDepth":  6
+                                                                       }
+                                                                   ]
+                                                     }
+                                        },
+                                        {
+                                            "index":  1,
+                                            "type":  "registry",
+                                            "fingerprint":  "registry|path=HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer|name=NoAutorun",
+                                            "data":  {
+                                                         "items":  [
+                                                                       {
+                                                                           "scope":  "",
+                                                                           "path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+                                                                           "name":  "NoAutorun",
+                                                                           "exists":  false,
+                                                                           "kind":  null,
+                                                                           "value":  null,
+                                                                           "missingDepth":  6
+                                                                       }
+                                                                   ]
+                                                     }
+                                        }
+                                    ]
+                    }
+                ]
+}

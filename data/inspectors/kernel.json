@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 2,
+  "kind": "kernelInspector",
+  "description": "Read-only kernel and memory inspector. Lists every value under these keys; values documented here show their meaning and Windows default. Values can only be changed through the linked catalog item; values linked to a rejected entry are explained but never changed.",
+  "keys": [
+    {
+      "id": "kernel",
+      "name": "Session Manager\\kernel",
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\kernel",
+      "hint": "Kernel object manager and timer settings.",
+      "description": "Settings read by the kernel at boot. Most values here are set by Windows itself; the timer-resolution value is the only one iG Windows Tuner catalogues.",
+      "values": [
+        {
+          "name": "GlobalTimerResolutionRequests",
+          "default": "<absent>",
+          "absentMeans": 0,
+          "meaning": "1 restores the pre-2004 behaviour where one process's timer-resolution request affects the whole system.",
+          "item": "sched.global-timer-resolution",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod" ]
+        },
+        {
+          "name": "ObCaseInsensitive",
+          "default": 1,
+          "meaning": "Object names are case-insensitive. 0 is only for POSIX subsystems and breaks normal Windows path handling.",
+          "sources": []
+        },
+        {
+          "name": "DisableTsx",
+          "default": "<absent>",
+          "meaning": "Intel TSX control used by speculative-execution mitigations. iG Windows Tuner never changes mitigation settings.",
+          "rejected": "rejected.spectre-mitigations-off",
+          "sources": [
+            "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11"
+          ]
+        },
+        {
+          "name": "MitigationOptions",
+          "default": "<absent>",
+          "meaning": "System-wide exploit protection settings written by Windows Security or Set-ProcessMitigation -System. Change them only through exploit protection.",
+          "item": "sec.exploit-protection-defaults",
+          "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/customize-exploit-protection" ]
+        },
+        {
+          "name": "MitigationAuditOptions",
+          "default": "<absent>",
+          "meaning": "Audit-mode counterpart of MitigationOptions (exploit protection).",
+          "item": "sec.exploit-protection-defaults",
+          "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/customize-exploit-protection" ]
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "name": "Session Manager\\Memory Management",
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+      "hint": "Page file, pool and memory manager settings. Most popular tweaks here are obsolete or harmful.",
+      "description": "The memory manager sizes pools and caches dynamically on 64-bit Windows. The page file configuration is the only value iG Windows Tuner changes here (system-managed page file); the classic 'memory tweaks' are explained and rejected.",
+      "values": [
+        {
+          "name": "PagingFiles",
+          "default": [ "?:\\pagefile.sys" ],
+          "meaning": "Page file configuration. '?:\\pagefile.sys' means a system-managed page file; 'C:\\pagefile.sys 4096 8192' a fixed size; an empty list no page file.",
+          "item": "system.pagefile-auto",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/introduction-to-the-page-file" ]
+        },
+        {
+          "name": "ClearPageFileAtShutdown",
+          "default": 0,
+          "meaning": "1 overwrites the page file at shutdown (security policy 'Shutdown: Clear virtual memory pagefile'); shutdowns get slower.",
+          "sources": [
+            "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/shutdown-clear-virtual-memory-pagefile"
+          ]
+        },
+        {
+          "name": "DisablePagingExecutive",
+          "default": 0,
+          "meaning": "1 keeps kernel-mode code and drivers in RAM. No measurable benefit with enough memory.",
+          "rejected": "rejected.disable-paging-executive",
+          "sources": []
+        },
+        {
+          "name": "LargeSystemCache",
+          "default": 0,
+          "meaning": "1 favours the file cache over programs, a server setting that hurts desktop responsiveness.",
+          "rejected": "rejected.large-system-cache",
+          "sources": []
+        },
+        {
+          "name": "FeatureSettingsOverride",
+          "default": "<absent>",
+          "meaning": "Overrides speculative-execution mitigations. Set by tools that turn mitigations off.",
+          "rejected": "rejected.spectre-mitigations-off",
+          "sources": [
+            "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11"
+          ]
+        },
+        {
+          "name": "FeatureSettingsOverrideMask",
+          "default": "<absent>",
+          "meaning": "Mask that goes with FeatureSettingsOverride.",
+          "rejected": "rejected.spectre-mitigations-off",
+          "sources": [
+            "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11"
+          ]
+        },
+        {
+          "name": "SecondLevelDataCache",
+          "default": 0,
+          "meaning": "Legacy L2 cache size hint from the Windows NT era. Modern Windows reads cache sizes from the CPU and ignores tuning here.",
+          "sources": []
+        },
+        {
+          "name": "NonPagedPoolSize",
+          "default": 0,
+          "meaning": "0 lets Windows size the non-paged pool dynamically (64-bit Windows does this well).",
+          "sources": []
+        },
+        { "name": "PagedPoolSize", "default": 0, "meaning": "0 lets Windows size the paged pool dynamically.", "sources": [] },
+        { "name": "SystemPages", "default": 0, "meaning": "0 lets Windows size system page table entries dynamically.", "sources": [] },
+        { "name": "SessionPoolSize", "default": 4, "meaning": "Session pool size in MB, a Windows default.", "sources": [] },
+        { "name": "SessionViewSize", "default": 48, "meaning": "Session view space in MB, a Windows default.", "sources": [] }
+      ]
+    },
+    {
+      "id": "priority",
+      "name": "PriorityControl",
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+      "hint": "Foreground boost and quantum settings. Popular 'priority separation' tweaks are placebo.",
+      "description": "Win32PrioritySeparation controls quantum length and the foreground boost. Windows' client default already favours the foreground window.",
+      "values": [
+        {
+          "name": "Win32PrioritySeparation",
+          "default": 2,
+          "meaning": "Quantum length and foreground boost. 2 is the client default (short, variable quanta with foreground boost).",
+          "rejected": "rejected.win32-priority-separation",
+          "sources": []
+        },
+        {
+          "name": "IRQ8Priority",
+          "default": "<absent>",
+          "meaning": "A Windows 9x-era myth; Windows NT ignores IRQ priority values here.",
+          "rejected": "rejected.irq-priority",
+          "sources": []
+        },
+        { "name": "ConvertibleSlateMode", "default": 0, "meaning": "Tablet/laptop posture reported by convertible devices. Not a tuning value.", "sources": [] }
+      ]
+    },
+    {
+      "id": "multimedia",
+      "name": "Multimedia\\SystemProfile (MMCSS)",
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+      "hint": "Multimedia Class Scheduler settings that games and audio apps use to get CPU priority.",
+      "description": "MMCSS reserves CPU time for low-priority work while multimedia threads run and throttles non-multimedia network processing during playback. Values below 10 or above 100 are clamped to 20 by Windows.",
+      "values": [
+        {
+          "name": "SystemResponsiveness",
+          "default": 20,
+          "meaning": "Percentage of CPU guaranteed to low-priority work. Rounded down to tens; below 10 or above 100 is clamped to 20; 100 disables MMCSS.",
+          "item": "sched.system-responsiveness",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "NetworkThrottlingIndex",
+          "default": 10,
+          "meaning": "Limits non-multimedia network packet processing while MMCSS multimedia playback runs. 0xFFFFFFFF disables the throttling.",
+          "item": "sched.network-throttling-off",
+          "sources": []
+        },
+        {
+          "name": "NoLazyMode",
+          "default": "<absent>",
+          "meaning": "Undocumented community value. Not read by current Windows as far as Microsoft documents.",
+          "sources": []
+        }
+      ]
+    },
+    {
+      "id": "games",
+      "name": "MMCSS task: Games",
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+      "hint": "Thread characteristics for games that register with MMCSS. GPU Priority and SFIO Priority are not used by Windows.",
+      "description": "Only applies to threads that call the MMCSS API for the Games task; most games do not. Microsoft documents GPU Priority and SFIO Priority as unused, so the popular edits have no effect.",
+      "values": [
+        {
+          "name": "Affinity",
+          "default": 0,
+          "meaning": "Processor affinity bitmask; 0 means no affinity.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "Background Only",
+          "default": "False",
+          "meaning": "Whether the task has no user interface.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "Clock Rate",
+          "default": 10000,
+          "meaning": "Scheduling granularity hint (100 ns units); no guarantee since Windows 7.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "GPU Priority",
+          "default": 8,
+          "meaning": "Documented by Microsoft as not used.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "Priority",
+          "default": 2,
+          "meaning": "Task priority 1 (low) to 8 (high).",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "Scheduling Category",
+          "default": "Medium",
+          "meaning": "High, Medium or Low scheduling category.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        },
+        {
+          "name": "SFIO Priority",
+          "default": "Normal",
+          "meaning": "Documented by Microsoft as not used.",
+          "rejected": "rejected.mmcss-games-task",
+          "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+        }
+      ]
+    },
+    {
+      "id": "crash",
+      "name": "CrashControl",
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+      "hint": "What Windows writes and shows when it stops with a blue screen.",
+      "description": "Startup and recovery settings: the dump type, where dumps go, and whether Windows restarts automatically. Changes take effect after a restart.",
+      "values": [
+        {
+          "name": "CrashDumpEnabled",
+          "default": 7,
+          "meaning": "0 none, 1 complete, 2 kernel, 3 small (minidump), 7 automatic memory dump.",
+          "item": "system.dump-small",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "AutoReboot",
+          "default": 1,
+          "meaning": "1 restarts automatically after a blue screen; 0 keeps the stop screen up.",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "DumpFile",
+          "default": "%SystemRoot%\\MEMORY.DMP",
+          "meaning": "Path of the kernel, complete or automatic memory dump.",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "MinidumpDir",
+          "default": "%SystemRoot%\\Minidump",
+          "meaning": "Folder for small memory dumps.",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "Overwrite",
+          "default": 1,
+          "meaning": "1 overwrites an existing memory dump file.",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "LogEvent",
+          "default": 1,
+          "meaning": "1 writes an event to the System log after a stop error.",
+          "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ]
+        },
+        {
+          "name": "DisplayParameters",
+          "default": "<absent>",
+          "absentMeans": 0,
+          "meaning": "1 shows the stop code parameters on the blue screen (community-known value, not documented by Microsoft).",
+          "item": "system.bsod-details",
+          "sources": []
+        }
+      ]
+    }
+  ]
+}

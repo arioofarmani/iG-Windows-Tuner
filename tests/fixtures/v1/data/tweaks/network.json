@@ -1,0 +1,259 @@
+{
+  "category": "Network",
+  "tweaks": [
+    {
+      "id": "net.adapter-power-saving-off",
+      "name": "Network adapter power saving off",
+      "category": "Network",
+      "group": "Adapter",
+      "order": 50,
+      "hint": "Unticks 'Allow the computer to turn off this device to save power' on the wired adapter. Legacy setting; measure. Reboot.",
+      "description": "Writes PnPCapabilities = 24 in the active wired adapter's driver key, the value behind the Device Manager option 'Allow the computer to turn off this device to save power'. Prevents Windows from powering the NIC down. Only the active physical Ethernet adapter is touched; virtual and VPN adapters are skipped. Drivers based on NetAdapterCx may ignore this value; check the Device Manager Power Management tab and measure for link drops after resume.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/answers/questions/2848292/power-management-allow-the-computer-to-turn-off-th" ],
+        "notes": "Microsoft KB 2740020 (Windows 7 era) documented PnPCapabilities 24 (0x18) to clear the option and 0 to restore it; that article has been retired, and newer NetAdapterCx drivers may ignore the value, so it is Tier B."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true } },
+      "actions": [ { "type": "netAdapterPower", "allowTurnOff": false } ]
+    },
+    {
+      "id": "net.eee-off",
+      "name": "Energy Efficient Ethernet off",
+      "category": "Network",
+      "group": "Adapter",
+      "order": 50,
+      "hint": "Disables EEE (802.3az) low-power idle on the wired adapter, avoiding wake-up latency and link drops.",
+      "description": "Sets the adapter property *EEE to 0 (vendor variants such as 'Green Ethernet' are used only if the driver exposes no *EEE). EEE lets the link enter low-power idle between bursts; Intel documents that the transition adds latency and recommends disabling EEE when it causes speed or drop issues. Written without restarting the adapter; takes effect after an adapter restart or reboot.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://edc.intel.com/content/www/us/en/design/products/ethernet/adapters-and-devices-user-guide/other-power-options",
+          "https://www.intel.com/content/www/us/en/support/articles/000093989/ethernet-products.html"
+        ],
+        "notes": "Vendor documentation (Intel). Marvell AQtion exposes *EEE."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true } },
+      "actions": [
+        { "type": "netAdapterAdvanced", "keyword": "*EEE", "on": "0", "default": "1", "fallback": [
+          { "displayName": "Energy Efficient Ethernet", "displayValue": "Disabled" },
+          { "displayName": "Energy-Efficient Ethernet", "displayValue": "Disabled" },
+          { "displayName": "Green Ethernet", "displayValue": "Disabled" },
+          { "displayName": "Advanced EEE", "displayValue": "Disabled" } ] }
+      ]
+    },
+    {
+      "id": "net.rss-on",
+      "name": "Receive Side Scaling on",
+      "category": "Network",
+      "group": "Adapter",
+      "order": 50,
+      "hint": "Ensures RSS spreads network receive processing across CPU cores. Usually already on (verify-only).",
+      "description": "Sets *RSS to 1 if a driver or tool turned it off. RSS distributes receive interrupts and DPCs over multiple cores, avoiding one core becoming a bottleneck. It is the Windows and vendor default for modern NICs.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/standardized-inf-keywords-for-rss",
+          "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics"
+        ],
+        "notes": "Standardized keyword *RSS."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true } },
+      "actions": [ { "type": "netAdapterAdvanced", "keyword": "*RSS", "on": "1", "default": "1" } ]
+    },
+    {
+      "id": "net.tcp-autotuning-normal",
+      "name": "TCP auto-tuning: Normal",
+      "category": "Network",
+      "group": "TCP/IP",
+      "order": 50,
+      "hint": "Repairs TCP receive-window auto-tuning to Normal if an old 'optimizer' set it to Disabled.",
+      "description": "Ensures the Internet TCP template uses AutoTuningLevelLocal = Normal, the Windows default. Disabling auto-tuning is an obsolete tweak that caps download throughput on fast fiber links without reducing game latency.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/powershell/module/nettcpip/set-nettcpsetting",
+          "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics"
+        ],
+        "notes": "Repair-only."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [ { "type": "custom", "handler": "TcpAutoTuning" } ]
+    },
+    {
+      "id": "net.interrupt-moderation-off",
+      "name": "Interrupt moderation off",
+      "category": "Network",
+      "group": "Adapter",
+      "order": 51,
+      "hint": "NIC interrupts fire per packet instead of being batched: lower latency, more CPU/DPC load. Measure with LatencyMon.",
+      "description": "Sets *InterruptModeration to 0. Moderation batches interrupts to save CPU; turning it off delivers packets to the stack sooner at the cost of more interrupts and DPC time. Game traffic is small, so the latency gain is microseconds; check DPC latency with LatencyMon and measure ping/jitter before and after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/enumeration-keywords",
+          "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/interrupt-moderation",
+          "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics"
+        ],
+        "notes": "Trade-off documented by Microsoft (latency vs CPU utilization)."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true } },
+      "actions": [ { "type": "netAdapterAdvanced", "keyword": "*InterruptModeration", "on": "0", "default": "1" } ]
+    },
+    {
+      "id": "net.qos-dscp-games",
+      "name": "Game traffic QoS marking (DSCP 46)",
+      "category": "Network",
+      "group": "TCP/IP",
+      "order": 52,
+      "hint": "Marks game UDP packets as Expedited Forwarding. Helps only if your router honors DSCP. Measure ping under load.",
+      "description": "Creates policy-based QoS rules 'AegisTune-<game>' that tag UDP traffic of the games in games.json with DSCP 46, and sets the Tcpip\\QoS 'Do not use NLA' value so the policies also apply on a non-domain PC. A router with QoS/SQM that trusts DSCP can then prioritize game packets. Many consumer routers and ISPs ignore or strip DSCP; measure ping under load (bufferbloat test) before and after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/powershell/module/netqos/new-netqospolicy",
+          "https://learn.microsoft.com/en-us/windows-server/networking/technologies/qos/qos-policy-top"
+        ],
+        "notes": "'Do not use NLA' is documented by router/VoIP vendors (Cisco) rather than Microsoft; it is reversible and harmless if unused."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "actions": [
+        { "type": "netQosPolicy", "dscp": 46, "protocol": "UDP", "namePrefix": "AegisTune-" },
+        { "type": "registry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\QoS", "name": "Do not use NLA", "valueType": "String", "on": "1", "default": "<absent>" }
+      ]
+    },
+    {
+      "id": "net.delayed-ack-off",
+      "name": "TCP delayed ACK off (TCP games only)",
+      "category": "Network",
+      "group": "TCP/IP",
+      "order": 53,
+      "hint": "ACKs every TCP segment immediately. No effect on Dota 2, CS2 or VALORANT (UDP). Measure before/after.",
+      "description": "Sets TcpAckFrequency = 1 on the active wired interface so TCP acknowledges every segment instead of waiting up to 200 ms. Can help older TCP-based games and chat clients; UDP games (Dota 2, CS2, VALORANT, LoL) are unaffected. The popular 'TCPNoDelay' interface value is not implemented because Windows TCP does not read it (Nagle is a per-socket option). Measure before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://support.microsoft.com/kb/328890" ],
+        "notes": "Documented by Microsoft (KB 328890)."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true } },
+      "actions": [
+        { "type": "adapterRegistry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\{InterfaceGuid}", "name": "TcpAckFrequency", "valueType": "DWord", "on": 1, "default": "<absent>" }
+      ]
+    },
+    {
+      "id": "net.wifi-disable",
+      "name": "Disable unused Wi-Fi adapter",
+      "category": "Network",
+      "group": "Adapter",
+      "order": 54,
+      "hint": "Disables the Wi-Fi adapter on an always-wired PC (fewer scans and DPCs, smaller attack surface). Never if Wi-Fi is in use.",
+      "description": "Disables physical Wi-Fi adapters with Disable-NetAdapter. Useful when the PC is always on Ethernet: the radio stops background scans and its driver stops servicing interrupts. Refused when Wi-Fi carries the active connection or in a Remote Desktop session. Bluetooth is not touched. Measure DPC latency before/after if you are chasing spikes.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/netadapter/disable-netadapter" ],
+        "notes": "Not applicable when the Wi-Fi adapter is absent or disabled in firmware."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "+" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "hardware": { "notRdp": true } },
+      "actions": [ { "type": "custom", "handler": "WifiAdapter" } ]
+    },
+    {
+      "id": "net.delivery-optimization-p2p-off",
+      "name": "Delivery Optimization peer-to-peer off",
+      "category": "Network",
+      "group": "Background traffic",
+      "order": 55,
+      "hint": "Windows Update downloads only from Microsoft (HTTP), never uploading to or downloading from other PCs.",
+      "description": "Sets the DODownloadMode policy to 0 (HTTP only, no peering). Stops Delivery Optimization from using your upstream bandwidth to serve update content to other PCs during play. Updates still download normally from Microsoft.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-reference" ],
+        "notes": "Download mode 0 = HTTP only, no peering."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization", "name": "DODownloadMode", "valueType": "DWord", "on": 0, "default": "<absent>" }
+      ]
+    },
+    {
+      "id": "net.doh-quad9",
+      "name": "Encrypted DNS (DoH): Quad9",
+      "category": "Network",
+      "group": "DNS",
+      "order": 56,
+      "hint": "Uses Quad9 (malware-blocking) with DNS-over-HTTPS on the wired adapter. Bypasses router DNS and router filtering.",
+      "description": "Points the active wired adapter to Quad9 (9.9.9.9, 149.112.112.112) and enables DoH auto-upgrade for those addresses with the supported DnsClient cmdlets, without plain-DNS fallback. Quad9 blocks known malicious domains. Warning: if your router provides local DNS (host names, ad/parental filtering), those stop working on this PC. Revert restores your previous DHCP or static DNS exactly.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-server/networking/dns/doh-client-support",
+          "https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientdohserveraddress"
+        ],
+        "notes": "Quad9 is on Windows' built-in list of known DoH servers."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true, "notRdp": true } },
+      "conflictsWith": [ "net.doh-cloudflare" ],
+      "actions": [ { "type": "dnsDoh", "provider": "quad9", "allowFallbackToUdp": false } ]
+    },
+    {
+      "id": "net.doh-cloudflare",
+      "name": "Encrypted DNS (DoH): Cloudflare",
+      "category": "Network",
+      "group": "DNS",
+      "order": 56,
+      "hint": "Uses Cloudflare 1.1.1.1 with DNS-over-HTTPS on the wired adapter. Bypasses router DNS and router filtering.",
+      "description": "Points the active wired adapter to Cloudflare (1.1.1.1, 1.0.0.1) and enables DoH auto-upgrade without plain-DNS fallback. Same trade-offs as the Quad9 option, but without malware filtering. Revert restores your previous DNS exactly.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-server/networking/dns/doh-client-support",
+          "https://learn.microsoft.com/en-us/powershell/module/dnsclient/set-dnsclientdohserveraddress"
+        ],
+        "notes": "Cloudflare is on Windows' built-in list of known DoH servers."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "hardware": { "wiredAdapter": true, "notRdp": true } },
+      "conflictsWith": [ "net.doh-quad9" ],
+      "actions": [ { "type": "dnsDoh", "provider": "cloudflare", "allowFallbackToUdp": false } ]
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "category": "Storage",
+  "tweaks": [
+    {
+      "id": "storage.storage-sense-weekly",
+      "name": "Storage Sense on (weekly, temporary files)",
+      "category": "Storage",
+      "group": "Storage Sense",
+      "order": 10,
+      "level": "Standard",
+      "hint": "Turns on Windows' built-in Storage Sense to clean temporary files every week. Settings shows it as managed by policy.",
+      "description": "Sets the documented Storage Sense policies: Storage Sense on, run weekly, and clean temporary files that apps no longer use. Windows does the cleanup itself on a schedule, so iG Windows Tuner does not need to run. While the policy is set, the Settings toggles are locked ('managed by your organization'); Revert removes the policies again.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-storage" ],
+        "notes": "Policy CSP Storage/AllowStorageSenseGlobal, ConfigStorageSenseGlobalCadence (7 = weekly) and AllowStorageSenseTemporaryFilesCleanup; ADMX-backed values under HKLM\\Software\\Policies\\Microsoft\\Windows\\StorageSense."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "storageSense", "setting": "enabled", "value": 1 },
+        { "type": "storageSense", "setting": "cadence", "value": 7 },
+        { "type": "storageSense", "setting": "temporaryFiles", "value": 1 }
+      ]
+    },
+    {
+      "id": "storage.recycle-bin-30-days",
+      "name": "Storage Sense: empty Recycle Bin items after 30 days",
+      "category": "Storage",
+      "group": "Storage Sense",
+      "order": 20,
+      "level": "Standard",
+      "hint": "Lets Storage Sense permanently delete Recycle Bin items older than 30 days. Works only while Storage Sense is on.",
+      "description": "Sets the documented Recycle Bin threshold policy to 30 days, the same choice offered in Settings > System > Storage > Storage Sense. Items deleted more than 30 days ago are removed for good when Storage Sense runs. It has no effect while Storage Sense is off.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-storage" ],
+        "notes": "Policy CSP Storage/ConfigStorageSenseRecycleBinCleanupThreshold (days, 0 = never)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "storageSense", "setting": "recycleBinDays", "value": 30 }
+      ]
+    },
+    {
+      "id": "storage.downloads-60-days",
+      "name": "Storage Sense: delete unopened Downloads after 60 days",
+      "category": "Storage",
+      "group": "Storage Sense",
+      "order": 30,
+      "level": "Expert",
+      "hint": "Lets Storage Sense permanently delete Downloads files not opened for 60 days. Opt-in; files you keep there are lost.",
+      "description": "Sets the documented Downloads threshold policy to 60 days. When Storage Sense runs, files in Downloads that were not opened for that long are deleted. Many people keep installers and documents in Downloads, so this is an expert toggle and never part of a preset. It has no effect while Storage Sense is off.",
+      "warning": "Storage Sense deletes files in Downloads that were not opened for 60 days, without the Recycle Bin. Move files you want to keep first.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-storage" ],
+        "notes": "Policy CSP Storage/ConfigStorageSenseDownloadsCleanupThreshold (days, 0 = never)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "storageSense", "setting": "downloadsDays", "value": 60 }
+      ]
+    }
+  ]
+}

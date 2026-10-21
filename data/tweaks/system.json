@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 2,
+  "category": "System",
+  "tweaks": [
+    {
+      "id": "system.pagefile-auto",
+      "name": "Page file managed by Windows",
+      "category": "System",
+      "group": "Memory",
+      "order": 70,
+      "level": "Standard",
+      "hint": "Lets Windows size the page file on every drive. Repairs a disabled or too small page file left by tweak tools. Reboot.",
+      "description": "Sets PagingFiles to '?:\\pagefile.sys', the system-managed configuration Windows ships with. The page file backs crash dumps and extends the commit limit; a missing or tiny one causes out-of-memory errors and lost crash dumps. Windows grows a system-managed page file only when commit pressure needs it. Turning the item off restores your previous page file setting exactly.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/introduction-to-the-page-file",
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options"
+        ],
+        "notes": "Windows default: system-managed on all drives."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+          "name": "PagingFiles",
+          "valueType": "MultiString",
+          "on": [ "?:\\pagefile.sys" ],
+          "default": [ "?:\\pagefile.sys" ]
+        }
+      ]
+    },
+    {
+      "id": "system.dump-small",
+      "name": "Small memory dumps (minidumps) after a crash",
+      "category": "System",
+      "group": "Crash and diagnostics",
+      "order": 71,
+      "level": "Advanced",
+      "hint": "Writes a small minidump instead of a memory dump that can be as large as your RAM. Enough to identify the faulting driver. Reboot.",
+      "description": "Sets CrashDumpEnabled to 3 (small memory dump) instead of 7 (automatic memory dump, the Windows default). Each stop error keeps a minidump in %SystemRoot%\\Minidump with the stop code, loaded drivers and the faulting thread, which is usually enough to find a bad driver, and no multi-gigabyte MEMORY.DMP is written. Deep kernel debugging needs the automatic dump; turn the item off to get it back.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/memory-dump-file-options" ],
+        "notes": "0 none, 1 complete, 2 kernel, 3 small, 7 automatic (default)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+          "name": "CrashDumpEnabled",
+          "valueType": "DWord",
+          "on": 3,
+          "default": 7
+        }
+      ]
+    },
+    {
+      "id": "system.verbose-status",
+      "name": "Detailed startup, shutdown and sign-in status messages",
+      "category": "System",
+      "group": "Crash and diagnostics",
+      "order": 71,
+      "level": "Advanced",
+      "hint": "Shows what Windows is doing during startup, shutdown and sign-in, which helps find what makes them slow.",
+      "description": "Enables the 'Display highly detailed status messages' policy (VerboseStatus = 1). Instead of 'Please wait', Windows names the step it is on (for example applying policies or stopping a service), so a slow boot or shutdown points to its cause. It has no effect when status messages are turned off by policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/enable-verbose-startup-shutdown-logon-logoff-status-messages",
+          "https://learn.microsoft.com/en-us/previous-versions/ms813386(v=msdn.10)"
+        ],
+        "notes": "Policy value absent by default."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "name": "VerboseStatus",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "system.bsod-details",
+      "name": "Show stop code parameters on the blue screen",
+      "category": "System",
+      "group": "Crash and diagnostics",
+      "order": 71,
+      "level": "Advanced",
+      "hint": "Adds the stop code parameters to the blue screen so you can note them before Windows restarts. Undocumented value (Tier B).",
+      "description": "Sets CrashControl DisplayParameters = 1, which adds the four stop code parameters to the blue screen. Microsoft does not document this value; it is widely used and listed in WinUtil, so it is Tier B. There is nothing to measure: it only changes what the stop screen shows, and the minidump records the same parameters.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://winutil.christitus.com/dev/tweaks/customize-preferences/detailedbsod/" ],
+        "notes": "Community-known value; not on Microsoft Learn."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil, tweak 'Detailed BSoD' (DisplayParameters); MIT License",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+          "name": "DisplayParameters",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    }
+  ]
+}

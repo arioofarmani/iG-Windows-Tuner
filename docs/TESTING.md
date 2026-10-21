@@ -1,0 +1,73 @@
+# Testing
+
+## Automated checks (read-only)
+
+```powershell
+# non-elevated Windows PowerShell 5.1, from the project folder
+.\tools\Invoke-QualityChecks.ps1      # catalog + Pester 5 + PSScriptAnalyzer + Defender custom scan
+```
+
+Current results (Windows 11 Pro 26H2):
+
+| Check | Result |
+|---|---|
+| `tools\Test-Catalog.ps1` | OK: 84 tweaks (57 Tier A, 27 Tier B), 3 presets, 38 rejected entries |
+| Pester 5.7.1 (`tests\`) | **506 passed, 0 failed, 1 skipped** (the symlink test needs Developer Mode) |
+| PSScriptAnalyzer 1.25.0 (`-Recurse`, project settings) | **0 errors, 0 warnings, 0 information** |
+| Microsoft Defender `MpCmdRun.exe -Scan -ScanType 3 -File <project>` | **"found no threats"** (exit code 0) |
+| `.\iGWindowsTuner.ps1 -Report` (not elevated) | Runs read-only and detects the hardware |
+| `.\iGWindowsTuner.ps1 -Preset Competitive -DryRun` | Prints the full diff and changes nothing |
+| GUI pages | Every page rendered offscreen at 100 %, 125 % and 150 % layout scale (`Show-IgwtGui -RenderTo <folder> -Scale <n>`) and inspected |
+
+When you develop on your everyday PC, stick to read-only commands (`-Report`, `-DryRun`, `-Clean -Scan`, the inspectors and the test suite) and run real apply and revert cycles only in Windows Sandbox (below).
+
+### What the Pester suite covers
+
+| File | Covers |
+|---|---|
+| `Catalog.Tests.ps1` | Required fields, hint of 140 characters or less, Tier A/B sources and "measure" wording, unique ids, revert path for every action, presets reference existing ids, no rejected/expert/conflicting items in presets, Balanced is Tier A only, Hardened is a superset of Balanced, verified ASR GUIDs, no anti-cheat services, no BCD/Secure Boot/Spectre settings |
+| `Registry.Tests.ps1` | Snapshot fidelity for DWORD (including 0xFFFFFFFF), QWORD (max value), REG_SZ, REG_EXPAND_SZ (unexpanded), REG_MULTI_SZ (including empty strings) and REG_BINARY; "value did not exist" restore; removal of keys iG Windows Tuner created (never pre-existing ones); wrong-type rewrite and exact revert; bitClear; absentValue; equivalentOn; onlyIfAbsent; reset to default; TestMode redirection safety |
+| `RegistryListMerge.Tests.ps1` | Semicolon list parsing; merging preserves unrelated and raw items; replacement in place; removal; exact-string revert; creating and deleting the value |
+| `Engine.Tests.ps1` | Dry run changes nothing; apply -> verify -> snapshot; idempotent second apply; revert by id (types and absent values exact); no double revert; `-Last`; reset to defaults; **atomic rollback** of a failing tweak while the run continues; expert toggles need `-AcknowledgeRisk`; conflicting and unknown ids refused; snapshot/catalog fingerprint mismatch refused; state roll-up; ManagedByPolicy; NotApplicable (runtime conditions, RDP); schema 2 snapshots record each item's level |
+| `Actions.Tests.ps1` | Mocked round trips for powercfg schemes/settings, the Ultimate plan (create and delete only its own copy, reuse an existing copy), hibernation, Defender preferences (allow-list enforced), ASR rules (add/remove, restore previous action, never weaken Block), CFA allow-list, adapter advanced properties (keyword and vendor fallback), netAdapterPower, adapterRegistry token expansion, QoS, DoH with DHCP restore, services (anti-cheat services refused), TCP auto-tuning, firewall, Wi-Fi (refused when connected), optional features, Startup Apps (StartupApproved only, snapshot revert) |
+| `Health.Tests.ps1` | Microcode parsing (4- and 8-byte formats), boot-flag parsing (test signing, kernel debug), refresh-rate tolerance, nvidia-smi BAR1 parsing, Steam `libraryfolders.vdf` parsing, anti-cheat readiness roll-up (Green, Amber, Red) |
+| `Xaml.Tests.ps1` | XAML is well-formed and parses headlessly into a Window with every named control and theme resource; every button and input has a tooltip; every navigation entry has a tooltip; the worker only runs exported commands; inbox fonts only, no external assets |
+| `Safety.Tests.ps1` | Static scan of shipped code: no bcdedit, Invoke-Expression, Base64/EncodedCommand, downloads, persistence, hidden windows, execution-policy changes, AMSI/ETW/Defender tampering or exclusions, UAC bypass; exactly one C# Add-Type (the SystemParametersInfo P/Invoke); only allowed executables; no runtime-built command names; every function defined once; no `$name?` in strings; ASR-only exclusions and ASR registry writes confined to the ASR Center; audit view, score, accounts and network surface code is read-only; no explicit ASR Off |
+| `Cleaner.Tests.ps1` | Cleaner catalog (hint, description, levels, opt-in rules), path canonicalization (8.3 names, `..`), denylist, malicious and injected roots, junction and symlink handling (including a junction swapped in after the scan), locked, offline, read-only and changed files, age filter, keepNewest, Recycle Bin path for Downloads, service restore after a failure, Recycle Bin/Delivery Optimization/DISM/driver store through mocks, deletion log rotation, disk analyzer, Storage Sense apply/revert in TestRegistry |
+| `Schema.Tests.ps1` | Schema v2: every data file declares version 2, every tweak/rule/preset/hardware tag has a hint (140 characters or fewer) and a description, valid level/tier/antiCheat/reversible/source/hardware tags, no Lab/rejected/non-safe items in gaming presets, the validator reports each broken field; v1 migration of the frozen 1.0 fixtures (ids and action fingerprints unchanged, level and anti-cheat mapping, conditions, intent presets, idempotent, id map); in-memory loading of unmigrated v1 files; the JSON writer; a real 1.0 snapshot read as schema 2 without changing the file and reverted exactly (by id and by file), plus schema 2 copies |
+| `Hardware.Tests.ps1` | Six hardware fixtures (this PC captured read-only, AMD X3D dual-CCD desktop, Intel laptop, AMD laptop, Intel Arc desktop, VM) contain no identifiers and produce the expected tags; mobile Raptor Lake, non-hybrid 12th gen, integrated Arc and VM edge cases; Modern Standby parsing; per-fixture preset resolution (X3D plan blocks, laptop and Modern Standby plan blocks, SysMain kept on slow disks or low RAM even as an add-on, I226 EEE add, VM hardware blocks); resolution order (exclude beats overlay add, ceiling/Lab/anti-cheat limits on adds, user add-ons and removals last); blocked items are Not applicable, cannot be applied, and stay On when already applied so they can be reset; validator reports broken overlays and detection rules |
+| `Asr.Tests.ps1` | ASR rule catalog (all 19 verified GUIDs, hint/description/gamer impact, Warn/cloud/server-only flags, recommendation rules, the validator reports a broken catalog); ASR status (local, Group Policy and MDM sources, cloud dependency, per-rule exclusions confirmed only when Defender reports them, unreadable global exclusions, recommendation plan never lowers a rule); exclusion path validation (accepted and refused paths); changes with stateful Defender mocks in TestRegistry (mode set and exact revert, refusals before any change, recommendations, per-rule exclusions written to the GP registry settings and fully removed on revert, shared policy switch kept, global exclusions, tampered snapshot entries rejected, no-op requests write nothing); audit view (event XML parsing without command lines, empty and unreadable logs, grouping and every recommendation type); security score (every check has hint, description and a valid fix route; weighting, warnings, excluded checks); local accounts audit; network surface; the new security catalog items; CLI argument checks |
+| `Inspectors.Tests.ps1` | powercfg parser (numeric and enumerated settings, UNKNOWN indexes, localized labels); power editor settings catalog; power inspector and editor with a stateful powercfg mock (defaults and hidden state, overlay blocks for hybrid CPUs and laptops, range and option checks, acknowledgement, snapshot and exact revert, Windows default, no-op, tampered snapshot rejected, defaults of plan copies); interrupt inspector (modes from allocated resources, MSI and affinity registry, target CPUs, storage and non-PCI devices); NIC queue inspector (RSS and buffer advice from discard counters); kernel inspector statuses and links, crash and page file inspector, timer inspector, failure isolation; phase 6 catalog items; CLI argument checks |
+| `Manage.Tests.ps1` | Protection data (`Test-IgwtManageCatalog`, protected services); managed changes with stateful mocks (service startup type and exact revert through `Invoke-IgwtRevert`, no-op and dry-run plan, refusals of protected services, drivers, unknown services and invalid values, tampered snapshot rejected, task disable/enable and refusals of security and anti-cheat tasks, protected and system Appx packages, protected features and capabilities, app firewall rule round trip and Windows rules refused); service ratings, task and app inventories; Persistence Inspector (command-line parsing, Run keys, IFEO, Winlogon, WMI consumers and browser extensions from TestDrive/TestRegistry fixtures, HTML export without scripts); Windows Update status (policies, pending restart, Defender definitions ignored, failures and advice, unavailable history); network toolkit (hosts flags, DNS benchmark ordering and failures, latency/jitter/loss, firewall browser, adapter property descriptions); diagnostics (raw counter math, DPC/ISR sampling and top processes, crash events and minidumps, boot event XML, driver flags including the Intel placeholder date, failure isolation); system report export; phase 7 catalog items; CLI argument checks |
+| `Handlers.Tests.ps1` | Round trip (detect, snapshot serialized through JSON, apply, detect, restore, detect) for every 2.0 action type: storageSense and wufbPolicy (including exact restore of existing values and target-release strings), deviceInterrupt (MSI only where declared, affinity key removal, no default, class and USB-boot guards), serviceSet (and protected services), powercfgAttribute (exact Attributes value), powercfgSettingAcDc, scheduledTask (protected paths), firewallRule (owned block rule and group with per-rule restore; refuses foreign and Allow rules), appx (re-register or Store reinstall; protected apps), winget, capability, processMitigation/exploitSystem (NOTSET restored with -Remove; never system OFF; repair-only items treat "use default" as on), cleanerRule (nothing to revert), DefaultApp check; winget refuses to run unmocked; validation messages for invalid 2.0 actions; fingerprints |
+
+Safety of the suite itself: every registry path is redirected into Pester's `TestRegistry:` drive, and TestMode makes any escaping path throw. `powercfg`, `nvidia-smi` and the Windows Update Agent throw unless mocked, DNS queries and pings are mocked, all system cmdlets are mocked per test, and the suite refuses to run elevated on a real machine.
+
+## End-to-end test in Windows Sandbox
+
+Windows Sandbox is a disposable VM, so the real apply/revert path can be exercised there without touching your PC.
+
+1. Enable the optional feature "Windows Sandbox" if it is not on yet (your decision; iG Windows Tuner does not do it).
+2. Run `.\tools\New-SandboxConfig.ps1`. It creates `..\iGWindowsTuner-SandboxResults` and writes `tools\iGWindowsTuner.wsb` with this folder's path (the project is mapped read-only).
+3. Double-click `tools\iGWindowsTuner.wsb`. At logon the sandbox runs `tools\Invoke-SandboxTest.ps1`, which refuses to run anywhere except the sandbox account. It runs the health report, then applies every non-expert tweak (one of each conflicting pair, no restore point because the sandbox has no System Protection), verifies them, reverts from the snapshot, and verifies that every captured registry value is back exactly.
+4. Read `iGWindowsTuner-SandboxResults\summary.txt` (plus `results.json`, `report.html`, `transcript.txt` and the logs).
+
+Expected in the sandbox: GPU, TPM, Secure Boot, HVCI and wired-adapter items report NotApplicable or stay Off (the sandbox has a virtual Hyper-V adapter and no TPM). Defender items depend on the sandbox's Defender state. "PASS" means no apply failures, no revert failures, and no registry value that differs after the revert.
+
+## Manual before/after measurement plan (Tier B items and presets)
+
+Measure on a quiet system (reboot first, close overlays and launchers you do not need), with the same game build, map, settings and replay. Change one thing at a time.
+
+1. **Frametimes**: capture 3 runs of 60-120 s with **PresentMon** (<https://github.com/GameTechDev/PresentMon>) or **CapFrameX**. Compare average FPS, **1 % and 0.1 % lows** and the frametime variance. Dota 2: replay the same demo tick range with `demo_timescale 1`. CS2: a workshop benchmark map. Treat differences inside the run-to-run spread as noise.
+2. **Input and system latency**: if the game supports Reflex, read the NVIDIA overlay's PC latency (or use a Reflex Latency Analyzer monitor).
+3. **DPC/ISR latency**: run **LatencyMon** for 10 minutes idle and 10 minutes in game. Check the highest DPC/ISR execution time and the driver that caused it, especially after `net.interrupt-moderation-off` and HAGS changes.
+4. **Network**: ping and jitter to the game region (the in-game net graph, `ping -n 100 <server>`). Run a **bufferbloat test** (<https://www.waveform.com/tools/bufferbloat>) idle and under load. QoS/DSCP can only help if the router honors DSCP or runs SQM.
+5. **Audio**: with SystemResponsiveness 10, listen for crackles under load. MMCSS reserves less CPU for background work.
+
+Record the results (date, build, driver, settings, numbers) next to the snapshot file so any change can be correlated and reverted.
+
+## DPI and layout
+
+- Windows scaling at 100/125/150 %: WPF scales vector content at the system DPI. Every page was rendered at 1.0, 1.25 and 1.5 scale offscreen (`Show-IgwtGui -RenderTo .\shots -Scale 1.25`) and checked for clipping.
+- For a real per-monitor check, move the window between monitors with different scaling. It stays sharp on the primary monitor and is bitmap-scaled on others (see DECISIONS E7).
+- Keyboard: Tab through the navigation and lists, Space toggles, Ctrl+F searches, F5 refreshes.

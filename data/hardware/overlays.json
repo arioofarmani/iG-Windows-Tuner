@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 2,
+  "description": "Hardware overlays. An overlay is active when the PC has any of its tags. 'block' and 'blockMatching' make items Not applicable on that hardware (already-applied items can still be turned off); 'add' puts items into presets when the preset allows them; 'guidance' is shown in the report and in preset dry runs. Resolution order: intent preset -> hardware overlays -> your add-ons.",
+  "overlays": [
+    {
+      "id": "overlay.intel-hybrid",
+      "name": "Intel hybrid CPU: scheduler stays in charge",
+      "tags": [ "intel.hybrid" ],
+      "hint": "Keeps Power Throttling on and blocks core-parking and heterogeneous-scheduling overrides on P-core/E-core CPUs.",
+      "description": "Intel Thread Director feeds the Windows scheduler, which places foreground work on P-cores and background work on E-cores. Intel's guidance is to avoid hard affinities and let the OS schedule; Power Throttling is part of that placement. So presets keep Power Throttling on, and items that change core parking or the heterogeneous scheduling policy are blocked on this hardware.",
+      "basis": "vendor",
+      "sources": [
+        "https://www.intel.com/content/www/us/en/developer/articles/guide/12th-gen-intel-core-processor-gamedev-guide.html",
+        "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service"
+      ],
+      "add": [ "power.power-throttling-on" ],
+      "blockMatching": [
+        { "type": "powercfgSetting", "setting": [ "7f2f5cfa-f10c-4823-b5e1-e93ae85f46b5", "93b8b6dc-0698-4d1c-9ee4-0644e900c85d", "bae08b81-2d5e-4688-ad6a-13243356654b",
+          "0cc5b647-c1df-4637-891a-dec35c318583", "0cc5b647-c1df-4637-891a-dec35c318584", "ea062031-0e34-4ff1-9b6d-eb1059334028", "ea062031-0e34-4ff1-9b6d-eb1059334029" ] }
+      ],
+      "guidance": [ "Do not pin games to P-cores with affinity tools; Windows 11 and Thread Director already prefer P-cores for foreground work." ]
+    },
+    {
+      "id": "overlay.raptorlake-voltage",
+      "name": "Raptor Lake desktop: Vmin Shift protection",
+      "tags": [ "intel.raptorlake.desktop" ],
+      "hint": "Checks for microcode 0x12F or newer and blocks items that keep cores out of idle states on 13th/14th gen desktop CPUs.",
+      "description": "Intel traced Vmin Shift Instability on 13th and 14th gen desktop processors to elevated core voltage over time and fixed it with microcode updates up to 0x12F. Keeping cores out of idle states (processor idle disable) holds them at active voltage, so such items are blocked here. The health report checks the microcode revision; Intel recommends the latest BIOS with the Intel Default Settings profile.",
+      "basis": "vendor",
+      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000102331/processors.html" ],
+      "blockMatching": [ { "type": "powercfgSetting", "setting": [ "5d76a2ca-e8c0-402f-a133-2158492d58ad" ] } ],
+      "guidance": [ "Keep the motherboard BIOS current (microcode 0x12F or newer) and use the Intel Default Settings profile. iG Windows Tuner never changes firmware, voltages or power limits." ]
+    },
+    {
+      "id": "overlay.amd-x3d-dualccd",
+      "name": "AMD X3D dual-CCD: keep V-Cache core steering working",
+      "tags": [ "amd.x3d.dualccd" ],
+      "hint": "Blocks High/Ultimate Performance plans and core-parking changes so the AMD driver can steer games to the V-Cache CCD.",
+      "description": "On dual-CCD X3D processors the AMD 3D V-Cache Performance Optimizer (part of the AMD chipset driver) parks the second CCD while a game runs, which needs the Balanced plan with core parking active and Windows game detection. High and Ultimate Performance plans disable core parking, so they and core-parking changes are blocked; Game Mode is added to presets.",
+      "basis": "reviewer",
+      "sources": [
+        "https://www.amd.com/en/resources/support-articles/release-notes/RN-RYZEN-CHIPSET-7-11-26-2142.html",
+        "https://www.notebookcheck.net/AMD-Ryzen-9-9950X3D-Review-Ryzen-7-9800X3D-levels-of-gaming-performance-and-power-efficiency-for-50-markup-over-the-Ryzen-9-9950X.976049.0.html"
+      ],
+      "add": [ "gfx.game-mode" ],
+      "block": [ "power.high-performance-plan", "power.ultimate-plan" ],
+      "blockMatching": [
+        { "type": "powercfgSetting", "setting": [ "0cc5b647-c1df-4637-891a-dec35c318583", "0cc5b647-c1df-4637-891a-dec35c318584", "ea062031-0e34-4ff1-9b6d-eb1059334028", "ea062031-0e34-4ff1-9b6d-eb1059334029" ] },
+        { "type": "appx", "name": [ "Microsoft.XboxGamingOverlay" ] }
+      ],
+      "guidance": [ "Install the current AMD chipset driver (it contains the 3D V-Cache Performance Optimizer), keep Game Mode on and keep the Xbox Game Bar app installed and updated." ]
+    },
+    {
+      "id": "overlay.amd-chipset",
+      "name": "AMD Ryzen: chipset driver",
+      "tags": [ "amd.zen" ],
+      "hint": "Reminds you to install the AMD chipset driver, which provides Ryzen power management and scheduler support.",
+      "description": "The AMD chipset driver package installs the Ryzen power-management and scheduling components (including the 3D V-Cache Performance Optimizer on dual-CCD X3D models). Windows Update's generic drivers do not include all of them, so the report points to AMD's package. The power plan follows the selected preset.",
+      "basis": "vendor",
+      "sources": [ "https://www.amd.com/en/resources/support-articles/release-notes/RN-RYZEN-CHIPSET-7-11-26-2142.html" ],
+      "guidance": [ "Install the latest AMD chipset driver from amd.com or your motherboard vendor." ]
+    },
+    {
+      "id": "overlay.modern-standby",
+      "name": "Modern Standby: Balanced plan and power mode",
+      "tags": [ "power.modernstandby" ],
+      "hint": "Modern Standby PCs only support Balanced-derived plans, so plan switches are blocked; use the Windows power mode instead.",
+      "description": "Microsoft documents that devices with Modern Standby only allow the Balanced power plan or plans derived from it, and that performance is tuned with the power mode slider (overlays on top of Balanced). Switching to High or Ultimate Performance is therefore blocked; choose Best performance under Settings > System > Power & battery > Power mode.",
+      "basis": "vendor",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/desktop/customize-power-slider" ],
+      "block": [ "power.high-performance-plan", "power.ultimate-plan" ],
+      "guidance": [ "Use Settings > System > Power & battery > Power mode (Best performance while gaming on AC)." ]
+    },
+    {
+      "id": "overlay.laptop-battery",
+      "name": "Laptop: never reduce battery saving",
+      "tags": [ "formfactor.laptop" ],
+      "hint": "Blocks power-plan switches on laptops; iG Windows Tuner power items only change AC values, so battery (DC) behaviour stays.",
+      "description": "Switching the whole power plan also changes battery (DC) behaviour, so High and Ultimate Performance plans are blocked on laptops; Microsoft's model for portables is the Balanced plan plus the power mode slider. iG Windows Tuner's power settings write AC values only, so DC battery saving is never reduced, and any future item that writes DC values is blocked too.",
+      "basis": "vendor",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/desktop/customize-power-slider" ],
+      "block": [ "power.high-performance-plan", "power.ultimate-plan" ],
+      "blockMatching": [ { "type": "powercfgSetting", "fieldPresent": [ "dc" ] } ],
+      "guidance": [ "Plug in for gaming sessions and use the power mode slider; keep the battery saver behaviour on DC." ]
+    },
+    {
+      "id": "overlay.keep-sysmain",
+      "name": "Slow disk or little RAM: keep SysMain",
+      "tags": [ "storage.hdd", "ram.lt16" ],
+      "hint": "Keeps SysMain (prefetching) on when Windows runs from a hard disk or the PC has less than 16 GB of RAM.",
+      "description": "SysMain preloads frequently used programs into free memory. Its benefit is largest when the system disk is slow and smallest on NVMe with plenty of RAM, which is the only case where iG Windows Tuner offers turning it off. On a hard disk or below 16 GB of memory the Windows default is kept, so the SysMain item is blocked.",
+      "basis": "igwt",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server" ],
+      "block": [ "privacy.sysmain-off" ],
+      "blockMatching": [ { "type": "service", "name": [ "SysMain" ] } ],
+      "guidance": [ "SysMain and memory compression stay at their Windows defaults on this hardware." ]
+    },
+    {
+      "id": "overlay.virtual-machine",
+      "name": "Virtual machine: no hardware-level items",
+      "tags": [ "vm" ],
+      "hint": "Inside a virtual machine, items that change physical network adapters, USB, PCIe or Wi-Fi hardware are not applicable.",
+      "description": "A virtual machine exposes virtual devices: synthetic network adapters without vendor driver properties, no physical PCIe links or USB controllers to power-manage, and no Wi-Fi radio. Items that change such hardware (adapter driver properties and power management, USB and PCIe power, Wi-Fi, device interrupts) are blocked. Per-interface TCP/IP settings such as NetBIOS stay available because they exist on virtual adapters too.",
+      "basis": "igwt",
+      "sources": [ "https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/about/" ],
+      "block": [ "net.wifi-disable", "power.usb-selective-suspend-off", "power.pcie-aspm-off" ],
+      "blockMatching": [
+        { "type": [ "netAdapterAdvanced", "netAdapterPower", "deviceInterrupt", "bcd" ] },
+        { "type": "custom", "handler": [ "WifiAdapter" ] }
+      ]
+    },
+    {
+      "id": "overlay.intel-arc",
+      "name": "Intel Arc: Resizable BAR",
+      "tags": [ "gpu.intel.arc" ],
+      "hint": "Intel Arc cards need Resizable BAR for their intended performance. Enable it in the BIOS if the report shows it off.",
+      "description": "Intel states that Resizable BAR must be enabled for optimal performance with Arc graphics; without it the card works but can be much slower. iG Windows Tuner does not change firmware settings, so this overlay adds guidance to the report and preset previews.",
+      "basis": "vendor",
+      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000092416.html" ],
+      "guidance": [ "Enable Resizable BAR (and Above 4G Decoding) in the motherboard BIOS for Intel Arc graphics." ]
+    },
+    {
+      "id": "overlay.nvidia-reflex",
+      "name": "NVIDIA GPU: Reflex",
+      "tags": [ "gpu.nvidia" ],
+      "hint": "Turn on NVIDIA Reflex in supported games; it lowers latency more than OS tweaks. Driver profiles are never written.",
+      "description": "NVIDIA Reflex reduces render latency inside supported games and usually matters more than any Windows setting. iG Windows Tuner only shows this guidance and the read-only NVIDIA checklist; it never writes driver profiles.",
+      "basis": "vendor",
+      "sources": [ "https://www.nvidia.com/en-us/geforce/technologies/reflex/" ],
+      "guidance": [ "Enable NVIDIA Reflex in games that support it (Dota 2, CS2, VALORANT and others)." ]
+    },
+    {
+      "id": "overlay.amd-anti-lag",
+      "name": "AMD Radeon GPU: Anti-Lag 2",
+      "tags": [ "gpu.amd" ],
+      "hint": "Turn on AMD Anti-Lag 2 in supported games to lower input latency. Driver settings are never written.",
+      "description": "AMD Anti-Lag 2 is an in-game latency reduction for Radeon GPUs in supported titles. iG Windows Tuner only shows this guidance; it never writes AMD driver settings.",
+      "basis": "vendor",
+      "sources": [ "https://www.amd.com/en/products/software/adrenalin/radeon-software-anti-lag.html" ],
+      "guidance": [ "Enable AMD Anti-Lag 2 in games that support it (for example Counter-Strike 2 and Dota 2)." ]
+    },
+    {
+      "id": "overlay.intel-i225",
+      "name": "Intel I225 Ethernet: firmware and driver",
+      "tags": [ "nic.intel.i225" ],
+      "hint": "Intel I225 connection drops are fixed by updating the controller NVM firmware and the LAN driver from your board vendor.",
+      "description": "Intel's support article for the I225-V covers connection drops while gaming and links that are not detected. The fix is to update the controller's NVM with the OEM's firmware tool first, then install the latest LAN driver after a clean uninstall. iG Windows Tuner shows this as guidance; it does not flash firmware.",
+      "basis": "vendor",
+      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000057261/ethernet-products/gigabit-ethernet-controllers-up-to-2-5gbe.html" ],
+      "guidance": [ "Update the I225 NVM firmware with your motherboard vendor's tool, then install the latest Intel LAN driver." ]
+    },
+    {
+      "id": "overlay.intel-i226",
+      "name": "Intel I226 Ethernet: Energy Efficient Ethernet off",
+      "tags": [ "nic.intel.i226" ],
+      "hint": "Intel's mitigation for I226-V random connection drops is turning Energy Efficient Ethernet off; presets include it here.",
+      "description": "Intel acknowledged random connection drops on I226-V controllers and named disabling Energy Efficient Ethernet (EEE) as the mitigation. The EEE-off item is therefore added to presets on this hardware, together with guidance to install the current driver from the board vendor.",
+      "basis": "vendor",
+      "sources": [ "https://community.intel.com/t5/Ethernet-Products/Intel-Communication-Intel-Ethernet-Controller-I226-Series-Random/td-p/1453177" ],
+      "add": [ "net.eee-off" ],
+      "guidance": [ "Install the latest I226 driver from your motherboard vendor or Intel." ]
+    },
+    {
+      "id": "overlay.killer",
+      "name": "Killer networking: one traffic prioritiser",
+      "tags": [ "nic.killer" ],
+      "hint": "Killer's Prioritization Engine already ranks game traffic; use it or Windows game QoS, not both, to avoid conflicts.",
+      "description": "The Intel Killer Control Center assigns a priority to each packet and throttles lower-priority apps when bandwidth is nearly full. iG Windows Tuner's game QoS item marks game packets with DSCP through Windows policies; running both can give confusing results, so pick one. This overlay only adds guidance.",
+      "basis": "vendor",
+      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000058936/wireless/wireless-software.html" ],
+      "guidance": [ "Use either the Killer Prioritization Engine or iG Windows Tuner's game QoS item (net.qos-dscp-games), not both." ]
+    },
+    {
+      "id": "overlay.vendor-nic-driver",
+      "name": "Realtek and Marvell Ethernet: vendor driver",
+      "tags": [ "nic.realtek", "nic.marvell" ],
+      "hint": "Install the vendor's own LAN driver so the standard advanced properties (EEE, RSS, interrupt moderation) are exposed.",
+      "description": "iG Windows Tuner changes network adapter settings through the standardized advanced-property keywords such as *EEE, *RSS and *InterruptModeration. Vendor drivers from Realtek and Marvell expose these; generic or very old drivers may not, in which case the items show as not applicable. Use the driver from the board or adapter vendor.",
+      "basis": "vendor",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/standardized-inf-keywords-for-power-management" ],
+      "guidance": [ "Install the current LAN driver from your motherboard or adapter vendor (Realtek or Marvell)." ]
+    }
+  ]
+}

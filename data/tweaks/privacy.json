@@ -1,0 +1,650 @@
+{
+  "schemaVersion": 2,
+  "category": "Background & Privacy",
+  "tweaks": [
+    {
+      "id": "privacy.diagnostic-data-required",
+      "name": "Diagnostic data: Required only",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Limits Windows diagnostic data to the Required level (the lowest level honored on Pro).",
+      "description": "Sets the AllowTelemetry policy to 1 (Required). 'Off/Security' (0) is only honored on Enterprise, Education and Server; on Pro it behaves like Required. Optional diagnostic data and tailored-experience uploads stop. Windows Update keeps working normally.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization" ],
+        "notes": "Value 0 is treated as on (equivalent to Required on Pro)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+          "name": "AllowTelemetry",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>",
+          "equivalentOn": [ 0 ]
+        }
+      ]
+    },
+    {
+      "id": "privacy.diagtrack-disabled",
+      "name": "Connected User Experiences and Telemetry service off",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 51,
+      "level": "Advanced",
+      "hint": "Disables the DiagTrack service. Negligible performance effect (measure if curious); may break some Insider/feedback features.",
+      "description": "Sets the DiagTrack service (Connected User Experiences and Telemetry) to Disabled and stops it. This also stops Required diagnostic data uploads, which Microsoft uses for update quality and safeguard holds. Separated from the Required-level policy because it goes beyond what Microsoft supports on Pro. Measured CPU use of DiagTrack is negligible.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server" ],
+        "notes": "Microsoft lists DiagTrack as safe to disable on Windows Server with Desktop Experience; not part of any preset."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "service", "name": "DiagTrack", "startupType": "Disabled", "default": "Automatic", "stop": true }
+      ]
+    },
+    {
+      "id": "privacy.ads-suggestions-off",
+      "name": "Ads, tips and suggestions off",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Turns off the advertising ID, tailored experiences, Settings/Start suggestions and tip notifications.",
+      "description": "Sets the documented policies for the advertising ID, diagnostic-data-based tailored experiences and online tips in Settings, and turns off the per-user 'suggested content' toggles for Settings, Start and tip notifications. Removes promotional content and the background content downloads that feed it.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services",
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-settings#allowonlinetips"
+        ],
+        "notes": "ContentDeliveryManager and Start_IrisRecommendations are the per-user values behind the Settings toggles."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+          "name": "DisabledByGroupPolicy",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Policies\\Microsoft\\Windows\\CloudContent",
+          "name": "DisableTailoredExperiencesWithDiagnosticData",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "name": "AllowOnlineTips",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-338393Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-353694Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-353696Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SubscribedContent-338389Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+          "name": "SystemPaneSuggestionsEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "Start_IrisRecommendations",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.widgets-off",
+      "name": "Widgets off",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Turns off the Widgets board and its news feed (no background feed refresh, no taskbar weather button).",
+      "description": "Sets the AllowNewsAndInterests policy to 0. Removes the Widgets board, the taskbar widget button and the background processes that refresh the feed.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests" ],
+        "notes": "Documented policy, supported on Pro."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Dsh",
+          "name": "AllowNewsAndInterests",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.edge-background-off",
+      "name": "Microsoft Edge background activity off",
+      "category": "Background & Privacy",
+      "group": "Apps",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Stops Edge from preloading at sign-in (Startup Boost) and from running in the background after you close it.",
+      "description": "Sets the Edge policies StartupBoostEnabled and BackgroundModeEnabled to 0. Edge no longer keeps processes running at sign-in or after its last window closes, freeing memory and CPU while you play. Edge itself keeps working; it starts slightly slower.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/startupboostenabled",
+          "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/backgroundmodeenabled"
+        ],
+        "notes": "Edge shows 'Your browser is managed by your organization' while policies are set."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "StartupBoostEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "BackgroundModeEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.update-active-hours",
+      "name": "Windows Update active hours 10:00-04:00",
+      "category": "Background & Privacy",
+      "group": "Windows Update",
+      "order": 50,
+      "level": "Standard",
+      "hint": "No automatic update restarts between 10:00 and 04:00 (18 h, the maximum). Updates still install; never disables updates.",
+      "description": "Sets the documented active-hours policy (SetActiveHours = 1, start 10, end 4). Windows will not restart automatically for updates inside this window, protecting evening matches. Replaces the often-recommended NoAutoRebootWithLoggedOnUsers, which Microsoft says does not work as described and can block quality-update reboots entirely.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart" ],
+        "notes": "Maximum active-hours range is 18 hours. Settings shows active hours as managed while the policy is set."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "name": "SetActiveHours",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "name": "ActiveHoursStart",
+          "valueType": "DWord",
+          "on": 10,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "name": "ActiveHoursEnd",
+          "valueType": "DWord",
+          "on": 4,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.keep-drivers",
+      "name": "Keep my drivers (no driver updates via Windows Update)",
+      "category": "Background & Privacy",
+      "group": "Windows Update",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Stops Windows Update from replacing drivers (e.g. your NVIDIA driver). Update GPU, chipset and NIC drivers yourself.",
+      "description": "Sets the ExcludeWUDriversInQualityUpdate policy to 1. Windows Update stops offering driver updates, so a newer or older OEM driver never silently replaces the NVIDIA driver you installed. Trade-off: you must update GPU, chipset, LAN and Bluetooth drivers yourself, including security fixes.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update#excludewudriversinqualityupdate" ],
+        "notes": "Affects all drivers, not only the GPU."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+          "name": "ExcludeWUDriversInQualityUpdate",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.background-apps-off",
+      "name": "Background apps off (Store apps)",
+      "category": "Background & Privacy",
+      "group": "Apps",
+      "order": 51,
+      "level": "Advanced",
+      "hint": "Stops Microsoft Store apps from running in the background. May delay Store-app notifications. Measure before/after.",
+      "description": "Sets the LetAppsRunInBackground policy to 2 (force deny). Packaged (Store) apps can no longer run background tasks; classic desktop programs such as Discord or Steam are not affected. Notifications from Store apps (Mail, Phone Link, Xbox) may arrive late. The gain is usually small; measure before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-privacy#letappsruninbackground" ],
+        "notes": "Situational trade-off."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy",
+          "name": "LetAppsRunInBackground",
+          "valueType": "DWord",
+          "on": 2,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.reduce-visual-effects",
+      "name": "Reduce animations and transparency",
+      "category": "Background & Privacy",
+      "group": "Desktop",
+      "order": 52,
+      "level": "Advanced",
+      "hint": "Turns off window animations, taskbar animations and transparency. Snappier UI, not more FPS. Measure if in doubt.",
+      "description": "Sets EnableTransparency = 0, MinAnimate = \"0\" and TaskbarAnimations = 0. Windows and the taskbar feel more immediate and the compositor does slightly less work on the desktop. In-game FPS does not change; measure if you want proof. Sign out to apply fully.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow" ],
+        "notes": "UI responsiveness preference."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+          "name": "EnableTransparency",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Desktop\\WindowMetrics",
+          "name": "MinAnimate",
+          "valueType": "String",
+          "on": "0",
+          "default": "1",
+          "absentValue": "1"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "TaskbarAnimations",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>",
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "privacy.ai-features-off",
+      "name": "AI features off (Recall, Click to Do, Paint AI)",
+      "category": "Background & Privacy",
+      "group": "AI",
+      "order": 53,
+      "level": "Standard",
+      "hint": "Applies Microsoft's documented policies to disable Recall, Click to Do and Paint's generative AI features.",
+      "description": "Sets AllowRecallEnablement = 0 (Recall unavailable; its bits are removed), DisableAIDataAnalysis = 1 (no snapshots), DisableClickToDo = 1 and the Paint Cocreator, Generative fill and Image Creator policies. Recall exists only on Copilot+ PCs, so on this hardware those values have no visible effect. The Microsoft Copilot app has no supported removal policy on Pro; uninstall it from Settings > Apps if you do not want it.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai" ],
+        "notes": "DisableClickToDo is listed for Insider builds; TurnOffWindowsCopilot is deprecated and not used; RemoveMicrosoftCopilotApp is not supported on Pro."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "AllowRecallEnablement",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableClickToDo",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableCocreator",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableGenerativeFill",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Paint",
+          "name": "DisableImageCreator",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.sysmain-off",
+      "name": "SysMain (Superfetch) off",
+      "category": "Background & Privacy",
+      "group": "Services",
+      "order": 54,
+      "level": "Advanced",
+      "hint": "Disables memory prefetching. Negligible on NVMe with 32 GB RAM; may slow app launches slightly. Measure before/after.",
+      "description": "Sets the SysMain service to Disabled and stops it. SysMain preloads frequently used programs into memory; on a fast NVMe SSD with plenty of RAM its benefit and its cost are both small. Honest expectation: no FPS change. Measure load times before/after if you try it.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server" ],
+        "notes": "Situational; not part of any preset."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "service", "name": "SysMain", "startupType": "Disabled", "default": "Automatic", "stop": true }
+      ]
+    },
+    {
+      "id": "privacy.search-indexing-off",
+      "name": "Windows Search indexing off",
+      "category": "Background & Privacy",
+      "group": "Services",
+      "order": 54,
+      "level": "Advanced",
+      "hint": "Disables the search indexer. Start/File Explorer/Outlook search become slower. Negligible gain on NVMe; measure.",
+      "description": "Sets the Windows Search service (WSearch) to Disabled and stops it. The indexer already backs off while you are active, so the gaming benefit is usually negligible on NVMe; the cost is slower file and Start menu search. Measure before/after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server" ],
+        "notes": "Situational; not part of any preset."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "service", "name": "WSearch", "startupType": "Disabled", "default": "AutomaticDelayed", "stop": true }
+      ]
+    },
+    {
+      "id": "privacy.telemetry-tasks-off",
+      "name": "Microsoft telemetry and CEIP scheduled tasks off",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 55,
+      "level": "Advanced",
+      "hint": "Disables Microsoft telemetry/CEIP tasks (Appraiser, CEIP, disk diagnostics, feedback). Small background saving; measure.",
+      "description": "Disables the Microsoft Compatibility Appraiser, Customer Experience Improvement Program, Autochk proxy, disk diagnostic data collector and Feedback (SIUF) scheduled tasks. They collect compatibility and usage data in the background; the Appraiser can use CPU and disk for minutes. Tasks are disabled, never deleted, and missing ones are skipped. Revert re-enables them.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services",
+          "https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features"
+        ],
+        "notes": "Microsoft documents CEIP as retired and the Appraiser as a telemetry component; the performance effect is situational, so measure."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\Application Experience\\",
+          "name": "Microsoft Compatibility Appraiser",
+          "on": "Disabled",
+          "default": "Enabled"
+        },
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\Application Experience\\",
+          "name": "Microsoft Compatibility Appraiser Exp",
+          "on": "Disabled",
+          "default": "Enabled"
+        },
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\",
+          "name": "Consolidator",
+          "on": "Disabled",
+          "default": "Enabled"
+        },
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\Customer Experience Improvement Program\\",
+          "name": "UsbCeip",
+          "on": "Disabled",
+          "default": "Enabled"
+        },
+        { "type": "scheduledTask", "path": "\\Microsoft\\Windows\\Autochk\\", "name": "Proxy", "on": "Disabled", "default": "Enabled" },
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\DiskDiagnostic\\",
+          "name": "Microsoft-Windows-DiskDiagnosticDataCollector",
+          "on": "Disabled",
+          "default": "Enabled"
+        },
+        { "type": "scheduledTask", "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\", "name": "DmClient", "on": "Disabled", "default": "Enabled" },
+        {
+          "type": "scheduledTask",
+          "path": "\\Microsoft\\Windows\\Feedback\\Siuf\\",
+          "name": "DmClientOnScenarioDownload",
+          "on": "Disabled",
+          "default": "Enabled"
+        }
+      ]
+    },
+    {
+      "id": "privacy.defer-feature-90",
+      "name": "Defer feature updates by 90 days",
+      "category": "Background & Privacy",
+      "group": "Windows Update",
+      "order": 50,
+      "level": "Advanced",
+      "hint": "Feature updates (new Windows versions) arrive 90 days after release. Security (quality) updates are never deferred.",
+      "description": "Sets the Windows Update for Business policy DeferFeatureUpdatesPeriodInDays to 90. New Windows versions arrive after early driver and anti-cheat issues are fixed, while monthly security updates keep installing on time. Settings shows updates as managed by your organization while the policy is set. Revert removes the policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/deployment/update/waas-configure-wufb",
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update#deferfeatureupdatesperiodindays"
+        ],
+        "notes": "Supported on Pro. Quality updates are intentionally left alone."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "microsoft",
+      "actions": [
+        { "type": "wufbPolicy", "setting": "featureDeferralDays", "value": 90 }
+      ]
+    }
+  ]
+}

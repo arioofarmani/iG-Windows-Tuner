@@ -1,0 +1,133 @@
+{
+  "category": "Graphics & Display",
+  "tweaks": [
+    {
+      "id": "gfx.game-mode",
+      "name": "Game Mode on",
+      "category": "Graphics & Display",
+      "group": "Game",
+      "order": 50,
+      "hint": "Keeps Windows Game Mode on: it deprioritizes background work and holds off Windows Update installs while you play.",
+      "description": "Sets AutoGameModeEnabled to 1 (the Windows default). Game Mode gives the foreground game priority for CPU and GPU resources, suppresses Windows Update driver installs and restart notifications during play. Some tweak guides turn it off; Microsoft recommends leaving it on.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/previous-versions/windows/desktop/gamemode/game-mode-portal", "https://learn.microsoft.com/en-us/windows/win32/api/_gamemode/" ],
+        "notes": "Value absent means on (Windows default)."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "registry", "path": "HKCU:\\Software\\Microsoft\\GameBar", "name": "AutoGameModeEnabled", "valueType": "DWord", "on": 1, "default": "<absent>", "absentValue": 1 }
+      ]
+    },
+    {
+      "id": "gfx.background-recording-off",
+      "name": "Background recording (Game DVR capture) off",
+      "category": "Graphics & Display",
+      "group": "Game",
+      "order": 50,
+      "hint": "Turns off Xbox Game Bar capture and 'Record what happened' so the GPU encoder and disk stay free. Game Bar stays installed.",
+      "description": "Turns off Game DVR capture for your account (GameDVR_Enabled, AppCaptureEnabled and HistoricalCaptureEnabled = 0). Background recording keeps a rolling video buffer that uses the GPU video encoder, memory and disk writes during play. Game Bar, its overlay and controller features stay installed. Use NVIDIA or Steam recording if you want clips.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-applicationmanagement#allowgamedvr" ],
+        "notes": "Microsoft documents Game DVR capture and the AllowGameDVR policy; AegisTune changes the per-user Settings values and reports the machine policy if one is set."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "policyKeys": [ { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR", "name": "AllowGameDVR" } ],
+      "actions": [
+        { "type": "registry", "path": "HKCU:\\System\\GameConfigStore", "name": "GameDVR_Enabled", "valueType": "DWord", "on": 0, "default": 1, "absentValue": 1 },
+        { "type": "registry", "path": "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR", "name": "AppCaptureEnabled", "valueType": "DWord", "on": 0, "default": 1, "absentValue": 1 },
+        { "type": "registry", "path": "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\GameDVR", "name": "HistoricalCaptureEnabled", "valueType": "DWord", "on": 0, "default": 0, "absentValue": 0 }
+      ]
+    },
+    {
+      "id": "gfx.windowed-optimizations",
+      "name": "Optimizations for windowed games",
+      "category": "Graphics & Display",
+      "group": "Presentation",
+      "order": 50,
+      "hint": "Moves DX10/11 borderless and windowed games to the flip presentation model for lower latency. Merges into existing settings.",
+      "description": "Adds SwapEffectUpgradeEnable=1 to DirectXUserGlobalSettings (Settings > System > Display > Graphics). DirectX 10/11 games in windowed or borderless mode move from blt-model to flip-model presentation, which lowers frame latency and enables VRR and Auto HDR. Only this item is changed; other items in the string are preserved. Per-app overrides you set in Settings still win.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://support.microsoft.com/en-us/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952" ],
+        "notes": "If Auto HDR is on, Windows keeps this on as well."
+      },
+      "impact": { "performance": "low", "latency": "medium", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "registryListMerge", "path": "HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences", "name": "DirectXUserGlobalSettings", "item": "SwapEffectUpgradeEnable", "on": "1", "off": "<remove>", "default": "<remove>" }
+      ]
+    },
+    {
+      "id": "gfx.vrr-optimizations",
+      "name": "Optimizations for variable refresh rate",
+      "category": "Graphics & Display",
+      "group": "Presentation",
+      "order": 50,
+      "hint": "Lets DX11 games that lack native VRR support use G-SYNC/FreeSync. Merges into existing settings.",
+      "description": "Adds VRROptimizeEnable=1 to DirectXUserGlobalSettings. On VRR-capable displays, Windows applies variable refresh rate to DirectX 11 games that do not support it natively, reducing tearing and stutter. Only this item is changed; other items are preserved.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://devblogs.microsoft.com/directx/os-variable-refresh-rate/" ],
+        "notes": "Has no effect on displays without VRR."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "registryListMerge", "path": "HKCU:\\Software\\Microsoft\\DirectX\\UserGpuPreferences", "name": "DirectXUserGlobalSettings", "item": "VRROptimizeEnable", "on": "1", "off": "<remove>", "default": "<remove>" }
+      ]
+    },
+    {
+      "id": "gfx.hags",
+      "name": "Hardware-accelerated GPU scheduling",
+      "category": "Graphics & Display",
+      "group": "GPU",
+      "order": 51,
+      "hint": "Lets the GPU schedule its own work. Results on RTX 30-series vary by game: measure frametimes before/after. Reboot.",
+      "description": "Sets HwSchMode to 2. With HAGS the GPU's scheduling processor manages its own work queue, which can reduce CPU overhead and latency slightly. On RTX 30-series the effect ranges from a small gain to a small loss depending on the game and driver. Measure 1% lows before and after; revert if worse.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/" ],
+        "notes": "Requires a WDDM 2.7+ driver. Absent value means the driver default."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", "name": "HwSchMode", "valueType": "DWord", "on": 2, "default": "<absent>" }
+      ]
+    },
+    {
+      "id": "gfx.gpu-preference-games",
+      "name": "Per-game GPU preference: High performance",
+      "category": "Graphics & Display",
+      "group": "GPU",
+      "order": 52,
+      "hint": "Pins detected games to the high-performance GPU. Matters only when the iGPU is enabled. Measure before/after.",
+      "description": "Writes GpuPreference=2 for each detected game executable under UserGpuPreferences, the same value Settings > System > Display > Graphics writes. With an enabled iGPU (UHD 770), Windows could otherwise pick the wrong adapter. Existing per-app items (such as SwapEffectUpgradeEnable) are preserved. Not applicable when only one GPU is active.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_6/nf-dxgi1_6-idxgifactory6-enumadapterbygpupreference" ],
+        "notes": "Situational: only relevant on systems with more than one active GPU."
+      },
+      "impact": { "performance": "medium", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "hardware": { "multipleGpus": true } },
+      "actions": [ { "type": "custom", "handler": "GameGpuPreference" } ]
+    }
+  ]
+}

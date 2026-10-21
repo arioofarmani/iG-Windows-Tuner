@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "name": "Intel Raptor Lake desktop: i7-13700K, RTX 3080, Z690 (reference desktop)",
+  "cpu": { "name": "13th Gen Intel(R) Core(TM) i7-13700K", "vendor": "GenuineIntel", "family": 6, "model": 183, "cores": 16, "threads": 24 },
+  "gpus": [
+    { "name": "NVIDIA GeForce RTX 3080", "vendor": "NVIDIA", "pnp": "VEN_10DE&DEV_2216", "enabled": true }
+  ],
+  "nics": [
+    { "name": "Intel(R) Wi-Fi 6E AX211 160MHz", "pnp": "VEN_8086&DEV_7AF0", "enabled": false },
+    { "name": "Marvell AQtion 10GBASE-T Network Adapter", "pnp": "VEN_1D6A&DEV_14C0", "enabled": true }
+  ],
+  "memoryGB": 32,
+  "battery": false,
+  "portableChassis": false,
+  "modernStandby": false,
+  "systemDisk": { "model": "Samsung SSD 980 PRO 1TB", "bus": "NVMe", "media": "SSD" },
+  "system": { "manufacturer": "Gigabyte Technology Co., Ltd.", "model": "Z690 AORUS MASTER" },
+  "os": { "build": 26300 }
+}

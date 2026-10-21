@@ -1,0 +1,1275 @@
+{
+  "schemaVersion": 2,
+  "category": "Security",
+  "tweaks": [
+    {
+      "id": "sec.hvci-on",
+      "name": "Memory integrity (HVCI) and VBS on",
+      "category": "Security",
+      "group": "Core isolation",
+      "order": 50,
+      "level": "Advanced",
+      "hint": "Keeps virtualization-based security and memory integrity on. Required by FACEIT AC and Vanguard On-Demand. Reboot.",
+      "description": "Sets EnableVirtualizationBasedSecurity = 1 and HypervisorEnforcedCodeIntegrity Enabled = 1 without UEFI lock (Microsoft's recommended registry configuration), and confirms through Win32_DeviceGuard that memory integrity is actually running. Raptor Lake supports MBEC, so the performance cost is small. Check Windows Security > Core isolation for incompatible drivers before enabling it for the first time.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ],
+        "notes": "Memory integrity is on by default on compatible clean installs of Windows 11, so the documented default used by 'Reset to Windows default' is on."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "conflictsWith": [ "sec.vbs-hvci-off-expert" ],
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeviceGuard", "name": "EnableVirtualizationBasedSecurity" }
+      ],
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+          "name": "EnableVirtualizationBasedSecurity",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+          "name": "Enabled",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+          "name": "WasEnabledBy",
+          "valueType": "DWord",
+          "on": 2,
+          "onlyIfAbsent": true,
+          "default": "<absent>"
+        },
+        { "type": "check", "checker": "HvciRunning" }
+      ]
+    },
+    {
+      "id": "sec.vbs-hvci-off-expert",
+      "name": "Turn VBS and memory integrity OFF (expert, breaks anti-cheat)",
+      "category": "Security",
+      "group": "Core isolation",
+      "order": 50,
+      "level": "Lab",
+      "hint": "EXPERT: disables VBS/HVCI for a few % FPS on some systems. Breaks FACEIT AC and Vanguard On-Demand. Measure first.",
+      "description": "Sets HypervisorEnforcedCodeIntegrity Enabled = 0 and EnableVirtualizationBasedSecurity = 0. Microsoft notes memory integrity can cost performance, mostly on CPUs without MBEC; on a 13700K the cost is small. This removes kernel exploit protection, and FACEIT Anti-Cheat and Riot Vanguard On-Demand mode require VBS/HVCI, so those games will refuse to run. Never part of a preset. Measure before deciding.",
+      "warning": "This lowers security and BREAKS FACEIT Anti-Cheat (VBS/IOMMU requirement) and Riot Vanguard On-Demand mode (VBS + HVCI requirement). Keep it off unless you only play games without these anti-cheats.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ],
+        "notes": "Security-reducing; offered only as a warned expert toggle as required by the project specification."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "-" },
+      "risk": "high",
+      "antiCheat": { "breaks": [ "FACEIT", "Riot Vanguard" ] },
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "conflictsWith": [ "sec.hvci-on" ],
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+          "name": "Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+          "name": "EnableVirtualizationBasedSecurity",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1
+        },
+        { "type": "check", "checker": "HvciNotRunning" }
+      ]
+    },
+    {
+      "id": "sec.vulnerable-driver-blocklist",
+      "name": "Microsoft vulnerable driver blocklist on",
+      "category": "Security",
+      "group": "Core isolation",
+      "order": 51,
+      "level": "Standard",
+      "hint": "Blocks known-vulnerable signed drivers that attackers (and some cheats) abuse to reach the kernel. Windows 11 default.",
+      "description": "Ensures VulnerableDriverBlocklistEnable = 1. Windows refuses to load drivers on Microsoft's vulnerable driver blocklist. On by default in Windows 11; some old RGB or monitoring tools that ship vulnerable drivers (for example WinRing0-based ones) will be blocked.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/design/microsoft-recommended-driver-block-rules"
+        ],
+        "notes": "Absent value is treated as on."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CI\\Config",
+          "name": "VulnerableDriverBlocklistEnable",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "sec.lsa-protection",
+      "name": "LSA protection (RunAsPPL, no UEFI lock)",
+      "category": "Security",
+      "group": "Credentials",
+      "order": 51,
+      "level": "Standard",
+      "hint": "Runs LSASS as a protected process so malware cannot dump credentials. Uses value 2 (no UEFI lock), so it stays reversible.",
+      "description": "Sets RunAsPPL = 2. LSASS runs as a Protected Process Light; non-protected code cannot read its memory or inject into it. Value 2 does not write a UEFI variable, so the setting can be reverted from Windows. An existing value of 1 (with UEFI lock) is respected and left alone.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection" ],
+        "notes": "Value 2 is enforced on Windows 11 22H2 and later."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+          "name": "RunAsPPL",
+          "valueType": "DWord",
+          "on": 2,
+          "default": "<absent>",
+          "equivalentOn": [ 1 ]
+        }
+      ]
+    },
+    {
+      "id": "sec.defender-hardening",
+      "name": "Defender: PUA blocking, cloud protection, safe sample submission",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 52,
+      "level": "Standard",
+      "hint": "Blocks potentially unwanted apps and keeps cloud-delivered protection and safe sample submission on.",
+      "description": "Sets PUAProtection = Enabled, MAPSReporting = Advanced (cloud-delivered protection) and SubmitSamplesConsent = Send safe samples. Tamper Protection is only read, never changed; if it blocks a change, iG Windows Tuner reports it instead of working around it.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/defender-endpoint/detect-block-potentially-unwanted-apps-microsoft-defender-antivirus",
+          "https://learn.microsoft.com/en-us/defender-endpoint/cloud-protection-microsoft-defender-antivirus",
+          "https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference"
+        ],
+        "notes": "Only applies while Microsoft Defender Antivirus is the active antivirus."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender", "name": "PUAProtection" },
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet", "name": "SpynetReporting" },
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet", "name": "SubmitSamplesConsent" }
+      ],
+      "actions": [
+        { "type": "mpPreference", "setting": "PUAProtection", "on": 1, "default": 0 },
+        { "type": "mpPreference", "setting": "MAPSReporting", "on": 2, "default": 2 },
+        { "type": "mpPreference", "setting": "SubmitSamplesConsent", "on": 1, "default": 1, "equivalentOn": [ 3 ] }
+      ]
+    },
+    {
+      "id": "sec.network-protection",
+      "name": "Defender Network Protection",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 52,
+      "level": "Standard",
+      "hint": "Blocks connections to known malicious domains system-wide. Negligible for UDP game traffic.",
+      "description": "Sets EnableNetworkProtection = Enabled. Extends SmartScreen-style reputation checks to all apps' outbound connections. It inspects connection setup, not game packet streams, so in-match latency is unaffected; if you are skeptical, compare ping with it on and off.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/network-protection" ],
+        "notes": "Requires Microsoft Defender Antivirus with real-time and cloud protection."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        {
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Network Protection",
+          "name": "EnableNetworkProtection"
+        }
+      ],
+      "actions": [
+        { "type": "mpPreference", "setting": "EnableNetworkProtection", "on": 1, "default": 0 }
+      ]
+    },
+    {
+      "id": "sec.gaming-friendly-scans",
+      "name": "Gaming-friendly Defender scans",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 52,
+      "level": "Standard",
+      "hint": "Scheduled scans run only when the PC is idle and target at most 20% average CPU, keeping them out of matches.",
+      "description": "Sets ScanOnlyIfIdleEnabled = True and ScanAvgCPULoadFactor = 20 (default 50). Scheduled scans wait for idle time and throttle themselves harder. Real-time protection is unchanged; the CPU limit is a target, not a hard cap.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/defender-endpoint/schedule-antivirus-scans",
+          "https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference"
+        ],
+        "notes": "Real-time protection and Tamper Protection are never touched."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan", "name": "AvgCPULoadFactor" }
+      ],
+      "actions": [
+        { "type": "mpPreference", "setting": "ScanOnlyIfIdleEnabled", "on": true, "default": true },
+        { "type": "mpPreference", "setting": "ScanAvgCPULoadFactor", "on": 20, "default": 50 }
+      ]
+    },
+    {
+      "id": "sec.asr-baseline",
+      "name": "Attack surface reduction: gaming-safe baseline (Block)",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 53,
+      "level": "Standard",
+      "hint": "Blocks vulnerable signed drivers, LSASS credential theft, email/script droppers, obfuscated scripts, WMI persistence, USB malware.",
+      "description": "Enables seven ASR rules in Block mode that do not interfere with games or launchers: abuse of vulnerable signed drivers, credential stealing from LSASS, executable content from email, JS/VBS launching downloaded executables, obfuscated scripts, persistence through WMI event subscriptions and untrusted processes from USB. Blocks appear as Windows Security notifications and can be reviewed in Protection history.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-reference" ],
+        "notes": "GUIDs verified against the Microsoft Learn reference (updated September 2026). The LSASS rule is redundant with LSA protection but harmless."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }
+      ],
+      "actions": [
+        { "type": "asrRule", "label": "Block abuse of exploited vulnerable signed drivers", "id": "56a863a9-875e-4185-98a7-b882c64b5ce5", "on": "Block" },
+        { "type": "asrRule", "label": "Block credential stealing from LSASS", "id": "9e6c4e1f-7d60-472f-ba1a-a39ef669e4b2", "on": "Block" },
+        { "type": "asrRule", "label": "Block executable content from email client and webmail", "id": "be9ba2d9-53ea-4cdc-84e5-9b1eeee46550", "on": "Block" },
+        {
+          "type": "asrRule",
+          "label": "Block JavaScript or VBScript from launching downloaded executable content",
+          "id": "d3e037e1-3eb8-44c8-a917-57927947596d",
+          "on": "Block"
+        },
+        { "type": "asrRule", "label": "Block execution of potentially obfuscated scripts", "id": "5beb7efe-fd9a-4556-801d-275e5ffc04cc", "on": "Block" },
+        { "type": "asrRule", "label": "Block persistence through WMI event subscription", "id": "e6db77e5-3df2-4cf1-b95a-636979351e5b", "on": "Block" },
+        { "type": "asrRule", "label": "Block untrusted and unsigned processes that run from USB", "id": "b2b3f03d-6a65-4f7b-a9c7-1c7ef74a9ba4", "on": "Block" }
+      ]
+    },
+    {
+      "id": "sec.asr-office-audit",
+      "name": "Attack surface reduction: Office and Adobe rules (Audit)",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 53,
+      "level": "Standard",
+      "hint": "Logs (without blocking) Office/Adobe behavior typical of malicious documents, so you can check before using Block.",
+      "description": "Puts five ASR rules in Audit mode: Office apps creating child processes, creating executable content, injecting into other processes, Win32 API calls from macros, and Adobe Reader creating child processes. Nothing is blocked; events go to the Defender operational log. A rule already in Block mode is left in Block.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-reference" ],
+        "notes": "Office rules are enforced only when Office is installed under Program Files."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "conflictsWith": [ "sec.asr-office-block" ],
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }
+      ],
+      "actions": [
+        {
+          "type": "asrRule",
+          "label": "Block all Office applications from creating child processes",
+          "id": "d4f940ab-401b-4efc-aadc-ad5f3c50688a",
+          "on": "Audit"
+        },
+        {
+          "type": "asrRule",
+          "label": "Block Office applications from creating executable content",
+          "id": "3b576869-a4ec-4529-8536-b80a7769e899",
+          "on": "Audit"
+        },
+        {
+          "type": "asrRule",
+          "label": "Block Office applications from injecting code into other processes",
+          "id": "75668c1f-73b5-4cf0-bb93-3ecf5cb7cc84",
+          "on": "Audit"
+        },
+        { "type": "asrRule", "label": "Block Win32 API calls from Office macros", "id": "92e97fa1-2edf-4476-bdd6-9dd0b4dddc7b", "on": "Audit" },
+        { "type": "asrRule", "label": "Block Adobe Reader from creating child processes", "id": "7674ba52-37eb-4a4f-a9a1-f0f9a1619a2c", "on": "Audit" }
+      ]
+    },
+    {
+      "id": "sec.asr-office-block",
+      "name": "Attack surface reduction: Office and Adobe rules (Block)",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 53,
+      "level": "Standard",
+      "hint": "Blocks Office/Adobe behavior typical of malicious documents. May break unusual macros or add-ins.",
+      "description": "Puts the same five Office and Adobe Reader ASR rules in Block mode. Recommended after Audit mode showed no legitimate hits. Rarely affects gaming PCs; can break line-of-business macros that spawn processes.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-reference" ],
+        "notes": "Exclusions are never added automatically."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "conflictsWith": [ "sec.asr-office-audit" ],
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }
+      ],
+      "actions": [
+        {
+          "type": "asrRule",
+          "label": "Block all Office applications from creating child processes",
+          "id": "d4f940ab-401b-4efc-aadc-ad5f3c50688a",
+          "on": "Block"
+        },
+        {
+          "type": "asrRule",
+          "label": "Block Office applications from creating executable content",
+          "id": "3b576869-a4ec-4529-8536-b80a7769e899",
+          "on": "Block"
+        },
+        {
+          "type": "asrRule",
+          "label": "Block Office applications from injecting code into other processes",
+          "id": "75668c1f-73b5-4cf0-bb93-3ecf5cb7cc84",
+          "on": "Block"
+        },
+        { "type": "asrRule", "label": "Block Win32 API calls from Office macros", "id": "92e97fa1-2edf-4476-bdd6-9dd0b4dddc7b", "on": "Block" },
+        { "type": "asrRule", "label": "Block Adobe Reader from creating child processes", "id": "7674ba52-37eb-4a4f-a9a1-f0f9a1619a2c", "on": "Block" }
+      ]
+    },
+    {
+      "id": "sec.cfa-audit",
+      "name": "Controlled Folder Access (Audit mode)",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 54,
+      "level": "Advanced",
+      "hint": "Logs apps that would be blocked from changing protected folders (ransomware defense). Review events; measure nothing breaks.",
+      "description": "Sets EnableControlledFolderAccess = AuditMode. Defender logs untrusted apps that modify Documents, Pictures and other protected folders without blocking them. Block mode often breaks game saves and launchers, so start in Audit, check the events (and that games still save), and use the allow-list helper before considering Block. An existing Block setting is left alone.",
+      "evidence": { "tier": "B", "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/controlled-folders" ], "notes": "Audit-only by design." },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        {
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\Controlled Folder Access",
+          "name": "EnableControlledFolderAccess"
+        }
+      ],
+      "actions": [
+        { "type": "mpPreference", "setting": "EnableControlledFolderAccess", "on": 2, "default": 0, "equivalentOn": [ 1 ] }
+      ]
+    },
+    {
+      "id": "sec.cfa-allow-games",
+      "name": "Controlled Folder Access: allow detected games",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 55,
+      "level": "Advanced",
+      "hint": "Adds detected game executables to the CFA allowed-apps list so they can write saves if you switch CFA to Block. Measure via events.",
+      "description": "Adds each detected game executable (from games.json) to ControlledFolderAccessAllowedApplications. This is not an antivirus exclusion: files are still scanned. Only needed if you run Controlled Folder Access in Block mode; check Defender events to confirm games are no longer blocked. Revert removes only the entries iG Windows Tuner added.",
+      "evidence": { "tier": "B", "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/customize-controlled-folders" ], "notes": "Helper for CFA Block mode." },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "custom", "handler": "CfaAllowGames" }
+      ]
+    },
+    {
+      "id": "sec.kernel-shadow-stacks",
+      "name": "Kernel-mode hardware-enforced stack protection",
+      "category": "Security",
+      "group": "Core isolation",
+      "order": 56,
+      "level": "Advanced",
+      "hint": "CET shadow stacks for kernel drivers. Needs HVCI; some older anti-cheat drivers were incompatible. Test games, measure.",
+      "description": "Sets the KernelShadowStacks scenario to enabled (the value behind Windows Security > Core isolation > Kernel-mode Hardware-enforced Stack Protection). Requires memory integrity and a CET-capable CPU (Intel 11th gen+). Windows refuses to enable it when incompatible drivers are present. Test each of your games after the reboot and measure performance.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/kernel-mode-hardware-stack-protection" ],
+        "notes": "Microsoft documents the feature and its Windows Security toggle; the registry value is what that toggle writes."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\KernelShadowStacks",
+          "name": "Enabled",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\KernelShadowStacks",
+          "name": "WasEnabledBy",
+          "valueType": "DWord",
+          "on": 2,
+          "onlyIfAbsent": true,
+          "default": "<absent>"
+        },
+        { "type": "check", "checker": "KernelShadowStacksRunning" }
+      ]
+    },
+    {
+      "id": "sec.uac-on",
+      "name": "User Account Control on",
+      "category": "Security",
+      "group": "Accounts",
+      "order": 57,
+      "level": "Standard",
+      "hint": "Repairs UAC if a tweak tool turned it off (EnableLUA = 1). Windows default.",
+      "description": "Ensures EnableLUA = 1. With UAC off, every program runs with full administrator rights and modern apps break. Repair-only: the Windows default is on.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/settings-and-configuration" ],
+        "notes": "Absent value means on."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "name": "EnableLUA",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "sec.uac-always-notify",
+      "name": "UAC: Always notify",
+      "category": "Security",
+      "group": "Accounts",
+      "order": 57,
+      "level": "Standard",
+      "hint": "UAC prompts for every elevation, including Windows settings changes, on the secure desktop.",
+      "description": "Sets ConsentPromptBehaviorAdmin = 2 and PromptOnSecureDesktop = 1 (the top position of the UAC slider). Closes auto-elevation paths that malware abuses. Trade-off: more prompts when changing system settings.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/settings-and-configuration" ],
+        "notes": "Default is 5 (notify for apps)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "name": "ConsentPromptBehaviorAdmin",
+          "valueType": "DWord",
+          "on": 2,
+          "default": 5,
+          "absentValue": 5
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+          "name": "PromptOnSecureDesktop",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "sec.llmnr-off",
+      "name": "LLMNR off",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 58,
+      "level": "Standard",
+      "hint": "Disables link-local multicast name resolution, a common credential-relay attack vector on shared networks.",
+      "description": "Sets the 'Turn off multicast name resolution' policy (EnableMulticast = 0). Windows stops answering and sending LLMNR queries, which attackers on the same network spoof to capture NTLM hashes. DNS and mDNS keep working.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-dnsclient#turn_off_multicast" ],
+        "notes": "Documented ADMX policy, supported on Pro."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient",
+          "name": "EnableMulticast",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.netbios-off",
+      "name": "NetBIOS over TCP/IP off (wired adapter)",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 58,
+      "level": "Standard",
+      "hint": "Disables legacy NetBIOS name service on the wired adapter. May break browsing very old NAS/SMB1 devices.",
+      "description": "Sets NetbiosOptions = 2 for the active wired interface (the same as 'Disable NetBIOS over TCP/IP' in adapter settings). Removes a legacy, spoofable name service. Modern SMB uses DNS and port 445; very old NAS devices that rely on NetBIOS names may need to be reached by IP address.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/settcpipnetbios-method-in-class-win32-networkadapterconfiguration" ],
+        "notes": "0 = use DHCP setting (default), 1 = enabled, 2 = disabled."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "wiredAdapter" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "adapterRegistry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\NetBT\\Parameters\\Interfaces\\Tcpip_{InterfaceGuid}",
+          "name": "NetbiosOptions",
+          "valueType": "DWord",
+          "on": 2,
+          "default": 0,
+          "absentValue": 0
+        }
+      ]
+    },
+    {
+      "id": "sec.remote-access-off",
+      "name": "Remote Desktop and Remote Assistance off",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 58,
+      "level": "Standard",
+      "hint": "Denies incoming Remote Desktop and Remote Assistance connections. Refused when you are connected through RDP.",
+      "description": "Sets fDenyTSConnections = 1 and fAllowToGetHelp = 0. Closes two remote entry points that a gaming PC rarely needs. iG Windows Tuner refuses this change when the current session is a Remote Desktop session, so it can never lock you out.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-allow-access",
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-remoteassistance"
+        ],
+        "notes": "Remote Desktop is off by default on Windows 11 Pro."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "notRdp" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server",
+          "name": "fDenyTSConnections",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 1,
+          "absentValue": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
+          "name": "fAllowToGetHelp",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "sec.autorun-off",
+      "name": "AutoRun and AutoPlay off",
+      "category": "Security",
+      "group": "Devices",
+      "order": 59,
+      "level": "Standard",
+      "hint": "Stops removable media and network drives from launching anything automatically when connected.",
+      "description": "Sets NoDriveTypeAutoRun = 0xFF (all drive types) and NoAutorun = 1. Prevents autorun.inf-based malware on USB drives and discs. You can still open the drive manually.",
+      "evidence": { "tier": "A", "sources": [ "https://learn.microsoft.com/en-us/windows/win32/shell/autoplay-reg" ], "notes": "Values absent by default." },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "name": "NoDriveTypeAutoRun",
+          "valueType": "DWord",
+          "on": 255,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+          "name": "NoAutorun",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.smb-hardening",
+      "name": "SMB signing required, SMBv1 off",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 59,
+      "level": "Standard",
+      "hint": "Enforces the Windows 11 24H2+ defaults: SMB signing required (client and server) and SMBv1 not installed.",
+      "description": "Sets RequireSecuritySignature = 1 for the SMB client and server and keeps the SMB1Protocol optional feature disabled. Windows 11 24H2 already requires signing by default; this repairs systems where a tool or old guide relaxed it. Very old NAS devices that cannot sign SMB traffic may stop connecting.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-server/storage/file-server/smb-signing-overview",
+          "https://learn.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3"
+        ],
+        "notes": "Reading the SMB1 feature state requires elevation."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters",
+          "name": "RequireSecuritySignature",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>",
+          "absentValue": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+          "name": "RequireSecuritySignature",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        { "type": "optionalFeature", "feature": "SMB1Protocol", "on": "Disabled", "default": "Disabled" }
+      ]
+    },
+    {
+      "id": "sec.firewall-on",
+      "name": "Windows Firewall on, inbound blocked by default",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 59,
+      "level": "Standard",
+      "hint": "All firewall profiles on with default inbound Block. App rules you created stay; review them in the health report.",
+      "description": "Ensures the Domain, Private and Public firewall profiles are enabled with DefaultInboundAction = Block (NotConfigured already means Block). Existing allow rules created by games and launchers are kept; the health report lists app-created inbound allow rules for your review.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/netsecurity/set-netfirewallprofile" ],
+        "notes": "Repair-only on default installs."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile", "name": "EnableFirewall" },
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\StandardProfile", "name": "EnableFirewall" },
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\PublicProfile", "name": "EnableFirewall" }
+      ],
+      "actions": [
+        { "type": "custom", "handler": "FirewallProfiles" }
+      ]
+    },
+    {
+      "id": "sec.smartscreen-on",
+      "name": "SmartScreen on (apps and Edge)",
+      "category": "Security",
+      "group": "Devices",
+      "order": 60,
+      "level": "Standard",
+      "hint": "Repairs SmartScreen for apps and Microsoft Edge if a tool turned it off. Default on; no policy is added otherwise.",
+      "description": "Ensures SmartScreen for apps and files is set to Warn, and removes policy values that turn SmartScreen off for Windows or Edge. On a default system nothing is written, so Windows Security does not show 'managed by your organization'.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/security/operating-system-security/virus-and-threat-protection/microsoft-defender-smartscreen/available-settings"
+        ],
+        "notes": "Repair-only."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+          "name": "SmartScreenEnabled",
+          "valueType": "String",
+          "on": "Warn",
+          "default": "<absent>",
+          "absentValue": "Warn",
+          "equivalentOn": [ "RequireAdmin" ]
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "EnableSmartScreen",
+          "valueType": "DWord",
+          "on": "<absent>",
+          "default": "<absent>",
+          "equivalentOn": [ 1 ]
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "SmartScreenEnabled",
+          "valueType": "DWord",
+          "on": "<absent>",
+          "default": "<absent>",
+          "equivalentOn": [ 1 ]
+        }
+      ]
+    },
+    {
+      "id": "sec.ps-scriptblock-logging",
+      "name": "PowerShell script block logging",
+      "category": "Security",
+      "group": "Logging",
+      "order": 61,
+      "level": "Advanced",
+      "hint": "Records the content of PowerShell scripts in the event log for forensics. Overhead is negligible (measure if you script heavily).",
+      "description": "Sets the EnableScriptBlockLogging policy to 1. PowerShell writes executed script blocks to Microsoft-Windows-PowerShell/Operational (event 4104), which makes malicious scripts visible after the fact. Logs can contain secrets typed into scripts. Overhead is negligible for normal use; measure if you run heavy automation.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_logging_windows" ],
+        "notes": "Detection aid, not a preventive control."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\PowerShell\\ScriptBlockLogging",
+          "name": "EnableScriptBlockLogging",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.exploit-protection-defaults",
+      "name": "Exploit protection system defaults on (DEP, SEHOP, CFG, ASLR)",
+      "category": "Security",
+      "group": "Exploit protection",
+      "order": 62,
+      "level": "Standard",
+      "hint": "Repairs the system-wide exploit protection defaults (DEP, SEHOP, CFG, bottom-up and high-entropy ASLR) if a tool turned one off.",
+      "description": "Checks the five system-wide exploit protection settings that Windows turns on by default. 'Use default (On)' already counts as on, so nothing is written on a healthy system; a setting that was switched off is set back to On. Mandatory ASLR stays at its Windows default (off) because it can break older programs. Restart after a repair.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/defender-endpoint/enable-exploit-protection",
+          "https://learn.microsoft.com/en-us/defender-endpoint/customize-exploit-protection"
+        ],
+        "notes": "Repair-only: NOTSET (use default) is the Windows default and counts as on."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "exploitSystem", "mitigation": "DEP", "on": "ON", "equivalentOn": [ "NOTSET" ] },
+        { "type": "exploitSystem", "mitigation": "SEHOP", "on": "ON", "equivalentOn": [ "NOTSET" ] },
+        { "type": "exploitSystem", "mitigation": "CFG", "on": "ON", "equivalentOn": [ "NOTSET" ] },
+        { "type": "exploitSystem", "mitigation": "BottomUp", "on": "ON", "equivalentOn": [ "NOTSET" ] },
+        { "type": "exploitSystem", "mitigation": "HighEntropy", "on": "ON", "equivalentOn": [ "NOTSET" ] }
+      ]
+    },
+    {
+      "id": "sec.wdigest-off",
+      "name": "WDigest plain-text credential caching off",
+      "category": "Security",
+      "group": "Credentials",
+      "order": 51,
+      "level": "Standard",
+      "hint": "Keeps Windows from caching sign-in passwords in clear text for the legacy WDigest protocol. Off by default; repairs it if enabled.",
+      "description": "Ensures UseLogonCredential is 0 (missing also means 0 on Windows 8.1 and later). When a tool or malware sets it to 1, LSASS keeps your password in clear text for WDigest, which credential dumpers read. Nothing is written on a default system. Sign out and back in after a repair to clear cached credentials.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://msrc.microsoft.com/blog/2014/06/an-overview-of-kb2871997", "https://www.cisa.gov/eviction-strategies-tool/info-countermeasures/CM0087" ],
+        "notes": "Absent value is treated as 0 on Windows 8.1 and later."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest",
+          "name": "UseLogonCredential",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>",
+          "absentValue": 0
+        }
+      ]
+    },
+    {
+      "id": "sec.restrict-anonymous",
+      "name": "No anonymous listing of accounts and shares",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 58,
+      "level": "Advanced",
+      "hint": "Stops anonymous network users from listing this PC's account names and shared folders. Signed-in sharing keeps working.",
+      "description": "Enables 'Network access: Do not allow anonymous enumeration of SAM accounts and shares' (RestrictAnonymous = 1, default 0). Anonymous connections can no longer list account names or shares, which attackers use to guess passwords. People who connect with an account can still browse your shares. Takes effect immediately.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/network-access-do-not-allow-anonymous-enumeration-of-sam-accounts-and-shares"
+        ],
+        "notes": "Client default is Disabled (0); Microsoft's countermeasure is Enabled."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+          "name": "RestrictAnonymous",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0,
+          "absentValue": 0
+        }
+      ]
+    },
+    {
+      "id": "sec.ntlmv2-only",
+      "name": "NTLMv2 only (refuse LM and NTLMv1)",
+      "category": "Security",
+      "group": "Credentials",
+      "order": 51,
+      "level": "Advanced",
+      "hint": "Sends only NTLMv2 and refuses old LM/NTLMv1 sign-ins to this PC. Very old NAS boxes or printers that need NTLMv1 may stop working.",
+      "description": "Sets 'Network security: LAN Manager authentication level' to 'Send NTLMv2 response only. Refuse LM & NTLM' (LmCompatibilityLevel = 5). Windows 11 already sends NTLMv2; this also makes the PC refuse the weak LM and NTLMv1 protocols for incoming connections, as the DISA Windows 11 STIG requires. Devices from the SMB1 era that only speak NTLMv1 can no longer connect.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/network-security-lan-manager-authentication-level",
+          "https://www.stigviewer.com/stigs/microsoft_windows_11_v2r7/2026-02-12/finding/V-253462"
+        ],
+        "notes": "Not defined on clients by default (behaves as 'Send NTLMv2 response only', level 3)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+          "name": "LmCompatibilityLevel",
+          "valueType": "DWord",
+          "on": 5,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.wsh-off",
+      "name": "Windows Script Host off (.vbs, .js, .wsf)",
+      "category": "Security",
+      "group": "Script hosts",
+      "order": 63,
+      "level": "Advanced",
+      "hint": "Stops wscript and cscript from running .vbs, .js and .wsf files, a common malware launcher. Measure: some old installers need it.",
+      "description": "Sets Windows Script Host 'Enabled' = 0 for the machine. Double-clicked or emailed VBScript and JScript files then refuse to run with 'Windows Script Host access is disabled'. PowerShell, batch files and MSI installers are not affected. Some old installers, login scripts and vendor tools still use WSH; if one breaks, turn this item off again and measure which tool needed it.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-au/previous-versions/tn-archive/ee198684(v=technet.10)",
+          "https://www.cisa.gov/eviction-strategies-tool/info-countermeasures/CM0078"
+        ],
+        "notes": "Microsoft's documentation of the value is archived; CISA lists it as a countermeasure and warns that a few systems' update or recovery tools may use WSH."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Programs that rely on .vbs or .js scripts (some old installers, vendor utilities, logon scripts) stop working until the item is turned off.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows Script Host\\Settings",
+          "name": "Enabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.lolbin-outbound-block",
+      "name": "Block internet access for script and download tools (mshta, wscript, cscript, regsvr32, certutil)",
+      "category": "Security",
+      "group": "Script hosts",
+      "order": 63,
+      "level": "Advanced",
+      "hint": "Outbound firewall blocks for 5 built-in tools malware abuses to download payloads. Games are unaffected; measure for your own scripts.",
+      "description": "Creates iGWindowsTuner-owned outbound Block rules for mshta, wscript, cscript, regsvr32 and certutil (64-bit and 32-bit copies). Attackers use these signed Windows tools to fetch and run payloads (MITRE ATT&CK T1218, T1105). Windows does not need them to reach the internet, and the rules only stop their own network traffic. Your scripts that download with these tools will fail; measure before relying on them. Reverting removes the rules.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://attack.mitre.org/techniques/T1218/005/",
+          "https://attack.mitre.org/techniques/T1218/010/",
+          "https://attack.mitre.org/techniques/T1105/",
+          "https://attack.mitre.org/mitigations/M1037/"
+        ],
+        "notes": "Owned rules in group 'iG Windows Tuner'; only Block rules are created."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-mshta-x64",
+          "displayName": "iG Windows Tuner - Block outbound mshta.exe (System32)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\System32\\mshta.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-mshta-x86",
+          "displayName": "iG Windows Tuner - Block outbound mshta.exe (SysWOW64)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\SysWOW64\\mshta.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-wscript-x64",
+          "displayName": "iG Windows Tuner - Block outbound wscript.exe (System32)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\System32\\wscript.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-wscript-x86",
+          "displayName": "iG Windows Tuner - Block outbound wscript.exe (SysWOW64)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\SysWOW64\\wscript.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-cscript-x64",
+          "displayName": "iG Windows Tuner - Block outbound cscript.exe (System32)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\System32\\cscript.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-cscript-x86",
+          "displayName": "iG Windows Tuner - Block outbound cscript.exe (SysWOW64)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\SysWOW64\\cscript.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-regsvr32-x64",
+          "displayName": "iG Windows Tuner - Block outbound regsvr32.exe (System32)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\System32\\regsvr32.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-regsvr32-x86",
+          "displayName": "iG Windows Tuner - Block outbound regsvr32.exe (SysWOW64)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\SysWOW64\\regsvr32.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-certutil-x64",
+          "displayName": "iG Windows Tuner - Block outbound certutil.exe (System32)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\System32\\certutil.exe"
+        },
+        {
+          "type": "firewallRule",
+          "rule": "iGWindowsTuner-Block-Out-certutil-x86",
+          "displayName": "iG Windows Tuner - Block outbound certutil.exe (SysWOW64)",
+          "direction": "Outbound",
+          "action": "Block",
+          "program": "%SystemRoot%\\SysWOW64\\certutil.exe"
+        }
+      ]
+    },
+    {
+      "id": "sec.print-spooler-no-inbound",
+      "name": "Print Spooler: no incoming client connections",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 59,
+      "level": "Standard",
+      "hint": "Stops the Print Spooler from accepting connections from other PCs. Local printing keeps working; printer sharing does not.",
+      "description": "Sets the policy 'Allow Print Spooler to accept client connections' to Disabled (RegisterSpoolerRemoteRpcEndPoint = 2). This is Microsoft's narrower PrintNightmare mitigation: the spooler no longer listens for remote clients, so it cannot be attacked over the network, while printing to your own printers and to PDF still works. You can no longer share a printer from this PC. Applies after a restart.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-34527", "https://kb.cert.org/vuls/id/383432" ],
+        "notes": "Policy from Printing2.admx: 1 = accept (default when not configured), 2 = do not accept."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Printers",
+          "name": "RegisterSpoolerRemoteRpcEndPoint",
+          "valueType": "DWord",
+          "on": 2,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.print-spooler-off",
+      "name": "Print Spooler service off (no printing)",
+      "category": "Security",
+      "group": "Network hardening",
+      "order": 59,
+      "level": "Advanced",
+      "hint": "Turns the Print Spooler service off entirely. Only for PCs that never print: printing, Print to PDF and fax stop working.",
+      "description": "Stops the Print Spooler and sets it to Disabled, Microsoft's broadest PrintNightmare workaround. The spooler has a long history of vulnerabilities, so a PC that never prints is safer without it. All printing stops, including Microsoft Print to PDF, and printer settings pages show errors. Turn the item off to restore the service (Automatic).",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-34527", "https://kb.cert.org/vuls/id/383432" ],
+        "notes": "Situational: only useful when nothing on the PC prints."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "service", "name": "Spooler", "startupType": "Disabled", "default": "Automatic", "stop": true }
+      ]
+    }
+  ]
+}

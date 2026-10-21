@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "category": "Apps",
+  "rules": [
+    {
+      "id": "clean.app.discord",
+      "name": "Discord cache",
+      "category": "Apps",
+      "level": "Standard",
+      "tier": "B",
+      "method": "files",
+      "default": false,
+      "hint": "Clears Discord's web, code and GPU caches. Discord must be closed (also from the tray). Your login stays.",
+      "description": "Deletes the Cache, Code Cache and GPUCache folders that Discord's embedded browser uses. Images and emojis are downloaded again as you use Discord. Your login, settings and local storage are not touched. Discord must be fully closed.",
+      "sideEffects": "Images and media load again from the network the first time.",
+      "antiCheat": "safe",
+      "reversible": "none",
+      "source": "igwt",
+      "hardware": { "tags": [], "excludeTags": [] },
+      "roots": [ "%APPDATA%\\discord\\Cache", "%APPDATA%\\discord\\Code Cache", "%APPDATA%\\discord\\GPUCache" ],
+      "requiresClosed": [ "Discord" ]
+    },
+    {
+      "id": "clean.app.teams",
+      "name": "Microsoft Teams (new) cache",
+      "category": "Apps",
+      "level": "Advanced",
+      "tier": "A",
+      "method": "files",
+      "default": false,
+      "hint": "Clears the new Teams app's web cache, Microsoft's fix for many Teams glitches. Teams must be closed.",
+      "description": "Deletes the EBWebView cache folders of the new Microsoft Teams app, which Microsoft documents as a fix for sign-in and display problems. Chats and files live in the cloud and are not affected. Teams must be closed.",
+      "sideEffects": "Teams starts slower once and may ask you to sign in again.",
+      "antiCheat": "safe",
+      "reversible": "none",
+      "source": "igwt",
+      "hardware": { "tags": [], "excludeTags": [] },
+      "roots": [
+        "%LOCALAPPDATA%\\Packages\\MSTeams_8wekyb3d8bbwe\\LocalCache\\Microsoft\\MSTeams\\EBWebView\\Default\\Cache",
+        "%LOCALAPPDATA%\\Packages\\MSTeams_8wekyb3d8bbwe\\LocalCache\\Microsoft\\MSTeams\\EBWebView\\Default\\Code Cache",
+        "%LOCALAPPDATA%\\Packages\\MSTeams_8wekyb3d8bbwe\\LocalCache\\Microsoft\\MSTeams\\EBWebView\\Default\\GPUCache"
+      ],
+      "requiresClosed": [ "ms-teams" ],
+      "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/microsoftteams/teams-administration/clear-teams-cache" ]
+    },
+    {
+      "id": "clean.app.zoom",
+      "name": "Zoom logs",
+      "category": "Apps",
+      "level": "Standard",
+      "tier": "B",
+      "method": "files",
+      "default": false,
+      "hint": "Removes Zoom client log files older than a day. Zoom must be closed. Meetings and settings are not affected.",
+      "description": "Deletes old log files written by the Zoom desktop client. They are only needed when Zoom Support asks for them. Settings and recordings are not touched.",
+      "sideEffects": "",
+      "antiCheat": "safe",
+      "reversible": "none",
+      "source": "igwt",
+      "hardware": { "tags": [], "excludeTags": [] },
+      "roots": [ "%APPDATA%\\Zoom\\logs" ],
+      "minAgeHours": 24,
+      "requiresClosed": [ "Zoom" ]
+    }
+  ]
+}

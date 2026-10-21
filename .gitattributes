@@ -1,0 +1,10 @@
+# Keep Windows line endings for scripts that Windows PowerShell 5.1, cmd and WPF read.
+* text=auto
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+*.cmd text eol=crlf
+*.xaml text eol=crlf
+*.wsb text eol=crlf
+*.png binary
+*.zip binary

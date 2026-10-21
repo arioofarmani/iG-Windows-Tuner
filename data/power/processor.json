@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 2,
+  "kind": "powerSettings",
+  "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+  "verified": "2026-10-17",
+  "settings": [
+    {
+      "alias": "PERFEPP",
+      "guid": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Energy performance preference (0-100 %). Lower favours performance, higher saves power. Only CPUs with CPPC v2 use it.",
+      "description": "Value Windows programs into the processor's energy performance preference register on CPUs that implement CPPC version 2 (Intel Speed Shift, recent AMD). 0 asks the hardware for maximum performance, 100 for maximum efficiency. On P-core/E-core CPUs this applies to the P-cores; PERFEPP1 covers the E-cores.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfenergypreference" ]
+    },
+    {
+      "alias": "PERFEPP1",
+      "guid": "36687f9e-e3a5-4dbf-b1dc-15eb381c6864",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Energy performance preference for efficiency-class (E) cores (0-100 %). Lower favours performance.",
+      "description": "Same as PERFEPP for processors of efficiency class 1 (the E-cores on Intel hybrid CPUs). Lowering it makes background work on E-cores finish faster at the cost of power and heat; games mostly run on P-cores.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfenergypreference" ]
+    },
+    {
+      "alias": "PERFBOOSTMODE",
+      "guid": "be337238-0d82-4146-a960-4f3749d470c7",
+      "group": "Boost",
+      "level": "Expert",
+      "hint": "How the CPU boosts above base clock: Disabled, Enabled, Aggressive and efficient variants. Disabled caps the CPU at base clock.",
+      "description": "Determines how processors pick a performance level when conditions allow boosting above the nominal level. Enabled lets the OS pick a target boost; Aggressive asks for maximum boost on CPPC processors. Disabled limits the CPU to its base clock, which costs a lot of game performance.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfboostmode" ]
+    },
+    {
+      "alias": "PERFBOOSTPOL",
+      "guid": "45bcc044-d885-43e2-8605-ee0ec6e96b59",
+      "group": "Boost",
+      "level": "Expert",
+      "hint": "How strongly the OS uses boost (0-100 %) on processors where Windows controls boost directly.",
+      "description": "Sets how much of the available boost range the performance state engine uses on processors where Windows drives boost (non-autonomous control). Higher values reach boost clocks sooner. CPUs that manage boost autonomously largely ignore it.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/configure-processor-power-management-options" ]
+    },
+    {
+      "alias": "PROCTHROTTLEMIN",
+      "guid": "893dee8e-2bef-41e0-89c6-b55d0929964c",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Minimum processor state (%). 100 keeps clocks high at idle: more heat and power, rarely a measurable gain. Measure.",
+      "description": "Lowest performance level the OS requests, as a percentage of maximum. Raising it keeps the CPU from clocking down between frames, which mainly raises idle power and temperature; modern CPUs ramp up within microseconds. On P-core/E-core CPUs this applies to the P-cores.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-minperformance" ]
+    },
+    {
+      "alias": "PROCTHROTTLEMIN1",
+      "guid": "893dee8e-2bef-41e0-89c6-b55d0929964d",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Minimum processor state for efficiency-class (E) cores (%).",
+      "description": "Same as PROCTHROTTLEMIN for processors of efficiency class 1 (the E-cores on Intel hybrid CPUs).",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-minperformance" ]
+    },
+    {
+      "alias": "PROCTHROTTLEMAX",
+      "guid": "bc5038f7-23e0-4960-96da-33abaf5935ec",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Maximum processor state (%). Below 100 caps clocks and usually disables boost. Useful to limit heat, not for speed.",
+      "description": "Highest performance level the OS requests, as a percentage of maximum. Values below 100 cap the clock (on many systems 99 % already disables boost), which lowers temperature and noise at the cost of performance.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-maxperformance" ]
+    },
+    {
+      "alias": "PROCTHROTTLEMAX1",
+      "guid": "bc5038f7-23e0-4960-96da-33abaf5935ed",
+      "group": "Performance state",
+      "level": "Expert",
+      "hint": "Maximum processor state for efficiency-class (E) cores (%).",
+      "description": "Same as PROCTHROTTLEMAX for processors of efficiency class 1 (the E-cores on Intel hybrid CPUs).",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-maxperformance" ]
+    },
+    {
+      "alias": "CPMINCORES",
+      "guid": "0cc5b647-c1df-4637-891a-dec35c318583",
+      "group": "Core parking",
+      "level": "Expert",
+      "hint": "Minimum share of cores kept unparked (%). Blocked on Intel hybrid and AMD dual-CCD X3D CPUs, where parking drives placement.",
+      "description": "Lower bound for the number of unparked cores, as a percentage of all cores. 100 disables core parking. On Intel hybrid CPUs Thread Director and the scheduler rely on parking, and on AMD dual-CCD X3D CPUs the V-Cache optimizer parks the second CCD, so iG Windows Tuner blocks this setting on that hardware.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-core-parking-cpmincores" ]
+    },
+    {
+      "alias": "CPMINCORES1",
+      "guid": "0cc5b647-c1df-4637-891a-dec35c318584",
+      "group": "Core parking",
+      "level": "Expert",
+      "hint": "Minimum share of efficiency-class (E) cores kept unparked (%). Blocked on hybrid and dual-CCD X3D CPUs.",
+      "description": "Same as CPMINCORES for processors of efficiency class 1. Blocked by the same hardware overlays.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-core-parking-cpmincores" ]
+    },
+    {
+      "alias": "CPCONCURRENCY",
+      "guid": "2430ab6f-a520-44a2-9601-f7f23b5134b1",
+      "group": "Core parking",
+      "level": "Expert",
+      "hint": "Core parking concurrency threshold (%): how busy the unparked cores must be before more cores are unparked.",
+      "description": "Busy threshold used by the core parking engine when it decides whether to unpark more cores. Lower values unpark cores earlier. It only matters while core parking is active.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-core-parking-cpconcurrency" ]
+    },
+    {
+      "alias": "IDLEPROMOTE",
+      "guid": "7b224883-b3cc-4d79-819f-8374152cbe7c",
+      "group": "Idle",
+      "level": "Expert",
+      "hint": "Idle promote threshold (%): how idle a core must be before Windows moves it to a deeper idle state.",
+      "description": "Busy percentage below which the idle state engine promotes a processor to a deeper idle state. Higher values reach deep idle states sooner (lower power), lower values keep cores in shallow states. Processor idle disable itself is not offered.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-idlepromotethreshold" ]
+    },
+    {
+      "alias": "IDLEDEMOTE",
+      "guid": "4b92d758-5a24-4851-a470-815d78aee119",
+      "group": "Idle",
+      "level": "Expert",
+      "hint": "Idle demote threshold (%): how busy a core must be before Windows moves it to a shallower idle state.",
+      "description": "Busy percentage above which the idle state engine demotes a processor to a shallower idle state, which wakes faster. Keep it below the promote threshold.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/options-for-perf-state-engine-idledemotethreshold" ]
+    },
+    {
+      "alias": "HETEROPOLICY",
+      "guid": "7f2f5cfa-f10c-4823-b5e1-e93ae85f46b5",
+      "group": "Hybrid scheduling",
+      "level": "Expert",
+      "hint": "Heterogeneous policy in effect on P-core/E-core CPUs. Blocked on Intel hybrid CPUs: Windows and Thread Director decide.",
+      "description": "Selects which heterogeneous scheduling policy set the processor power engine uses on CPUs with mixed core types. Intel's guidance is to let Windows and Thread Director schedule, so iG Windows Tuner blocks it on Intel hybrid CPUs and shows it read-only.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/configure-processor-power-management-options" ]
+    },
+    {
+      "alias": "SCHEDPOLICY",
+      "guid": "93b8b6dc-0698-4d1c-9ee4-0644e900c85d",
+      "group": "Hybrid scheduling",
+      "level": "Expert",
+      "hint": "Where long-running threads may run on hybrid CPUs (all, performant, efficient or automatic). Blocked on Intel hybrid CPUs.",
+      "description": "Preference or constraint for scheduling long-running threads on CPUs with mixed core types: all processors, performant only, prefer performant, efficient only, prefer efficient, or automatic. Forcing it overrides Thread Director, so it is blocked on Intel hybrid CPUs.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/configuration-for-hetero-power-scheduling-schedulingpolicy" ]
+    },
+    {
+      "alias": "SHORTSCHEDPOLICY",
+      "guid": "bae08b81-2d5e-4688-ad6a-13243356654b",
+      "group": "Hybrid scheduling",
+      "level": "Expert",
+      "hint": "Where short-running threads may run on hybrid CPUs. Blocked on Intel hybrid CPUs.",
+      "description": "Same choices as the long-running thread policy, for short-running threads. Blocked on Intel hybrid CPUs for the same reason.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/configuration-for-hetero-power-scheduling-shortschedulingpolicy" ]
+    }
+  ]
+}

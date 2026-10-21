@@ -1,0 +1,229 @@
+{
+  "comment": "Documented but deliberately NOT implemented. Shown read-only on the 'Rejected Tweaks' page and in docs\\REJECTED_TWEAKS.md. Categories: placebo, obsolete, unstable, security-reducing, anti-cheat-hostile.",
+  "rejected": [
+    {
+      "id": "rejected.bcdedit-timers",
+      "name": "BCD timer tweaks (useplatformclock, useplatformtick, disabledynamictick, tscsyncpolicy)",
+      "claim": "Forces HPET/TSC behavior for lower input latency.",
+      "category": "unstable",
+      "reason": "No consistent measured gain on modern TSC-invariant CPUs; forcing the platform clock often increases timer overhead. Any BCD change can trigger BitLocker recovery, and AegisTune never runs bcdedit.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--set", "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/recovery-overview" ]
+    },
+    {
+      "id": "rejected.hpet-disable",
+      "name": "Disabling HPET in Device Manager or BIOS",
+      "claim": "Removes timer latency.",
+      "category": "placebo",
+      "reason": "Windows already prefers the invariant TSC; disabling the HPET device changes nothing measurable or breaks software that needs it.",
+      "sources": []
+    },
+    {
+      "id": "rejected.vbs-hvci-off-preset",
+      "name": "Disabling VBS / Memory integrity in a preset",
+      "claim": "A few percent more FPS.",
+      "category": "anti-cheat-hostile",
+      "reason": "FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Available only as the warned expert toggle sec.vbs-hvci-off-expert, never in a preset.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ]
+    },
+    {
+      "id": "rejected.spectre-mitigations-off",
+      "name": "Disabling Spectre/Meltdown mitigations (FeatureSettingsOverride)",
+      "claim": "Restores lost CPU performance.",
+      "category": "security-reducing",
+      "reason": "Removes protection against speculative-execution attacks reachable from browsers and games; gains on Raptor Lake are negligible for games.",
+      "sources": [ "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11" ]
+    },
+    {
+      "id": "rejected.win32-priority-separation",
+      "name": "Win32PrioritySeparation edits",
+      "claim": "Gives the foreground game more CPU quantum.",
+      "category": "placebo",
+      "reason": "The default (programs) already boosts the foreground; arbitrary hex values from guides change quantum lengths in ways that were never measured to help and can hurt background audio/voice.",
+      "sources": []
+    },
+    {
+      "id": "rejected.pagefile-off",
+      "name": "Disabling the page file",
+      "claim": "Avoids disk paging.",
+      "category": "unstable",
+      "reason": "Games and drivers reserve commit charge; without a page file, commit can run out with RAM still free, causing crashes. No crash dumps either.",
+      "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/how-to-determine-the-appropriate-page-file-size-for-64-bit-versions-of-windows" ]
+    },
+    {
+      "id": "rejected.memory-compression-off",
+      "name": "Disabling memory compression (32 GB RAM)",
+      "claim": "Saves CPU time.",
+      "category": "placebo",
+      "reason": "With 32 GB RAM compression rarely runs during play; disabling it only increases paging under pressure.",
+      "sources": []
+    },
+    {
+      "id": "rejected.large-system-cache",
+      "name": "LargeSystemCache = 1",
+      "claim": "Faster file access.",
+      "category": "obsolete",
+      "reason": "A server-era switch that favors the file cache over application working sets; harmful for games.",
+      "sources": []
+    },
+    {
+      "id": "rejected.disable-paging-executive",
+      "name": "DisablePagingExecutive = 1",
+      "claim": "Keeps the kernel in RAM.",
+      "category": "obsolete",
+      "reason": "No measurable effect on modern systems with ample RAM.",
+      "sources": []
+    },
+    {
+      "id": "rejected.fso-global-disable",
+      "name": "Disabling Fullscreen Optimizations globally",
+      "claim": "Restores true exclusive fullscreen.",
+      "category": "obsolete",
+      "reason": "Modern flip-model presentation gives exclusive-fullscreen latency in borderless windows; disabling FSO globally can break VRR, Auto HDR and the Game Bar. Per-game compatibility settings remain available in Windows.",
+      "sources": [ "https://support.microsoft.com/en-us/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952" ]
+    },
+    {
+      "id": "rejected.input-queue-size",
+      "name": "MouseDataQueueSize / KeyboardDataQueueSize",
+      "claim": "Lower input latency.",
+      "category": "placebo",
+      "reason": "Buffer sizes for the legacy class drivers; a smaller queue does not deliver input sooner, it only risks dropped input.",
+      "sources": []
+    },
+    {
+      "id": "rejected.irq-priority",
+      "name": "IRQ priority registry keys (IRQ8Priority etc.)",
+      "claim": "Prioritizes the timer or GPU interrupt.",
+      "category": "placebo",
+      "reason": "These values are not read by the modern Windows kernel or APIC-based interrupt routing.",
+      "sources": []
+    },
+    {
+      "id": "rejected.svchost-split-threshold",
+      "name": "SvcHostSplitThresholdInKB",
+      "claim": "Fewer svchost processes, less overhead.",
+      "category": "security-reducing",
+      "reason": "Merging services into shared hosts saves trivial memory with 32 GB and removes the isolation and reliability benefit of split service hosts.",
+      "sources": []
+    },
+    {
+      "id": "rejected.power-throttling-off",
+      "name": "Power Throttling off on hybrid CPUs",
+      "claim": "Prevents throttling of the game.",
+      "category": "placebo",
+      "reason": "Power Throttling targets background processes; turning it off lets background work compete for P-cores. AegisTune instead offers power.power-throttling-on to repair this tweak.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service" ]
+    },
+    {
+      "id": "rejected.ecore-overrides",
+      "name": "E-core disabling, global affinity masks, Thread Director / heterogeneous policy overrides, core parking edits, OS C-state changes",
+      "claim": "Keeps the game on P-cores.",
+      "category": "unstable",
+      "reason": "Thread Director and the Windows scheduler already place foreground threads on P-cores; overriding them removes headroom for background work and can cause stutter. C-states belong to BIOS.",
+      "sources": []
+    },
+    {
+      "id": "rejected.legacy-tcpip",
+      "name": "Legacy TCP/IP parameters (TcpWindowSize, Tcp1323Opts, DefaultTTL, MaxUserPort, MTU changes)",
+      "claim": "Faster or lower-latency networking.",
+      "category": "obsolete",
+      "reason": "Ignored or superseded by receive-window auto-tuning since Windows Vista; wrong MTU values cause fragmentation and drops.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics" ]
+    },
+    {
+      "id": "rejected.tcp-autotuning-disabled",
+      "name": "TCP auto-tuning disabled",
+      "claim": "Lower ping.",
+      "category": "placebo",
+      "reason": "Does not reduce game (UDP) latency and caps TCP throughput on fast links. AegisTune repairs it to Normal instead.",
+      "sources": [ "https://learn.microsoft.com/en-us/powershell/module/nettcpip/set-nettcpsetting" ]
+    },
+    {
+      "id": "rejected.tcpnodelay-interface",
+      "name": "TCPNoDelay interface registry value",
+      "claim": "Disables Nagle's algorithm system-wide.",
+      "category": "placebo",
+      "reason": "Windows TCP does not read this per-interface value; Nagle is a per-socket option (TCP_NODELAY) set by the game. The related TcpAckFrequency setting is offered as net.delayed-ack-off.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-tcp-socket-options" ]
+    },
+    {
+      "id": "rejected.mmcss-games-task",
+      "name": "MMCSS 'Games' task profile (GPU Priority 8, Priority 6, Scheduling Category High, SFIO High)",
+      "claim": "Higher priority for game threads.",
+      "category": "placebo",
+      "reason": "Microsoft documents GPU Priority as 'not yet used', SFIO Priority as 'not used', and Priority as always treated as 2 when Scheduling Category is High. Only threads that register with the MMCSS 'Games' task are affected at all, which few games do.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+    },
+    {
+      "id": "rejected.no-auto-reboot-logged-on",
+      "name": "NoAutoRebootWithLoggedOnUsers",
+      "claim": "Windows Update never restarts while you are signed in.",
+      "category": "obsolete",
+      "reason": "Microsoft states the policy does not work exactly as described, applies only with AUOptions = 4, and can prevent quality-update reboots entirely. AegisTune uses the documented active-hours policy instead (privacy.update-active-hours).",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart" ]
+    },
+    {
+      "id": "rejected.turn-off-windows-copilot",
+      "name": "TurnOffWindowsCopilot policy",
+      "claim": "Removes Copilot.",
+      "category": "obsolete",
+      "reason": "Deprecated by Microsoft and not applicable to the current Microsoft Copilot app; RemoveMicrosoftCopilotApp is not supported on Pro. Uninstall the app from Settings instead.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai" ]
+    },
+    {
+      "id": "rejected.mandatory-aslr",
+      "name": "System-wide Mandatory ASLR (force randomization for images)",
+      "claim": "Extra exploit protection.",
+      "category": "unstable",
+      "reason": "Forcing relocation of images that were not built for it breaks some games, launchers and anti-cheat components. Per-app exploit protection remains available in Windows Security.",
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/exploit-protection-reference" ]
+    },
+    {
+      "id": "rejected.defender-game-exclusions",
+      "name": "Defender exclusions for game folders",
+      "claim": "Faster loading.",
+      "category": "security-reducing",
+      "reason": "Creates a blind spot that malware (including cheat loaders) uses; real-time scanning cost on NVMe is small. AegisTune never adds exclusions.",
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/common-exclusion-mistakes-microsoft-defender-antivirus" ]
+    },
+    {
+      "id": "rejected.disable-security-features",
+      "name": "Disabling Defender, Windows Update, Firewall, UAC, DEP or SmartScreen",
+      "claim": "Less background overhead.",
+      "category": "security-reducing",
+      "reason": "Large security loss for negligible performance gain; several kernel anti-cheats and game stores also rely on these components.",
+      "sources": []
+    },
+    {
+      "id": "rejected.feature-flag-overrides",
+      "name": "Feature-flag overrides (ViVeTool, FeatureManagement overrides, native NVMe driver hacks)",
+      "claim": "Unlocks hidden performance features.",
+      "category": "unstable",
+      "reason": "Unsupported, change between builds without notice, and can leave the system in states Microsoft never tested.",
+      "sources": []
+    },
+    {
+      "id": "rejected.dism-component-removal",
+      "name": "Removing inbox components with DISM",
+      "claim": "Debloats Windows.",
+      "category": "unstable",
+      "reason": "Not reversible from inside Windows, breaks servicing and cumulative updates, and some removed components are dependencies of games or anti-cheat.",
+      "sources": []
+    },
+    {
+      "id": "rejected.standby-cleaners",
+      "name": "Standby-list cleaners and timer-resolution services",
+      "claim": "Fixes stutter.",
+      "category": "placebo",
+      "reason": "Windows manages the standby list; purging it discards useful cache. Background services that hold timer resolution raise power use for everyone and need persistence that AegisTune deliberately avoids.",
+      "sources": []
+    },
+    {
+      "id": "rejected.nvidia-profile-writes",
+      "name": "Writing NVIDIA driver profiles (Profile Inspector style)",
+      "claim": "Forces low-latency driver settings.",
+      "category": "unstable",
+      "reason": "Undocumented driver database edits; AegisTune only shows a read-only checklist for NVIDIA Control Panel and in-game Reflex.",
+      "sources": []
+    }
+  ]
+}

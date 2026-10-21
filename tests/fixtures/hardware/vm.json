@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "name": "Virtual machine: Windows Sandbox on this PC's i7-13700K (4 virtual processors, 4 GB)",
+  "cpu": { "name": "13th Gen Intel(R) Core(TM) i7-13700K", "vendor": "GenuineIntel", "family": 6, "model": 183, "cores": 4, "threads": 4 },
+  "gpus": [
+    { "name": "Microsoft Remote Display Adapter", "vendor": "Microsoft", "pnp": "", "enabled": true }
+  ],
+  "nics": [
+    { "name": "Microsoft Hyper-V Network Adapter", "pnp": "", "enabled": true }
+  ],
+  "memoryGB": 4,
+  "battery": false,
+  "portableChassis": false,
+  "modernStandby": false,
+  "systemDisk": { "model": "Msft Virtual Disk", "bus": "SCSI", "media": "Unspecified" },
+  "system": { "manufacturer": "Microsoft Corporation", "model": "Virtual Machine" },
+  "os": { "build": 26300 }
+}

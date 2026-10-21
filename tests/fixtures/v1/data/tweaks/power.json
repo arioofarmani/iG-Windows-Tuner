@@ -1,0 +1,162 @@
+{
+  "category": "Power & CPU",
+  "tweaks": [
+    {
+      "id": "power.ultimate-plan",
+      "name": "Ultimate Performance power plan",
+      "category": "Power & CPU",
+      "group": "Power plan",
+      "order": 10,
+      "hint": "Activates the Ultimate Performance plan (High performance minus remaining power-saving timers). Raises idle power. Measure.",
+      "description": "Duplicates the hidden Ultimate Performance scheme (e9a42b02-...) once, or reuses a copy that already exists, and makes it the active plan. Microsoft built it for high-end desktops to eliminate micro-latencies from fine-grained power management. CPU C-states and turbo remain under BIOS control. Trade-off: higher idle power and heat; the gain over High performance is small, so measure frametimes before and after.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options" ],
+        "notes": "Inbox Microsoft scheme (resource text: 'Provides ultimate performance on higher end PCs'), duplicated with the documented powercfg /duplicatescheme. Microsoft's 2018 announcement post is no longer online, so it is Tier B. AegisTune never changes C-state or processor power settings inside the plan."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "hardware": {} },
+      "conflictsWith": [ "power.high-performance-plan" ],
+      "revertNote": "Revert re-activates your previous plan and deletes the Ultimate copy only if AegisTune created it.",
+      "actions": [ { "type": "custom", "handler": "UltimatePlan" } ]
+    },
+    {
+      "id": "power.high-performance-plan",
+      "name": "High performance power plan",
+      "category": "Power & CPU",
+      "group": "Power plan",
+      "order": 10,
+      "hint": "Activates the built-in High performance plan (faster clock ramp-up than Balanced). Slightly higher idle power.",
+      "description": "Makes the inbox High performance scheme (8c5e7fda-...) active. Compared with Balanced, the CPU ramps clocks up faster and devices idle less aggressively. Thread Director and the Windows scheduler still decide which cores run your game. Trade-off: slightly higher idle power.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options" ],
+        "notes": "Inbox power scheme."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "conflictsWith": [ "power.ultimate-plan" ],
+      "actions": [ { "type": "powercfgScheme", "scheme": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c" } ]
+    },
+    {
+      "id": "power.usb-selective-suspend-off",
+      "name": "USB selective suspend off",
+      "category": "Power & CPU",
+      "group": "Power plan settings",
+      "order": 20,
+      "hint": "Stops Windows from suspending idle USB ports, preventing mouse, headset and DAC dropouts. Plugged-in (AC) setting only.",
+      "description": "Sets the active plan's 'USB selective suspend setting' to Disabled on AC power. Selective suspend powers down idle USB devices; on some hubs and audio interfaces this causes wake-up delays or dropouts. Applies to the plan that is active at apply time.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-selective-suspend",
+          "https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options"
+        ],
+        "notes": "Subgroup 2a737441-1930-4402-8d77-b2bebba308a3, setting 48e6b7a6-50f5-4782-a5d4-53bb8f07e226."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "powercfgSetting", "label": "USB selective suspend", "subgroup": "2a737441-1930-4402-8d77-b2bebba308a3", "setting": "48e6b7a6-50f5-4782-a5d4-53bb8f07e226", "ac": 0, "defaultFromScheme": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", "defaultAc": 1 }
+      ]
+    },
+    {
+      "id": "power.pcie-aspm-off",
+      "name": "PCI Express Link State Power Management off",
+      "category": "Power & CPU",
+      "group": "Power plan settings",
+      "order": 20,
+      "hint": "Keeps PCIe links (GPU, NVMe, NIC) at full power instead of entering low-power states on AC power.",
+      "description": "Sets the active plan's PCI Express 'Link State Power Management' (ASPM) to Off on AC power. ASPM saves power by putting idle PCIe links into L0s/L1, and waking them adds latency. Trade-off: a few watts of idle power. BIOS ASPM settings still apply.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-hardware/customize/power-settings/pci-express-settings-link-state-power-management",
+          "https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options"
+        ],
+        "notes": "SUB_PCIEXPRESS 501a4d13-42af-4429-9fd1-a8218c268e20 / ASPM ee12f906-d277-404b-b6da-e5fa1a576df5."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "powercfgSetting", "label": "PCIe Link State Power Management", "subgroup": "501a4d13-42af-4429-9fd1-a8218c268e20", "setting": "ee12f906-d277-404b-b6da-e5fa1a576df5", "ac": 0, "defaultFromScheme": "381b4222-f694-41f0-9685-ff5bb260df2e", "defaultAc": 1 }
+      ]
+    },
+    {
+      "id": "power.fast-startup-off",
+      "name": "Fast Startup off",
+      "category": "Power & CPU",
+      "group": "Boot",
+      "order": 30,
+      "hint": "Shutdown performs a full kernel and driver restart instead of hibernating the kernel session.",
+      "description": "Sets HiberbootEnabled to 0. With Fast Startup, 'Shut down' hibernates the kernel session, so drivers and the kernel are never freshly initialized until a Restart. Turning it off gives a clean driver state at every boot and avoids stale driver issues. Trade-off: cold boots take a few seconds longer.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/distinguishing-fast-startup-from-wake-from-hibernation" ],
+        "notes": "When hibernation is disabled, Fast Startup is unavailable anyway; the value is still set for consistency."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power", "name": "HiberbootEnabled", "valueType": "DWord", "on": 0, "default": 1, "absentValue": 1 }
+      ]
+    },
+    {
+      "id": "power.hibernation-off",
+      "name": "Hibernation off",
+      "category": "Power & CPU",
+      "group": "Boot",
+      "order": 31,
+      "hint": "Turns off hibernation and deletes hiberfil.sys. Nothing to measure: it frees disk space, not FPS. Only if you never hibernate.",
+      "description": "Runs powercfg /hibernate off, which removes hiberfil.sys (often several GB) and also disables Fast Startup. This is a disk-space and boot-consistency change, not a performance change, so there is nothing to measure before/after. Do not use it if you rely on Hibernate.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/disable-and-re-enable-hibernation",
+          "https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options"
+        ],
+        "notes": "Situational: only useful when hibernation is unused."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "none",
+      "actions": [ { "type": "custom", "handler": "Hibernate" } ]
+    },
+    {
+      "id": "power.power-throttling-on",
+      "name": "Keep Power Throttling on (hybrid CPU)",
+      "category": "Power & CPU",
+      "group": "Scheduler",
+      "order": 32,
+      "hint": "Removes the 'PowerThrottlingOff' override some tools set. Throttling moves background work to E-cores, away from your game.",
+      "description": "Ensures HKLM\\...\\Power\\PowerThrottling\\PowerThrottlingOff is not set to 1. On hybrid Intel CPUs, Power Throttling (EcoQoS) lets Windows and Thread Director steer background processes onto efficiency cores, leaving performance cores to the foreground game. Disabling it is a popular but counter-productive tweak.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service",
+          "https://blogs.windows.com/windows-insider/2017/04/18/introducing-power-throttling/"
+        ],
+        "notes": "Repair-only: value absent (the Windows default) or 0 counts as on."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheatSafe": true,
+      "requires": "reboot",
+      "actions": [
+        { "type": "registry", "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling", "name": "PowerThrottlingOff", "valueType": "DWord", "on": "<absent>", "default": "<absent>", "equivalentOn": [ 0 ] }
+      ]
+    }
+  ]
+}

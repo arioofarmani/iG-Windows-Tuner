@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "category": "Downloads",
+  "rules": [
+    {
+      "id": "clean.downloads.old",
+      "name": "Old files in Downloads (to Recycle Bin)",
+      "category": "Downloads",
+      "level": "Advanced",
+      "tier": "B",
+      "method": "files",
+      "default": false,
+      "hint": "Moves files untouched for 60+ days from Downloads to the Recycle Bin. Opt-in; review the list before cleaning.",
+      "description": "Moves files in your Downloads folder that were not created or changed for at least 60 days to the Recycle Bin, so you can still restore them. This rule is never selected automatically. Review the sample list after scanning, because Downloads often holds files people mean to keep.",
+      "sideEffects": "Files go to the Recycle Bin; emptying it later deletes them permanently.",
+      "antiCheat": "safe",
+      "reversible": "partial",
+      "source": "igwt",
+      "hardware": { "tags": [], "excludeTags": [] },
+      "roots": [ "%USERPROFILE%\\Downloads" ],
+      "minAgeHours": 1440,
+      "recycle": true,
+      "allowDownloads": true,
+      "removeEmptyDirs": false
+    }
+  ]
+}

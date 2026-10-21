@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "name": "AMD X3D dual-CCD desktop: Ryzen 9 7950X3D, Radeon RX 7900 XTX, Realtek 2.5GbE",
+  "cpu": { "name": "AMD Ryzen 9 7950X3D 16-Core Processor", "vendor": "AuthenticAMD", "family": 25, "model": 97, "cores": 16, "threads": 32 },
+  "gpus": [
+    { "name": "AMD Radeon RX 7900 XTX", "vendor": "Advanced Micro Devices, Inc.", "pnp": "VEN_1002&DEV_744C", "enabled": true },
+    { "name": "AMD Radeon(TM) Graphics", "vendor": "Advanced Micro Devices, Inc.", "pnp": "VEN_1002&DEV_164E", "enabled": false }
+  ],
+  "nics": [
+    { "name": "Realtek Gaming 2.5GbE Family Controller", "pnp": "VEN_10EC&DEV_8125", "enabled": true },
+    { "name": "MediaTek Wi-Fi 6E MT7922 (RZ616) 160MHz PCIe Adapter", "pnp": "VEN_14C3&DEV_0616", "enabled": true }
+  ],
+  "memoryGB": 64,
+  "battery": false,
+  "portableChassis": false,
+  "modernStandby": false,
+  "systemDisk": { "model": "WD_BLACK SN850X 2000GB", "bus": "NVMe", "media": "SSD" },
+  "system": { "manufacturer": "ASUS", "model": "System Product Name" },
+  "os": { "build": 26100 }
+}

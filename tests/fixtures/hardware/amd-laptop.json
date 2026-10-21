@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "name": "AMD laptop: Ryzen 7 7840HS, Radeon 780M, Killer Wi-Fi, 8 GB, Modern Standby",
+  "cpu": { "name": "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics", "vendor": "AuthenticAMD", "family": 25, "model": 116, "cores": 8, "threads": 16 },
+  "gpus": [
+    { "name": "AMD Radeon 780M Graphics", "vendor": "Advanced Micro Devices, Inc.", "pnp": "VEN_1002&DEV_15BF", "enabled": true }
+  ],
+  "nics": [
+    { "name": "Killer(R) Wi-Fi 6E AX1675i 160MHz Wireless Network Adapter (211NGW)", "pnp": "VEN_8086&DEV_51F1", "enabled": true }
+  ],
+  "memoryGB": 8,
+  "battery": true,
+  "portableChassis": true,
+  "modernStandby": true,
+  "systemDisk": { "model": "Micron 2400 MTFDKBA512QFM", "bus": "NVMe", "media": "SSD" },
+  "system": { "manufacturer": "Framework", "model": "Laptop 13 (AMD Ryzen 7040Series)" },
+  "os": { "build": 26100 }
+}

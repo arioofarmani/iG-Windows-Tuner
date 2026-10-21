@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "category": "Input",
+  "tweaks": [
+    {
+      "id": "input.pointer-precision-off",
+      "name": "Enhance pointer precision off",
+      "category": "Input",
+      "group": "Mouse",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Turns off Windows mouse acceleration so cursor movement matches hand movement 1:1. Applied immediately.",
+      "description": "Sets MouseSpeed, MouseThreshold1 and MouseThreshold2 to \"0\" (REG_SZ), which is what unticking 'Enhance pointer precision' does, then applies it to the running session through SystemParametersInfo(SPI_SETMOUSE). Most competitive games use raw input, but menus, the desktop and some games use the Windows cursor. Values written with the wrong type by other tools (DWORD) are corrected to REG_SZ.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow" ],
+        "notes": "SPI_SETMOUSE takes the two thresholds and the acceleration flag; Windows stores them as REG_SZ."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "postApply": "MouseParameters",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Mouse",
+          "name": "MouseSpeed",
+          "valueType": "String",
+          "on": "0",
+          "default": "1",
+          "absentValue": "1"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Mouse",
+          "name": "MouseThreshold1",
+          "valueType": "String",
+          "on": "0",
+          "default": "6",
+          "absentValue": "6"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Mouse",
+          "name": "MouseThreshold2",
+          "valueType": "String",
+          "on": "0",
+          "default": "10",
+          "absentValue": "10"
+        }
+      ]
+    },
+    {
+      "id": "input.accessibility-hotkeys-off",
+      "name": "Accessibility shortcut keys off",
+      "category": "Input",
+      "group": "Keyboard",
+      "order": 50,
+      "level": "Standard",
+      "hint": "Stops the Sticky/Filter/Toggle Keys pop-ups from 5x Shift, holding Shift or holding Num Lock mid-match.",
+      "description": "Clears only the 'hotkey active' flag (0x4) of StickyKeys, Keyboard Response (Filter Keys) and ToggleKeys, leaving every other accessibility option exactly as it is (510 -> 506, 126 -> 122, 62 -> 58 with Windows defaults). If you use these features, they keep working; only the keyboard shortcut that turns them on is disabled. Applied immediately.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-stickykeys",
+          "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-filterkeys",
+          "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-togglekeys"
+        ],
+        "notes": "SKF_HOTKEYACTIVE / FKF_HOTKEYACTIVE / TKF_HOTKEYACTIVE = 0x00000004. iG Windows Tuner clears the bit instead of writing fixed values so users who rely on these features are not affected."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "postApply": "AccessibilityFlags",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Accessibility\\StickyKeys",
+          "name": "Flags",
+          "valueType": "String",
+          "on": "506",
+          "bitClear": 4,
+          "default": "510",
+          "absentValue": "510"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Accessibility\\Keyboard Response",
+          "name": "Flags",
+          "valueType": "String",
+          "on": "122",
+          "bitClear": 4,
+          "default": "126",
+          "absentValue": "126"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Accessibility\\ToggleKeys",
+          "name": "Flags",
+          "valueType": "String",
+          "on": "58",
+          "bitClear": 4,
+          "default": "62",
+          "absentValue": "62"
+        }
+      ]
+    },
+    {
+      "id": "input.fast-key-repeat",
+      "name": "Fastest key repeat",
+      "category": "Input",
+      "group": "Keyboard",
+      "order": 51,
+      "level": "Standard",
+      "hint": "Shortest repeat delay and fastest repeat rate for held keys. A preference, not a performance change. Applied immediately.",
+      "description": "Sets KeyboardDelay to \"0\" (about 250 ms) and KeyboardSpeed to \"31\" (about 30 repeats per second), then applies them through SystemParametersInfo. Games that read raw keyboard input ignore these values; they affect typing, chat and menus.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow" ],
+        "notes": "SPI_SETKEYBOARDDELAY (0-3) and SPI_SETKEYBOARDSPEED (0-31)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "postApply": "KeyboardRepeat",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Keyboard",
+          "name": "KeyboardDelay",
+          "valueType": "String",
+          "on": "0",
+          "default": "1",
+          "absentValue": "1"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Keyboard",
+          "name": "KeyboardSpeed",
+          "valueType": "String",
+          "on": "31",
+          "default": "31",
+          "absentValue": "31"
+        }
+      ]
+    }
+  ]
+}
