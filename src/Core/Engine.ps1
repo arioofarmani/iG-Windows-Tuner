@@ -186,6 +186,21 @@ function Invoke-IgwtTweakChange {
 
 #region Batch operations
 
+function Get-IgwtRiskZoneSummary {
+    <# .SYNOPSIS One paragraph for a Risk Zone item: warning, what it turns off and on, and its risks. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)]$Tweak)
+    $rz = $Tweak.riskZone
+    $parts = New-Object System.Collections.Generic.List[string]
+    $parts.Add([string]$Tweak.warning)
+    $off = @($rz.turnsOff | Where-Object { $_ }); $on = @($rz.turnsOn | Where-Object { $_ }); $risks = @($rz.risks | Where-Object { $_ })
+    if ($off.Count) { $parts.Add("Turns off: $($off -join '; ').") }
+    if ($on.Count) { $parts.Add("Turns on: $($on -join '; ').") }
+    if ($risks.Count) { $parts.Add("Risks: $($risks -join '; ').") }
+    return ($parts -join ' ')
+}
+
 function Resolve-IgwtTweakSelection {
     <# .SYNOPSIS Validates ids, conflicts and expert acknowledgement; returns tweaks sorted by order. #>
     [CmdletBinding()]
@@ -196,6 +211,7 @@ function Resolve-IgwtTweakSelection {
             if ($Id -contains [string]$c) { throw "Tweaks '$($t.id)' and '$c' conflict; select only one." }
         }
         if ($t.expert -and -not $AcknowledgeRisk) {
+            if ([string]$t.evidence.tier -eq 'R') { throw "'$($t.id)' is a rejected tweak from the Risk Zone. $(Get-IgwtRiskZoneSummary -Tweak $t) Re-run with -AcknowledgeRisk to apply it at your own risk." }
             throw "'$($t.id)' is an expert toggle ($($t.level) level): $($t.warning) Re-run with -AcknowledgeRisk if you understand the consequences."
         }
     }

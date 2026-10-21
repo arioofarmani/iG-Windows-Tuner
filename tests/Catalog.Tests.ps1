@@ -30,9 +30,9 @@ Describe 'Tweak catalog' {
         foreach ($t in $script:Catalog) { ([string]$t.hint).Length | Should -BeLessOrEqual 140 -Because $t.id }
     }
 
-    It 'gives every Tier A/B tweak at least one https source' {
+    It 'gives every tweak (Tier A, B and Risk Zone R) at least one https source' {
         foreach ($t in $script:Catalog) {
-            $t.evidence.tier | Should -BeIn @('A', 'B') -Because $t.id
+            $t.evidence.tier | Should -BeIn @('A', 'B', 'R') -Because $t.id
             @($t.evidence.sources).Count | Should -BeGreaterThan 0 -Because $t.id
             foreach ($s in $t.evidence.sources) { $s | Should -Match '^https://' -Because $t.id }
         }
@@ -60,7 +60,7 @@ Describe 'Tweak catalog' {
     }
 
     It 'never lists an anti-cheat-unsafe tweak unless it is an expert toggle with a warning' {
-        foreach ($t in ($script:Catalog | Where-Object { -not $_.antiCheatSafe })) {
+        foreach ($t in ($script:Catalog | Where-Object { -not $_.antiCheatSafe -and $_.evidence.tier -ne 'R' })) {
             $t.expert | Should -BeTrue -Because $t.id
             $t.warning | Should -Match 'FACEIT' -Because "$($t.id) must name FACEIT"
             $t.warning | Should -Match 'Vanguard' -Because "$($t.id) must name Vanguard"
@@ -68,7 +68,7 @@ Describe 'Tweak catalog' {
     }
 
     It 'contains the warned VBS/HVCI expert toggle and no other security-reducing tweak' {
-        $minus = @($script:Catalog | Where-Object { $_.impact.security -eq '-' } | ForEach-Object { $_.id })
+        $minus = @($script:Catalog | Where-Object { $_.impact.security -eq '-' -and $_.evidence.tier -ne 'R' } | ForEach-Object { $_.id })   # Risk Zone: tests\RiskZone.Tests.ps1
         $minus | Should -Be @('sec.vbs-hvci-off-expert')
     }
 

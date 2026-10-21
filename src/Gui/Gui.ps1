@@ -31,6 +31,8 @@ $script:IgwtGuiControlNames = @(
     'ManageFirewallSummary', 'ManageFirewallList', 'ManageFirewallDetail', 'ManageFirewallToggleButton', 'ManageHostsText',
     'PageDiagnostics', 'DiagRefreshButton', 'DiagReportButton', 'DiagTabs', 'DiagOverviewText', 'DiagDriverSummary', 'DiagDriverList', 'DiagUpdateText',
     'DiagDnsButton', 'DiagLatencyBox', 'DiagLatencyButton', 'DiagNetText', 'DiagAdapterSummary', 'DiagAdapterList',
+    'PageNetTest', 'NetDurationBox', 'NetTargetsBox', 'NetRunButton', 'NetLoadButton', 'NetExportButton', 'NetStatusText', 'NetGradeText', 'NetScoreText', 'NetLatencyText',
+    'NetJitterText', 'NetLossText', 'NetStabilityText', 'NetConnectionText', 'NetEvidenceText', 'NetTargetList', 'NetApplyButton', 'NetRecoTitle', 'NetRecoList', 'NetGuidanceList', 'NetPathText',
     'DetName', 'DetMeta', 'DetWarning', 'DetWarningText', 'DetDescription', 'DetChanges', 'DetSources', 'DetEvidence', 'DetRevert', 'DetResetButton',
     'PendingText', 'StatusText', 'BusyBar', 'PreviewButton', 'ApplyButton', 'DiscardButton', 'LogExpander', 'LogBox'
 )
@@ -140,6 +142,62 @@ function Show-IgwtGuiTextDialog {
     $cancel.Add_Click({ $w.Close() }.GetNewClosure())
     $null = $panel.Children.Add($cancel)
     $null = $grid.Children.Add($tb); $null = $grid.Children.Add($panel)
+    $w.Content = $grid
+    $null = $w.ShowDialog()
+    return [bool]$result.Accepted
+}
+
+function Show-IgwtGuiRiskDialog {
+    <#
+    .SYNOPSIS
+        Risk Zone confirmation: shows the warning, what the item turns off and on, its risks and the
+        reason it was rejected, and enables "Stage at my own risk" only after the user types
+        I ACCEPT. Returns $true when the user accepts.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Tweak)
+    $rz = $Tweak.riskZone
+    $nl = [Environment]::NewLine
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("$($Tweak.name)  ($($Tweak.id))"); $lines.Add('')
+    $lines.Add([string]$Tweak.warning); $lines.Add('')
+    $off = @($rz.turnsOff | Where-Object { $_ }); $on = @($rz.turnsOn | Where-Object { $_ })
+    if ($off.Count) { $lines.Add('It turns OFF:'); foreach ($x in $off) { $lines.Add("  - $x") } }
+    if ($on.Count) { $lines.Add('It turns ON:'); foreach ($x in $on) { $lines.Add("  - $x") } }
+    $lines.Add('Risks:'); foreach ($x in @($rz.risks | Where-Object { $_ })) { $lines.Add("  - $x") }
+    $lines.Add(''); $lines.Add("Why it was rejected: $(([string]$Tweak.evidence.notes) -replace '^Rejected:\s*', '')")
+    $lines.Add(''); $lines.Add("$(switch ($Tweak.requires) { 'reboot' { 'Needs a restart to take effect.' } 'logoff' { 'Needs a sign-out to take effect.' } default { 'Takes effect immediately.' } }) A snapshot is written first; revert it in Backups & Logs or by turning the toggle off.")
+    $w = New-Object System.Windows.Window
+    $w.Title = 'iG Windows Tuner - Risk Zone'
+    $w.Width = 720; $w.Height = 560; $w.MinWidth = 520; $w.MinHeight = 420
+    $w.Owner = $script:Gui.Window; $w.WindowStartupLocation = 'CenterOwner'
+    $w.Background = $script:Gui.Window.FindResource('BrushBackground')
+    $grid = New-Object System.Windows.Controls.Grid; $grid.Margin = '16'
+    foreach ($h in 'Auto', '*', 'Auto', 'Auto') { $rd = New-Object System.Windows.Controls.RowDefinition; $rd.Height = $h; $grid.RowDefinitions.Add($rd) }
+    $head = New-Object System.Windows.Controls.TextBlock
+    $head.Text = 'You are about to stage a rejected tweak. iG Windows Tuner does not recommend it.'
+    $head.Foreground = $script:Gui.Window.FindResource('BrushDanger'); $head.FontWeight = 'SemiBold'; $head.TextWrapping = 'Wrap'; $head.Margin = '0,0,0,8'
+    [System.Windows.Controls.Grid]::SetRow($head, 0)
+    $body = New-Object System.Windows.Controls.TextBox
+    $body.Text = ($lines -join $nl); $body.IsReadOnly = $true; $body.TextWrapping = 'Wrap'; $body.VerticalScrollBarVisibility = 'Auto'
+    $body.Style = $script:Gui.Window.FindResource([System.Windows.Controls.TextBox])
+    [System.Windows.Controls.Grid]::SetRow($body, 1)
+    $confirm = New-Object System.Windows.Controls.StackPanel; $confirm.Margin = '0,10,0,0'
+    $label = New-Object System.Windows.Controls.TextBlock; $label.Text = 'Type I ACCEPT to confirm that you apply this at your own risk:'; $label.Foreground = $script:Gui.Window.FindResource('BrushText')
+    $box = New-Object System.Windows.Controls.TextBox; $box.Margin = '0,4,0,0'; $box.Style = $script:Gui.Window.FindResource([System.Windows.Controls.TextBox]); $box.ToolTip = 'Type I ACCEPT (not case-sensitive).'
+    $null = $confirm.Children.Add($label); $null = $confirm.Children.Add($box)
+    [System.Windows.Controls.Grid]::SetRow($confirm, 2)
+    $panel = New-Object System.Windows.Controls.StackPanel; $panel.Orientation = 'Horizontal'; $panel.HorizontalAlignment = 'Right'; $panel.Margin = '0,12,0,0'
+    [System.Windows.Controls.Grid]::SetRow($panel, 3)
+    $result = @{ Accepted = $false }
+    $ok = New-Object System.Windows.Controls.Button; $ok.Content = 'Stage at my own risk'; $ok.Style = $script:Gui.Window.FindResource('AccentButton'); $ok.IsEnabled = $false; $ok.ToolTip = 'Enabled after you type I ACCEPT.'
+    $ok.Add_Click({ $result.Accepted = $true; $w.Close() }.GetNewClosure())
+    $box.Add_TextChanged({ $ok.IsEnabled = (([string]$box.Text).Trim() -ieq 'I ACCEPT') }.GetNewClosure())
+    $cancel = New-Object System.Windows.Controls.Button; $cancel.Content = 'Cancel'; $cancel.Style = $script:Gui.Window.FindResource([System.Windows.Controls.Button]); $cancel.IsCancel = $true; $cancel.IsDefault = $true; $cancel.ToolTip = 'Do not stage this tweak.'
+    $cancel.Add_Click({ $w.Close() }.GetNewClosure())
+    $null = $panel.Children.Add($ok); $null = $panel.Children.Add($cancel)
+    foreach ($el in $head, $body, $confirm, $panel) { $null = $grid.Children.Add($el) }
     $w.Content = $grid
     $null = $w.ShowDialog()
     return [bool]$result.Accepted
@@ -361,8 +419,9 @@ function Update-IgwtGuiTweakList {
     if ($search) { $c.TweakPageTitle.Text = "Search: $search" }
     elseif ($script:Gui.Category -eq 'Storage') { $c.TweakPageTitle.Text = 'Storage Sense' }
     elseif ($script:Gui.Category -eq 'System') { $c.TweakPageTitle.Text = 'System and diagnostics' }
+    elseif ($script:Gui.Category -eq 'Risk Zone') { $c.TweakPageTitle.Text = 'Risk Zone: rejected tweaks at your own risk' }
     elseif ($script:Gui.Category) { $c.TweakPageTitle.Text = $script:Gui.Category }
-    $c.TweakPageSubtitle.Text = "$($rows.Count) tweak(s). Toggles show the real current state; toggling stages a change. Nothing happens until you press Apply."
+    $c.TweakPageSubtitle.Text = $(if ($script:Gui.Category -eq 'Risk Zone' -and -not $search) { "$($rows.Count) rejected tweak(s). iG Windows Tuner does not recommend these: each is placebo, obsolete or risky, and its details list what it turns off or on. Turning one on asks you to type a confirmation; every change is snapshot-backed and can be reverted." } else { "$($rows.Count) tweak(s). Toggles show the real current state; toggling stages a change. Nothing happens until you press Apply." })
     Update-IgwtGuiPending
 }
 
@@ -423,6 +482,10 @@ function Update-IgwtGuiButtons {
     $c.DiagReportButton.IsEnabled = -not $busy
     $c.DiagDnsButton.IsEnabled = -not $busy
     $c.DiagLatencyButton.IsEnabled = -not $busy
+    $c.NetRunButton.IsEnabled = -not $busy
+    $c.NetLoadButton.IsEnabled = -not $busy
+    $c.NetExportButton.IsEnabled = [bool]$script:Gui.NetResult -and -not [string]$script:Gui.NetResult.Error
+    $c.NetApplyButton.IsEnabled = (-not $busy) -and [bool]$script:Gui.NetResult -and $script:Gui.NetResult.Recommendations -and @($script:Gui.NetResult.Recommendations.TweakIds).Count -gt 0
 }
 
 function Get-IgwtGuiPresetMembers {
@@ -476,7 +539,8 @@ function Update-IgwtGuiDetails {
     $c.DetMeta.Text = ("{0}  |  {1}{2}  |  {3} level  |  Tier {4}  |  risk {5}  |  {6}  |  {7}  |  revert: {8}" -f $t.id, $t.category, $(if ($t.group) { " / $($t.group)" } else { '' }), $t.level, $t.evidence.tier, $t.risk,
         $(switch ($t.requires) { 'reboot' { 'reboot required' } 'logoff' { 'sign-out required' } default { 'applies immediately' } }),
         [string]$t.antiCheatText, [string]$t.reversible)
-    if ($t.warning) { $c.DetWarningText.Text = [string]$t.warning; $c.DetWarning.Visibility = 'Visible' } else { $c.DetWarning.Visibility = 'Collapsed' }
+    if ([string]$t.evidence.tier -eq 'R') { $c.DetWarningText.Text = 'RISK ZONE (rejected tweak). ' + (Get-IgwtRiskZoneSummary -Tweak $t); $c.DetWarning.Visibility = 'Visible' }
+    elseif ($t.warning) { $c.DetWarningText.Text = [string]$t.warning; $c.DetWarning.Visibility = 'Visible' } else { $c.DetWarning.Visibility = 'Collapsed' }
     $desc = [string]$t.description
     if ($s -and $s.Reason) { $desc += [Environment]::NewLine + [Environment]::NewLine + "Current state: $($row.StateText). $($s.Reason)" }
     $c.DetDescription.Text = $desc
@@ -522,7 +586,9 @@ function Invoke-IgwtGuiToggle {
     if ($want -eq $isOn) {
         Set-IgwtGuiStage -Id $id -Mode $null
     } elseif ($want) {
-        if ($t.expert) {
+        if ([string]$t.evidence.tier -eq 'R') {
+            if (-not (Show-IgwtGuiRiskDialog -Tweak $t)) { Update-IgwtGuiTweakList; return }
+        } elseif ($t.expert) {
             $answer = Show-IgwtGuiMessage -Text ("EXPERT TOGGLE`n`n$($t.warning)`n`n$($t.description)`n`nStage this change anyway?") -Title 'iG Windows Tuner - expert toggle' -Buttons 'YesNo' -Icon 'Warning'
             if ($answer -ne 'Yes') { Update-IgwtGuiTweakList; return }
         }
@@ -584,6 +650,8 @@ function Invoke-IgwtGuiApply {
     $expert = @($sets.Apply | Where-Object { $id = $_; ($script:Gui.Catalog | Where-Object { $_.id -eq $id }).expert })
     if (-not $SkipConfirm) {
         $msg = "Apply $total staged change(s)?`n`niG Windows Tuner first creates a System Restore point and a JSON snapshot of every value it changes, so you can revert."
+        $risky = @($sets.Apply | Where-Object { $id = $_; [string]($script:Gui.Catalog | Where-Object { $_.id -eq $id }).evidence.tier -eq 'R' })
+        if ($risky.Count) { $msg += "`n`nIncludes RISK ZONE (rejected) tweak(s), applied at your own risk: $($risky -join ', ')." }
         if ($expert.Count) { $msg += "`n`nIncludes EXPERT toggle(s): $($expert -join ', ')." }
         if ((Show-IgwtGuiMessage -Text $msg -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     }
@@ -1204,6 +1272,130 @@ function Start-IgwtGuiNetworkTest {
 
 #endregion
 
+#region Network test
+
+function Get-IgwtGuiGradeTone {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Grade)
+    switch ($Grade) { 'A+' { 'Pass' } 'A' { 'Pass' } 'B' { 'Info' } 'C' { 'Warn' } 'n/a' { 'Muted' } default { 'Fail' } }
+}
+
+function Set-IgwtGuiNetResult {
+    <# .SYNOPSIS Shows a network quality test result on the Network Test page. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param($Result)
+    $c = $script:Gui.C
+    $script:Gui.NetResult = $Result
+    if (-not $Result) { return }
+    if ($Result.Error) { $c.NetStatusText.Text = "No result: $($Result.Error)"; Update-IgwtGuiButtons; return }
+    $nl = [Environment]::NewLine
+    $s = $Result.Score; $i = $Result.Internet
+    $c.NetStatusText.Text = "Last test: $($Result.Duration) ($($Result.DurationSec) s) at $(([datetime]$Result.Generated).ToString('HH:mm:ss')). $(if ($s) { $s.Verdict })"
+    $c.NetGradeText.Text = $(if ($s) { $s.Grade } else { '-' })
+    $c.NetGradeText.Foreground = $script:IgwtColor[(Get-IgwtGuiGradeTone -Grade ([string]$s.Grade))]
+    $c.NetScoreText.Text = $(if ($s) { "$($s.Score) / $($s.Mos)" } else { '-' })
+    $c.NetLatencyText.Text = $(if ($i -and $null -ne $i.Stats.MedianMs) { "$($i.Stats.MedianMs) ms" } else { '-' })
+    $c.NetJitterText.Text = $(if ($i -and $null -ne $i.Stats.JitterMs) { "$($i.Stats.JitterMs) ms" } else { '-' })
+    $c.NetLossText.Text = $(if ($i -and $null -ne $i.Stats.LossPercent) { "$($i.Stats.LossPercent) %" } else { '-' })
+    $c.NetStabilityText.Text = "$(if ($s) { $s.Stability } else { '-' }) / $(if ($Result.Bufferbloat) { $Result.Bufferbloat.Grade } else { '?' })"
+    $g = $Result.TypeGuess; $conn = $Result.Connection
+    $wifi = ''
+    if ($conn.Wifi -and $conn.Wifi.Connected) { $wifi = " Wi-Fi: $($conn.Wifi.RadioType) $($conn.Wifi.Band), channel $($conn.Wifi.Channel), signal $($conn.Wifi.SignalPercent) %." }
+    $c.NetConnectionText.Text = "$($g.Local), internet access: $($g.Access) (confidence $($g.Confidence)). Adapter $($conn.Description), gateway $($conn.Gateway), path MTU $(if ($Result.Mtu) { $Result.Mtu } else { 'n/a' }), IPv6 $(if ($conn.IPv6) { 'yes' } else { 'no' }).$wifi"
+    $c.NetEvidenceText.Text = (@($g.Evidence | ForEach-Object { "- $_" }) -join $nl)
+    $c.NetTargetList.ItemsSource = @($Result.Targets | ForEach-Object {
+            $st = $_.Stats
+            New-IgwtGuiManageRow -Title "$($_.Name)" -Subtitle "$($_.Address)  |  median $($st.MedianMs) ms, p95 $($st.P95Ms) ms, max $($st.MaxMs) ms  |  jitter $($st.JitterMs) ms  |  loss $($st.LossPercent) %  |  spikes $($st.Spikes)" `
+                -Badge $_.Role -State "Grade $($_.Score.Grade)" -Tone (Get-IgwtGuiGradeTone -Grade ([string]$_.Score.Grade)) -Tip "Latency $($_.Score.Latency), jitter $($_.Score.Jitter), loss $($_.Score.Loss), stability $($_.Score.Stability). $($_.Score.Verdict)" -Source $_
+        })
+    $r = $Result.Recommendations
+    if ($r) {
+        $c.NetRecoTitle.Text = "Recommended Windows adjustments ($($r.Profile))"
+        $reco = @($r.Tweaks | ForEach-Object { New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Why -Badge "$($_.Id) | $($_.Level), Tier $($_.Tier)" -State 'Recommended' -Tone 'Info' -Source $_ })
+        $reco += @($r.Reverts | ForEach-Object { New-IgwtGuiManageRow -Title "Revert $($_.Name)" -Subtitle $_.Why -Badge $_.Id -State 'Risk Zone item on' -Tone 'Warn' -Tip "Turn this Risk Zone item off on the Risk Zone page. $($_.Why)" -Source $_ })
+        if ($reco.Count -eq 0) { $reco = @(New-IgwtGuiManageRow -Title 'Nothing to change' -Subtitle 'Every recommended Windows network item is already applied or does not apply to this connection.' -State 'OK' -Tone 'Pass') }
+        $c.NetRecoList.ItemsSource = $reco
+        $c.NetGuidanceList.ItemsSource = @($r.Guidance | ForEach-Object { New-IgwtGuiManageRow -Title $_.Title -Subtitle $_.Text -State $_.Severity -Tone $(if ($_.Severity -eq 'Warn') { 'Warn' } else { 'Info' }) -Tip $_.Text -Source $_ })
+    }
+    $c.NetPathText.Text = (@($Result.Trace | ForEach-Object { '{0,2}  {1,-15} {2,9}  {3,-8} {4}' -f $_.Hop, $(if ($_.Address) { $_.Address } else { '*' }), $(if ($null -ne $_.RttMs) { "$($_.RttMs) ms" } else { '' }), $_.Class, $_.Name }) -join $nl)
+    Update-IgwtGuiButtons
+}
+
+function Start-IgwtGuiNetTest {
+    <# .SYNOPSIS Runs the network quality test in the worker (read-only: pings and DNS queries). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only measurement.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $duration = @('Quick', 'Standard', 'Extended')[[Math]::Max(0, $c.NetDurationBox.SelectedIndex)]
+    $params = @{ Duration = $duration }
+    $targets = @(([string]$c.NetTargetsBox.Text) -split '[,;\s]+' | Where-Object { $_ } | Select-Object -First 4)
+    if ($targets.Count) { $params.Target = $targets }
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtNetworkQualityTest' -Parameters $params -BusyText "Running the $($duration.ToLowerInvariant()) network test (pings and DNS queries only)..." -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (-not $res) { $script:Gui.C.NetStatusText.Text = "The test failed: $(@($errs)[0])"; return }
+        Set-IgwtGuiNetResult -Result $res
+        Set-IgwtGuiStatus 'Network test finished.'
+    }
+}
+
+function Start-IgwtGuiNetLoad {
+    <# .SYNOPSIS Measures latency under load (the user starts a speed test or download) and grades bufferbloat. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only measurement.')]
+    [CmdletBinding()]
+    param()
+    $a = Show-IgwtGuiMessage -Text "Start a speed test in your browser (or a large download) now, so the line is busy.`n`nPress OK while it runs. iG Windows Tuner then measures latency for 20 seconds and grades bufferbloat. It does not generate any traffic itself apart from pings." -Title 'iG Windows Tuner - latency under load' -Buttons 'OKCancel' -Icon 'Information'
+    if ($a -ne 'OK') { return }
+    $params = @{ DurationSec = 20 }
+    if ($script:Gui.NetResult -and -not $script:Gui.NetResult.Error) { $params.Baseline = $script:Gui.NetResult }
+    $null = Start-IgwtGuiJob -Command 'Measure-IgwtLoadedLatency' -Parameters $params -BusyText 'Measuring latency under load for 20 seconds...' -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (-not $res) { $script:Gui.C.NetStatusText.Text = "The measurement failed: $(@($errs)[0])"; return }
+        $msg = "Bufferbloat grade $($res.Grade): latency rose by $($res.IncreaseMs) ms under load (idle median $($res.IdleMedianMs) ms, loaded median $($res.Loaded.MedianMs) ms)."
+        if ($script:Gui.NetResult -and -not $script:Gui.NetResult.Error) {
+            $script:Gui.NetResult.Bufferbloat = [pscustomobject]@{ Grade = $res.Grade; IncreaseMs = $res.IncreaseMs }
+            try { $script:Gui.NetResult.Recommendations = Get-IgwtNetworkRecommendations -Result $script:Gui.NetResult } catch { Write-Verbose "Recommendations not refreshed: $($_.Exception.Message)" }
+            Set-IgwtGuiNetResult -Result $script:Gui.NetResult
+        }
+        $script:Gui.C.NetStatusText.Text = $msg
+        Set-IgwtGuiStatus $msg
+    }
+}
+
+function Invoke-IgwtGuiNetApply {
+    <# .SYNOPSIS Stages the recommended network items and opens the dry-run preview (applied only after confirmation). #>
+    [CmdletBinding()]
+    param()
+    $r = $script:Gui.NetResult
+    if (-not $r -or -not $r.Recommendations) { return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart iG Windows Tuner as administrator to apply the recommended adjustments. You can still review them here.'; return }
+    $count = 0
+    foreach ($id in @($r.Recommendations.TweakIds)) { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
+    $script:Gui.PresetOperation = 'Apply:NetworkTest'
+    Update-IgwtGuiPending
+    Set-IgwtGuiStatus "Staged $count recommended network adjustment(s). Review the preview, then apply."
+    Invoke-IgwtGuiPreview
+}
+
+function Export-IgwtGuiNetReport {
+    <# .SYNOPSIS Saves the last network test as HTML in the Reports folder and opens it. #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
+    $r = $script:Gui.NetResult
+    if (-not $r -or $r.Error) { return }
+    $path = Join-Path (Get-IgwtDataPath -Kind Reports) ("iGWindowsTuner-network-{0}.html" -f (Get-Date).ToString('yyyyMMdd-HHmmss'))
+    if (-not $PSCmdlet.ShouldProcess($path, 'Write network report')) { return }
+    $out = Export-IgwtNetworkReport -Result $r -Path $path -Format Html
+    Set-IgwtGuiStatus "Network report saved: $out"
+    Open-IgwtGuiPath -Target $out
+}
+
+#endregion
+
 #region ASR Center
 
 function Set-IgwtGuiAsrStatus {
@@ -1345,7 +1537,7 @@ function Show-IgwtGuiPage {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Page)
     $c = $script:Gui.C
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageDiagnostics', 'PageAsr', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -1362,6 +1554,7 @@ function Show-IgwtGuiPage {
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiAsrRefresh } }
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiManageRefresh } }
+        'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
@@ -1379,7 +1572,7 @@ function Save-IgwtGuiScreenshots {
         window to PNG with RenderTargetBitmap (no window is shown). Read-only.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Folder, [double]$Scale = 1.0)
+    param([Parameter(Mandatory = $true)][string]$Folder, [double]$Scale = 1.0, [switch]$WithNetworkTest)
     if (-not (Test-Path -LiteralPath $Folder)) { $null = New-Item -ItemType Directory -Path $Folder -Force }
     $data = Get-IgwtGuiData -IncludeHealth
     Update-IgwtGuiFromData -Data $data
@@ -1397,6 +1590,8 @@ function Save-IgwtGuiScreenshots {
         Update-IgwtGuiManageDetail
         Set-IgwtGuiDiagData -Data (Get-IgwtGuiDiagnosticsData)
     } catch { Write-Verbose "Manage/diagnostics data unavailable for screenshots: $($_.Exception.Message)" }
+    # Optional: a quick network test (pings and DNS queries only) so the Network Test page shows data.
+    if ($WithNetworkTest) { try { Set-IgwtGuiNetResult -Result (Invoke-IgwtNetworkQualityTest -Duration Quick) } catch { Write-Verbose "Network test unavailable for screenshots: $($_.Exception.Message)" } }
     # Read-only data for the ASR Center (status and the Defender event log).
     try {
         Set-IgwtGuiAsrStatus -Status (Get-IgwtAsrStatus)
@@ -1452,9 +1647,11 @@ function Show-IgwtGui {
         (documentation screenshots and the GUI smoke test). Read-only.
     .PARAMETER Scale
         With -RenderTo: layout scale factor to emulate 125% / 150% display scaling.
+    .PARAMETER WithNetworkTest
+        With -RenderTo: run a quick network test (pings and DNS queries only) so the Network Test page shows data.
     #>
     [CmdletBinding()]
-    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0)
+    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0, [switch]$WithNetworkTest)
     if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
         if (-not $ScriptPath) { throw 'WPF requires an STA thread. Start PowerShell with -STA.' }
         Start-Process -FilePath (Get-IgwtHostExecutable) -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"{0}"' -f $ScriptPath))
@@ -1467,7 +1664,7 @@ function Show-IgwtGui {
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = (Test-IgwtIsAdmin)
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Diag = $null
+        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Diag = $null; NetResult = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -1479,7 +1676,9 @@ function Show-IgwtGui {
     $c.AboutText.Text = Get-IgwtAboutText
     $c.RejectedList.ItemsSource = @(Get-IgwtRejectedTweaks | ForEach-Object {
             [pscustomobject]@{ Name = $_.name; Category = $_.category; Claim = $_.claim; Reason = $_.reason
-                SourcesText = $(if (@($_.sources).Count) { 'Sources: ' + (@($_.sources) -join '  ') } else { '' }) }
+                SourcesText = $(if (@($_.sources).Count) { 'Sources: ' + (@($_.sources) -join '  ') } else { '' })
+                Availability = $(if ($_.riskItem) { "Available in the Risk Zone at your own risk: $($_.riskItem)" } else { [string]$_.unavailable })
+                AvailabilityBrush = $(if ($_.riskItem) { $script:IgwtColor.Warn } else { $script:IgwtColor.Muted }) }
         })
     $c.AdminText.Text = $(if ($script:Gui.IsAdmin) { 'Administrator' } else { 'Read-only (not elevated)' })
     $c.ElevateButton.Visibility = $(if ($script:Gui.IsAdmin) { 'Collapsed' } else { 'Visible' })
@@ -1601,6 +1800,13 @@ function Show-IgwtGui {
             $row = $script:Gui.C.ManageFirewallList.SelectedItem
             if ($row) { Invoke-IgwtGuiManagedChange -Kind firewallRule -Target ([string]$row.Source.Name) -Value $(if ($row.Source.Enabled) { 'Disabled' } else { 'Enabled' }) }
         })
+    # Network test
+    $c.NetDurationBox.ItemsSource = @('Quick (10 seconds)', 'Standard (30 seconds)', 'Extended (2 minutes)')
+    $c.NetDurationBox.SelectedIndex = 1
+    $c.NetRunButton.Add_Click({ Start-IgwtGuiNetTest })
+    $c.NetLoadButton.Add_Click({ Start-IgwtGuiNetLoad })
+    $c.NetApplyButton.Add_Click({ Invoke-IgwtGuiNetApply })
+    $c.NetExportButton.Add_Click({ Export-IgwtGuiNetReport })
     # Diagnostics and network
     $c.DiagRefreshButton.Add_Click({ Start-IgwtGuiDiagRefresh })
     $c.DiagDnsButton.Add_Click({ Start-IgwtGuiNetworkTest -Dns })
@@ -1713,7 +1919,7 @@ function Show-IgwtGui {
         })
 
     if ($RenderTo) {
-        Save-IgwtGuiScreenshots -Folder $RenderTo -Scale $Scale
+        Save-IgwtGuiScreenshots -Folder $RenderTo -Scale $Scale -WithNetworkTest:$WithNetworkTest
         return
     }
 

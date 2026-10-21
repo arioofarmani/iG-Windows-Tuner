@@ -453,6 +453,112 @@ $script:IgwtCustomHandlers = @{
             }
         }
     }
+
+    # Risk Zone: High Precision Event Timer device (ACPI\PNP0103) disabled.
+    HpetDevice = @{
+        Detect = {
+            param($Action, $Context)
+            $d = Get-IgwtHpetDevice
+            if (-not $d) { return [pscustomobject]@{ Target = 'High precision event timer device'; Current = 'not present'; Desired = 'Disabled'; State = 'NotApplicable'; Note = 'No HPET device is present (it may be off in firmware).' } }
+            $off = Test-IgwtPnpDeviceDisabled -Device $d
+            [pscustomobject]@{ Target = "Device $($d.FriendlyName)"; Current = $(if ($off) { 'Disabled' } else { [string]$d.Status }); Desired = 'Disabled'; State = $(if ($off) { 'On' } else { 'Off' }); Note = 'Windows already prefers the invariant TSC.' }
+        }
+        Snapshot = {
+            param($Action, $Context)
+            $d = Get-IgwtHpetDevice
+            if (-not $d) { return @{ present = $false } }
+            @{ present = $true; instanceId = [string]$d.InstanceId; disabled = (Test-IgwtPnpDeviceDisabled -Device $d) }
+        }
+        Apply = {
+            param($Action, $Context, $Mode)
+            $d = Get-IgwtHpetDevice
+            if (-not $d) { return $null }
+            $off = Test-IgwtPnpDeviceDisabled -Device $d
+            if ($Mode -eq 'default') { if ($off) { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction Stop } }
+            elseif (-not $off) { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction Stop }
+            return $null
+        }
+        Restore = {
+            param($Action, $Snapshot, $Context)
+            if (-not $Snapshot.present) { return }
+            $d = Get-IgwtHpetDevice
+            if (-not $d -or [string]$d.InstanceId -ne [string]$Snapshot.instanceId) { throw 'The HPET device in the snapshot is not present any more.' }
+            $off = Test-IgwtPnpDeviceDisabled -Device $d
+            if ([bool]$Snapshot.disabled -and -not $off) { Disable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction Stop }
+            elseif (-not [bool]$Snapshot.disabled -and $off) { Enable-PnpDevice -InstanceId $d.InstanceId -Confirm:$false -ErrorAction Stop }
+        }
+    }
+
+    # Risk Zone: memory compression off (Memory Management Agent).
+    MemoryCompression = @{
+        Detect = {
+            param($Action, $Context)
+            try { $on = [bool](Get-MMAgent -ErrorAction Stop).MemoryCompression }
+            catch { return [pscustomobject]@{ Target = 'Memory compression'; Current = 'not readable'; Desired = 'Disabled'; State = 'Unknown'; Note = 'Reading memory compression needs administrator rights.' } }
+            [pscustomobject]@{ Target = 'Memory compression'; Current = $(if ($on) { 'Enabled' } else { 'Disabled' }); Desired = 'Disabled'; State = $(if ($on) { 'Off' } else { 'On' }); Note = 'Takes effect after a restart.' }
+        }
+        Snapshot = {
+            param($Action, $Context)
+            @{ enabled = [bool](Get-MMAgent -ErrorAction Stop).MemoryCompression }
+        }
+        Apply = {
+            param($Action, $Context, $Mode)
+            $on = [bool](Get-MMAgent -ErrorAction Stop).MemoryCompression
+            if ($Mode -eq 'default') { if (-not $on) { Enable-MMAgent -MemoryCompression -ErrorAction Stop } }
+            elseif ($on) { Disable-MMAgent -MemoryCompression -ErrorAction Stop }
+            return $null
+        }
+        Restore = {
+            param($Action, $Snapshot, $Context)
+            $on = [bool](Get-MMAgent -ErrorAction Stop).MemoryCompression
+            if ([bool]$Snapshot.enabled -and -not $on) { Enable-MMAgent -MemoryCompression -ErrorAction Stop }
+            elseif (-not [bool]$Snapshot.enabled -and $on) { Disable-MMAgent -MemoryCompression -ErrorAction Stop }
+        }
+    }
+
+    # Risk Zone: TCP receive-window auto-tuning disabled (the counterpart of TcpAutoTuning).
+    TcpAutoTuningDisabled = @{
+        Detect = {
+            param($Action, $Context)
+            $s = Get-NetTCPSetting -SettingName Internet -ErrorAction Stop
+            $state = $(if ([string]$s.AutoTuningLevelLocal -eq 'Disabled') { 'On' } else { 'Off' })
+            if ($s.AutoTuningLevelGroupPolicy -and [string]$s.AutoTuningLevelGroupPolicy -ne 'NotConfigured') { $state = 'ManagedByPolicy' }
+            [pscustomobject]@{ Target = 'TCP auto-tuning (Internet template)'; Current = [string]$s.AutoTuningLevelLocal; Desired = 'Disabled'; State = $state; Note = 'Normal is the Windows default.' }
+        }
+        Snapshot = {
+            param($Action, $Context)
+            @{ level = [string](Get-NetTCPSetting -SettingName Internet -ErrorAction Stop).AutoTuningLevelLocal }
+        }
+        Apply = {
+            param($Action, $Context, $Mode)
+            $target = $(if ($Mode -eq 'default') { 'Normal' } else { 'Disabled' })
+            if ([string](Get-NetTCPSetting -SettingName Internet -ErrorAction Stop).AutoTuningLevelLocal -ne $target) {
+                Set-NetTCPSetting -SettingName Internet -AutoTuningLevelLocal $target -ErrorAction Stop
+            }
+            return $null
+        }
+        Restore = {
+            param($Action, $Snapshot, $Context)
+            $allowed = @('Disabled', 'HighlyRestricted', 'Restricted', 'Normal', 'Experimental')
+            $lvl = [string]$Snapshot.level
+            if ($allowed -contains $lvl) { Set-NetTCPSetting -SettingName Internet -AutoTuningLevelLocal $lvl -ErrorAction Stop }
+        }
+    }
+}
+
+function Get-IgwtHpetDevice {
+    <# .SYNOPSIS The High Precision Event Timer device (ACPI\PNP0103), or $null. #>
+    [CmdletBinding()]
+    param()
+    @(Get-PnpDevice -Class System -ErrorAction SilentlyContinue | Where-Object { [string]$_.InstanceId -like 'ACPI\PNP0103*' }) | Select-Object -First 1
+}
+
+function Test-IgwtPnpDeviceDisabled {
+    <# .SYNOPSIS True when a PnP device is disabled (problem code 22 / CM_PROB_DISABLED). #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Device)
+    return ([string]$Device.Problem -match 'DISABLED' -or [int]$Device.ConfigManagerErrorCode -eq 22)
 }
 
 function Get-IgwtCustomHandler {

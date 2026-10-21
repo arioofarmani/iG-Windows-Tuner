@@ -93,6 +93,9 @@
                     <ListBoxItem Tag="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
+                    <ListBoxItem Tag="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{StaticResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{StaticResource BrushDanger}"/></StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,12,0"/><TextBlock Text="Expert Inspectors"/></StackPanel>
                     </ListBoxItem>
@@ -101,6 +104,9 @@
                     </ListBoxItem>
                     <ListBoxItem Tag="Diagnostics" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D2;" Margin="0,0,12,0"/><TextBlock Text="Diagnostics &amp; Network"/></StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="NetTest" ToolTip="Measure latency, jitter, packet loss and stability, detect your connection type and get the best network adjustments">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE701;" Margin="0,0,12,0"/><TextBlock Text="Network Test"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Asr" ToolTip="Attack surface reduction rules: modes, gamer impact, exclusions and the audit view">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" Margin="0,0,12,0"/><TextBlock Text="ASR Center"/></StackPanel>
@@ -642,6 +648,61 @@
                     </TabControl>
                 </Grid>
 
+                <!-- Network Test -->
+                <ScrollViewer x:Name="PageNetTest" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource TextTitle}" Text="Network test"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Measures latency, jitter, packet loss and stability to your router, your ISP and the internet, traces the path, detects your connection type and recommends the Windows adjustments that lower latency and jitter. Read-only: it only sends pings and DNS queries."/>
+                        <WrapPanel Margin="0,10,0,0">
+                            <TextBlock Text="Duration" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox x:Name="NetDurationBox" Width="160" Margin="0,0,12,0" ToolTip="Quick: 10 seconds. Standard: 30 seconds. Extended: 2 minutes, best for spotting spikes and loss bursts."/>
+                            <TextBox x:Name="NetTargetsBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Optional: up to 4 game servers or other hosts (names or IP addresses, separated by commas) to measure as well."/>
+                            <Button x:Name="NetRunButton" Style="{StaticResource AccentButton}" Content="Run test" ToolTip="Run the network test (read-only)."/>
+                            <Button x:Name="NetLoadButton" Content="Measure under load" ToolTip="Start a speed test or large download first; this measures latency for 20 seconds while the line is busy and grades bufferbloat."/>
+                            <Button x:Name="NetExportButton" Content="Export report" Margin="0" ToolTip="Save the last result as an HTML report (no scripts) in the Reports folder."/>
+                        </WrapPanel>
+                        <TextBlock x:Name="NetStatusText" Style="{StaticResource TextMuted}" Margin="0,8,0,0" Text="Not run yet."/>
+                        <UniformGrid Columns="6" Margin="0,8,0,0">
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Overall grade: the weakest of latency, jitter, packet loss and stability.">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Grade"/><TextBlock x:Name="NetGradeText" FontSize="28" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Score from 0 to 100 and the estimated call quality (MOS, 1 to 4.5).">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Score / MOS"/><TextBlock x:Name="NetScoreText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Median round-trip time to the best internet anchor.">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Ping"/><TextBlock x:Name="NetLatencyText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Average difference between consecutive pings; high jitter causes rubber-banding.">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Jitter"/><TextBlock x:Name="NetJitterText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Share of pings without a reply.">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Packet loss"/><TextBlock x:Name="NetLossText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Margin="0" ToolTip="Stability grade from latency spikes and loss bursts, and the bufferbloat grade under load.">
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Stability / load"/><TextBlock x:Name="NetStabilityText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                            </Border>
+                        </UniformGrid>
+                        <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Connection" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="NetConnectionText" TextWrapping="Wrap" Margin="0,4,0,0" Text="-"/>
+                                <TextBlock x:Name="NetEvidenceText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Style="{StaticResource TextSection}" Text="Measurements" Margin="0,12,0,4"/>
+                        <ItemsControl x:Name="NetTargetList" ItemTemplate="{StaticResource ManageRowTemplate}"/>
+                        <DockPanel Margin="0,12,0,4">
+                            <Button x:Name="NetApplyButton" DockPanel.Dock="Right" Content="Preview recommended adjustments" Margin="0" ToolTip="Stage the recommended Windows items and show the dry-run preview. Nothing changes until you press Apply."/>
+                            <TextBlock x:Name="NetRecoTitle" Style="{StaticResource TextSection}" Text="Recommended Windows adjustments" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <ItemsControl x:Name="NetRecoList" ItemTemplate="{StaticResource ManageRowTemplate}"/>
+                        <TextBlock Style="{StaticResource TextSection}" Text="Router, Wi-Fi and ISP" Margin="0,12,0,4"/>
+                        <ItemsControl x:Name="NetGuidanceList" ItemTemplate="{StaticResource ManageRowTemplate}"/>
+                        <TextBlock Style="{StaticResource TextSection}" Text="Path to the internet" Margin="0,12,0,4"/>
+                        <TextBox x:Name="NetPathText" IsReadOnly="True" TextWrapping="NoWrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" HorizontalScrollBarVisibility="Auto" ToolTip="Each router (hop) between this PC and 1.1.1.1 with its response time and name."/>
+                    </StackPanel>
+                </ScrollViewer>
+
                 <!-- ASR Center -->
                 <Grid x:Name="PageAsr" Visibility="Collapsed">
                     <Grid.RowDefinitions>
@@ -937,7 +998,7 @@
                 <ScrollViewer x:Name="PageRejected" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                     <StackPanel>
                         <TextBlock Style="{StaticResource TextTitle}" Text="Rejected Tweaks"/>
-                        <TextBlock Style="{StaticResource TextMuted}" Text="Popular tweaks iG Windows Tuner deliberately does not implement: placebo, obsolete, unstable, security-reducing or anti-cheat-hostile. Read-only." Margin="0,0,0,10"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Popular tweaks iG Windows Tuner does not recommend: placebo, obsolete, unstable, security-reducing or anti-cheat-hostile. Reversible performance and network items can be applied at your own risk from the Risk Zone; items that turn off security protections or cannot be undone are not offered." Margin="0,0,0,10"/>
                         <ItemsControl x:Name="RejectedList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -949,6 +1010,7 @@
                                             </DockPanel>
                                             <TextBlock Style="{StaticResource TextMuted}" Margin="0,4,0,0"><Run Text="Claim: "/><Run Text="{Binding Claim, Mode=OneWay}"/></TextBlock>
                                             <TextBlock TextWrapping="Wrap" Margin="0,4,0,0" Text="{Binding Reason}"/>
+                                            <TextBlock Text="{Binding Availability}" Foreground="{Binding AvailabilityBrush}" TextWrapping="Wrap" Margin="0,4,0,0" FontWeight="SemiBold"/>
                                             <TextBlock Style="{StaticResource TextMuted}" Text="{Binding SourcesText}" Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </Border>

@@ -351,6 +351,41 @@
       "actions": [
         { "type": "dnsDoh", "provider": "cloudflare", "allowFallbackToUdp": false }
       ]
+    },
+    {
+      "id": "net.wifi-power-max-performance",
+      "name": "Wi-Fi adapter power saving: Maximum Performance",
+      "category": "Network",
+      "group": "Wi-Fi",
+      "order": 58,
+      "level": "Advanced",
+      "hint": "Keeps the Wi-Fi adapter at Maximum Performance when plugged in. Repairs plans set to power saving; measure ping and jitter.",
+      "description": "Sets the power plan setting Wireless Adapter Settings > Power Saving Mode to Maximum Performance for plugged-in use in the active plan. Wi-Fi power saving lets the adapter sleep between beacons, which adds latency spikes and jitter. Most plans already use Maximum Performance on AC, so this mainly repairs plans changed by an OEM or another tool; measure ping and jitter before and after. Revert restores the previous plan value.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://support.microsoft.com/kb/928152", "https://www.intel.com/content/www/us/en/support/articles/000005879/wireless.html" ],
+        "notes": "Microsoft documents the setting GUIDs (KB 928152); Intel documents the trade-off and recommends the default unless you have connection problems."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "microsoft",
+      "actions": [
+        {
+          "type": "powercfgSetting",
+          "label": "Wireless adapter power saving mode",
+          "subgroup": "19cbb8fa-5279-450e-9fac-8a3d5fedd0c1",
+          "setting": "12bbebe6-58d6-4636-95bb-3217ef867c1a",
+          "ac": 0,
+          "defaultFromScheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "defaultAc": 0
+        }
+      ]
     }
   ]
 }

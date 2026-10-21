@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '1.0.0'
+    ModuleVersion        = '2.2.0'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -33,6 +33,7 @@
         'Get-IgwtAdapterPropertyInspection', 'Invoke-IgwtDnsBenchmark', 'Test-IgwtNetworkLatency', 'Get-IgwtFirewallRuleList', 'Get-IgwtHostsFile',
         'Get-IgwtDiagnostics', 'Format-IgwtDiagnostics', 'Get-IgwtDpcIsrSample', 'Get-IgwtReliabilityHistory', 'Get-IgwtCrashHistory', 'Get-IgwtBootPerformance', 'Get-IgwtDriverInventory',
         'Get-IgwtSystemReport', 'Export-IgwtSystemReport',
+        'Invoke-IgwtNetworkQualityTest', 'Measure-IgwtLoadedLatency', 'Format-IgwtNetworkQuality', 'Export-IgwtNetworkReport', 'Get-IgwtActiveConnection', 'Invoke-IgwtRouteTrace', 'Find-IgwtPathMtu', 'Get-IgwtNetworkTypeGuess', 'Get-IgwtNetworkRecommendations', 'ConvertTo-IgwtLatencyStats', 'Get-IgwtNetworkScore', 'Get-IgwtBufferbloatGrade', 'Get-IgwtRiskZoneSummary',
         'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
     )
     CmdletsToExport      = @()

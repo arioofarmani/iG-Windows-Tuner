@@ -6,7 +6,7 @@
 
 $script:IgwtSchemaVersion = 2
 $script:IgwtItemLevels = @('Standard', 'Advanced', 'Expert', 'Lab')
-$script:IgwtTiers = @('A', 'B')
+$script:IgwtTiers = @('A', 'B', 'R')   # R = rejected tweak offered at the user's own risk (Risk Zone)
 $script:IgwtReversibleValues = @('full', 'partial', 'none')
 $script:IgwtItemSources = @('igwt', 'winutil', 'microsoft')
 $script:IgwtAntiCheatPolicies = @('safeOnly', 'any')
@@ -95,7 +95,7 @@ function Test-IgwtItemMetadata {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Item, [Parameter(Mandatory = $true)][string]$Label, [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors)
     if ($script:IgwtItemLevels -notcontains [string]$Item.level) { $Errors.Add("${Label}: level must be Standard, Advanced, Expert or Lab (got '$($Item.level)').") }
-    if ($script:IgwtTiers -notcontains (Get-IgwtItemTier -Item $Item)) { $Errors.Add("${Label}: tier must be A or B (rejected items belong in rejected.json).") }
+    if ($script:IgwtTiers -notcontains (Get-IgwtItemTier -Item $Item)) { $Errors.Add("${Label}: tier must be A, B or R (R only for Risk Zone items).") }
     if (-not (ConvertTo-IgwtAntiCheatInfo -Value $Item.antiCheat).Valid) { $Errors.Add("${Label}: antiCheat must be ""safe"", ""unknown"" or { ""breaks"": [names] }.") }
     if ($script:IgwtReversibleValues -notcontains [string]$Item.reversible) { $Errors.Add("${Label}: reversible must be full, partial or none.") }
     if ($null -eq $Item.PSObject.Properties['sideEffects'] -or ($null -ne $Item.sideEffects -and $Item.sideEffects -isnot [string])) { $Errors.Add("${Label}: 'sideEffects' must be a string (empty when there are none).") }

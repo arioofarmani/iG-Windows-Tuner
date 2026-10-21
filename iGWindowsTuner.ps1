@@ -133,7 +133,20 @@
     User-initiated DNS benchmark of the current DNS servers and public resolvers (uses the network, changes nothing).
 .PARAMETER Latency
     User-initiated latency, jitter and loss test to the host names or IP addresses you give.
-
+.PARAMETER NetworkTest
+    Network quality test: latency, jitter, packet loss and stability to your router, ISP and the
+    internet, path trace, path MTU, connection type guess and recommended Windows adjustments.
+    Read-only (pings and DNS queries). -ReportPath saves an .html or .json report.
+.PARAMETER Duration
+    With -NetworkTest: Quick (10 s), Standard (30 s, default) or Extended (2 minutes).
+.PARAMETER NetTarget
+    With -NetworkTest: up to 4 extra hosts to measure, such as a game server.
+.PARAMETER UnderLoad
+    With -NetworkTest: after the idle test, measure 20 s of latency while you run a speed test or
+    large download, and grade bufferbloat.
+.PARAMETER RiskZone
+    Lists every rejected tweak: the ones you can apply at your own risk (with warnings and what they
+    turn off or on) and the ones that are not offered, with the reason. Read-only.
 .EXAMPLE
     .\iGWindowsTuner.ps1 -Report
 .EXAMPLE
@@ -170,6 +183,12 @@
     .\iGWindowsTuner.ps1 -SystemReport -ReportPath "$env:USERPROFILE\Desktop\system-report.html"
 .EXAMPLE
     .\iGWindowsTuner.ps1 -Latency 1.1.1.1,valve.net
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -NetworkTest -Duration Extended -ReportPath "$env:USERPROFILE\Desktop\network.html"
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -RiskZone
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -Apply risk.tcp-autotuning-disabled -AcknowledgeRisk -DryRun
 
 .NOTES
     Exit codes: 0 success, 1 error, 2 invalid arguments or unknown tweak/rule id, 3 elevation declined,
@@ -242,6 +261,12 @@ param(
     [switch]$Quick,
     [switch]$DnsBenchmark,
     [string[]]$Latency,
+    [switch]$NetworkTest,
+    [ValidateSet('Quick', 'Standard', 'Extended')]
+    [string]$Duration = 'Standard',
+    [string[]]$NetTarget,
+    [switch]$UnderLoad,
+    [switch]$RiskZone,
     [switch]$ElevatedRelaunch
 )
 
@@ -293,6 +318,7 @@ function Write-IgwtPlan {
         $origin = ''
         if ($p.PSObject.Properties['Origin'] -and $p.Origin -and $p.Origin -ne 'preset') { $origin = "  [from $($p.Origin)]" }
         Write-IgwtCliLine ("{0} {1,-38} {2}  ({3}, Tier {4}, risk {5}{6}){7}" -f $tag, $p.Id, $p.Name, $p.Level, $p.Tier, $p.Risk, $(if ($p.Requires -ne 'none') { ", needs $($p.Requires)" } else { '' }), $origin) $color
+        if ([string]$p.Tier -eq 'R') { Write-IgwtCliLine ("           RISK ZONE (rejected tweak, at your own risk): {0}" -f (Get-IgwtRiskZoneSummary -Tweak (Get-IgwtTweak -Id $p.Id))) ([ConsoleColor]::Red) }
         if ($p.PSObject.Properties['Notes']) {
             foreach ($n in @($p.Notes | Where-Object { $_ -and $_ -ne $p.Reason })) { Write-IgwtCliLine ("           {0}" -f $n) ([ConsoleColor]::Cyan) }
         }
@@ -477,6 +503,8 @@ if ($Diagnostics) { $modes += 'Diagnostics' }
 if ($SystemReport) { $modes += 'SystemReport' }
 if ($DnsBenchmark) { $modes += 'DnsBenchmark' }
 if ($Latency) { $modes += 'Latency' }
+if ($NetworkTest) { $modes += 'NetworkTest' }
+if ($RiskZone) { $modes += 'RiskZone' }
 if ($modes.Count -gt 1) { Write-IgwtCliLine "Choose one mode only (got: $($modes -join ', '))." ([ConsoleColor]::Red); exit 2 }
 $asrOnly = @('AsrRule', 'AsrMode', 'AsrRecommended', 'AsrExclude', 'AsrUnexclude') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($asrOnly -and -not $Asr) { Write-IgwtCliLine "-$($asrOnly -join ', -') only valid with -Asr." ([ConsoleColor]::Red); exit 2 }
@@ -489,7 +517,9 @@ if ($Change -and (-not $Target -or -not $Value)) { Write-IgwtCliLine '-Change ne
 if ($IncludeMicrosoft -and -not $Persistence) { Write-IgwtCliLine '-IncludeMicrosoft is only valid with -Persistence.' ([ConsoleColor]::Red); exit 2 }
 if ($Quick -and -not $SystemReport) { Write-IgwtCliLine '-Quick is only valid with -SystemReport.' ([ConsoleColor]::Red); exit 2 }
 if ($SystemReport -and -not $ReportPath) { Write-IgwtCliLine '-SystemReport needs -ReportPath (.html or .json).' ([ConsoleColor]::Red); exit 2 }
-if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence or -SystemReport.' ([ConsoleColor]::Red); exit 2 }
+if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport -or $NetworkTest)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence, -SystemReport or -NetworkTest.' ([ConsoleColor]::Red); exit 2 }
+$netOnly = @('Duration', 'NetTarget', 'UnderLoad') | Where-Object { $PSBoundParameters.ContainsKey($_) }
+if ($netOnly -and -not $NetworkTest) { Write-IgwtCliLine "-$($netOnly -join ', -') only valid with -NetworkTest." ([ConsoleColor]::Red); exit 2 }
 if ($AsrMode -and -not $AsrRule) { Write-IgwtCliLine '-AsrMode needs -AsrRule.' ([ConsoleColor]::Red); exit 2 }
 $powerOnly = @('Ac', 'Dc', 'PowerDefault') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($powerOnly -and -not $PowerSetting) { Write-IgwtCliLine "-$($powerOnly -join ', -') only valid with -PowerSetting." ([ConsoleColor]::Red); exit 2 }
@@ -764,6 +794,49 @@ try {
                 Write-IgwtCliLine ("  {0,-24} avg {1,6} ms  min {2,5}  max {3,5}  jitter {4,5} ms  loss {5} %" -f $r.Target, $r.AvgMs, $r.MinMs, $r.MaxMs, $r.JitterMs, $r.LossPercent)
             }
             Write-IgwtCliLine $l.Note ([ConsoleColor]::DarkGray)
+            exit 0
+        }
+        'NetworkTest' {
+            if (-not $Json) { Write-IgwtCliLine "Running the $($Duration.ToLowerInvariant()) network test (pings and DNS queries only; changes nothing)..." ([ConsoleColor]::Gray) }
+            $res = Invoke-IgwtNetworkQualityTest -Duration $Duration -Target @(Split-IgwtIdList $NetTarget)
+            if ($UnderLoad -and -not $res.Error) {
+                if (-not $Json) { Write-IgwtCliLine 'Start a speed test or a large download now. Measuring latency under load in 5 seconds, for 20 seconds...' ([ConsoleColor]::Yellow) }
+                Start-Sleep -Seconds 5
+                $load = Measure-IgwtLoadedLatency -Baseline $res -DurationSec 20
+                $res.Bufferbloat = [pscustomobject]@{ Grade = $load.Grade; IncreaseMs = $load.IncreaseMs }
+                $res.Recommendations = Get-IgwtNetworkRecommendations -Result $res
+            }
+            if ($Json) { $res | ConvertTo-Json -Depth 8 } else { Format-IgwtNetworkQuality -Result $res | Write-Output }
+            if ($ReportPath -and -not $res.Error) {
+                $out = Export-IgwtNetworkReport -Result $res -Path $ReportPath -Format $(if ($ReportPath -match '\.json$') { 'Json' } else { 'Html' })
+                if (-not $Json) { Write-IgwtCliLine "Report written to $out" ([ConsoleColor]::Gray) }
+            }
+            exit $(if ($res.Error) { 1 } else { 0 })
+        }
+        'RiskZone' {
+            $ctx = New-IgwtContext
+            $catalog = @(Get-IgwtCatalog)
+            $rows = foreach ($r in @(Get-IgwtRejectedTweaks)) {
+                $t = $null; $state = ''
+                if ($r.riskItem) { $t = $catalog | Where-Object { $_.id -eq [string]$r.riskItem } | Select-Object -First 1; if ($t) { $state = [string](Get-IgwtTweakState -Tweak $t -Context $ctx).State } }
+                [pscustomobject]@{ Rejected = [string]$r.id; Name = [string]$r.name; Available = [bool]$t; Item = $(if ($t) { [string]$t.id } else { '' }); State = $state
+                    Warning = $(if ($t) { [string]$t.warning } else { '' }); TurnsOff = $(if ($t) { @($t.riskZone.turnsOff) } else { @() }); TurnsOn = $(if ($t) { @($t.riskZone.turnsOn) } else { @() })
+                    Risks = $(if ($t) { @($t.riskZone.risks) } else { @() }); NotOffered = [string]$r.unavailable }
+            }
+            if ($Json) { @($rows) | ConvertTo-Json -Depth 4; exit 0 }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine 'Risk Zone: rejected tweaks you can apply at your own risk' ([ConsoleColor]::Red)
+            foreach ($x in @($rows | Where-Object { $_.Available })) {
+                Write-IgwtCliLine ("  {0,-34} {1,-14} {2}" -f $x.Item, "[$($x.State)]", $x.Name) (Get-IgwtStateColor $x.State)
+                Write-IgwtCliLine ("  {0,-34} {1}" -f '', $x.Warning) ([ConsoleColor]::Yellow)
+                if (@($x.TurnsOff).Count) { Write-IgwtCliLine ("  {0,-34} turns off: {1}" -f '', (@($x.TurnsOff) -join '; ')) ([ConsoleColor]::DarkGray) }
+                if (@($x.TurnsOn).Count) { Write-IgwtCliLine ("  {0,-34} turns on: {1}" -f '', (@($x.TurnsOn) -join '; ')) ([ConsoleColor]::DarkGray) }
+            }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine 'Not offered' ([ConsoleColor]::White)
+            foreach ($x in @($rows | Where-Object { -not $_.Available })) { Write-IgwtCliLine ("  {0,-38} {1}" -f $x.Rejected, $x.NotOffered) ([ConsoleColor]::DarkGray) }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine 'Apply one with: .\iGWindowsTuner.ps1 -Apply <risk id> -AcknowledgeRisk (add -DryRun to preview). Every change writes a snapshot and can be reverted.' ([ConsoleColor]::White)
             exit 0
         }
         'PowerSetting' {

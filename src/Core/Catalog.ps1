@@ -3,7 +3,7 @@
 # and validates them. No tweak logic lives here or in the GUI; it is all declared in JSON.
 
 $script:IgwtCatalogCache = $null
-$script:IgwtCategories = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'Storage', 'Security', 'System')
+$script:IgwtCategories = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'Storage', 'Security', 'System', 'Risk Zone')
 $script:IgwtLegacyTweakFields = @('antiCheatSafe', 'expert')
 $script:IgwtActionTypes = @('registry', 'registryListMerge', 'adapterRegistry', 'netAdapterPower', 'powercfgScheme', 'powercfgSetting', 'service',
     'netAdapterAdvanced', 'netQosPolicy', 'dnsDoh', 'mpPreference', 'asrRule', 'optionalFeature', 'custom', 'check',
@@ -299,6 +299,31 @@ function Test-IgwtV2Action {
     }
 }
 
+function Test-IgwtRiskZoneItem {
+    <#
+    .SYNOPSIS
+        Rules for rejected tweaks offered at the user's own risk: evidence tier R only in the Risk
+        Zone category and vice versa, level Lab, a warning, side effects, and a riskZone block that
+        names the rejected entry, what the item turns off or on, and its risks.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Tweak, [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors)
+    $tid = [string]$Tweak.id
+    $isR = ([string]$Tweak.evidence.tier -eq 'R')
+    $inZone = ([string]$Tweak.category -eq 'Risk Zone')
+    if ($isR -ne $inZone) { $Errors.Add("${tid}: evidence tier R and the Risk Zone category go together."); return }
+    if (-not $isR) { if ($Tweak.PSObject.Properties['riskZone'] -and $Tweak.riskZone) { $Errors.Add("${tid}: only Risk Zone items may have a riskZone block.") }; return }
+    if ($tid -notmatch '^risk\.') { $Errors.Add("${tid}: Risk Zone ids start with 'risk.'.") }
+    if ([string]$Tweak.level -ne 'Lab') { $Errors.Add("${tid}: Risk Zone items must be level Lab.") }
+    if (-not ([string]$Tweak.warning).Trim()) { $Errors.Add("${tid}: Risk Zone items need a warning.") }
+    if (-not ([string]$Tweak.sideEffects).Trim()) { $Errors.Add("${tid}: Risk Zone items must describe what they switch off or on in sideEffects.") }
+    $rz = $Tweak.riskZone
+    if (-not $rz) { $Errors.Add("${tid}: Risk Zone items need a riskZone block (rejected, turnsOff, turnsOn, risks)."); return }
+    if ([string]$rz.rejected -notmatch '^rejected\.') { $Errors.Add("${tid}: riskZone.rejected must name the rejected.json entry.") }
+    if ((@($rz.turnsOff | Where-Object { $_ }).Count + @($rz.turnsOn | Where-Object { $_ }).Count) -eq 0) { $Errors.Add("${tid}: riskZone must list what the item turns off and/or on.") }
+    if (@($rz.risks | Where-Object { $_ }).Count -eq 0) { $Errors.Add("${tid}: riskZone.risks must list at least one risk.") }
+}
+
 function Test-IgwtCatalog {
     <#
     .SYNOPSIS
@@ -359,6 +384,7 @@ function Test-IgwtCatalog {
         if ([string]$t.reversible -ne 'full' -and -not ([string]$t.sideEffects).Trim()) { $errors.Add("${tid}: items that are not fully reversible must describe it in sideEffects.") }
         if ([string]$t.status -notin 'Active', 'NotApplicable') { $errors.Add("${tid}: status must be Active or NotApplicable.") }
         if ($t.postApply -and $hooks -notcontains [string]$t.postApply) { $errors.Add("${tid}: unknown postApply hook '$($t.postApply)'.") }
+        Test-IgwtRiskZoneItem -Tweak $t -Errors $errors
 
         $actions = @($t.actions)
         if ($actions.Count -eq 0) { $errors.Add("${tid}: needs at least one action.") }
@@ -421,6 +447,17 @@ function Test-IgwtCatalog {
     foreach ($r in $rejected) {
         if (-not $r.id -or -not $r.name -or -not $r.reason) { $errors.Add("rejected.json: entry '$($r.id)' needs id, name and reason.") }
         if ($ids.ContainsKey([string]$r.id)) { $errors.Add("rejected.json: '$($r.id)' is rejected but also implemented in the catalog.") }
+        # Every rejected tweak is either offered in the Risk Zone (riskItem) or not offered, with the reason (unavailable).
+        $hasItem = [bool]([string]$r.riskItem); $hasReason = [bool](([string]$r.unavailable).Trim())
+        if ($hasItem -eq $hasReason) { $errors.Add("rejected.json: '$($r.id)' needs exactly one of riskItem or unavailable.") }
+        if ($hasItem) {
+            $ri = $ids[[string]$r.riskItem]
+            if (-not $ri) { $errors.Add("rejected.json: '$($r.id)' riskItem '$($r.riskItem)' is not in the catalog.") }
+            elseif ([string]$ri.riskZone.rejected -ne [string]$r.id) { $errors.Add("rejected.json: '$($r.id)' riskItem '$($r.riskItem)' points back to '$($ri.riskZone.rejected)'.") }
+        }
+    }
+    foreach ($t in @($catalog | Where-Object { [string]$_.evidence.tier -eq 'R' })) {
+        if (-not @($rejected | Where-Object { [string]$_.riskItem -eq [string]$t.id }).Count) { $errors.Add("$($t.id): Risk Zone item is not linked from rejected.json (riskItem).") }
     }
     $rejectedIds = @($rejected | ForEach-Object { [string]$_.id })
 
@@ -442,6 +479,7 @@ function Test-IgwtCatalog {
             if (-not $ids.ContainsKey([string]$m)) { $errors.Add("${label}: unknown tweak '$m'."); continue }
             $t = $ids[[string]$m]
             if ($rejectedIds -contains [string]$m) { $errors.Add("${label}: contains rejected item '$m'.") }
+            if ([string]$t.evidence.tier -eq 'R') { $errors.Add("${label}: contains Risk Zone item '$m' (rejected tweaks are never in presets).") }
             if ([string]$t.level -eq 'Lab') { $errors.Add("${label}: contains Lab item '$m' (Lab items are never in presets).") }
             elseif ($ceiling -ge 0 -and (Get-IgwtLevelRank -Level ([string]$t.level)) -gt $ceiling) { $errors.Add("${label}: contains $($t.level) item '$m' above its level ceiling $($p.levelCeiling).") }
             if ([string]$p.antiCheatPolicy -eq 'safeOnly' -and -not $t.antiCheatSafe) { $errors.Add("${label}: contains '$m', which is not anti-cheat safe.") }

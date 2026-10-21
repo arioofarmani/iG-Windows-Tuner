@@ -30,6 +30,12 @@ All read-only commands work without elevation:
 # What a preset would change (prints the full diff, changes nothing)
 .\iGWindowsTuner.ps1 -Preset Competitive -DryRun
 
+# Network quality: ping, jitter, loss, stability, connection type and recommended adjustments
+.\iGWindowsTuner.ps1 -NetworkTest -Duration Standard -ReportPath .\network.html
+
+# Rejected tweaks available at your own risk, with warnings and current state
+.\iGWindowsTuner.ps1 -RiskZone
+
 # GUI (double-click Start-iGWindowsTuner.cmd, or:)
 .\Start-iGWindowsTuner.cmd
 ```
@@ -45,7 +51,20 @@ The commands that change the system request elevation through the normal UAC pro
 .\iGWindowsTuner.ps1 -ResetDefault gfx.hags           # documented Windows default
 ```
 
-Options: `-DryRun`, `-SkipRestorePoint` (the JSON snapshot is still written), `-EnableSystemProtection` (consent to turn on System Protection for C: when it is off), `-AcknowledgeRisk` (required for expert toggles), `-Json` (machine-readable output), `-NoGui`.
+Options: `-DryRun`, `-SkipRestorePoint` (the JSON snapshot is still written), `-EnableSystemProtection` (consent to turn on System Protection for C: when it is off), `-AcknowledgeRisk` (required for expert toggles and Risk Zone items), `-Json` (machine-readable output), `-NoGui`.
+
+Network test options: `-Duration Quick|Standard|Extended`, `-NetTarget <hosts>` (for example a game server), `-UnderLoad` (measures while you run a speed test and grades bufferbloat), `-ReportPath <file.html|file.json>`. See [NETWORK_TEST.md](NETWORK_TEST.md).
+
+### Risk Zone
+
+The Risk Zone offers rejected tweaks at your own risk: reversible performance, input, system and network settings that iG Windows Tuner does not recommend (placebo, obsolete or risky). Each lists what it turns off and on and its risks. They need `-AcknowledgeRisk` (or a typed confirmation in the GUI), are never part of a preset and are reverted from snapshots like every other item:
+
+```powershell
+.\iGWindowsTuner.ps1 -Apply risk.tcp-autotuning-disabled -AcknowledgeRisk -DryRun   # preview with the warning
+.\iGWindowsTuner.ps1 -Revert risk.tcp-autotuning-disabled
+```
+
+Rejected tweaks that turn off security protections, edit the boot configuration or cannot be undone are not offered; [REJECTED_TWEAKS.md](REJECTED_TWEAKS.md) gives the reason for each.
 
 ### Exit codes
 
@@ -74,7 +93,9 @@ The full lists are in [PRESETS.md](PRESETS.md), and every tweak with its exact c
 
 - A dark Windows 11-style window (minimum 1100x720) with icons from the inbox Segoe Fluent Icons font.
 - **Header**: hardware summary, OS build, admin badge, and an anti-cheat readiness pill (green, amber or red).
-- **Pages**: Dashboard (health), Presets, Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Startup Apps, Backups & Logs, Rejected Tweaks, About.
+- **Pages**: Dashboard (health), Presets, Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, System & Diagnostics, Risk Zone, Expert Inspectors, Manage, Diagnostics & Network, Network Test, ASR Center, Cleaner, Storage Sense, Disk Analyzer, Startup Apps, Backups & Logs, Rejected Tweaks, About.
+- **Network Test**: choose Quick, Standard or Extended, optionally add game servers, and run. Score cards show grade, score and MOS, ping, jitter, loss and stability; below are the connection type with its evidence, every target, the recommended Windows adjustments (one click stages them and opens the preview) and router, Wi-Fi and ISP advice. "Measure under load" grades bufferbloat while you run a speed test.
+- **Risk Zone**: the rejected tweaks you can apply at your own risk. The details pane shows the warning and what each item turns off and on; turning one on asks you to type I ACCEPT.
 - **Toggles** always show the real current state. Toggling only stages a change. The bottom bar shows `N pending - Preview - Apply - Discard`, and Preview is a dry-run diff.
 - **Details pane**: description, exact changes (current -> target), clickable sources, how to revert, and "reset to Windows default".
 - **Search and filters**: text, tier, risk, needs restart, changed from default. Shortcuts: Ctrl+F to search, F5 to refresh.
@@ -84,7 +105,7 @@ The full lists are in [PRESETS.md](PRESETS.md), and every tweak with its exact c
 ## What iG Windows Tuner never does
 
 - Edit BCD (there is no `bcdedit` anywhere), enable test signing, disable driver signature enforcement, enable kernel debugging, or disable DEP/ASLR/CFG.
-- Touch Secure Boot, TPM, firmware, voltages, power limits or CPU C-states, or install drivers.
+- Touch Secure Boot, TPM, firmware, voltages or power limits, or install drivers. CPU idle states change only through the Risk Zone item `risk.processor-idle-disable`, which is blocked on 13th and 14th gen Intel desktop CPUs.
 - Touch game processes or files, or anti-cheat services (vgc/vgk, FACEIT, EasyAntiCheat, BEService).
 - Disable Defender, Tamper Protection, AMSI, ETW, the firewall, UAC, SmartScreen or Windows Update, or add Defender exclusions.
 - Create persistence (scheduled tasks, services, Run keys, WMI subscriptions), hide windows, download anything, or change the machine or user execution policy.
@@ -109,10 +130,10 @@ iGWindowsTuner.ps1              entry point (CLI + GUI), elevation relaunch
 Start-iGWindowsTuner.cmd        double-click launcher (process-scope execution policy only)
 src/                       module: Core (engine, snapshot, restore point, preflight, logging),
                            Actions (one file per action type), Health (read-only checks), Gui (XAML + code)
-data/tweaks/*.json         the catalog (single source of truth)
+data/tweaks/*.json         the catalog (single source of truth; riskzone.json holds the Risk Zone)
 data/presets/*.json        Competitive, Balanced, Hardened
 data/games.json            game executables and discovery hints (Dota 2 first)
-data/rejected.json         documented but not implemented
+data/rejected.json         rejected tweaks: Risk Zone item or the reason they are not offered
 data/schema/               JSON schema for tweak files
 tests/                     Pester 5 suite (TestRegistry + mocks only)
 tools/                     Build-Docs, Test-Catalog, Invoke-QualityChecks, Sign-Toolbox, New-Release,

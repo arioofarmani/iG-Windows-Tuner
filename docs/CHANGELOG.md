@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.2.0 (preview)
+
+### Network Test
+
+- New network quality analyzer (GUI page **Network Test**, CLI `-NetworkTest`, `docs\NETWORK_TEST.md`): latency, jitter (sub-millisecond precision), packet loss, percentiles, spikes and loss bursts to the router, the first ISP hop, internet anchors and up to four targets of your own; ICMP traceroute with reverse DNS; path MTU discovery; DNS lookup time.
+- Grades per metric and overall (the weakest metric decides), a 0-100 score and an estimated MOS (simplified ITU-T G.107 E-model); optional latency under load with a bufferbloat grade while you run a speed test.
+- Connection type guess with confidence and evidence: local link (Ethernet, Wi-Fi 4 to 7 with band, channel and signal, mobile broadband, phone tethering or hotspot, VPN) and internet access (fiber, cable, DSL, cellular, Starlink, geostationary satellite, fixed wireless) from router names, carrier-grade NAT, first-hop latency, idle jitter and MTU.
+- Recommendations: the catalog items that lower latency and jitter on this kind of connection and are not applied yet (Ethernet, Wi-Fi and mobile profiles; preview and apply through the normal engine), Risk Zone network items to turn off, and router, Wi-Fi and ISP guidance (SQM against bufferbloat, band and signal, home network versus ISP loss, CGNAT, double NAT, VPN).
+- New catalog item `net.wifi-power-max-performance` (Wi-Fi adapter power saving: Maximum Performance on AC, Tier B).
+- HTML and JSON reports; `-Duration Quick|Standard|Extended`, `-NetTarget`, `-UnderLoad`, `-ReportPath`.
+
+### Risk Zone
+
+- Rejected tweaks are now available at the user's own risk when they are reversible performance or network settings: 19 items in the new **Risk Zone** category (evidence tier R, level Lab), each with a warning, what it turns off and on, its risks and the reason it was rejected.
+- Applying one needs `-AcknowledgeRisk` on the command line or typing "I ACCEPT" in the GUI; Risk Zone items are never part of a preset, conflict with their safe counterparts and are reverted from snapshots like every other item. New handlers for the HPET device, memory compression and disabled TCP auto-tuning.
+- Rejected tweaks that turn off security protections (Defender, VBS/HVCI, CPU mitigations, driver signature enforcement, service isolation), edit the boot configuration, cannot be undone or need background software stay unavailable; `data\rejected.json` and the Rejected Tweaks page state the reason for each.
+- CLI `-RiskZone` lists every rejected tweak with its availability, warnings and current state; dry runs print the Risk Zone warning.
+
+### Other
+
+- Version 2.2.0 (`$script:IgwtVersion`, module manifest).
+- Tests: `tests\Network.Tests.ps1` and `tests\RiskZone.Tests.ps1`; the safety tests allow `netsh` only for the read-only `wlan show interfaces` in the network module.
+
 ## 2.0.0 (preview)
 
 ### Management and diagnostic modules

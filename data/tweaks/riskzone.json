@@ -1,0 +1,823 @@
+{
+  "schemaVersion": 2,
+  "category": "Risk Zone",
+  "comment": "Rejected tweaks offered at the user's own risk. Every item is level Lab, evidence tier R, never part of a preset, needs -AcknowledgeRisk (CLI) or a typed confirmation (GUI) and lists what it turns off and on.",
+  "tweaks": [
+    {
+      "id": "risk.win32-priority-separation",
+      "name": "Win32PrioritySeparation = 0x2A (short fixed quanta, 3:1 boost)",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 10,
+      "level": "Lab",
+      "hint": "Sets the popular 0x2A scheduler value from tuning guides. Never measured to help; can starve background audio and voice.",
+      "description": "Writes Win32PrioritySeparation = 0x2A (42): short, fixed time slices with a 3:1 foreground boost, a value many gaming guides recommend. The Windows default (2) already boosts the foreground program; no measurement shows a gain in games. Revert restores the exact previous value.",
+      "warning": "Rejected tweak: unproven. Changes thread time slices for every program and can make background audio, voice chat and streaming software stutter.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities" ],
+        "notes": "Rejected: The default (programs) already boosts the foreground; arbitrary hex values from guides change quantum lengths in ways that were never measured to help and can hurt background audio/voice."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off variable-length time slices and changes the foreground boost for all programs, not only games.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.win32-priority-separation",
+        "turnsOff": [ "Variable-length scheduler time slices" ],
+        "turnsOn": [ "Short fixed time slices with a 3:1 foreground boost" ],
+        "risks": [ "Stutter in background audio, voice chat or streaming tools", "Lower throughput for background work" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+          "name": "Win32PrioritySeparation",
+          "valueType": "DWord",
+          "on": 42,
+          "default": 2
+        }
+      ]
+    },
+    {
+      "id": "risk.pagefile-off",
+      "name": "Page file off",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 20,
+      "level": "Lab",
+      "hint": "Removes the page file. Games and drivers can crash when commit runs out, even with RAM free, and no crash dumps are written.",
+      "description": "Sets PagingFiles to an empty list, so Windows runs without a page file after the next restart. Windows needs commit space beyond physical RAM; without a page file, games and drivers can fail with out-of-memory errors while RAM is still free, and blue screens leave no dump to analyze. Revert restores the previous page file configuration.",
+      "warning": "Rejected tweak: unstable. Expect crashes or \"out of memory\" errors in large games and creative apps, and no crash dumps for diagnosis.",
+      "evidence": {
+        "tier": "R",
+        "sources": [
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/how-to-determine-the-appropriate-page-file-size-for-64-bit-versions-of-windows"
+        ],
+        "notes": "Rejected: Games and drivers reserve commit charge; without a page file, commit can run out with RAM still free, causing crashes. No crash dumps either."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "high",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off the page file and with it crash dumps; the commit limit shrinks to the size of physical RAM.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.pagefile-off",
+        "turnsOff": [ "Page file", "Crash dumps (memory dumps after a blue screen)" ],
+        "turnsOn": [],
+        "risks": [ "Out-of-memory crashes with RAM still free", "No crash dump to diagnose blue screens", "Some apps refuse to start without a page file" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+          "name": "PagingFiles",
+          "valueType": "MultiString",
+          "on": [],
+          "default": [ "?:\\pagefile.sys" ]
+        }
+      ],
+      "conflictsWith": [ "system.pagefile-auto" ]
+    },
+    {
+      "id": "risk.memory-compression-off",
+      "name": "Memory compression off",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 30,
+      "level": "Lab",
+      "hint": "Turns off Windows memory compression. Rarely runs during play with 16 GB+; without it Windows pages to disk sooner.",
+      "description": "Runs Disable-MMAgent -MemoryCompression. Memory compression keeps more data in RAM by compressing pages that would otherwise be written to the page file. With plenty of RAM it seldom runs during play, so disabling it saves almost nothing and increases disk paging under memory pressure. Revert enables it again.",
+      "warning": "Rejected tweak: no measurable benefit. Under memory pressure Windows writes to disk instead of compressing, which causes longer hitches.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/mmagent/disable-mmagent" ],
+        "notes": "Rejected: With 32 GB RAM compression rarely runs during play; disabling it only increases paging under pressure."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off memory compression; pages that would have been compressed go to the page file instead.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.memory-compression-off",
+        "turnsOff": [ "Memory compression" ],
+        "turnsOn": [],
+        "risks": [ "More disk paging and longer hitches when RAM fills up" ]
+      },
+      "actions": [
+        { "type": "custom", "handler": "MemoryCompression" }
+      ]
+    },
+    {
+      "id": "risk.large-system-cache",
+      "name": "LargeSystemCache = 1",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 40,
+      "level": "Lab",
+      "hint": "Server-era switch that favors the file cache over programs. Can take memory away from games.",
+      "description": "Sets LargeSystemCache = 1, which tells the memory manager to favor the system file cache over the working sets of programs, as on old file servers. On a gaming PC this can shrink the memory available to the game. Revert restores the previous value (0 by default).",
+      "warning": "Rejected tweak: obsolete and potentially harmful. Programs, including games, may get less memory and page more.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/ram-virtual-memory-pagefile-management" ],
+        "notes": "Rejected: A server-era switch that favors the file cache over application working sets; harmful for games."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns on the server-style file cache preference for all programs.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.large-system-cache",
+        "turnsOff": [ "Workstation memory balance" ],
+        "turnsOn": [ "Server-style large file cache" ],
+        "risks": [ "Less memory for games and other programs", "More paging under load" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+          "name": "LargeSystemCache",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "id": "risk.disable-paging-executive",
+      "name": "DisablePagingExecutive = 1",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 50,
+      "level": "Lab",
+      "hint": "Keeps kernel code and drivers in RAM. No measurable effect with modern amounts of RAM.",
+      "description": "Sets DisablePagingExecutive = 1 so pageable kernel-mode code and drivers are never written to the page file. With modern amounts of RAM this code stays resident anyway, so the setting has no measurable effect; it only reserves memory that Windows could otherwise use. Revert restores the previous value (0 by default).",
+      "warning": "Rejected tweak: obsolete. Uses a little more RAM for no measured gain.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/ram-virtual-memory-pagefile-management" ],
+        "notes": "Rejected: No measurable effect on modern systems with ample RAM."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off paging of kernel-mode code and drivers; that memory stays reserved.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.disable-paging-executive",
+        "turnsOff": [ "Paging of kernel code and drivers" ],
+        "turnsOn": [],
+        "risks": [ "Slightly less memory available to programs" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+          "name": "DisablePagingExecutive",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "id": "risk.power-throttling-off",
+      "name": "Power Throttling off",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 60,
+      "level": "Lab",
+      "hint": "Turns off Power Throttling. Background work then competes with the game for P-cores on hybrid CPUs.",
+      "description": "Sets PowerThrottlingOff = 1. Power Throttling moves background processes to efficient cores and lower clocks; turning it off does not speed up the foreground game, it lets background work compete with it for performance cores. Revert removes the value (the Windows default).",
+      "warning": "Rejected tweak: counterproductive on hybrid Intel CPUs. Background tasks can take P-cores from the game and raise power use and heat.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service" ],
+        "notes": "Rejected: Power Throttling targets background processes; turning it off lets background work compete for P-cores. iG Windows Tuner instead offers power.power-throttling-on to repair this tweak."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off Power Throttling (EcoQoS scheduling of background work) for all processes.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.power-throttling-off",
+        "turnsOff": [ "Power Throttling (efficiency scheduling of background processes)" ],
+        "turnsOn": [],
+        "risks": [ "Background work competes with the game for P-cores", "Higher power use and heat" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
+          "name": "PowerThrottlingOff",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ],
+      "conflictsWith": [ "power.power-throttling-on" ]
+    },
+    {
+      "id": "risk.processor-idle-disable",
+      "name": "Processor idle disable (active plan)",
+      "category": "Risk Zone",
+      "group": "CPU & memory",
+      "order": 70,
+      "level": "Lab",
+      "hint": "Keeps every core out of idle states. Much more heat and power; blocked on Intel 13th/14th gen desktop CPUs.",
+      "description": "Sets the hidden \"Processor idle disable\" power setting to 1 in the active plan, so cores never enter idle (C-) states. Every core stays at active voltage and clock all the time, which multiplies idle power and heat for a latency gain that is not measurable in games. Revert restores the previous plan value.",
+      "warning": "Rejected tweak: unstable and hard on hardware. Expect high temperatures, fan noise and power draw; the Raptor Lake overlay blocks it on 13th/14th gen Intel desktop CPUs because of Vmin Shift instability.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000102331/processors.html" ],
+        "notes": "Rejected: Keeps every core at active voltage and clock all the time: much more heat and power for a latency gain that is not measurable in games on current CPUs. On 13th and 14th gen Intel desktop CPUs it adds to the conditions behind Vmin Shift instability. The power plan editor never offers it and the Raptor Lake overlay blocks it."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "high",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off all processor idle states in the active power plan; idle power and temperature rise sharply.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.processor-idle-disable",
+        "turnsOff": [ "Processor idle states (C-states) in the active plan" ],
+        "turnsOn": [ "All cores at active voltage permanently" ],
+        "risks": [ "Much higher temperatures, power draw and fan noise", "Thermal throttling that lowers game performance", "Added stress on CPUs prone to degradation" ]
+      },
+      "actions": [
+        {
+          "type": "powercfgSetting",
+          "label": "Processor idle disable",
+          "subgroup": "54533251-82be-4824-96c1-47b60b740d00",
+          "setting": "5d76a2ca-e8c0-402f-a133-2158492d58ad",
+          "ac": 1,
+          "defaultFromScheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+          "defaultAc": 0
+        }
+      ]
+    },
+    {
+      "id": "risk.hpet-disable",
+      "name": "HPET device disabled",
+      "category": "Risk Zone",
+      "group": "Input & timers",
+      "order": 80,
+      "level": "Lab",
+      "hint": "Disables the High Precision Event Timer device. No measured gain on modern CPUs; some software expects it.",
+      "description": "Disables the \"High precision event timer\" system device (ACPI\\PNP0103) in Device Manager, as many guides suggest. Windows already prefers the invariant TSC for timekeeping, so measurements show no consistent gain, and some software, virtual machines and audio drivers expect the HPET to be present. Revert enables the device again.",
+      "warning": "Rejected tweak: no measurable benefit. Disabling a system device can cause timer problems or failures in software that needs the HPET.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps" ],
+        "notes": "Rejected: Windows already prefers the invariant TSC; disabling the HPET device changes nothing measurable or breaks software that needs it."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off the HPET system device until it is enabled again.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.hpet-disable",
+        "turnsOff": [ "High Precision Event Timer device" ],
+        "turnsOn": [],
+        "risks": [ "Timer drift or stutter in some applications", "Failures in software or virtual machines that require the HPET" ]
+      },
+      "actions": [
+        { "type": "custom", "handler": "HpetDevice" }
+      ]
+    },
+    {
+      "id": "risk.input-queue-size",
+      "name": "Mouse and keyboard data queue size 20",
+      "category": "Risk Zone",
+      "group": "Input & timers",
+      "order": 90,
+      "level": "Lab",
+      "hint": "Shrinks the mouse and keyboard driver buffers to 20 events. Input is not delivered sooner; events can be dropped.",
+      "description": "Sets MouseDataQueueSize and KeyboardDataQueueSize to 20 (default 100) for the mouse and keyboard class drivers. The queue only buffers events that the system has not read yet; a smaller queue does not deliver input faster, it overflows sooner (event ID 11), which drops clicks or keystrokes. Revert restores the previous values.",
+      "warning": "Rejected tweak: placebo with a downside. A too-small buffer can drop mouse movements, clicks or keystrokes during heavy load.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://technet.microsoft.com/en-us/library/cc776528(v=ws.10).aspx" ],
+        "notes": "Rejected: Buffer sizes for the legacy class drivers; a smaller queue does not deliver input sooner, it only risks dropped input."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns the mouse and keyboard input buffers down from 100 to 20 events.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.input-queue-size",
+        "turnsOff": [],
+        "turnsOn": [ "Smaller mouse and keyboard input buffers" ],
+        "risks": [ "Dropped mouse movements, clicks or keystrokes under load" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\mouclass\\Parameters",
+          "name": "MouseDataQueueSize",
+          "valueType": "DWord",
+          "on": 20,
+          "default": "<absent>",
+          "absentValue": 100
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\kbdclass\\Parameters",
+          "name": "KeyboardDataQueueSize",
+          "valueType": "DWord",
+          "on": 20,
+          "default": 100
+        }
+      ]
+    },
+    {
+      "id": "risk.irq-priority",
+      "name": "IRQ8Priority = 1",
+      "category": "Risk Zone",
+      "group": "Input & timers",
+      "order": 100,
+      "level": "Lab",
+      "hint": "Writes the old IRQ8Priority value from tuning guides. The modern Windows kernel does not read it.",
+      "description": "Sets IRQ8Priority = 1 under PriorityControl, a value from old guides that claimed to prioritize the system timer interrupt. Current Windows versions route interrupts through the APIC and message-signaled interrupts and do not read this value, so it has no effect. Revert removes the value.",
+      "warning": "Rejected tweak: placebo. It changes nothing measurable; it is offered only because many guides recommend it.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/interrupt-affinity-and-priority" ],
+        "notes": "Rejected: These values are not read by the modern Windows kernel or APIC-based interrupt routing."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Adds a registry value that current Windows versions ignore.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.irq-priority",
+        "turnsOff": [],
+        "turnsOn": [ "IRQ8Priority registry value (ignored by current Windows)" ],
+        "risks": [ "None known beyond a false sense of improvement" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+          "name": "IRQ8Priority",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "risk.fso-global-disable",
+      "name": "Fullscreen Optimizations off (all games)",
+      "category": "Risk Zone",
+      "group": "Graphics & system",
+      "order": 110,
+      "level": "Lab",
+      "hint": "Disables Fullscreen Optimizations globally. Can break VRR, Auto HDR and Game Bar; flip-model already gives low latency.",
+      "description": "Writes the GameConfigStore values that switch Fullscreen Optimizations off for every game (FSEBehaviorMode 2, HonorUserFSEBehaviorMode 1, FSEBehavior 2, DXGIHonorFSEWindowsCompatible 1). Modern flip-model presentation already gives exclusive-fullscreen latency in borderless windows; the global switch can break variable refresh rate, Auto HDR and Game Bar overlays. Revert restores the previous values.",
+      "warning": "Rejected tweak: obsolete. Can disable VRR (G-SYNC/FreeSync), Auto HDR and Game Bar features and slow down Alt+Tab.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://support.microsoft.com/en-us/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952" ],
+        "notes": "Rejected: Modern flip-model presentation gives exclusive-fullscreen latency in borderless windows; disabling FSO globally can break VRR, Auto HDR and the Game Bar. Per-game compatibility settings remain available in Windows."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off Fullscreen Optimizations for all games; per-game compatibility settings no longer matter.",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.fso-global-disable",
+        "turnsOff": [ "Fullscreen Optimizations for all games", "Auto HDR and some Game Bar features in fullscreen" ],
+        "turnsOn": [ "Legacy exclusive fullscreen mode" ],
+        "risks": [ "Variable refresh rate (G-SYNC/FreeSync) may stop working", "Slower Alt+Tab and overlay problems" ]
+      },
+      "actions": [
+        { "type": "registry", "path": "HKCU:\\System\\GameConfigStore", "name": "GameDVR_FSEBehaviorMode", "valueType": "DWord", "on": 2, "default": 0 },
+        {
+          "type": "registry",
+          "path": "HKCU:\\System\\GameConfigStore",
+          "name": "GameDVR_HonorUserFSEBehaviorMode",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0
+        },
+        { "type": "registry", "path": "HKCU:\\System\\GameConfigStore", "name": "GameDVR_FSEBehavior", "valueType": "DWord", "on": 2, "default": "<absent>" },
+        {
+          "type": "registry",
+          "path": "HKCU:\\System\\GameConfigStore",
+          "name": "GameDVR_DXGIHonorFSEWindowsCompatible",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "id": "risk.mmcss-games-task",
+      "name": "MMCSS Games task: High priority profile",
+      "category": "Risk Zone",
+      "group": "Graphics & system",
+      "order": 120,
+      "level": "Lab",
+      "hint": "Writes the popular MMCSS Games task values. Microsoft documents most of them as unused; few games register with MMCSS.",
+      "description": "Sets the MMCSS \"Games\" task to Priority 6, Scheduling Category High and SFIO Priority High (GPU Priority 8, the other popular value, is already the Windows default). Microsoft documents GPU Priority as not yet used and SFIO Priority as not used, and only threads that register with the Games task are affected, which few games do. Revert restores the previous values.",
+      "warning": "Rejected tweak: mostly placebo. Threads that do register can starve audio and other multimedia tasks.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ],
+        "notes": "Rejected: Microsoft documents GPU Priority as 'not yet used', SFIO Priority as 'not used', and Priority as always treated as 2 when Scheduling Category is High. Only threads that register with the MMCSS 'Games' task are affected at all, which few games do."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Raises the MMCSS priority of threads registered with the Games task.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.mmcss-games-task",
+        "turnsOff": [],
+        "turnsOn": [ "High MMCSS scheduling category for the Games task" ],
+        "risks": [ "Audio crackle or stutter in other multimedia apps when a registered game is busy" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+          "name": "Priority",
+          "valueType": "DWord",
+          "on": 6,
+          "default": 2
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+          "name": "Scheduling Category",
+          "valueType": "String",
+          "on": "High",
+          "default": "Medium"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+          "name": "SFIO Priority",
+          "valueType": "String",
+          "on": "High",
+          "default": "Normal"
+        }
+      ]
+    },
+    {
+      "id": "risk.mandatory-aslr",
+      "name": "Mandatory ASLR (force randomization for images)",
+      "category": "Risk Zone",
+      "group": "Graphics & system",
+      "order": 130,
+      "level": "Lab",
+      "hint": "Forces address randomization for all programs. Raises protection but breaks some games, launchers and anti-cheats.",
+      "description": "Turns on the system-wide exploit protection setting \"Force randomization for images (Mandatory ASLR)\". It relocates programs that were not built for it, which raises exploit protection but makes some older games, launchers and anti-cheat components crash or refuse to start. Revert restores the previous setting.",
+      "warning": "Rejected tweak: unstable. Some games, launchers or anti-cheat components may crash or refuse to start until you revert it.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/exploit-protection-reference" ],
+        "notes": "Rejected: Forcing relocation of images that were not built for it breaks some games, launchers and anti-cheat components. Per-app exploit protection remains available in Windows Security."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "high",
+      "antiCheat": "unknown",
+      "reversible": "full",
+      "sideEffects": "Turns on forced image relocation for every program on the system.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.mandatory-aslr",
+        "turnsOff": [],
+        "turnsOn": [ "Mandatory ASLR for every program" ],
+        "risks": [ "Games, launchers or anti-cheat components may fail to start" ]
+      },
+      "actions": [
+        { "type": "exploitSystem", "mitigation": "ForceRelocateImages", "on": "ON" }
+      ]
+    },
+    {
+      "id": "risk.no-auto-reboot-logged-on",
+      "name": "NoAutoRebootWithLoggedOnUsers policy",
+      "category": "Risk Zone",
+      "group": "Graphics & system",
+      "order": 140,
+      "level": "Lab",
+      "hint": "Blocks automatic update restarts while you are signed in. Can leave security updates pending for a long time.",
+      "description": "Sets the NoAutoRebootWithLoggedOnUsers policy. Microsoft states that the policy does not work exactly as described, applies only with automatic install (AUOptions 4) and can prevent quality-update restarts entirely, so security fixes may stay pending. The active-hours item privacy.update-active-hours is the supported alternative. Revert removes the policy.",
+      "warning": "Rejected tweak: security-relevant. Security updates can stay half-installed until you restart manually.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart" ],
+        "notes": "Rejected: Microsoft states the policy does not work exactly as described, applies only with AUOptions = 4, and can prevent quality-update reboots entirely. iG Windows Tuner uses the documented active-hours policy instead (privacy.update-active-hours)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "-" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off automatic update restarts while a user is signed in; installed updates wait for a manual restart.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.no-auto-reboot-logged-on",
+        "turnsOff": [ "Automatic Windows Update restarts while signed in" ],
+        "turnsOn": [],
+        "risks": [ "Security updates stay pending until you restart manually" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+          "name": "NoAutoRebootWithLoggedOnUsers",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "risk.turn-off-windows-copilot",
+      "name": "TurnOffWindowsCopilot policy (legacy)",
+      "category": "Risk Zone",
+      "group": "Graphics & system",
+      "order": 150,
+      "level": "Lab",
+      "hint": "Sets the deprecated TurnOffWindowsCopilot policy. It does not affect the current Microsoft Copilot app.",
+      "description": "Sets the user policy TurnOffWindowsCopilot = 1. Microsoft has deprecated this policy; it controlled the old Copilot sidebar and has no effect on the current Microsoft Copilot app, which you can uninstall from Settings instead. Revert removes the policy.",
+      "warning": "Rejected tweak: obsolete. It is harmless but does not remove or disable the current Copilot app.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai" ],
+        "notes": "Rejected: Deprecated by Microsoft and not applicable to the current Microsoft Copilot app; RemoveMicrosoftCopilotApp is not supported on Pro. Uninstall the app from Settings instead."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Adds a deprecated policy value; the current Copilot app is unaffected.",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.turn-off-windows-copilot",
+        "turnsOff": [ "Legacy Copilot sidebar (where it still exists)" ],
+        "turnsOn": [],
+        "risks": [ "None known; the current Copilot app stays installed" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Policies\\Microsoft\\Windows\\WindowsCopilot",
+          "name": "TurnOffWindowsCopilot",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "risk.tcp-autotuning-disabled",
+      "name": "TCP auto-tuning disabled",
+      "category": "Risk Zone",
+      "group": "Network",
+      "order": 160,
+      "level": "Lab",
+      "hint": "Disables TCP receive-window auto-tuning. Does not lower game (UDP) ping; caps downloads on fast links.",
+      "description": "Sets the Internet TCP template to AutoTuningLevelLocal = Disabled, a classic \"lower ping\" tweak. Online games use UDP, which auto-tuning does not affect, while TCP downloads, launchers and streaming are limited to a small receive window and become much slower on fast or long-distance links. Revert restores the previous level (Normal by default).",
+      "warning": "Rejected tweak: counterproductive. Game updates, downloads and video streaming can become much slower; game ping does not change.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/nettcpip/set-nettcpsetting" ],
+        "notes": "Rejected: Does not reduce game (UDP) latency and caps TCP throughput on fast links. iG Windows Tuner repairs it to Normal instead."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off TCP receive-window scaling for Internet connections; download throughput drops on fast links.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.tcp-autotuning-disabled",
+        "turnsOff": [ "TCP receive-window auto-tuning" ],
+        "turnsOn": [],
+        "risks": [ "Much slower downloads, game updates and streaming on fast connections" ]
+      },
+      "actions": [
+        { "type": "custom", "handler": "TcpAutoTuningDisabled" }
+      ],
+      "conflictsWith": [ "net.tcp-autotuning-normal" ]
+    },
+    {
+      "id": "risk.tcpnodelay-interface",
+      "name": "TCPNoDelay on the wired interface",
+      "category": "Risk Zone",
+      "group": "Network",
+      "order": 170,
+      "level": "Lab",
+      "hint": "Writes the popular TCPNoDelay interface value. Windows TCP does not read it; games set TCP_NODELAY themselves.",
+      "description": "Sets TCPNoDelay = 1 on the active wired interface, the \"disable Nagle\" tweak from many guides. Windows TCP does not read this per-interface value; Nagle is a per-socket option (TCP_NODELAY) that games set themselves, and UDP games are unaffected anyway. Revert removes the value.",
+      "warning": "Rejected tweak: placebo. It changes nothing measurable; offered only because many guides recommend it.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-tcp-socket-options" ],
+        "notes": "Rejected: Windows TCP does not read this per-interface value; Nagle is a per-socket option (TCP_NODELAY) set by the game. The related TcpAckFrequency setting is offered as net.delayed-ack-off."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Adds a per-interface registry value that Windows TCP ignores.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "wiredAdapter" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.tcpnodelay-interface",
+        "turnsOff": [],
+        "turnsOn": [ "TCPNoDelay interface value (ignored by Windows TCP)" ],
+        "risks": [ "None known beyond a false sense of improvement" ]
+      },
+      "actions": [
+        {
+          "type": "adapterRegistry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\{InterfaceGuid}",
+          "name": "TCPNoDelay",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "risk.legacy-tcpip",
+      "name": "Legacy TCP/IP parameters (TTL 64, Tcp1323Opts, MaxUserPort, TcpTimedWaitDelay)",
+      "category": "Risk Zone",
+      "group": "Network",
+      "order": 180,
+      "level": "Lab",
+      "hint": "Writes old Windows XP-era TCP/IP values. Ignored or superseded since Vista; a lower TTL can break long routes.",
+      "description": "Sets DefaultTTL = 64, Tcp1323Opts = 1, MaxUserPort = 65534 and TcpTimedWaitDelay = 30 under Tcpip\\Parameters, values copied between \"TCP optimizer\" guides since Windows XP. Modern Windows tunes the receive window automatically and already uses a large dynamic port range, so these values are ignored or superseded; a lower TTL can make distant hosts unreachable. MTU changes are not included because wrong values cause fragmentation and drops. Revert removes the values.",
+      "warning": "Rejected tweak: obsolete. No latency gain; a TTL of 64 can make far-away servers unreachable on long routes.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics" ],
+        "notes": "Rejected: Ignored or superseded by receive-window auto-tuning since Windows Vista; wrong MTU values cause fragmentation and drops."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns on XP-era TCP/IP registry overrides for the whole system.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.legacy-tcpip",
+        "turnsOff": [ "Windows default TTL of 128" ],
+        "turnsOn": [ "Legacy TCP/IP registry overrides" ],
+        "risks": [ "Unreachable hosts on long routes (TTL 64)", "Unexpected behavior in software that relies on the defaults" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+          "name": "DefaultTTL",
+          "valueType": "DWord",
+          "on": 64,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+          "name": "Tcp1323Opts",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+          "name": "MaxUserPort",
+          "valueType": "DWord",
+          "on": 65534,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+          "name": "TcpTimedWaitDelay",
+          "valueType": "DWord",
+          "on": 30,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "risk.ipv6-disable",
+      "name": "IPv6 disabled (DisabledComponents 0xFF)",
+      "category": "Risk Zone",
+      "group": "Network",
+      "order": 190,
+      "level": "Lab",
+      "hint": "Disables IPv6 completely. Unsupported by Microsoft; can break Xbox networking, Teredo and some Windows features.",
+      "description": "Sets DisabledComponents = 0xFF, which turns off IPv6 on every interface and tunnel. Microsoft does not support this configuration: Xbox networking (Teredo), some Windows features and IPv6-only services can fail, and startup can be slower. When IPv6 causes a problem, Microsoft recommends preferring IPv4 (0x20) instead. Revert removes the value.",
+      "warning": "Rejected tweak: unsupported. Xbox party chat and multiplayer, Teredo, some Windows features and IPv6-only services can stop working.",
+      "evidence": {
+        "tier": "R",
+        "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows" ],
+        "notes": "Rejected: Microsoft does not support disabling IPv6; components such as Teredo, Xbox networking and some Windows features expect it. When IPv6 causes a problem, Microsoft's guidance is to prefer IPv4 over IPv6 instead."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "high",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Turns off IPv6 on all interfaces and tunnels, including Teredo used by Xbox networking.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "riskZone": {
+        "rejected": "rejected.ipv6-disable",
+        "turnsOff": [ "IPv6 on all interfaces", "Teredo and other IPv6 tunnels" ],
+        "turnsOn": [],
+        "risks": [ "Xbox networking (party chat, multiplayer NAT) may fail", "IPv6-only websites and services become unreachable", "Slower startup" ]
+      },
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+          "name": "DisabledComponents",
+          "valueType": "DWord",
+          "on": 255,
+          "default": "<absent>"
+        }
+      ]
+    }
+  ]
+}

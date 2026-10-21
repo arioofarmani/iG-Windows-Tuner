@@ -15,9 +15,9 @@ Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\iGWindowsTuner.
 $errors = @(Test-IgwtCatalog)
 $catalog = @(Get-IgwtCatalog)
 if ($errors.Count -eq 0) {
-    Write-Output ("Catalog OK: {0} tweaks ({1} Tier A, {2} Tier B), {3} presets, {4} rejected entries." -f $catalog.Count,
-        @($catalog | Where-Object { $_.evidence.tier -eq 'A' }).Count, @($catalog | Where-Object { $_.evidence.tier -eq 'B' }).Count,
-        @(Get-IgwtPreset).Count, @(Get-IgwtRejectedTweaks).Count)
+    Write-Output ("Catalog OK: {0} tweaks ({1} Tier A, {2} Tier B, {3} Risk Zone), {4} presets, {5} rejected entries ({6} offered in the Risk Zone)." -f $catalog.Count,
+        @($catalog | Where-Object { $_.evidence.tier -eq 'A' }).Count, @($catalog | Where-Object { $_.evidence.tier -eq 'B' }).Count, @($catalog | Where-Object { $_.evidence.tier -eq 'R' }).Count,
+        @(Get-IgwtPreset).Count, @(Get-IgwtRejectedTweaks).Count, @(Get-IgwtRejectedTweaks | Where-Object { $_.riskItem }).Count)
     exit 0
 }
 Write-Output "Catalog has $($errors.Count) error(s):"

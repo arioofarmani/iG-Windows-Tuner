@@ -1,5 +1,5 @@
 {
-  "comment": "Documented but deliberately NOT implemented. Shown read-only on the 'Rejected Tweaks' page and in docs\\REJECTED_TWEAKS.md. Categories: placebo, obsolete, unstable, security-reducing, anti-cheat-hostile.",
+  "comment": "Popular tweaks that iG Windows Tuner does not recommend, with the reason. Entries with riskItem can be applied at your own risk from the Risk Zone; entries with unavailable are not offered at all, with the reason.",
   "rejected": [
     {
       "id": "rejected.bcdedit-timers",
@@ -7,7 +7,11 @@
       "claim": "Forces HPET/TSC behavior for lower input latency.",
       "category": "unstable",
       "reason": "No consistent measured gain on modern TSC-invariant CPUs; forcing the platform clock often increases timer overhead. Any BCD change can trigger BitLocker recovery, and iG Windows Tuner never runs bcdedit.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--set", "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/recovery-overview" ]
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--set",
+        "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/recovery-overview"
+      ],
+      "unavailable": "Not offered: boot configuration (BCD) changes can trigger BitLocker recovery or stop Windows from starting, and iG Windows Tuner does not edit the boot configuration."
     },
     {
       "id": "rejected.hpet-disable",
@@ -15,7 +19,8 @@
       "claim": "Removes timer latency.",
       "category": "placebo",
       "reason": "Windows already prefers the invariant TSC; disabling the HPET device changes nothing measurable or breaks software that needs it.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.hpet-disable"
     },
     {
       "id": "rejected.vbs-hvci-off-preset",
@@ -23,7 +28,8 @@
       "claim": "A few percent more FPS.",
       "category": "anti-cheat-hostile",
       "reason": "FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Available only as the warned expert toggle sec.vbs-hvci-off-expert, never in a preset.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ],
+      "unavailable": "Not offered in the Risk Zone: it turns off a security protection that kernel anti-cheats require. The separately warned expert toggle sec.vbs-hvci-off-expert remains in the Security category."
     },
     {
       "id": "rejected.spectre-mitigations-off",
@@ -31,7 +37,10 @@
       "claim": "Restores lost CPU performance.",
       "category": "security-reducing",
       "reason": "Removes protection against speculative-execution attacks reachable from browsers and games; gains on Raptor Lake are negligible for games.",
-      "sources": [ "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11" ]
+      "sources": [
+        "https://support.microsoft.com/en-us/topic/kb4073119-windows-client-guidance-for-it-pros-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-35820a8a-ae13-1299-88cc-357f104f5b11"
+      ],
+      "unavailable": "Not offered: it turns off CPU security mitigations."
     },
     {
       "id": "rejected.win32-priority-separation",
@@ -39,7 +48,8 @@
       "claim": "Gives the foreground game more CPU quantum.",
       "category": "placebo",
       "reason": "The default (programs) already boosts the foreground; arbitrary hex values from guides change quantum lengths in ways that were never measured to help and can hurt background audio/voice.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.win32-priority-separation"
     },
     {
       "id": "rejected.pagefile-off",
@@ -47,7 +57,10 @@
       "claim": "Avoids disk paging.",
       "category": "unstable",
       "reason": "Games and drivers reserve commit charge; without a page file, commit can run out with RAM still free, causing crashes. No crash dumps either.",
-      "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/how-to-determine-the-appropriate-page-file-size-for-64-bit-versions-of-windows" ]
+      "sources": [
+        "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/how-to-determine-the-appropriate-page-file-size-for-64-bit-versions-of-windows"
+      ],
+      "riskItem": "risk.pagefile-off"
     },
     {
       "id": "rejected.memory-compression-off",
@@ -55,7 +68,8 @@
       "claim": "Saves CPU time.",
       "category": "placebo",
       "reason": "With 32 GB RAM compression rarely runs during play; disabling it only increases paging under pressure.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.memory-compression-off"
     },
     {
       "id": "rejected.large-system-cache",
@@ -63,7 +77,8 @@
       "claim": "Faster file access.",
       "category": "obsolete",
       "reason": "A server-era switch that favors the file cache over application working sets; harmful for games.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.large-system-cache"
     },
     {
       "id": "rejected.disable-paging-executive",
@@ -71,7 +86,8 @@
       "claim": "Keeps the kernel in RAM.",
       "category": "obsolete",
       "reason": "No measurable effect on modern systems with ample RAM.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.disable-paging-executive"
     },
     {
       "id": "rejected.fso-global-disable",
@@ -79,7 +95,8 @@
       "claim": "Restores true exclusive fullscreen.",
       "category": "obsolete",
       "reason": "Modern flip-model presentation gives exclusive-fullscreen latency in borderless windows; disabling FSO globally can break VRR, Auto HDR and the Game Bar. Per-game compatibility settings remain available in Windows.",
-      "sources": [ "https://support.microsoft.com/en-us/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952" ]
+      "sources": [ "https://support.microsoft.com/en-us/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952" ],
+      "riskItem": "risk.fso-global-disable"
     },
     {
       "id": "rejected.input-queue-size",
@@ -87,7 +104,8 @@
       "claim": "Lower input latency.",
       "category": "placebo",
       "reason": "Buffer sizes for the legacy class drivers; a smaller queue does not deliver input sooner, it only risks dropped input.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.input-queue-size"
     },
     {
       "id": "rejected.irq-priority",
@@ -95,7 +113,8 @@
       "claim": "Prioritizes the timer or GPU interrupt.",
       "category": "placebo",
       "reason": "These values are not read by the modern Windows kernel or APIC-based interrupt routing.",
-      "sources": []
+      "sources": [],
+      "riskItem": "risk.irq-priority"
     },
     {
       "id": "rejected.svchost-split-threshold",
@@ -103,7 +122,8 @@
       "claim": "Fewer svchost processes, less overhead.",
       "category": "security-reducing",
       "reason": "Merging services into shared hosts saves trivial memory with 32 GB and removes the isolation and reliability benefit of split service hosts.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: it weakens the isolation between Windows services, which is a security boundary."
     },
     {
       "id": "rejected.power-throttling-off",
@@ -111,7 +131,8 @@
       "claim": "Prevents throttling of the game.",
       "category": "placebo",
       "reason": "Power Throttling targets background processes; turning it off lets background work compete for P-cores. iG Windows Tuner instead offers power.power-throttling-on to repair this tweak.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service" ],
+      "riskItem": "risk.power-throttling-off"
     },
     {
       "id": "rejected.ecore-overrides",
@@ -119,7 +140,8 @@
       "claim": "Keeps the game on P-cores.",
       "category": "unstable",
       "reason": "Thread Director and the Windows scheduler already place foreground threads on P-cores; overriding them removes headroom for background work and can cause stutter. C-states belong to BIOS.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered as one switch: it bundles many unrelated settings. The power plan editor exposes the documented processor settings one by one."
     },
     {
       "id": "rejected.legacy-tcpip",
@@ -127,7 +149,8 @@
       "claim": "Faster or lower-latency networking.",
       "category": "obsolete",
       "reason": "Ignored or superseded by receive-window auto-tuning since Windows Vista; wrong MTU values cause fragmentation and drops.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics" ],
+      "riskItem": "risk.legacy-tcpip"
     },
     {
       "id": "rejected.tcp-autotuning-disabled",
@@ -135,7 +158,8 @@
       "claim": "Lower ping.",
       "category": "placebo",
       "reason": "Does not reduce game (UDP) latency and caps TCP throughput on fast links. iG Windows Tuner repairs it to Normal instead.",
-      "sources": [ "https://learn.microsoft.com/en-us/powershell/module/nettcpip/set-nettcpsetting" ]
+      "sources": [ "https://learn.microsoft.com/en-us/powershell/module/nettcpip/set-nettcpsetting" ],
+      "riskItem": "risk.tcp-autotuning-disabled"
     },
     {
       "id": "rejected.tcpnodelay-interface",
@@ -143,7 +167,8 @@
       "claim": "Disables Nagle's algorithm system-wide.",
       "category": "placebo",
       "reason": "Windows TCP does not read this per-interface value; Nagle is a per-socket option (TCP_NODELAY) set by the game. The related TcpAckFrequency setting is offered as net.delayed-ack-off.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-tcp-socket-options" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-tcp-socket-options" ],
+      "riskItem": "risk.tcpnodelay-interface"
     },
     {
       "id": "rejected.mmcss-games-task",
@@ -151,7 +176,8 @@
       "claim": "Higher priority for game threads.",
       "category": "placebo",
       "reason": "Microsoft documents GPU Priority as 'not yet used', SFIO Priority as 'not used', and Priority as always treated as 2 when Scheduling Category is High. Only threads that register with the MMCSS 'Games' task are affected at all, which few games do.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service" ],
+      "riskItem": "risk.mmcss-games-task"
     },
     {
       "id": "rejected.no-auto-reboot-logged-on",
@@ -159,7 +185,8 @@
       "claim": "Windows Update never restarts while you are signed in.",
       "category": "obsolete",
       "reason": "Microsoft states the policy does not work exactly as described, applies only with AUOptions = 4, and can prevent quality-update reboots entirely. iG Windows Tuner uses the documented active-hours policy instead (privacy.update-active-hours).",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart" ],
+      "riskItem": "risk.no-auto-reboot-logged-on"
     },
     {
       "id": "rejected.turn-off-windows-copilot",
@@ -167,7 +194,8 @@
       "claim": "Removes Copilot.",
       "category": "obsolete",
       "reason": "Deprecated by Microsoft and not applicable to the current Microsoft Copilot app; RemoveMicrosoftCopilotApp is not supported on Pro. Uninstall the app from Settings instead.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-windowsai" ],
+      "riskItem": "risk.turn-off-windows-copilot"
     },
     {
       "id": "rejected.mandatory-aslr",
@@ -175,7 +203,8 @@
       "claim": "Extra exploit protection.",
       "category": "unstable",
       "reason": "Forcing relocation of images that were not built for it breaks some games, launchers and anti-cheat components. Per-app exploit protection remains available in Windows Security.",
-      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/exploit-protection-reference" ]
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/exploit-protection-reference" ],
+      "riskItem": "risk.mandatory-aslr"
     },
     {
       "id": "rejected.defender-game-exclusions",
@@ -183,7 +212,8 @@
       "claim": "Faster loading.",
       "category": "security-reducing",
       "reason": "Creates a blind spot that malware (including cheat loaders) uses; real-time scanning cost on NVMe is small. iG Windows Tuner never adds exclusions.",
-      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/common-exclusion-mistakes-microsoft-defender-antivirus" ]
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/common-exclusion-mistakes-microsoft-defender-antivirus" ],
+      "unavailable": "Not offered: it turns off malware scanning for the excluded folders."
     },
     {
       "id": "rejected.disable-security-features",
@@ -191,7 +221,8 @@
       "claim": "Less background overhead.",
       "category": "security-reducing",
       "reason": "Large security loss for negligible performance gain; several kernel anti-cheats and game stores also rely on these components.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: it turns off core Windows security protections."
     },
     {
       "id": "rejected.feature-flag-overrides",
@@ -199,7 +230,8 @@
       "claim": "Unlocks hidden performance features.",
       "category": "unstable",
       "reason": "Unsupported, change between builds without notice, and can leave the system in states Microsoft never tested.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: it needs third-party tools and undocumented feature IDs that change with every Windows build."
     },
     {
       "id": "rejected.dism-component-removal",
@@ -207,7 +239,8 @@
       "claim": "Debloats Windows.",
       "category": "unstable",
       "reason": "Not reversible from inside Windows, breaks servicing and cumulative updates, and some removed components are dependencies of games or anti-cheat.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: removing inbox components cannot be reliably undone."
     },
     {
       "id": "rejected.standby-cleaners",
@@ -215,7 +248,8 @@
       "claim": "Fixes stutter.",
       "category": "placebo",
       "reason": "Windows manages the standby list; purging it discards useful cache. Background services that hold timer resolution raise power use for everyone and need persistence that iG Windows Tuner deliberately avoids.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: it needs a program running in the background permanently, and iG Windows Tuner does not install background software."
     },
     {
       "id": "rejected.nvidia-profile-writes",
@@ -223,7 +257,8 @@
       "claim": "Forces low-latency driver settings.",
       "category": "unstable",
       "reason": "Undocumented driver database edits; iG Windows Tuner only shows a read-only checklist for NVIDIA Control Panel and in-game Reflex.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: the NVIDIA driver profile database is undocumented. Use the NVIDIA App or in-game settings instead."
     },
     {
       "id": "rejected.hypervisor-launch-off",
@@ -231,7 +266,8 @@
       "claim": "Removes virtualization overhead for more FPS.",
       "category": "anti-cheat-hostile",
       "reason": "Turns off VBS, memory integrity, Windows Hello Enhanced Sign-in Security, WSL2, Windows Sandbox and Hyper-V, and FACEIT and Riot Vanguard On-Demand refuse to run. It is a BCD change, which iG Windows Tuner never makes (BitLocker recovery risk). The warned VBS/HVCI expert toggle covers the measurable part without touching BCD.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ],
+      "unavailable": "Not offered: it is a boot configuration change that also turns off VBS and Memory integrity, which several anti-cheats require."
     },
     {
       "id": "rejected.processor-idle-disable",
@@ -239,7 +275,8 @@
       "claim": "Removes C-state wake-up latency.",
       "category": "unstable",
       "reason": "Keeps every core at active voltage and clock all the time: much more heat and power for a latency gain that is not measurable in games on current CPUs. On 13th and 14th gen Intel desktop CPUs it adds to the conditions behind Vmin Shift instability. The power plan editor never offers it and the Raptor Lake overlay blocks it.",
-      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000102331/processors.html" ]
+      "sources": [ "https://www.intel.com/content/www/us/en/support/articles/000102331/processors.html" ],
+      "riskItem": "risk.processor-idle-disable"
     },
     {
       "id": "rejected.manual-irq-affinity",
@@ -247,7 +284,8 @@
       "claim": "Moves GPU or NIC interrupts off busy cores for lower latency.",
       "category": "unstable",
       "reason": "Overrides Windows' interrupt steering with a fixed core mask that does not follow hybrid P-core/E-core scheduling, core parking or driver updates; a bad mask can starve a device. The interrupt inspector shows the current policy and target CPUs read-only.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/interrupt-affinity-and-priority" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/interrupt-affinity-and-priority" ],
+      "unavailable": "Not offered as one switch: the right cores depend on each device and CPU. The interrupt inspector shows the current affinity."
     },
     {
       "id": "rejected.test-signing",
@@ -255,7 +293,8 @@
       "claim": "Lets you load unsigned tuning drivers.",
       "category": "anti-cheat-hostile",
       "reason": "Removes kernel code-integrity protection. Every kernel anti-cheat refuses to start while any of these is active, and they are BCD changes, which iG Windows Tuner never makes. The health report flags them if they are on.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option" ],
+      "unavailable": "Not offered: it turns off driver signature enforcement and other integrity protections, and kernel anti-cheats refuse to run."
     },
     {
       "id": "rejected.ifeo-perfoptions",
@@ -263,7 +302,8 @@
       "claim": "Forces high CPU or I/O priority for a game on every launch.",
       "category": "anti-cheat-hostile",
       "reason": "IFEO is a classic hijack location that Microsoft Defender and kernel anti-cheats watch; edits on game executables can be flagged. Raising a game above normal priority does not help when Windows already boosts the foreground window, and can starve audio and input threads.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: anti-cheats treat Image File Execution Options on game executables as tampering."
     },
     {
       "id": "rejected.registry-cleaners",
@@ -271,7 +311,8 @@
       "claim": "Removes registry junk to speed Windows up.",
       "category": "unstable",
       "reason": "Leftover registry entries do not slow Windows down measurably, and automated deletion breaks applications and uninstallers. The iG Windows Tuner cleaner only deletes files from allow-listed cache folders.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: there is no defined, reversible change to make."
     },
     {
       "id": "rejected.hosts-telemetry-block",
@@ -279,7 +320,8 @@
       "claim": "Stops Windows from sending data.",
       "category": "security-reducing",
       "reason": "Microsoft Defender detects hosts-file entries that block Microsoft endpoints as a settings modifier (HostsFileHijack), and the blocks break Windows Update, activation and Store downloads. iG Windows Tuner uses the documented diagnostic data policies instead.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: Microsoft Defender flags hosts-file blocking of Microsoft endpoints, and it can break Windows Update and activation."
     },
     {
       "id": "rejected.prefetch-cleaning",
@@ -287,7 +329,8 @@
       "claim": "Speeds up application launches.",
       "category": "placebo",
       "reason": "Windows uses the Prefetch traces to load applications faster and rebuilds them anyway, so deleting them only makes the next launches slower. The cleaner never touches %SystemRoot%\\Prefetch.",
-      "sources": []
+      "sources": [],
+      "unavailable": "Not offered: Windows rebuilds the Prefetch folder, so deleting it only slows down the next program launches."
     },
     {
       "id": "rejected.winsxs-manual-delete",
@@ -295,7 +338,8 @@
       "claim": "Frees many gigabytes.",
       "category": "unstable",
       "reason": "WinSxS uses hard links (its real size is much smaller than Explorer shows) and Installer holds the packages needed to repair, update and uninstall software. Manual deletion breaks servicing and uninstallers. The cleaner uses DISM component cleanup instead.",
-      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/clean-up-the-winsxs-folder" ]
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/clean-up-the-winsxs-folder" ],
+      "unavailable": "Not offered: deleting component store files by hand cannot be undone and can break Windows Update or Windows itself. The cleaner's DISM component cleanup rule does this safely."
     },
     {
       "id": "rejected.ipv6-disable",
@@ -303,7 +347,8 @@
       "claim": "Lowers latency and fixes connection problems.",
       "category": "unstable",
       "reason": "Microsoft does not support disabling IPv6; components such as Teredo, Xbox networking and some Windows features expect it. When IPv6 causes a problem, Microsoft's guidance is to prefer IPv4 over IPv6 instead.",
-      "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows" ]
+      "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows" ],
+      "riskItem": "risk.ipv6-disable"
     }
   ]
 }

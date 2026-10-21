@@ -60,6 +60,18 @@ Before opening a pull request, run `tools\Invoke-QualityChecks.ps1` (catalog val
 - **NIC keyword descriptions:** `data\manage\nic-keywords.json` (standardized `*` keywords only, with the Microsoft source).
 - Everything else in `src\Manage` (inventories, persistence, update status, network toolkit, diagnostics, system report) stays read-only; tests mock every system call (`tests\Manage.Tests.ps1`).
 
+## How to add a Risk Zone item
+
+The Risk Zone offers rejected tweaks at the user's own risk. Only reversible performance, input, system or network settings qualify; never add items that turn off security protections, edit the boot configuration, delete files irreversibly or need background software.
+
+1. The tweak must already be an entry in `data\rejected.json` (with the reason it is rejected).
+2. Add the item to `data\tweaks\riskzone.json`: id `risk.*`, `category: "Risk Zone"`, `level: "Lab"`, `evidence.tier: "R"` with at least one https source and the rejection reason in `evidence.notes`, a `warning`, `sideEffects` describing what it switches off or on, and a `riskZone` block (`rejected`, `turnsOff`, `turnsOn`, `risks`). Declare `conflictsWith` for the safe counterpart if one exists. Defaults must be the real Windows defaults.
+3. Set `riskItem` on the rejected entry (and remove `unavailable`).
+4. Add an apply/revert test to `tests\RiskZone.Tests.ps1`, then run the quality checks and `tools\Build-Docs.ps1`.
+
+## Network test
+
+`src\Network\NetworkQuality.ps1` is read-only: ICMP probes go through `Send-IgwtPingProbe`, reverse DNS through `Resolve-IgwtHostName` and Wi-Fi details through `Invoke-IgwtNetshWlanInterfaces` (fixed `wlan show interfaces` arguments). All three refuse to run in TestMode, so tests mock them (`tests\Network.Tests.ps1`). Recommendations may only reference existing catalog items; new adjustments go through the normal "How to add a tweak" process first.
 ## How to add a cleaner rule
 
 1. Find the vendor's documented cache location (or mark the rule Tier B). Never point a rule at user documents, profile roots or program folders: the denylist in `src\Cleaner\CleanerSafety.ps1` refuses them anyway.

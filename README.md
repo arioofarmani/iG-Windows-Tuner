@@ -2,9 +2,9 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Platform](https://img.shields.io/badge/platform-Windows%2011%20Pro-0078D4)
+![Version](https://img.shields.io/badge/version-2.2-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-506%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-553%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
@@ -14,7 +14,7 @@ Most "gaming optimizer" scripts make the same trade: paste a few hundred registr
 
 iG Windows Tuner takes the opposite approach:
 
-- **Evidence first.** Every change is documented by Microsoft or the hardware vendor (Tier A), or is real but situational and clearly marked "measure before and after" (Tier B). Popular tweaks that are placebo, obsolete or harmful are not hidden. They are listed with the reason they were rejected.
+- **Evidence first.** Every change is documented by Microsoft or the hardware vendor (Tier A), or is real but situational and clearly marked "measure before and after" (Tier B). Popular tweaks that are placebo, obsolete or harmful are not hidden. They are listed with the reason they were rejected, and the reversible ones can be applied at your own risk from the **Risk Zone**, with a clear warning of what each one turns off or on.
 - **Everything is reversible.** Before anything changes, the exact previous value (including its type, or the fact that it did not exist) is written to a JSON snapshot, and a System Restore point is created. Any change can be reverted individually or all at once.
 - **Security goes up, not down.** Defender, the firewall, UAC, SmartScreen, Windows Update, VBS/HVCI and Secure Boot are never weakened. The tool includes hardening such as attack surface reduction rules, LSA protection and encrypted DNS.
 - **Anti-cheat compatible by design.** Nothing that anti-cheat depends on is touched, and readiness for each major anti-cheat is checked and shown.
@@ -25,7 +25,7 @@ iG Windows Tuner takes the opposite approach:
 | Area | Highlights |
 |---|---|
 | **Presets** | Competitive, Balanced and Hardened, adjusted automatically to your hardware (hybrid Intel CPUs, AMD X3D, laptops, VMs and more). |
-| **Tweak catalog** | 84 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
+| **Tweak catalog** | 85 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
 | **Health report** | Read-only checks of firmware, microcode, Secure Boot, VBS/HVCI, GPU (Resizable BAR, refresh rate), network adapter, storage and an anti-cheat readiness score. HTML export. |
 | **ASR Center** | All 19 Microsoft Defender attack surface reduction rules with modes, gamer-impact notes, per-rule exclusions and an audit view of what each rule blocked. |
 | **Security score** | 25 weighted checks, each with the exact fix, plus a local accounts audit and a listening-ports report. |
@@ -64,6 +64,8 @@ If you downloaded a zip, Windows marks the files as coming from the internet. Re
 
 ## What it never does
 
+Not even from the Risk Zone:
+
 - Edit BCD, enable test signing, disable driver signature enforcement, or turn off DEP, ASLR or CFG.
 - Touch Secure Boot, TPM, firmware, voltages, power limits or anti-cheat services, or install drivers.
 - Disable Defender, Tamper Protection, AMSI, ETW, the firewall, UAC, SmartScreen or Windows Update, or add antivirus exclusions.
@@ -75,7 +77,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 
 - **Data-driven.** The catalog lives in `data\*.json` (schema v2). The engine dispatches typed actions (registry, service, power plan, firewall, QoS, scheduled task, and more), and each action type implements detect, snapshot, apply and restore.
 - **Plain PowerShell.** It is readable, modular and has comment-based help on every function. It uses one documented P/Invoke (`SystemParametersInfo`) and no compiled binaries.
-- **Tested.** 506 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
+- **Tested.** 553 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
 - **Safe end-to-end testing.** `tools\New-SandboxConfig.ps1` generates a Windows Sandbox configuration that runs a full apply and revert cycle in a disposable VM.
 
 ## Documentation
@@ -85,7 +87,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 | [docs/README.md](docs/README.md) | Full user guide: CLI options, exit codes, GUI, files and troubleshooting |
 | [docs/TWEAKS.md](docs/TWEAKS.md) | Every item with its exact changes, evidence and sources |
 | [docs/PRESETS.md](docs/PRESETS.md) | Preset contents and rules |
-| [docs/REJECTED_TWEAKS.md](docs/REJECTED_TWEAKS.md) | Popular tweaks that were rejected, and why |
+| [docs/REJECTED_TWEAKS.md](docs/REJECTED_TWEAKS.md) | Popular tweaks that were rejected, why, and which ones the Risk Zone offers |
 | [docs/ANTICHEAT.md](docs/ANTICHEAT.md) | Anti-cheat requirements and compatibility |
 | [docs/SECURITY.md](docs/SECURITY.md) | Engineering and safety rules |
 | [docs/ASR_CENTER.md](docs/ASR_CENTER.md), [docs/INSPECTORS.md](docs/INSPECTORS.md), [docs/HARDWARE.md](docs/HARDWARE.md), [docs/CLEANER.md](docs/CLEANER.md) | Module references |
@@ -95,7 +97,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 
 ## Project status
 
-This is a **preview** of version 2.0. The engine, catalog, hardware profiles, cleaner, ASR Center, security modules, expert inspectors and management/diagnostic modules are complete and covered by tests. Still planned: a curated toolkit section, custom presets with drift detection, a GUI command palette and timeline, and the full end-to-end Sandbox verification before a stable release.
+This is version **2.2** (preview). The engine, catalog, hardware profiles, cleaner, ASR Center, security modules, expert inspectors, management and diagnostic modules, the network test and the Risk Zone are complete and covered by tests. Still planned: a curated toolkit section, custom presets with drift detection, a GUI command palette and timeline, and the full end-to-end Sandbox verification before a stable release.
 
 Run the read-only commands and `-DryRun` first, and review what a change does before you apply it.
 

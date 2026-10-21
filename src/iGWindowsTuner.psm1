@@ -5,7 +5,7 @@
 $script:IgwtModuleRoot = $PSScriptRoot
 $script:IgwtProjectRoot = Split-Path -Parent $PSScriptRoot
 
-$folders = @('Core', 'Actions', 'Health', 'Hardware', 'Cleaner', 'Security', 'Inspectors', 'Manage', 'Gui')
+$folders = @('Core', 'Actions', 'Health', 'Hardware', 'Cleaner', 'Security', 'Inspectors', 'Manage', 'Network', 'Gui')
 foreach ($folder in $folders) {
     $path = Join-Path $PSScriptRoot $folder
     if (-not (Test-Path -LiteralPath $path)) { continue }
@@ -39,5 +39,6 @@ Export-ModuleMember -Function (
     'Get-IgwtAdapterPropertyInspection', 'Invoke-IgwtDnsBenchmark', 'Test-IgwtNetworkLatency', 'Get-IgwtFirewallRuleList', 'Get-IgwtHostsFile',
     'Get-IgwtDiagnostics', 'Format-IgwtDiagnostics', 'Get-IgwtDpcIsrSample', 'Get-IgwtReliabilityHistory', 'Get-IgwtCrashHistory', 'Get-IgwtBootPerformance', 'Get-IgwtDriverInventory',
     'Get-IgwtSystemReport', 'Export-IgwtSystemReport',
+    'Invoke-IgwtNetworkQualityTest', 'Measure-IgwtLoadedLatency', 'Format-IgwtNetworkQuality', 'Export-IgwtNetworkReport', 'Get-IgwtActiveConnection', 'Invoke-IgwtRouteTrace', 'Find-IgwtPathMtu', 'Get-IgwtNetworkTypeGuess', 'Get-IgwtNetworkRecommendations', 'ConvertTo-IgwtLatencyStats', 'Get-IgwtNetworkScore', 'Get-IgwtBufferbloatGrade', 'Get-IgwtRiskZoneSummary',
     'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
 )

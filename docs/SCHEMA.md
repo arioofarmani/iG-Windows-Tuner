@@ -19,7 +19,7 @@ Tweaks and cleaner rules also have:
 | Field | Values | Meaning |
 |---|---|---|
 | `level` | `Standard`, `Advanced`, `Expert`, `Lab` | Who should use the item and how it is gated. Separate from the evidence tier. |
-| tier | `A`, `B` | Evidence tier: `evidence.tier` for tweaks, top-level `tier` for cleaner rules. Rejected ideas live in `data\rejected.json`. |
+| tier | `A`, `B`, `R` | Evidence tier: `evidence.tier` for tweaks, top-level `tier` for cleaner rules. `R` (rejected) is only for Risk Zone items. |
 | `antiCheat` | `"safe"`, `"unknown"`, `{ "breaks": ["FACEIT", ...] }` | Anything other than `safe` is shown as a badge and kept out of gaming presets. `breaks` requires level `Lab`; `unknown` requires `Expert` or `Lab`. |
 | `reversible` | `full`, `partial`, `none` | `full`: the snapshot restores everything. Anything else must be explained in `sideEffects`. Cleaner deletions are `none` (Recycle Bin rules `partial`). |
 | `sideEffects` | text | Empty when there are none. |
@@ -92,6 +92,19 @@ further through the hardware overlays.
 | `data\hardware\*.json` | Hardware tags, detection rules and overlays (`docs\HARDWARE.md`). | `Test-IgwtHardwareCatalog` |
 
 All of them run inside `Test-IgwtCatalog`.
+
+## Risk Zone items and the rejected list
+
+Risk Zone items (`data\tweaks\riskzone.json`) are tweaks with `category: "Risk Zone"`, an id starting with `risk.`, `evidence.tier: "R"`, `level: "Lab"`, a `warning`, non-empty `sideEffects` and a `riskZone` block:
+
+| Field | Content |
+|---|---|
+| `riskZone.rejected` | Id of the entry in `data\rejected.json` |
+| `riskZone.turnsOff` | What the item switches off (list) |
+| `riskZone.turnsOn` | What the item switches on (list; at least one of the two lists is non-empty) |
+| `riskZone.risks` | The risks the user accepts (list, at least one) |
+
+Every entry in `data\rejected.json` has exactly one of `riskItem` (the Risk Zone item id) or `unavailable` (why it is not offered). `Test-IgwtRiskZoneItem` and `Test-IgwtCatalog` check both directions.
 
 ## Snapshots
 
