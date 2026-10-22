@@ -144,6 +144,391 @@
           "default": "<absent>"
         }
       ]
+    },
+    {
+      "id": "system.classic-context-menu",
+      "name": "Classic (full) right-click menu in File Explorer",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 80,
+      "level": "Advanced",
+      "hint": "Shows the full Windows 10-style context menu at once instead of the short menu with \"Show more options\". A preference: nothing to measure.",
+      "description": "Registers an empty in-process server for the Windows 11 context menu class, so File Explorer falls back to the classic menu with every entry (7-Zip, Git and similar). Microsoft does not document this switch; Windows updates could stop honoring it. Takes effect after Explorer restarts or you sign out. Turning it off removes the key and brings back the Windows 11 menu. Derived from WinUtil.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/integrate-packaged-app-with-file-explorer",
+          "https://github.com/ChrisTitusTech/winutil"
+        ],
+        "notes": "Undocumented COM override (CLSID 86ca1aa0-34aa-4e8b-a509-50c905bae2a2). Shift+F10 or \"Show more options\" opens the classic menu without any change. Nothing to measure: it is a preference."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Right-Click Menu Previous Layout'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+          "name": "(default)",
+          "valueType": "String",
+          "on": "",
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "system.end-task-taskbar",
+      "name": "End task in the taskbar right-click menu",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 81,
+      "level": "Standard",
+      "hint": "Adds \"End task\" to the right-click menu of taskbar apps, so a frozen game or app closes without opening Task Manager.",
+      "description": "Turns on the documented End task taskbar setting (Settings > System > Advanced). Right-clicking a running app on the taskbar then offers End task, which ends the whole process tree like Task Manager does. Unsaved work in that app is lost, as with Task Manager. Turning it off removes the option again. Derived from WinUtil.",
+      "evidence": { "tier": "A", "sources": [ "https://learn.microsoft.com/en-us/windows/advanced-settings/" ], "notes": "Windows default: off (value absent)." },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'End Task With Right Click'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced\\TaskbarDeveloperSettings",
+          "name": "TaskbarEndTask",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>",
+          "absentValue": 0
+        }
+      ]
+    },
+    {
+      "id": "system.show-file-extensions",
+      "name": "Show file name extensions",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 82,
+      "level": "Standard",
+      "hint": "File Explorer shows extensions such as .exe and .pdf, which makes disguised malware (invoice.pdf.exe) easy to spot.",
+      "description": "Clears \"Hide extensions for known file types\" (HideFileExt = 0). Attackers rely on hidden extensions to make an executable look like a document; with extensions visible the real type is always shown. Renaming a file now shows its extension too, so take care not to change it by accident. Turning it off hides extensions again. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://support.microsoft.com/en-us/windows/experience/storage-filemanagement/common-file-name-extensions-in-windows" ],
+        "notes": "Windows default: extensions hidden (HideFileExt = 1)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'File Explorer File Extensions'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "HideFileExt",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "system.show-hidden-files",
+      "name": "Show hidden files and folders",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 83,
+      "level": "Standard",
+      "hint": "File Explorer shows hidden files and folders such as AppData. Protected operating system files stay hidden.",
+      "description": "Sets \"Show hidden files, folders, and drives\" (Hidden = 1). Useful for finding game configs, logs and caches in AppData. Protected operating system files remain hidden because that is a separate setting. Hidden items appear dimmed, so take care not to delete them by accident. Turning it off hides them again. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://support.microsoft.com/en-us/windows/experience/fileexplorer/file-explorer-in-windows" ],
+        "notes": "Windows default: Hidden = 2 (do not show)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'File Explorer Hidden Files'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "Hidden",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 2,
+          "absentValue": 2
+        }
+      ]
+    },
+    {
+      "id": "system.explorer-home-gallery-off",
+      "name": "File Explorer opens This PC, without Home and Gallery",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 84,
+      "level": "Advanced",
+      "hint": "Removes Home and Gallery from the File Explorer navigation pane and opens Explorer at This PC. A preference: nothing to measure.",
+      "description": "Sets File Explorer to open at This PC (the documented \"Open File Explorer to\" option) and unpins the Home and Gallery entries from the navigation pane for your account. Home shows recent and cloud files; Gallery shows the Pictures library. The unpin values are not documented by Microsoft and may change with updates. Turning it off removes the three values and restores the defaults. Derived from WinUtil.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/shell/integrate-cloud-storage", "https://github.com/ChrisTitusTech/winutil" ],
+        "notes": "System.IsPinnedToNameSpaceTree is the documented shell property for navigation-pane entries; using it on the Home and Gallery classes is undocumented. Nothing to measure: it is a preference."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'File Explorer Home and Gallery - Disable'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Classes\\CLSID\\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}",
+          "name": "System.IsPinnedToNameSpaceTree",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Classes\\CLSID\\{e88865ea-0e1c-4e20-9aa6-edcd0212c87c}",
+          "name": "System.IsPinnedToNameSpaceTree",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+          "name": "LaunchTo",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "system.dark-mode",
+      "name": "Dark mode for Windows and apps",
+      "category": "System",
+      "group": "Explorer and shell",
+      "order": 85,
+      "level": "Standard",
+      "hint": "Switches Windows and apps to dark mode (Settings > Personalization > Colors). A preference: no performance effect.",
+      "description": "Sets \"Choose your mode\" to Dark for both Windows (taskbar, Start, notifications) and apps that follow the system theme. It is the same setting the Colors page changes. Apps without dark-mode support stay light. Turning it off restores your previous light/dark choice exactly. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://support.microsoft.com/en-us/windows/experience/personalization/personalize-your-colors-in-windows" ],
+        "notes": "Settings writes AppsUseLightTheme and SystemUsesLightTheme; Windows default: light (1)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'Dark Theme for Windows'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+          "name": "AppsUseLightTheme",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+          "name": "SystemUsesLightTheme",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "system.long-paths",
+      "name": "Win32 long paths enabled",
+      "category": "System",
+      "group": "Developer",
+      "order": 86,
+      "level": "Standard",
+      "hint": "Lets apps that declare long-path support use paths longer than 260 characters (deep node_modules, game mods, repos).",
+      "description": "Turns on the documented \"Enable Win32 long paths\" setting (LongPathsEnabled = 1). Only apps that declare longPathAware in their manifest, such as PowerShell 7, Git and recent build tools, gain paths beyond MAX_PATH; other apps are unaffected. Takes effect after a restart. Turning it off restores the 260-character limit. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation" ],
+        "notes": "ADMX FileSys.admx policy LongPathsEnabled; Windows default 0."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'Enable Long Paths'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+          "name": "LongPathsEnabled",
+          "valueType": "DWord",
+          "on": 1,
+          "default": 0,
+          "absentValue": 0
+        }
+      ]
+    },
+    {
+      "id": "system.numlock-on-boot",
+      "name": "Num Lock on at the sign-in screen",
+      "category": "System",
+      "group": "Sign-in",
+      "order": 87,
+      "level": "Standard",
+      "hint": "Num Lock starts on at the sign-in screen and for your account, so a numeric PIN works right away. Turn Fast Startup off if it is ignored.",
+      "description": "Sets InitialKeyboardIndicators to 2 (Num Lock on) for the sign-in screen profile (.DEFAULT) and for your account. Windows ships with 2147483648, which leaves Num Lock as the firmware set it. Fast Startup can skip the setting, which is one more reason for power.fast-startup-off. Microsoft documents the value only in support answers, so it is Tier B; nothing to measure, it is a preference. Turning it off restores the previous values exactly. Derived from WinUtil.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/answers/questions/5601669/how-to-permanently-have-num-lock-on-at-the-login-s",
+          "https://github.com/ChrisTitusTech/winutil"
+        ],
+        "notes": "Values 2 and 2147483650 (0x80000002) both mean Num Lock on. Nothing to measure: it is a preference."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'Num Lock on Startup'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKU:\\.DEFAULT\\Control Panel\\Keyboard",
+          "name": "InitialKeyboardIndicators",
+          "valueType": "String",
+          "on": "2",
+          "default": "2147483648",
+          "equivalentOn": [ "2147483650" ]
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Control Panel\\Keyboard",
+          "name": "InitialKeyboardIndicators",
+          "valueType": "String",
+          "on": "2",
+          "default": "2147483648",
+          "equivalentOn": [ "2147483650" ]
+        }
+      ]
+    },
+    {
+      "id": "system.session-notifications-off",
+      "name": "Notifications off (Do Not Disturb for a session)",
+      "category": "System",
+      "group": "Session Mode",
+      "order": 90,
+      "level": "Advanced",
+      "hint": "Turns off app notification banners, like the Settings master switch. Used by Session Mode for tournaments; nothing to measure.",
+      "description": "Sets the Settings > System > Notifications master switch to off (ToastEnabled = 0), so no app shows banners or sounds during a match. Security alerts still appear in Windows Security and the notification history is not deleted. Session Mode turns it on for a session and restores your setting when the session ends; on its own it stays until you turn it off. The registry value is what Settings writes and is not documented separately (Tier B).",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://support.microsoft.com/en-us/windows/experience/notifications-and-do-not-disturb-in-windows", "https://github.com/ChrisTitusTech/winutil" ],
+        "notes": "Documented alternative: the WPN.admx policy NoToastNotification. Nothing to measure: it is a focus setting."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "You miss app notifications (chat, mail, calendar) until it is turned off.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'System Tray Notifications & Calendar - Disable' (toast part only, session-scoped)",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications",
+          "name": "ToastEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": 1,
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "system.session-search-paused",
+      "name": "Search indexing paused (for a session)",
+      "category": "System",
+      "group": "Session Mode",
+      "order": 91,
+      "level": "Advanced",
+      "hint": "Stops the Windows Search indexer until the session ends or Windows restarts, so it cannot start disk and CPU work mid-match. Measure.",
+      "description": "Stops the Windows Search service (WSearch) without changing its startup type. The indexer normally backs off while you play, but large file changes can still trigger indexing bursts; whether pausing helps on your PC is situational, so measure. Start menu and File Explorer search fall back to slower unindexed search while it is stopped. Session Mode restarts it at the end of the session; Windows starts it again at the next boot in any case.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/win32/search/-search-3x-wds-overview" ],
+        "notes": "Service stop only; startup type unchanged (privacy.search-indexing-off disables it permanently)."
+      },
+      "impact": { "performance": "low", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Search results are slower and less complete until the indexer runs again.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "actions": [
+        { "type": "custom", "handler": "SearchIndexerPause" }
+      ]
     }
   ]
 }

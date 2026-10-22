@@ -189,7 +189,12 @@ function Stop-IgwtCleanerService {
         if (-not $svc) { continue }
         $states.Add([pscustomobject]@{ Name = $n; WasRunning = ([string]$svc.Status -eq 'Running') })
         if ([string]$svc.Status -eq 'Running' -and $PSCmdlet.ShouldProcess($n, 'Stop service temporarily')) {
-            Stop-Service -Name $n -Force -ErrorAction Stop
+            try { Stop-Service -Name $n -Force -ErrorAction Stop }
+            catch {
+                # Restart what this call already stopped before reporting the failure.
+                try { Restore-IgwtCleanerService -States $states.ToArray() } catch { Write-IgwtLog -Level Warn -Message "Cleaner: could not restart services: $($_.Exception.Message)" }
+                throw
+            }
         }
     }
     return $states.ToArray()
@@ -400,7 +405,15 @@ function Invoke-IgwtCleanerRuleClean {
                 }
             }
             'recycleBin' {
+                # Empty a drive's bin only when it holds nothing the scan did not show.
+                $now = @{}
+                foreach ($x in @(Get-IgwtRecycleBinUsage)) { $now[[string]$x.Drive] = $x }
                 foreach ($u in @($RuleScan.Extra | Where-Object { $_.Bytes -gt 0 })) {
+                    $cur = $now[[string]$u.Drive]
+                    if ($cur -and ([long]$cur.Bytes -gt [long]$u.Bytes -or [int]$cur.Items -gt [int]$u.Items)) {
+                        Add-IgwtCleanerSkip -Result $sum -Reason 'the Recycle Bin changed since the scan; scan again' -Path "$($u.Drive):\"
+                        continue
+                    }
                     Clear-RecycleBin -DriveLetter $u.Drive -Force -ErrorAction Stop
                     $sum.DeletedBytes += $u.Bytes; $sum.DeletedCount += $u.Items
                 }
@@ -468,7 +481,10 @@ function Invoke-IgwtCleanerClean {
     $script:IgwtCleanerProtection = $null
     $results = New-Object System.Collections.Generic.List[object]
     try {
-        $todo = @($Scan.Rules | Where-Object { -not $RuleId -or $RuleId -contains $_.RuleId })
+        # Recycle Bin rules first: files that another rule (Downloads) moves to the bin in the same
+        # run must never be purged a moment later.
+        $todo = @(@($Scan.Rules | Where-Object { (-not $RuleId -or $RuleId -contains $_.RuleId) -and [string]$_.Method -eq 'recycleBin' }) +
+            @($Scan.Rules | Where-Object { (-not $RuleId -or $RuleId -contains $_.RuleId) -and [string]$_.Method -ne 'recycleBin' }))
         $n = 0
         foreach ($rs in $todo) {
             $n++

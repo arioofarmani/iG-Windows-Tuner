@@ -18,7 +18,37 @@
 .PARAMETER ListTweaks
     List every tweak with tier, risk, presets and current state.
 .PARAMETER Preset
-    Apply a preset: Competitive, Balanced or Hardened.
+    Apply a preset by id or name: competitive, balanced, hardened, streamer, engineer, laptop,
+    privacy-max, debloat, fortress, or a custom preset (custom-...). -ListPresets lists them. With
+    -Drift, the preset to compare against. Session Mode is started with -Session Start instead.
+.PARAMETER AddItem
+    With -Preset or -SavePreset: items to add to the preset.
+.PARAMETER RemoveItem
+    With -Preset or -SavePreset: items to leave out.
+.PARAMETER ListPresets
+    Lists every preset (built-in and custom) with its item count and rules. Read-only.
+.PARAMETER SavePreset
+    Saves a custom preset with this name: -BasedOn <preset> plus -AddItem and minus -RemoveItem
+    (without changes it duplicates the preset). The preset rules are checked first.
+.PARAMETER BasedOn
+    The preset a custom preset starts from (default balanced).
+.PARAMETER ExportPreset
+    Writes this preset to -PresetPath as JSON with a SHA256 integrity field.
+.PARAMETER ImportPreset
+    Imports a preset file (checked against its SHA256 field and the preset rules) as a custom preset.
+.PARAMETER RemovePreset
+    Deletes a custom preset.
+.PARAMETER PresetPath
+    File for -ExportPreset.
+.PARAMETER Drift
+    Drift report: which items of the last applied preset (or -Preset) changed since. Read-only.
+.PARAMETER AdoptDrift
+    Saves the drifted state as a custom preset with this name (the preset minus the changed items).
+.PARAMETER Session
+    Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot,
+    Stop restores them, Status shows the session. -DryRun with Start shows the plan.
+.PARAMETER CloseApps
+    With -Session Start: also close the running apps from the Session Mode list.
 .PARAMETER Apply
     Apply the given tweak ids.
 .PARAMETER Revert
@@ -147,6 +177,37 @@
 .PARAMETER RiskZone
     Lists every rejected tweak: the ones you can apply at your own risk (with warnings and what they
     turn off or on) and the ones that are not offered, with the reason. Read-only.
+.PARAMETER Toolkit
+    Lists a Toolkit section: Apps (curated winget packages with installed versions; -Quick skips
+    the winget inventory), Features, Fixes (with their steps), Panels, Tweaks (WinUtil-derived
+    items) or Updates (Windows Update items). -Search filters Apps. Read-only.
+.PARAMETER Install
+    winget package ids to install (from -Toolkit Apps or any valid id). Needs -AcceptAgreements
+    the first time, after you have read the agreements that are printed.
+.PARAMETER Uninstall
+    winget package ids to uninstall.
+.PARAMETER Upgrade
+    winget package ids to upgrade.
+.PARAMETER UpgradeAll
+    Upgrades every package from the winget source (winget upgrade --all).
+.PARAMETER AcceptAgreements
+    You accept winget's package and source agreements (recorded for later installs).
+.PARAMETER AppList
+    An app selection file (exported from the GUI or with -ExportAppList) to use with -Install,
+    -Uninstall or -Upgrade; its SHA256 field is checked.
+.PARAMETER ExportAppList
+    Writes the ids given with -AppId to an app selection file.
+.PARAMETER AppId
+    winget ids for -ExportAppList.
+.PARAMETER Fix
+    Runs a Toolkit fix (for example fix.sfc). -DryRun only shows its steps.
+.PARAMETER OpenPanel
+    Opens an inbox Windows tool from -Toolkit Panels (for example panel.device-manager).
+.PARAMETER EnableFeature
+    Enables a Toolkit feature (for example feature.wsl); snapshot-backed. -DryRun previews.
+.PARAMETER DisableFeature
+    Disables a Toolkit feature; features other tools depend on (WSL, Virtual Machine Platform and
+    the .NET Framework 4) are never disabled. -DryRun previews.
 .EXAMPLE
     .\iGWindowsTuner.ps1 -Report
 .EXAMPLE
@@ -201,8 +262,21 @@ param(
     [switch]$Report,
     [string]$ReportPath,
     [switch]$ListTweaks,
-    [ValidateSet('Competitive', 'Balanced', 'Hardened')]
     [string]$Preset,
+    [string[]]$AddItem,
+    [string[]]$RemoveItem,
+    [switch]$ListPresets,
+    [string]$SavePreset,
+    [string]$BasedOn,
+    [string]$ExportPreset,
+    [string]$ImportPreset,
+    [string]$RemovePreset,
+    [string]$PresetPath,
+    [switch]$Drift,
+    [string]$AdoptDrift,
+    [ValidateSet('Start', 'Stop', 'Status')]
+    [string]$Session,
+    [switch]$CloseApps,
     [string[]]$Apply,
     [string[]]$Revert,
     [switch]$RevertAll,
@@ -267,6 +341,20 @@ param(
     [string[]]$NetTarget,
     [switch]$UnderLoad,
     [switch]$RiskZone,
+    [ValidateSet('Apps', 'Features', 'Fixes', 'Panels', 'Tweaks', 'Updates')]
+    [string]$Toolkit,
+    [string[]]$Install,
+    [string[]]$Uninstall,
+    [string[]]$Upgrade,
+    [switch]$UpgradeAll,
+    [switch]$AcceptAgreements,
+    [string]$AppList,
+    [string]$ExportAppList,
+    [string[]]$AppId,
+    [string]$Fix,
+    [string]$OpenPanel,
+    [string]$EnableFeature,
+    [string]$DisableFeature,
     [switch]$ElevatedRelaunch
 )
 
@@ -481,7 +569,15 @@ function Write-IgwtAsrStatus {
 $modes = @()
 if ($Report) { $modes += 'Report' }
 if ($ListTweaks) { $modes += 'ListTweaks' }
-if ($Preset) { $modes += 'Preset' }
+if ($Preset -and -not ($Drift -or $AdoptDrift)) { $modes += 'Preset' }
+if ($ListPresets) { $modes += 'ListPresets' }
+if ($SavePreset) { $modes += 'SavePreset' }
+if ($ExportPreset) { $modes += 'ExportPreset' }
+if ($ImportPreset) { $modes += 'ImportPreset' }
+if ($RemovePreset) { $modes += 'RemovePreset' }
+if ($Drift) { $modes += 'Drift' }
+if ($AdoptDrift) { $modes += 'AdoptDrift' }
+if ($Session) { $modes += 'Session' }
 if ($Apply) { $modes += 'Apply' }
 if ($Revert) { $modes += 'Revert' }
 if ($RevertAll) { $modes += 'RevertAll' }
@@ -505,17 +601,35 @@ if ($DnsBenchmark) { $modes += 'DnsBenchmark' }
 if ($Latency) { $modes += 'Latency' }
 if ($NetworkTest) { $modes += 'NetworkTest' }
 if ($RiskZone) { $modes += 'RiskZone' }
+if ($Toolkit) { $modes += 'Toolkit' }
+if ($Install -or ($AppList -and -not ($Uninstall -or $Upgrade))) { $modes += 'Install' }
+if ($Uninstall) { $modes += 'Uninstall' }
+if ($Upgrade) { $modes += 'Upgrade' }
+if ($UpgradeAll) { $modes += 'UpgradeAll' }
+if ($ExportAppList) { $modes += 'ExportAppList' }
+if ($Fix) { $modes += 'Fix' }
+if ($OpenPanel) { $modes += 'OpenPanel' }
+if ($EnableFeature) { $modes += 'EnableFeature' }
+if ($DisableFeature) { $modes += 'DisableFeature' }
+if (($AddItem -or $RemoveItem) -and -not ($Preset -or $SavePreset)) { Write-IgwtCliLine '-AddItem and -RemoveItem are only valid with -Preset or -SavePreset.' ([ConsoleColor]::Red); exit 2 }
+if ($BasedOn -and -not $SavePreset) { Write-IgwtCliLine '-BasedOn is only valid with -SavePreset.' ([ConsoleColor]::Red); exit 2 }
+if ($ExportPreset -and -not $PresetPath) { Write-IgwtCliLine '-ExportPreset needs -PresetPath.' ([ConsoleColor]::Red); exit 2 }
+if ($PresetPath -and -not $ExportPreset) { Write-IgwtCliLine '-PresetPath is only valid with -ExportPreset.' ([ConsoleColor]::Red); exit 2 }
+if ($CloseApps -and $Session -ne 'Start') { Write-IgwtCliLine '-CloseApps is only valid with -Session Start.' ([ConsoleColor]::Red); exit 2 }
 if ($modes.Count -gt 1) { Write-IgwtCliLine "Choose one mode only (got: $($modes -join ', '))." ([ConsoleColor]::Red); exit 2 }
 $asrOnly = @('AsrRule', 'AsrMode', 'AsrRecommended', 'AsrExclude', 'AsrUnexclude') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($asrOnly -and -not $Asr) { Write-IgwtCliLine "-$($asrOnly -join ', -') only valid with -Asr." ([ConsoleColor]::Red); exit 2 }
 if ($PSBoundParameters.ContainsKey('Days') -and -not ($AsrAudit -or $Diagnostics -or $SystemReport)) { Write-IgwtCliLine '-Days is only valid with -AsrAudit, -Diagnostics or -SystemReport.' ([ConsoleColor]::Red); exit 2 }
 if ($AsrAudit -and $Days -gt 90) { Write-IgwtCliLine '-Days must be 90 or less with -AsrAudit.' ([ConsoleColor]::Red); exit 2 }
-if ($Search -and -not $Inventory) { Write-IgwtCliLine '-Search is only valid with -Inventory.' ([ConsoleColor]::Red); exit 2 }
+if ($Search -and -not ($Inventory -or $Toolkit)) { Write-IgwtCliLine '-Search is only valid with -Inventory or -Toolkit.' ([ConsoleColor]::Red); exit 2 }
+if ($AcceptAgreements -and -not ($Install -or $Upgrade -or $UpgradeAll -or $AppList)) { Write-IgwtCliLine '-AcceptAgreements is only valid with -Install, -Upgrade or -UpgradeAll.' ([ConsoleColor]::Red); exit 2 }
+if ($AppId -and -not $ExportAppList) { Write-IgwtCliLine '-AppId is only valid with -ExportAppList.' ([ConsoleColor]::Red); exit 2 }
+if ($ExportAppList -and -not $AppId) { Write-IgwtCliLine '-ExportAppList needs -AppId.' ([ConsoleColor]::Red); exit 2 }
 $changeOnly = @('Target', 'Value', 'Provisioned') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($changeOnly -and -not $Change) { Write-IgwtCliLine "-$($changeOnly -join ', -') only valid with -Change." ([ConsoleColor]::Red); exit 2 }
 if ($Change -and (-not $Target -or -not $Value)) { Write-IgwtCliLine '-Change needs -Target and -Value.' ([ConsoleColor]::Red); exit 2 }
 if ($IncludeMicrosoft -and -not $Persistence) { Write-IgwtCliLine '-IncludeMicrosoft is only valid with -Persistence.' ([ConsoleColor]::Red); exit 2 }
-if ($Quick -and -not $SystemReport) { Write-IgwtCliLine '-Quick is only valid with -SystemReport.' ([ConsoleColor]::Red); exit 2 }
+if ($Quick -and -not ($SystemReport -or $Toolkit)) { Write-IgwtCliLine '-Quick is only valid with -SystemReport or -Toolkit.' ([ConsoleColor]::Red); exit 2 }
 if ($SystemReport -and -not $ReportPath) { Write-IgwtCliLine '-SystemReport needs -ReportPath (.html or .json).' ([ConsoleColor]::Red); exit 2 }
 if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport -or $NetworkTest)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence, -SystemReport or -NetworkTest.' ([ConsoleColor]::Red); exit 2 }
 $netOnly = @('Duration', 'NetTarget', 'UnderLoad') | Where-Object { $PSBoundParameters.ContainsKey($_) }
@@ -530,6 +644,10 @@ if ($cleanOnly -and -not $Clean) { Write-IgwtCliLine "-$($cleanOnly -join ', -')
 if ($PSBoundParameters.ContainsKey('Top') -and -not $Analyze) { Write-IgwtCliLine '-Top is only valid with -Analyze.' ([ConsoleColor]::Red); exit 2 }
 
 try {
+    if ($modes -notcontains 'Session' -and -not $Json) {
+        try { $staleSession = Get-IgwtSessionState } catch { $staleSession = $null }
+        if ($staleSession -and $staleSession.Stale) { Write-IgwtCliLine "A Session Mode session from $($staleSession.Started.ToLocalTime().ToString('g')) was not ended: $($staleSession.Reason) Run -Session Stop to restore your settings." ([ConsoleColor]::Yellow) }
+    }
     if ($modes.Count -eq 0) {
         if ($NoGui) { Get-Help $PSCommandPath -Detailed | Out-String | Write-Output; exit 0 }
         Show-IgwtGui -ScriptPath $PSCommandPath
@@ -553,7 +671,7 @@ try {
             $presets = @(Get-IgwtPreset)
             $rows = foreach ($t in Get-IgwtCatalog) {
                 $s = Get-IgwtTweakState -Tweak $t -Context $ctx
-                $in = @($presets | Where-Object { $_.tweaks -contains $t.id } | ForEach-Object { $_.name.Substring(0, 1) }) -join ''
+                $in = @($presets | Where-Object { $_.tweaks -contains $t.id } | ForEach-Object { if ($_.PSObject.Properties['code'] -and $_.code) { $_.code } else { '+' } } | Select-Object -Unique) -join ''
                 [pscustomobject]@{ Id = $t.id; Category = $t.category; Name = $t.name; Level = $t.level; Tier = $t.evidence.tier; Risk = $t.risk; Requires = $t.requires
                     Presets = $(if ($in) { $in } else { '-' }); Expert = [bool]$t.expert; AntiCheat = $t.antiCheatText; Reversible = $t.reversible; State = $s.State; Hint = $t.hint }
             }
@@ -562,11 +680,11 @@ try {
                 Write-IgwtCliLine ''
                 Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
                 foreach ($r in $g.Group) {
-                    Write-IgwtCliLine ("  {0,-38} {1,-15} {2,-8} T{3} {4,-6} {5,-6} {6,-3} {7}{8}" -f $r.Id, $r.State, $r.Level, $r.Tier, $r.Risk, $r.Requires, $r.Presets, $r.Name, $(if ($r.AntiCheat -ne 'Anti-cheat safe') { "  [$($r.AntiCheat)]" } else { '' })) (Get-IgwtStateColor $r.State)
+                    Write-IgwtCliLine ("  {0,-38} {1,-15} {2,-8} T{3} {4,-6} {5,-6} {6,-10} {7}{8}" -f $r.Id, $r.State, $r.Level, $r.Tier, $r.Risk, $r.Requires, $r.Presets, $r.Name, $(if ($r.AntiCheat -ne 'Anti-cheat safe') { "  [$($r.AntiCheat)]" } else { '' })) (Get-IgwtStateColor $r.State)
                 }
             }
             Write-IgwtCliLine ''
-            Write-IgwtCliLine 'Presets column: C = Competitive, B = Balanced, H = Hardened.' ([ConsoleColor]::DarkGray)
+            Write-IgwtCliLine ('Presets column: ' + ((@($presets | Where-Object { $_.PSObject.Properties['code'] -and $_.code }) | ForEach-Object { "$($_.code) = $($_.name)" }) -join ', ') + ', + = custom.') ([ConsoleColor]::DarkGray)
             exit 0
         }
         'Hardware' {
@@ -942,6 +1060,262 @@ try {
             if (@($c.Rules | Where-Object { $_.Status -eq 'Error' }).Count -gt 0) { Complete-IgwtCli 5 }
             Complete-IgwtCli 0
         }
+        'ListPresets' {
+            $rows = @(Get-IgwtPreset | ForEach-Object {
+                    $sel = Resolve-IgwtPresetSelection -Preset $_
+                    [pscustomobject]@{ Code = $(if ($_.PSObject.Properties['code'] -and $_.code) { $_.code } else { '+' }); Id = $_.id; Name = $_.name; Custom = [bool]($_.PSObject.Properties['custom'] -and $_.custom)
+                        Session = [bool]($_.PSObject.Properties['session'] -and $_.session); Gaming = [bool]$_.gaming; LevelCeiling = $_.levelCeiling; Items = @($_.tweaks).Count; OnThisPc = @($sel.Ids).Count; Hint = $_.hint }
+                })
+            if ($Json) { $rows | ConvertTo-Json -Depth 3; exit 0 }
+            foreach ($r in $rows) {
+                Write-IgwtCliLine ("  [{0}] {1,-22} {2,-32} {3,3} items ({4} on this PC), ceiling {5}{6}{7}" -f $r.Code, $r.Id, $r.Name, $r.Items, $r.OnThisPc, $r.LevelCeiling, $(if ($r.Gaming) { ', gaming' } else { '' }), $(if ($r.Custom) { ', custom' } elseif ($r.Session) { ', temporary' } else { '' })) $(if ($r.Custom) { [ConsoleColor]::Cyan } else { [ConsoleColor]::White })
+                Write-IgwtCliLine ("      {0}" -f $r.Hint) ([ConsoleColor]::DarkGray)
+            }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine 'Preview with -Preset <id> -DryRun. Session Mode: -Session Start. Custom presets: -SavePreset <name> -BasedOn <id> [-AddItem ...] [-RemoveItem ...].' ([ConsoleColor]::White)
+            exit 0
+        }
+        'Drift' {
+            try { $d = Get-IgwtPresetDrift -Preset $Preset } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json) { $d | ConvertTo-Json -Depth 4; exit 0 }
+            if (-not $d.HasPreset) { Write-IgwtCliLine $d.Message ([ConsoleColor]::Yellow); exit 0 }
+            Write-IgwtCliLine ("Drift report for {0}{1}" -f $d.Name, $(if ($d.Applied) { " (applied $(([datetime]$d.Applied).ToString('g')))" } else { ' (compared with the preset as resolved for this PC)' })) ([ConsoleColor]::White)
+            foreach ($x in $d.Drifted) { Write-IgwtCliLine ("  [{0}] {1,-38} {2}" -f $x.State, $x.Id, $x.Name) ([ConsoleColor]::Yellow) }
+            Write-IgwtCliLine $d.Message $(if (@($d.Drifted).Count) { [ConsoleColor]::Yellow } else { [ConsoleColor]::Green })
+            if (@($d.Drifted).Count) { Write-IgwtCliLine "Re-apply: -Preset $($d.Preset). Adopt as custom: -AdoptDrift <name>$(if (-not $d.FromRecord) { " -Preset $($d.Preset)" })." ([ConsoleColor]::White) }
+            exit 0
+        }
+        'ExportPreset' {
+            try { $out = Export-IgwtPreset -Name $ExportPreset -Path $PresetPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json) { [pscustomobject]@{ Path = $out } | ConvertTo-Json } else { Write-IgwtCliLine "Preset written to $out (with a SHA256 integrity field)." ([ConsoleColor]::Green) }
+            exit 0
+        }
+        { $_ -in 'SavePreset', 'ImportPreset', 'RemovePreset', 'AdoptDrift' } {
+            $op = $modes[0]
+            $basedOnId = $(if ($BasedOn) { $BasedOn } else { 'balanced' })
+            try {
+                switch ($op) {
+                    'SavePreset' { $null = Save-IgwtCustomPreset -Name $SavePreset -BasedOn $basedOnId -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem) -WhatIf }
+                    'ImportPreset' { $null = Import-IgwtPreset -Path $ImportPreset -WhatIf }
+                    'RemovePreset' { $null = Remove-IgwtCustomPreset -Name $RemovePreset -WhatIf }
+                    'AdoptDrift' { $null = Save-IgwtDriftAsPreset -Name $AdoptDrift -Preset $Preset -WhatIf }
+                }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: the preset passed every rule; nothing was written.' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $res = $null
+            switch ($op) {
+                'SavePreset' { $res = Save-IgwtCustomPreset -Name $SavePreset -BasedOn $basedOnId -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem) }
+                'ImportPreset' { $res = Import-IgwtPreset -Path $ImportPreset }
+                'RemovePreset' { Remove-IgwtCustomPreset -Name $RemovePreset }
+                'AdoptDrift' { $res = Save-IgwtDriftAsPreset -Name $AdoptDrift -Preset $Preset }
+            }
+            if ($Json) { $res | ConvertTo-Json -Depth 4 } elseif ($res) { Write-IgwtCliLine ("Saved custom preset {0} ({1} items). Apply it with -Preset {0}." -f $res.id, @($res.tweaks).Count) ([ConsoleColor]::Green) } else { Write-IgwtCliLine 'Done.' ([ConsoleColor]::Green) }
+            Complete-IgwtCli 0
+        }
+        'Session' {
+            switch ($Session) {
+                'Status' {
+                    $st = Get-IgwtSessionState
+                    if ($Json) { $st | ConvertTo-Json; exit 0 }
+                    if (-not $st.Active) { Write-IgwtCliLine 'No Session Mode session is active.' ([ConsoleColor]::Gray) }
+                    else { Write-IgwtCliLine ("Session active since {0} ({1}){2}" -f $st.Started.ToLocalTime().ToString('g'), $st.Owner, $(if ($st.Stale) { ". Stale: $($st.Reason) Run -Session Stop to restore your settings." } else { '' })) $(if ($st.Stale) { [ConsoleColor]::Yellow } else { [ConsoleColor]::Green }) }
+                    exit 0
+                }
+                'Start' {
+                    try { $plan = Get-IgwtSessionPlan } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+                    $st = Get-IgwtSessionState
+                    if ($st.Active) { Write-IgwtCliLine "A session is already active (started $($st.Started.ToLocalTime().ToString('g'))). End it with -Session Stop." ([ConsoleColor]::Yellow); exit 2 }
+                    if ($DryRun) {
+                        Write-IgwtPlan -Plan @(Get-IgwtPlan -Id $plan.Ids) -Title 'Session Mode dry run (nothing is changed)'
+                        Write-IgwtCliLine ("Power plan for the session: {0}" -f $(if ($plan.PowerPlan) { $plan.PowerPlan } else { 'unchanged (blocked by the hardware overlays)' })) ([ConsoleColor]::Gray)
+                        Write-IgwtCliLine ("Running apps from the close list: {0}" -f $(if (@($plan.Apps).Count) { (@($plan.Apps | ForEach-Object { $_.Name }) -join ', ') + ' (closed only with -CloseApps)' } else { 'none' })) ([ConsoleColor]::Gray)
+                        exit 0
+                    }
+                    if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+                    $close = @(); if ($CloseApps) { $close = @($plan.Apps | ForEach-Object { $_.Name }) }
+                    $res = Start-IgwtSession -CloseApps $close -Owner cli
+                    if ($Json) { $res | ConvertTo-Json -Depth 5 } else {
+                        Write-IgwtResult -Result $res
+                        foreach ($c in @($res.Closed)) { Write-IgwtCliLine ("[{0}] {1} {2}" -f $c.Result, $c.Name, $c.Message) ([ConsoleColor]::Gray) }
+                        Write-IgwtCliLine 'Session started. End it with -Session Stop; after a restart, the next start of iG Windows Tuner offers to restore it.' ([ConsoleColor]::White)
+                    }
+                    Complete-IgwtCli (Get-IgwtExitCode -Result $res)
+                }
+                'Stop' {
+                    if ($DryRun) { $st = Get-IgwtSessionState; Write-IgwtCliLine $(if ($st.Active) { "Would restore the settings from $($st.Snapshot)." } else { 'No session is active.' }); exit 0 }
+                    if (-not (Get-IgwtSessionState).Active) { Write-IgwtCliLine 'No Session Mode session is active.' ([ConsoleColor]::Gray); exit 6 }
+                    if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+                    $res = Stop-IgwtSession
+                    Write-IgwtResult -Result $res
+                    Complete-IgwtCli (Get-IgwtExitCode -Result $res)
+                }
+            }
+        }
+        'Toolkit' {
+            switch ($Toolkit) {
+                'Apps' {
+                    $rows = @(Get-IgwtToolkitApps -Search $Search -WithState:(-not $Quick))
+                    if ($Json) { $rows | ConvertTo-Json -Depth 4; exit 0 }
+                    if (@($rows | Where-Object { $_.StateNote }).Count) { Write-IgwtCliLine "Installed state unavailable: $(@($rows)[0].StateNote)" ([ConsoleColor]::Yellow) }
+                    foreach ($g in @($rows | Group-Object Category)) {
+                        Write-IgwtCliLine ''
+                        Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                        foreach ($a in $g.Group) {
+                            $st = $(if ($null -eq $a.Installed) { '' } elseif ($a.Installed) { "[installed $($a.Version)]" } else { '' })
+                            Write-IgwtCliLine ("  {0,-40} {1,-26} {2}" -f $a.Id, $a.Name, $st) $(if ($a.Installed) { [ConsoleColor]::Green } else { [ConsoleColor]::Gray })
+                            Write-IgwtCliLine ("      {0}" -f $a.Hint) ([ConsoleColor]::DarkGray)
+                        }
+                    }
+                    Write-IgwtCliLine ''
+                    Write-IgwtCliLine 'Install with -Install <id[,id]> (-DryRun to preview). The first install shows winget''s agreements and needs -AcceptAgreements.' ([ConsoleColor]::White)
+                }
+                'Features' {
+                    $rows = @(Get-IgwtToolkitFeatures -WithState)
+                    if ($Json) { $rows | ConvertTo-Json -Depth 5; exit 0 }
+                    foreach ($f in $rows) {
+                        $st = $(if (-not $f.Supported) { 'not on this edition' } elseif ($f.State -eq 'On') { 'enabled' } elseif ($f.State -eq 'Off') { 'disabled' } elseif ($f.State -eq 'Partial') { 'partly enabled' } else { 'unknown (run elevated to read)' })
+                        Write-IgwtCliLine ("  {0,-28} {1,-34} {2}" -f $f.Id, $f.Name, $st) $(if ($f.State -eq 'On') { [ConsoleColor]::Green } else { [ConsoleColor]::Gray })
+                        Write-IgwtCliLine ("      {0}" -f $f.Hint) ([ConsoleColor]::DarkGray)
+                        if ($f.Warning) { Write-IgwtCliLine ("      Warning: {0}" -f $f.Warning) ([ConsoleColor]::Yellow) }
+                    }
+                    Write-IgwtCliLine ''
+                    Write-IgwtCliLine 'Change with -EnableFeature <id> or -DisableFeature <id> (-DryRun to preview); each change writes a snapshot.' ([ConsoleColor]::White)
+                }
+                'Fixes' {
+                    $rows = @(Get-IgwtToolkitFixes)
+                    if ($Json) { $rows | ConvertTo-Json -Depth 4; exit 0 }
+                    foreach ($x in $rows) {
+                        Write-IgwtCliLine ''
+                        Write-IgwtCliLine ("{0,-26} {1}{2}{3}" -f $x.Id, $x.Name, $(if ($x.Admin) { '  [admin]' } else { '' }), $(if ($x.Reboot) { '  [reboot]' } else { '' })) ([ConsoleColor]::White)
+                        Write-IgwtCliLine ("  {0}" -f $x.Hint) ([ConsoleColor]::Gray)
+                        foreach ($s in $x.Steps) { Write-IgwtCliLine ("    - {0}" -f $s) ([ConsoleColor]::DarkGray) }
+                        if ($x.Warning) { Write-IgwtCliLine ("  Warning: {0}" -f $x.Warning) ([ConsoleColor]::Yellow) }
+                    }
+                    Write-IgwtCliLine ''
+                    Write-IgwtCliLine 'Run one with -Fix <id> (-DryRun shows the steps only).' ([ConsoleColor]::White)
+                }
+                'Panels' {
+                    $rows = @(Get-IgwtToolkitPanels)
+                    if ($Json) { $rows | ConvertTo-Json -Depth 3; exit 0 }
+                    foreach ($p in $rows) { Write-IgwtCliLine ("  {0,-30} {1,-40} {2}" -f $p.Id, $p.Name, $p.Hint) ([ConsoleColor]::Gray) }
+                    Write-IgwtCliLine ''
+                    Write-IgwtCliLine 'Open one with -OpenPanel <id>.' ([ConsoleColor]::White)
+                }
+                { $_ -in 'Tweaks', 'Updates' } {
+                    $items = $(if ($Toolkit -eq 'Tweaks') { @(Get-IgwtToolkitTweaks) } else { @(Get-IgwtToolkitUpdateItems) })
+                    $states = @{}
+                    foreach ($s in @(Get-IgwtAllTweakStates -Id @($items | ForEach-Object { $_.id }))) { $states[$s.Id] = $s }
+                    $rows = @($items | ForEach-Object { [pscustomobject]@{ Id = $_.id; Name = $_.name; Category = $_.category; Level = $_.level; Tier = $_.tier; State = $states[$_.id].State; Hint = $_.hint; Attribution = $_.attribution } })
+                    if ($Json) { $rows | ConvertTo-Json -Depth 3; exit 0 }
+                    foreach ($r in $rows) {
+                        Write-IgwtCliLine ("  {0,-36} {1,-15} {2,-9} T{3}  {4}" -f $r.Id, $r.State, $r.Level, $r.Tier, $r.Name) (Get-IgwtStateColor $r.State)
+                        Write-IgwtCliLine ("      {0}" -f $r.Hint) ([ConsoleColor]::DarkGray)
+                    }
+                    Write-IgwtCliLine ''
+                    if ($Toolkit -eq 'Updates') { Write-IgwtCliLine 'iG Windows Tuner never disables Windows Update. Pause updates natively with -OpenPanel panel.windows-update; -ResetDefault <id> restores Windows defaults.' ([ConsoleColor]::White) }
+                    else { Write-IgwtCliLine 'These items are derived from WinUtil (docs\WINUTIL_MAPPING.md) and also appear in their categories. Apply with -Apply <id> (-DryRun to preview).' ([ConsoleColor]::White) }
+                }
+            }
+            exit 0
+        }
+        'ExportAppList' {
+            try { $out = Export-IgwtAppSelection -Path $ExportAppList -Id (Split-IgwtIdList $AppId) }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json) { [pscustomobject]@{ Path = $out } | ConvertTo-Json } else { Write-IgwtCliLine "App selection written to $out" ([ConsoleColor]::Green) }
+            exit 0
+        }
+        'OpenPanel' {
+            try {
+                if ($DryRun) { $p = @(Get-IgwtToolkitPanels | Where-Object { $_.Id -eq $OpenPanel }); if (-not $p) { throw "Unknown panel '$OpenPanel'." }; Write-IgwtCliLine "Would open: $($p[0].Name) ($($p[0].Command))"; exit 0 }
+                Start-IgwtPanel -Id $OpenPanel
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            exit 0
+        }
+        { $_ -in 'Install', 'Uninstall', 'Upgrade', 'UpgradeAll' } {
+            $op = $modes[0]
+            $list = @()
+            try {
+                if ($AppList) { $list = @(Import-IgwtAppSelection -Path $AppList) }
+                switch ($op) { 'Install' { $list += @(Split-IgwtIdList $Install) } 'Uninstall' { $list += @(Split-IgwtIdList $Uninstall) } 'Upgrade' { $list += @(Split-IgwtIdList $Upgrade) } }
+                $list = @($list | Select-Object -Unique)
+                if ($op -ne 'UpgradeAll' -and $list.Count -eq 0) { throw 'No package ids given.' }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            $known = @{}
+            foreach ($a in @(Get-IgwtToolkitApps)) { $known[$a.Id] = $a }
+            if ($DryRun) {
+                Write-IgwtCliLine "Dry run: winget $($op.ToLowerInvariant()) (nothing is changed):" ([ConsoleColor]::White)
+                if ($op -eq 'UpgradeAll') { Write-IgwtCliLine '  every installed package from the winget source' }
+                foreach ($i in $list) { Write-IgwtCliLine ("  {0,-40} {1}" -f $i, $(if ($known.ContainsKey($i)) { $known[$i].Name } else { '(not in the curated list)' })) }
+                exit 0
+            }
+            if ($op -ne 'Uninstall' -and -not $AcceptAgreements -and -not (Test-IgwtWingetConsent)) {
+                Write-IgwtCliLine 'Before the first install or upgrade, read winget''s agreements:' ([ConsoleColor]::White)
+                foreach ($l in (Get-IgwtWingetAgreements).Lines) { Write-IgwtCliLine "  - $l" ([ConsoleColor]::Gray) }
+                Write-IgwtCliLine 'Run the command again with -AcceptAgreements if you accept them.' ([ConsoleColor]::Yellow)
+                exit 2
+            }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            if ($AcceptAgreements -and -not (Test-IgwtWingetConsent)) { Set-IgwtWingetConsent }
+            if ($op -eq 'UpgradeAll') {
+                $r = Invoke-IgwtWingetUpgradeAll -AcceptAgreements:$AcceptAgreements
+                if ($Json) { $r | ConvertTo-Json } else { Write-IgwtCliLine $r.Output; Write-IgwtCliLine "winget upgrade --all: $($r.Result)" $(if ($r.Result -eq 'Failed') { [ConsoleColor]::Red } else { [ConsoleColor]::Green }) }
+                Complete-IgwtCli $(if ($r.Result -eq 'Failed') { 5 } else { 0 })
+            }
+            $res = @(Invoke-IgwtToolkitApp -Operation $op -Id $list -AcceptAgreements:$AcceptAgreements)
+            if ($Json) { $res | ConvertTo-Json -Depth 3 } else {
+                foreach ($r in $res) { Write-IgwtCliLine ("{0,-18} {1} {2}" -f "[$($r.Result)]", $r.Id, $r.Message) $(if ($r.Result -eq 'Failed') { [ConsoleColor]::Red } else { [ConsoleColor]::Green }) }
+            }
+            Complete-IgwtCli $(if (@($res | Where-Object { $_.Result -eq 'Failed' }).Count) { 5 } else { 0 })
+        }
+        'Fix' {
+            try { $plan = Get-IgwtToolkitFixPlan -Id $Fix } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 3; exit 0 }
+            if (-not $Json) {
+                Write-IgwtCliLine ("{0}: {1}" -f $plan.Name, $plan.Hint) ([ConsoleColor]::White)
+                foreach ($s in $plan.Steps) { Write-IgwtCliLine "  - $s" ([ConsoleColor]::Gray) }
+                if ($plan.Warning) { Write-IgwtCliLine "Warning: $($plan.Warning)" ([ConsoleColor]::Yellow) }
+                Write-IgwtCliLine "Source: $($plan.Source)" ([ConsoleColor]::DarkGray)
+            }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was run.' ([ConsoleColor]::White); exit 0 }
+            if ($plan.Admin -and -not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $r = Invoke-IgwtToolkitFix -Id $Fix
+            if ($Json) { $r | ConvertTo-Json -Depth 4 } else {
+                foreach ($s in $r.Steps) {
+                    Write-IgwtCliLine ("{0,-14} {1}" -f "[$($s.Result)]", $s.Step) $(if ($s.Result -eq 'Failed') { [ConsoleColor]::Red } elseif ($s.Result -eq 'NotRun') { [ConsoleColor]::DarkGray } else { [ConsoleColor]::Green })
+                    if ($s.Output) { Write-IgwtCliLine ($s.Output -replace '(?m)^', '      ') ([ConsoleColor]::DarkGray) }
+                }
+                Write-IgwtCliLine "Result: $($r.Result)" ([ConsoleColor]::White)
+                if ($r.RebootRequired) { Write-IgwtCliLine 'A REBOOT is required to finish this fix.' ([ConsoleColor]::Yellow) }
+            }
+            if ($r.Result -eq 'Failed') { Complete-IgwtCli 5 }
+            Complete-IgwtCli $(if ($r.RebootRequired) { 3010 } else { 0 })
+        }
+        { $_ -in 'EnableFeature', 'DisableFeature' } {
+            $fid = $(if ($EnableFeature) { $EnableFeature } else { $DisableFeature })
+            $want = $(if ($EnableFeature) { 'Enabled' } else { 'Disabled' })
+            try {
+                $f = @(Get-IgwtToolkitFeatures | Where-Object { $_.Id -eq $fid }) | Select-Object -First 1
+                if (-not $f) { throw "Unknown Toolkit feature '$fid'. Use -Toolkit Features to list them." }
+                $value = $(if ($f.Kind -eq 'capability') { $(if ($want -eq 'Enabled') { 'Installed' } else { 'NotPresent' }) } else { $want })
+                $plans = @(foreach ($t in $f.Targets) { Get-IgwtManagedChangePlan -Kind $f.Kind -Target $t -Value $value })
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($DryRun) {
+                if ($Json) { $plans | ConvertTo-Json -Depth 3; exit 0 }
+                Write-IgwtCliLine "Dry run: $($f.Name) -> $want (nothing is changed):" ([ConsoleColor]::White)
+                foreach ($p in $plans) { Write-IgwtCliLine ("  {0}" -f $p.Change) $(if ($p.HasChange) { [ConsoleColor]::Yellow } else { [ConsoleColor]::Green }) }
+                if ($f.Reboot) { Write-IgwtCliLine '  A restart is needed afterwards.' ([ConsoleColor]::DarkGray) }
+                exit 0
+            }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Invoke-IgwtToolkitFeature -Id $fid -State $want } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if ($Json) { $r | ConvertTo-Json -Depth 4 } else {
+                foreach ($x in $r.Results) { Write-IgwtCliLine ("{0,-12} {1} {2}" -f "[$($x.Result)]", $x.Change, $x.Message) $(if ($x.Result -eq 'Failed') { [ConsoleColor]::Red } else { [ConsoleColor]::Green }) }
+                if ($r.RebootRequired) { Write-IgwtCliLine 'A REBOOT is required to finish this change.' ([ConsoleColor]::Yellow) }
+            }
+            if (@($r.Results | Where-Object { $_.Result -eq 'Failed' }).Count) { Complete-IgwtCli 5 }
+            Complete-IgwtCli $(if ($r.RebootRequired) { 3010 } else { 0 })
+        }
     }
 
     # Modes below change the system (unless -DryRun).
@@ -949,7 +1323,12 @@ try {
     $operation = 'Apply'
     $mode = 'on'
     switch ($modes[0]) {
-        'Preset' { $presetSelection = Resolve-IgwtPresetSelection -Preset $Preset; $ids = @($presetSelection.Ids); $operation = "Preset:$Preset" }
+        'Preset' {
+            try { $presetObj = Get-IgwtPreset -Name $Preset } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
+            if ($presetObj.PSObject.Properties['session'] -and $presetObj.session) { Write-IgwtCliLine 'Session Mode is temporary: start it with -Session Start (and end it with -Session Stop).' ([ConsoleColor]::Yellow); exit 2 }
+            $presetSelection = Resolve-IgwtPresetSelection -Preset $presetObj -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem)
+            $ids = @($presetSelection.Ids); $operation = "Preset:$($presetObj.id)"
+        }
         'Apply' { $ids = Split-IgwtIdList $Apply }
         'ResetDefault' { $ids = Split-IgwtIdList $ResetDefault; $operation = 'ResetDefault'; $mode = 'default' }
         'Revert' { $ids = Split-IgwtIdList $Revert }
@@ -982,7 +1361,8 @@ try {
         $title = "iG Windows Tuner dry run - $operation (no changes will be made)"
         if ($modes[0] -eq 'Preset') {
             $ctx = New-IgwtContext
-            $plan = @(Get-IgwtPresetPlan -Preset $Preset -Context $ctx)
+            $plan = @(Get-IgwtPresetPlan -Preset $presetObj.id -Context $ctx -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem))
+            foreach ($gl in @($presetObj.guidance | Where-Object { $_ })) { Write-IgwtCliLine "Guidance: $gl" ([ConsoleColor]::Cyan) }
             Write-IgwtPlan -Plan $plan -Title $title -Selection $presetSelection
         } else {
             $plan = @(Get-IgwtPlan -Id $ids -Mode $mode)

@@ -489,6 +489,35 @@ $script:IgwtCustomHandlers = @{
         }
     }
 
+    # Session Mode: stop the Windows Search indexer for the session (startup type unchanged).
+    SearchIndexerPause = @{
+        Detect = {
+            param($Action, $Context)
+            $s = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
+            if (-not $s) { return [pscustomobject]@{ Target = 'Windows Search service (WSearch)'; Current = 'not present'; Desired = 'Stopped'; State = 'NotApplicable'; Note = 'Windows Search is not installed.' } }
+            [pscustomobject]@{ Target = 'Windows Search service (WSearch)'; Current = [string]$s.Status; Desired = 'Stopped'; State = $(if ([string]$s.Status -eq 'Stopped') { 'On' } else { 'Off' }); Note = 'Paused until it is restarted, at the latest at the next Windows start; the startup type is not changed.' }
+        }
+        Snapshot = {
+            param($Action, $Context)
+            $s = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
+            @{ present = [bool]$s; running = ($s -and [string]$s.Status -eq 'Running') }
+        }
+        Apply = {
+            param($Action, $Context, $Mode)
+            $s = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
+            if (-not $s) { return $null }
+            if ($Mode -eq 'default') { if ([string]$s.Status -ne 'Running') { Start-Service -Name 'WSearch' -ErrorAction Stop } }
+            elseif ([string]$s.Status -eq 'Running') { Stop-Service -Name 'WSearch' -Force -ErrorAction Stop }
+            return $null
+        }
+        Restore = {
+            param($Action, $Snapshot, $Context)
+            if (-not $Snapshot.present) { return }
+            $s = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
+            if ($s -and [bool]$Snapshot.running -and [string]$s.Status -ne 'Running') { Start-Service -Name 'WSearch' -ErrorAction Stop }
+        }
+    }
+
     # Risk Zone: memory compression off (Memory Management Agent).
     MemoryCompression = @{
         Detect = {

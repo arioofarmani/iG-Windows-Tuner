@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 1,
+  "checked": "2026-10-21",
+  "source": "winget",
+  "apps": [
+    {
+      "id": "Mozilla.Firefox",
+      "name": "Mozilla Firefox",
+      "category": "Browsers",
+      "foss": true,
+      "hint": "Open-source browser from Mozilla with strong tracking protection.",
+      "description": "Gecko-based browser with Enhanced Tracking Protection, containers and a large extension catalog. Updates itself after installation."
+    },
+    {
+      "id": "Google.Chrome",
+      "name": "Google Chrome",
+      "category": "Browsers",
+      "foss": false,
+      "hint": "Google's Chromium-based browser with account sync.",
+      "description": "The most widely used browser, with Google account sync and the Chrome Web Store. Installs a background updater service."
+    },
+    {
+      "id": "Brave.Brave",
+      "name": "Brave",
+      "category": "Browsers",
+      "foss": true,
+      "hint": "Chromium-based browser that blocks ads and trackers by default.",
+      "description": "Brave Shields blocks ads, trackers and fingerprinting out of the box. Optional crypto and AI features can be turned off in its settings."
+    },
+    {
+      "id": "Vivaldi.Vivaldi",
+      "name": "Vivaldi",
+      "category": "Browsers",
+      "foss": false,
+      "hint": "Highly customizable Chromium-based browser with tab stacking and a built-in mail client.",
+      "description": "Chromium-based browser for power users: tab stacking and tiling, keyboard shortcuts, a built-in ad blocker, mail and calendar."
+    },
+    {
+      "id": "LibreWolf.LibreWolf",
+      "name": "LibreWolf",
+      "category": "Browsers",
+      "foss": true,
+      "hint": "Privacy-hardened Firefox build with telemetry removed and uBlock Origin included.",
+      "description": "A community fork of Firefox with privacy-focused defaults, no telemetry and uBlock Origin preinstalled. Some sites need exceptions because of the strict defaults."
+    },
+    {
+      "id": "Discord.Discord",
+      "name": "Discord",
+      "category": "Communication",
+      "foss": false,
+      "hint": "Voice, video and text chat for gaming communities.",
+      "description": "Desktop client for Discord servers and calls. Its overlay works with most games; turn off hardware acceleration in its settings if it causes stutter."
+    },
+    {
+      "id": "TeamSpeakSystems.TeamSpeakClient",
+      "name": "TeamSpeak 3",
+      "category": "Communication",
+      "foss": false,
+      "hint": "Low-latency voice chat client used by clans and esports teams.",
+      "description": "Classic voice client with self-hostable servers, push-to-talk and low CPU use."
+    },
+    {
+      "id": "Mumble.Mumble.Client",
+      "name": "Mumble",
+      "category": "Communication",
+      "foss": true,
+      "hint": "Open-source, low-latency voice chat with positional audio.",
+      "description": "Encrypted, low-latency voice chat with positional audio for supported games. Servers can be self-hosted with Murmur."
+    },
+    {
+      "id": "Telegram.TelegramDesktop",
+      "name": "Telegram Desktop",
+      "category": "Communication",
+      "foss": true,
+      "hint": "Desktop client for the Telegram messenger.",
+      "description": "Cloud-based messaging with groups, channels and file sharing. Secret chats (end-to-end encrypted) are available on mobile only."
+    },
+    {
+      "id": "OpenWhisperSystems.Signal",
+      "name": "Signal",
+      "category": "Communication",
+      "foss": true,
+      "hint": "End-to-end encrypted messenger; links to the Signal app on your phone.",
+      "description": "Private messaging and calls with the Signal protocol. The desktop app must be linked to Signal on a phone."
+    },
+    {
+      "id": "Zoom.Zoom",
+      "name": "Zoom Workplace",
+      "category": "Communication",
+      "foss": false,
+      "hint": "Video meetings and webinars.",
+      "description": "Desktop client for Zoom meetings, chat and screen sharing."
+    },
+    {
+      "id": "SlackTechnologies.Slack",
+      "name": "Slack",
+      "category": "Communication",
+      "foss": false,
+      "hint": "Team chat for work and communities.",
+      "description": "Channels, direct messages, calls and integrations for teams."
+    },
+    {
+      "id": "Microsoft.Teams",
+      "name": "Microsoft Teams",
+      "category": "Communication",
+      "foss": false,
+      "hint": "Microsoft's chat and meeting app for work and school accounts.",
+      "description": "The new Microsoft Teams client for chat, meetings and calls with Microsoft 365 work or school accounts."
+    },
+    {
+      "id": "Valve.Steam",
+      "name": "Steam",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Valve's game store and launcher.",
+      "description": "Game library, store, friends, Big Picture and Steam Input. Games and their anti-cheat are installed through Steam."
+    },
+    {
+      "id": "EpicGames.EpicGamesLauncher",
+      "name": "Epic Games Launcher",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Epic's game store and launcher (Fortnite, free weekly games).",
+      "description": "Store and launcher for Epic Games titles, including Fortnite and the weekly free games."
+    },
+    {
+      "id": "GOG.Galaxy",
+      "name": "GOG GALAXY",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "DRM-free GOG store and a launcher that can integrate other libraries.",
+      "description": "Launcher for GOG.com games with optional integrations for other platforms."
+    },
+    {
+      "id": "ElectronicArts.EADesktop",
+      "name": "EA app",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Electronic Arts' launcher (EA SPORTS FC, Battlefield, Apex Legends).",
+      "description": "Store and launcher for EA titles; installs the EA Background Service."
+    },
+    {
+      "id": "Ubisoft.Connect",
+      "name": "Ubisoft Connect",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Ubisoft's launcher (Rainbow Six Siege, Assassin's Creed).",
+      "description": "Store and launcher for Ubisoft titles; Ubisoft+ subscriptions and cloud saves run through it."
+    },
+    {
+      "id": "Blizzard.BattleNet",
+      "name": "Battle.net",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Blizzard's launcher (Overwatch 2, Diablo, World of Warcraft, Call of Duty).",
+      "description": "Installs the Battle.net desktop app, which downloads and patches Blizzard and Activision games."
+    },
+    {
+      "id": "Playnite.Playnite",
+      "name": "Playnite",
+      "category": "Gaming",
+      "foss": true,
+      "hint": "Open-source launcher that unifies Steam, Epic, GOG, EA, Ubisoft and emulator libraries.",
+      "description": "One library for all launchers, with extensions and a fullscreen mode for controllers."
+    },
+    {
+      "id": "Nvidia.GeForceNow",
+      "name": "NVIDIA GeForce NOW",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "NVIDIA's cloud gaming client.",
+      "description": "Streams games you own from NVIDIA's servers. Latency depends on your connection; run the network test first."
+    },
+    {
+      "id": "Guru3D.Afterburner",
+      "name": "MSI Afterburner",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "GPU monitoring, fan curves and frame-time graphs.",
+      "description": "Hardware monitoring and fan control for most GPUs. iG Windows Tuner never overclocks or changes voltages; Afterburner can, so change those only if you know the risk.",
+      "note": "Use the monitoring features; overclocking and voltage changes are your own responsibility."
+    },
+    {
+      "id": "Guru3D.RTSS",
+      "name": "RivaTuner Statistics Server",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "On-screen FPS and frame-time overlay with an accurate frame limiter.",
+      "description": "Shows FPS, frame times and sensor data in games and provides a precise frame-rate limiter. Its overlay is accepted by the common anti-cheats."
+    },
+    {
+      "id": "Resplendence.LatencyMon",
+      "name": "LatencyMon",
+      "category": "Gaming",
+      "foss": false,
+      "hint": "Measures DPC and ISR latency to find drivers that cause audio crackle and stutter.",
+      "description": "Free for home use. Run it while idle and while gaming; compare with iG Windows Tuner's DPC/ISR diagnostics."
+    },
+    {
+      "id": "OBSProject.OBSStudio",
+      "name": "OBS Studio",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source streaming and recording with NVENC, AMF and Quick Sync encoders.",
+      "description": "The standard tool for streaming and recording. Use the GPU encoder to keep game performance."
+    },
+    {
+      "id": "VideoLAN.VLC",
+      "name": "VLC media player",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Plays almost every audio and video format.",
+      "description": "Open-source media player with built-in codecs."
+    },
+    {
+      "id": "Spotify.Spotify",
+      "name": "Spotify",
+      "category": "Streaming & Media",
+      "foss": false,
+      "hint": "Music streaming desktop app.",
+      "description": "Spotify desktop client. Turn off hardware acceleration and start-at-login in its settings if you do not need them."
+    },
+    {
+      "id": "HandBrake.HandBrake",
+      "name": "HandBrake",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source video transcoder with hardware encoders.",
+      "description": "Converts video between formats and sizes with x264, x265, NVENC, AMF and Quick Sync."
+    },
+    {
+      "id": "Audacity.Audacity",
+      "name": "Audacity",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source audio recorder and editor.",
+      "description": "Records, edits and cleans up audio such as voice-overs and podcasts."
+    },
+    {
+      "id": "GIMP.GIMP.3",
+      "name": "GIMP",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source image editor.",
+      "description": "Raster image editing with layers, masks and plugins."
+    },
+    {
+      "id": "KDE.Krita",
+      "name": "Krita",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source digital painting app.",
+      "description": "Painting and illustration with brush engines and pen-tablet support."
+    },
+    {
+      "id": "BlenderFoundation.Blender",
+      "name": "Blender",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source 3D creation suite.",
+      "description": "Modeling, animation, rendering (Cycles, EEVEE) and video editing."
+    },
+    {
+      "id": "ShareX.ShareX",
+      "name": "ShareX",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Open-source screenshot and screen-recording tool.",
+      "description": "Region capture, GIF and video recording, annotations and upload targets."
+    },
+    {
+      "id": "Gyan.FFmpeg",
+      "name": "FFmpeg",
+      "category": "Streaming & Media",
+      "foss": true,
+      "hint": "Command-line audio and video converter.",
+      "description": "The FFmpeg tools (ffmpeg, ffprobe, ffplay) for conversion and stream processing."
+    },
+    {
+      "id": "Elgato.StreamDeck",
+      "name": "Elgato Stream Deck",
+      "category": "Streaming & Media",
+      "foss": false,
+      "hint": "Software for Elgato Stream Deck controllers.",
+      "description": "Configures Stream Deck keys for OBS, Discord and system actions. Runs at sign-in."
+    },
+    {
+      "id": "VB-Audio.Voicemeeter.Banana",
+      "name": "Voicemeeter Banana",
+      "category": "Streaming & Media",
+      "foss": false,
+      "hint": "Virtual audio mixer for streaming and voice chat routing.",
+      "description": "Mixes and routes microphones, game and chat audio. Installs virtual audio drivers; a reboot is needed.",
+      "note": "Installs audio drivers."
+    },
+    {
+      "id": "Microsoft.VisualStudioCode",
+      "name": "Visual Studio Code",
+      "category": "Development",
+      "foss": true,
+      "hint": "Microsoft's code editor with extensions, Git and debugging.",
+      "description": "Lightweight editor with IntelliSense, debugging, Git and remote development (WSL, SSH, containers)."
+    },
+    {
+      "id": "Git.Git",
+      "name": "Git",
+      "category": "Development",
+      "foss": true,
+      "hint": "Git version control for Windows, with Git Bash.",
+      "description": "The Git command-line tools, Git Bash and Git Credential Manager."
+    },
+    {
+      "id": "GitHub.GitHubDesktop",
+      "name": "GitHub Desktop",
+      "category": "Development",
+      "foss": true,
+      "hint": "Graphical Git client for GitHub.",
+      "description": "Clone, commit, branch and publish to GitHub without the command line."
+    },
+    {
+      "id": "GitHub.cli",
+      "name": "GitHub CLI",
+      "category": "Development",
+      "foss": true,
+      "hint": "The gh command-line tool for GitHub.",
+      "description": "Work with pull requests, issues, releases and Actions from the terminal."
+    },
+    {
+      "id": "Microsoft.PowerShell",
+      "name": "PowerShell 7",
+      "category": "Development",
+      "foss": true,
+      "hint": "Cross-platform PowerShell 7, side by side with Windows PowerShell 5.1.",
+      "description": "The current PowerShell release. iG Windows Tuner runs on both 5.1 and 7."
+    },
+    {
+      "id": "Microsoft.WindowsTerminal",
+      "name": "Windows Terminal",
+      "category": "Development",
+      "foss": true,
+      "hint": "Microsoft's tabbed terminal for PowerShell, Command Prompt and WSL.",
+      "description": "Tabs, panes, profiles and GPU text rendering. Already inbox on recent Windows 11 builds."
+    },
+    {
+      "id": "Python.Python.3.13",
+      "name": "Python 3.13",
+      "category": "Development",
+      "foss": true,
+      "hint": "The Python 3.13 interpreter from python.org.",
+      "description": "Python runtime with pip and the py launcher."
+    },
+    {
+      "id": "OpenJS.NodeJS.LTS",
+      "name": "Node.js LTS",
+      "category": "Development",
+      "foss": true,
+      "hint": "The long-term-support Node.js runtime with npm.",
+      "description": "JavaScript runtime for tooling and servers."
+    },
+    {
+      "id": "Docker.DockerDesktop",
+      "name": "Docker Desktop",
+      "category": "Development",
+      "foss": false,
+      "hint": "Containers on Windows using WSL 2.",
+      "description": "Needs WSL 2 and Virtual Machine Platform (Toolkit > Features). Free for personal and small-business use; larger companies need a subscription.",
+      "note": "Needs WSL 2."
+    },
+    {
+      "id": "Microsoft.DotNet.SDK.10",
+      "name": ".NET 10 SDK",
+      "category": "Development",
+      "foss": true,
+      "hint": "The .NET 10 SDK for building .NET apps.",
+      "description": "Compilers, runtime and the dotnet CLI for .NET 10."
+    },
+    {
+      "id": "Microsoft.VisualStudio.2022.Community",
+      "name": "Visual Studio Community 2022",
+      "category": "Development",
+      "foss": false,
+      "hint": "Microsoft's full IDE for C++, C# and game development.",
+      "description": "Free for individuals, open source and small teams. Choose workloads in the installer that opens."
+    },
+    {
+      "id": "JetBrains.Toolbox",
+      "name": "JetBrains Toolbox",
+      "category": "Development",
+      "foss": false,
+      "hint": "Installs and updates JetBrains IDEs (Rider, IntelliJ IDEA, PyCharm).",
+      "description": "Manages JetBrains IDE installations and updates."
+    },
+    {
+      "id": "Notepad++.Notepad++",
+      "name": "Notepad++",
+      "category": "Development",
+      "foss": true,
+      "hint": "Fast source-code and text editor.",
+      "description": "Tabbed editor with syntax highlighting and plugins."
+    },
+    {
+      "id": "Neovim.Neovim",
+      "name": "Neovim",
+      "category": "Development",
+      "foss": true,
+      "hint": "Extensible, keyboard-driven text editor.",
+      "description": "Modern Vim with Lua configuration and LSP support."
+    },
+    {
+      "id": "Rustlang.Rustup",
+      "name": "Rustup",
+      "category": "Development",
+      "foss": true,
+      "hint": "Installs and manages the Rust toolchain.",
+      "description": "Installs rustc, cargo and toolchains. Needs the Visual Studio C++ build tools."
+    },
+    {
+      "id": "GoLang.Go",
+      "name": "Go",
+      "category": "Development",
+      "foss": true,
+      "hint": "The Go programming language toolchain.",
+      "description": "The Go compiler, standard library and the go command for building and testing Go programs."
+    },
+    {
+      "id": "WinSCP.WinSCP",
+      "name": "WinSCP",
+      "category": "Development",
+      "foss": true,
+      "hint": "SFTP, SCP and FTP client.",
+      "description": "Transfers files to servers and NAS devices over SFTP, SCP or FTP."
+    },
+    {
+      "id": "PuTTY.PuTTY",
+      "name": "PuTTY",
+      "category": "Development",
+      "foss": true,
+      "hint": "SSH and serial terminal client.",
+      "description": "Classic SSH, Telnet and serial client. Windows also includes the OpenSSH client."
+    },
+    {
+      "id": "7zip.7zip",
+      "name": "7-Zip",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Open-source file archiver (7z, zip, rar extraction).",
+      "description": "Packs and extracts archives with a high compression ratio and Explorer integration."
+    },
+    {
+      "id": "voidtools.Everything",
+      "name": "Everything",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Instant file-name search for NTFS drives.",
+      "description": "Finds files by name immediately using the NTFS index. Runs a small background service."
+    },
+    {
+      "id": "Microsoft.PowerToys",
+      "name": "PowerToys",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Microsoft's utilities: FancyZones, PowerToys Run, color picker and more.",
+      "description": "A set of Microsoft-supported utilities for power users. Enable only the modules you use."
+    },
+    {
+      "id": "CPUID.CPU-Z",
+      "name": "CPU-Z",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Shows CPU, motherboard and memory details.",
+      "description": "Identifies CPU, chipset, memory timings and SPD data."
+    },
+    {
+      "id": "TechPowerUp.GPU-Z",
+      "name": "GPU-Z",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Shows GPU details, Resizable BAR status and sensors.",
+      "description": "Identifies the graphics card, its BIOS, bus interface and sensors."
+    },
+    {
+      "id": "CPUID.HWMonitor",
+      "name": "HWMonitor",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Shows temperatures, voltages and fan speeds.",
+      "description": "Simple monitor for CPU, GPU and drive temperatures, voltages and fan speeds with minimum and maximum values."
+    },
+    {
+      "id": "REALiX.HWiNFO",
+      "name": "HWiNFO",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Detailed hardware information and sensor logging.",
+      "description": "In-depth hardware report and sensor logging, useful for checking thermals and clocks under load."
+    },
+    {
+      "id": "CrystalDewWorld.CrystalDiskInfo",
+      "name": "CrystalDiskInfo",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Shows SSD and HDD health (SMART).",
+      "description": "Reads SMART health, temperatures and lifetime writes of your drives."
+    },
+    {
+      "id": "CrystalDewWorld.CrystalDiskMark",
+      "name": "CrystalDiskMark",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Disk speed benchmark.",
+      "description": "Measures sequential and random read/write speed of a drive."
+    },
+    {
+      "id": "WinDirStat.WinDirStat",
+      "name": "WinDirStat",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Visual disk usage analyzer.",
+      "description": "Shows what uses space as a treemap. iG Windows Tuner also has a read-only disk analyzer."
+    },
+    {
+      "id": "AntibodySoftware.WizTree",
+      "name": "WizTree",
+      "category": "Utilities",
+      "foss": false,
+      "hint": "Very fast disk space analyzer.",
+      "description": "Reads the NTFS master file table to show folder sizes in seconds. Free for personal use."
+    },
+    {
+      "id": "Rufus.Rufus",
+      "name": "Rufus",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Creates bootable USB drives from ISO images.",
+      "description": "Writes Windows and Linux installers to USB drives."
+    },
+    {
+      "id": "Klocman.BulkCrapUninstaller",
+      "name": "Bulk Crap Uninstaller",
+      "category": "Utilities",
+      "foss": true,
+      "hint": "Uninstalls many programs at once and finds leftovers.",
+      "description": "Batch uninstaller with leftover detection. Review leftovers before deleting them."
+    },
+    {
+      "id": "Microsoft.Sysinternals.Autoruns",
+      "name": "Autoruns",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Microsoft Sysinternals: every auto-start location.",
+      "description": "Shows everything that starts with Windows. iG Windows Tuner's persistence inspector covers the common locations read-only."
+    },
+    {
+      "id": "Microsoft.Sysinternals.ProcessExplorer",
+      "name": "Process Explorer",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Microsoft Sysinternals: an advanced Task Manager.",
+      "description": "Shows process trees, handles, DLLs and signature checks."
+    },
+    {
+      "id": "Microsoft.Sysinternals.ProcessMonitor",
+      "name": "Process Monitor",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Microsoft Sysinternals: real-time file, registry and process activity.",
+      "description": "Traces what a program reads and writes, for troubleshooting."
+    },
+    {
+      "id": "Microsoft.Sysinternals.TCPView",
+      "name": "TCPView",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Microsoft Sysinternals: live view of TCP and UDP connections.",
+      "description": "Shows which process owns each network connection."
+    },
+    {
+      "id": "Microsoft.WinDbg",
+      "name": "WinDbg",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Microsoft's debugger, for analyzing crash dumps.",
+      "description": "Opens minidumps from %SystemRoot%\\Minidump to find the faulting driver (!analyze -v)."
+    },
+    {
+      "id": "Microsoft.WSL",
+      "name": "Windows Subsystem for Linux",
+      "category": "System tools",
+      "foss": true,
+      "hint": "Installs or updates WSL from the winget package.",
+      "description": "The Store-delivered WSL package. Enable the WSL and Virtual Machine Platform features first (Toolkit > Features)."
+    },
+    {
+      "id": "WiresharkFoundation.Wireshark",
+      "name": "Wireshark",
+      "category": "System tools",
+      "foss": true,
+      "hint": "Network protocol analyzer.",
+      "description": "Captures and decodes network traffic. Installs the Npcap capture driver.",
+      "note": "Installs the Npcap driver."
+    },
+    {
+      "id": "Ookla.Speedtest.CLI",
+      "name": "Speedtest CLI",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Ookla's command-line internet speed test.",
+      "description": "Measures download, upload and latency to Ookla servers. A load test: do not run it during games."
+    },
+    {
+      "id": "NirSoft.WifiInfoView",
+      "name": "WifiInfoView",
+      "category": "System tools",
+      "foss": false,
+      "hint": "Shows nearby Wi-Fi networks, channels and signal strength.",
+      "description": "Lists nearby Wi-Fi networks with channel, band and signal strength, which helps choose a free channel and band."
+    },
+    {
+      "id": "Microsoft.RemoteDesktopClient",
+      "name": "Remote Desktop client",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Microsoft's Remote Desktop client for Azure Virtual Desktop and Windows 365.",
+      "description": "Connects to Azure Virtual Desktop, Windows 365 and Remote Desktop Services feeds."
+    },
+    {
+      "id": "Microsoft.Sysinternals.BGInfo",
+      "name": "BGInfo",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Microsoft Sysinternals: system information on the desktop background.",
+      "description": "Shows host name, IP and OS details on the wallpaper, handy for labs and servers."
+    },
+    {
+      "id": "Microsoft.AzureCLI",
+      "name": "Azure CLI",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Command-line tools for Microsoft Azure.",
+      "description": "The az command for managing Azure resources."
+    },
+    {
+      "id": "Microsoft.Azure.StorageExplorer",
+      "name": "Azure Storage Explorer",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Browse and manage Azure storage accounts.",
+      "description": "Graphical client for blobs, files, queues and tables."
+    },
+    {
+      "id": "Microsoft.SQLServerManagementStudio",
+      "name": "SQL Server Management Studio",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Microsoft's management tool for SQL Server and Azure SQL.",
+      "description": "Query, administer and monitor SQL Server databases."
+    },
+    {
+      "id": "mRemoteNG.mRemoteNG",
+      "name": "mRemoteNG",
+      "category": "Sysadmin",
+      "foss": true,
+      "hint": "Tabbed remote connections manager (RDP, SSH, VNC).",
+      "description": "Keeps many remote connections in one window. Protect its connection file with a password."
+    },
+    {
+      "id": "Famatech.AdvancedIPScanner",
+      "name": "Advanced IP Scanner",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Scans your own network for devices and open shares.",
+      "description": "Finds devices on your LAN. Scan only networks you are responsible for."
+    },
+    {
+      "id": "Microsoft.WindowsADK",
+      "name": "Windows ADK",
+      "category": "Sysadmin",
+      "foss": false,
+      "hint": "Windows Assessment and Deployment Kit (WPA, WPR, deployment tools).",
+      "description": "Includes Windows Performance Recorder and Analyzer for precise latency tracing, and deployment tools."
+    },
+    {
+      "id": "Bitwarden.Bitwarden",
+      "name": "Bitwarden",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "Open-source password manager with cloud sync.",
+      "description": "Stores passwords and passkeys end-to-end encrypted."
+    },
+    {
+      "id": "KeePassXCTeam.KeePassXC",
+      "name": "KeePassXC",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "Offline, open-source password manager.",
+      "description": "Keeps passwords in a local encrypted database (KeePass format)."
+    },
+    {
+      "id": "IDRIX.VeraCrypt",
+      "name": "VeraCrypt",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "Encrypted containers and drive encryption.",
+      "description": "Creates encrypted volumes. On Windows Pro, BitLocker is the integrated alternative for the system drive.",
+      "note": "Installs a driver."
+    },
+    {
+      "id": "WireGuard.WireGuard",
+      "name": "WireGuard",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "Fast, modern VPN client.",
+      "description": "Official WireGuard client. The VPN client manages its own adapter MTU."
+    },
+    {
+      "id": "Proton.ProtonVPN",
+      "name": "Proton VPN",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "VPN service from Proton with a free tier.",
+      "description": "Client for Proton VPN. A VPN adds latency to game traffic unless you split-tunnel games."
+    },
+    {
+      "id": "Tailscale.Tailscale",
+      "name": "Tailscale",
+      "category": "Security & Privacy",
+      "foss": false,
+      "hint": "Mesh VPN built on WireGuard for your own devices.",
+      "description": "Connects your devices securely without opening ports."
+    },
+    {
+      "id": "Yubico.Authenticator",
+      "name": "Yubico Authenticator",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "Authenticator app for YubiKey-stored codes.",
+      "description": "Shows the one-time (TOTP) codes stored on a YubiKey, so the secrets never leave the key."
+    },
+    {
+      "id": "GnuPG.Gpg4win",
+      "name": "Gpg4win",
+      "category": "Security & Privacy",
+      "foss": true,
+      "hint": "OpenPGP encryption and signing for Windows.",
+      "description": "GnuPG with Kleopatra for file and mail encryption and signature checks."
+    }
+  ]
+}

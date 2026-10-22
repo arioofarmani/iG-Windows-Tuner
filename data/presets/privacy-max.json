@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "id": "privacy-max",
+  "name": "Privacy Max",
+  "order": 7,
+  "code": "P",
+  "tagline": "Least data sent, nothing security-critical off",
+  "hint": "Lowest diagnostic data, no ads, AI, activity history, location, Bing or Edge/Office extras. SmartScreen, Defender and updates stay on.",
+  "description": "Every documented privacy item: diagnostic data at Required (the lowest level on Pro), ads, suggestions and AI features off, activity history and location off, Bing results in Start off, Edge and Microsoft 365 Apps privacy policies, PowerShell 7 telemetry off, telemetry tasks and the DiagTrack service off, background apps off and encrypted DNS through Quad9. Security features that send data to Microsoft, such as SmartScreen and cloud-delivered protection, stay on: privacy here never lowers security.",
+  "gaming": true,
+  "levelCeiling": "Advanced",
+  "antiCheatPolicy": "safeOnly",
+  "include": [
+    "privacy.diagnostic-data-required",
+    "privacy.ads-suggestions-off",
+    "privacy.ai-features-off",
+    "privacy.activity-history-off",
+    "privacy.location-off",
+    "privacy.bing-search-off",
+    "privacy.consumer-features-off",
+    "privacy.device-metadata-off",
+    "privacy.powershell-telemetry-off",
+    "privacy.widgets-off",
+    "privacy.edge-background-off",
+    "privacy.edge-privacy-policies",
+    "privacy.office-privacy-policies",
+    "privacy.telemetry-tasks-off",
+    "privacy.diagtrack-disabled",
+    "privacy.background-apps-off",
+    "net.delivery-optimization-p2p-off",
+    "net.doh-quad9",
+    "sec.uac-on",
+    "sec.firewall-on",
+    "sec.smartscreen-on",
+    "sec.defender-hardening"
+  ],
+  "exclude": [],
+  "guidance": [
+    "Required is the lowest diagnostic data level Windows Pro honors; the Security level works only on Enterprise and Education.",
+    "Microsoft consumer experiences off is honored only on Enterprise and Education; on Pro it shows as not effective.",
+    "Sign in to Windows with a local account if you do not want Microsoft account sync; iG Windows Tuner does not change accounts."
+  ]
+}

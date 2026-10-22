@@ -29,6 +29,7 @@ function Format-DocAction($a) {
         'registry' {
             $on = [string]$a.on
             if ($null -ne $a.bitClear) { $on = ('clear bit 0x{0:X} (e.g. {1})' -f [int]$a.bitClear, $a.on) }
+            if ($null -ne $a.bitSet) { $on = ('set bit 0x{0:X}, other bits kept' -f [int]$a.bitSet) }
             $s = 'Registry {0} = {1} ({2}); Windows default {3}' -f (& $c "$($a.path)\$($a.name)"), (& $c $on), $a.valueType, (& $c $a.default)
             if ($null -ne $a.absentValue) { $s += '; absent means ' + (& $c $a.absentValue) }
             if ($a.onlyIfAbsent) { $s += '; only written when missing' }

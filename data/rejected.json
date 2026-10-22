@@ -27,9 +27,9 @@
       "name": "Disabling VBS / Memory integrity in a preset",
       "claim": "A few percent more FPS.",
       "category": "anti-cheat-hostile",
-      "reason": "FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Available only as the warned expert toggle sec.vbs-hvci-off-expert, never in a preset.",
+      "reason": "FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Not offered: iG Windows Tuner never turns VBS or HVCI off (the former expert toggle sec.vbs-hvci-off-expert was retired in 2.3 and only reverts earlier changes).",
       "sources": [ "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity" ],
-      "unavailable": "Not offered in the Risk Zone: it turns off a security protection that kernel anti-cheats require. The separately warned expert toggle sec.vbs-hvci-off-expert remains in the Security category."
+      "unavailable": "Not offered in the Risk Zone: it turns off a security protection that kernel anti-cheats require. The former expert toggle sec.vbs-hvci-off-expert was retired in 2.3."
     },
     {
       "id": "rejected.spectre-mitigations-off",

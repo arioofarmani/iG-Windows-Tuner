@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '2.2.0'
+    ModuleVersion        = '2.3.0'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -34,7 +34,12 @@
         'Get-IgwtDiagnostics', 'Format-IgwtDiagnostics', 'Get-IgwtDpcIsrSample', 'Get-IgwtReliabilityHistory', 'Get-IgwtCrashHistory', 'Get-IgwtBootPerformance', 'Get-IgwtDriverInventory',
         'Get-IgwtSystemReport', 'Export-IgwtSystemReport',
         'Invoke-IgwtNetworkQualityTest', 'Measure-IgwtLoadedLatency', 'Format-IgwtNetworkQuality', 'Export-IgwtNetworkReport', 'Get-IgwtActiveConnection', 'Invoke-IgwtRouteTrace', 'Find-IgwtPathMtu', 'Get-IgwtNetworkTypeGuess', 'Get-IgwtNetworkRecommendations', 'ConvertTo-IgwtLatencyStats', 'Get-IgwtNetworkScore', 'Get-IgwtBufferbloatGrade', 'Get-IgwtRiskZoneSummary',
-        'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
+        'Get-IgwtToolkitApps', 'Get-IgwtToolkitFeatures', 'Get-IgwtToolkitFixes', 'Get-IgwtToolkitFixPlan', 'Get-IgwtToolkitPanels', 'Get-IgwtToolkitTweaks', 'Get-IgwtToolkitUpdateItems', 'Test-IgwtToolkitCatalog',
+        'Get-IgwtWingetAgreements', 'Test-IgwtWingetConsent', 'Set-IgwtWingetConsent', 'Get-IgwtWingetInventory', 'Invoke-IgwtToolkitApp', 'Invoke-IgwtWingetUpgradeAll', 'Export-IgwtAppSelection', 'Import-IgwtAppSelection',
+        'Invoke-IgwtToolkitFeature', 'Invoke-IgwtToolkitFix', 'Start-IgwtPanel', 'Get-IgwtEditionFamily', 'Test-IgwtEditionSupported',
+        'Save-IgwtCustomPreset', 'Copy-IgwtPreset', 'Remove-IgwtCustomPreset', 'Export-IgwtPreset', 'Import-IgwtPreset', 'Get-IgwtPresetDrift', 'Get-IgwtPresetRecord', 'Save-IgwtDriftAsPreset', 'Test-IgwtPresetDefinition',
+        'Get-IgwtSessionState', 'Get-IgwtSessionPlan', 'Get-IgwtSessionApps', 'Start-IgwtSession', 'Stop-IgwtSession', 'Close-IgwtSessionApps',
+        'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiToolkitData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

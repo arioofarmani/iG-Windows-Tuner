@@ -4,7 +4,8 @@
 # DelayedAutostart values for a faithful revert. Anti-cheat services are refused outright.
 
 $script:IgwtProtectedServices = @('vgc', 'vgk', 'FACEIT', 'FACEITService', 'EasyAntiCheat', 'EasyAntiCheat_EOS', 'BEService', 'BEDaisy',
-    'atvi-randgrid_sr', 'Javelin', 'mpssvc', 'WinDefend', 'WdNisSvc', 'SecurityHealthService', 'wscsvc', 'BFE', 'EventLog', 'wuauserv')
+    'atvi-randgrid_sr', 'Javelin', 'mpssvc', 'WinDefend', 'WdNisSvc', 'SecurityHealthService', 'wscsvc', 'BFE', 'EventLog', 'wuauserv',
+    'MDCoreSvc', 'webthreatdefsvc', 'AppIDSvc', 'BITS', 'DoSvc')
 
 function Get-IgwtServiceStartup {
     <# .SYNOPSIS Reads Start/DelayedAutostart from the service key (works without elevation). #>

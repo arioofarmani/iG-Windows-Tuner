@@ -21,7 +21,8 @@ function Initialize-IgwtTestEnvironment {
     Import-Module (Join-Path $script:IgwtProjectRoot 'src\iGWindowsTuner.psd1') -Force
     $null = New-Item -Path 'TestRegistry:\HKLM' -Force
     $null = New-Item -Path 'TestRegistry:\HKCU' -Force
-    $redirect = [ordered]@{ 'HKLM:\' = 'TestRegistry:\HKLM\'; 'HKCU:\' = 'TestRegistry:\HKCU\' }
+    $null = New-Item -Path 'TestRegistry:\HKU' -Force
+    $redirect = [ordered]@{ 'HKLM:\' = 'TestRegistry:\HKLM\'; 'HKCU:\' = 'TestRegistry:\HKCU\'; 'HKU:\' = 'TestRegistry:\HKU\' }
     Set-IgwtEnvironment -TestMode -DataRoot (Join-Path $TestDrive 'IgwtData') -RegistryRedirect $redirect
 }
 

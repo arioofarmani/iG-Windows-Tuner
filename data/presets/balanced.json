@@ -3,6 +3,7 @@
   "id": "balanced",
   "name": "Balanced",
   "order": 2,
+  "code": "B",
   "tagline": "Recommended daily driver",
   "hint": "Recommended daily driver: every Tier A performance, security and privacy item, and nothing situational.",
   "description": "All Tier A performance items plus all Tier A security and privacy items. No Tier B (situational) changes, so nothing here needs before/after measurement to justify it.",

@@ -386,6 +386,82 @@
           "defaultAc": 0
         }
       ]
+    },
+    {
+      "id": "net.teredo-off",
+      "name": "Teredo tunneling off",
+      "category": "Network",
+      "group": "IPv6",
+      "order": 60,
+      "level": "Advanced",
+      "hint": "Turns off the Teredo IPv6-over-UDP tunnel with the documented policy. Xbox app party chat and some Xbox PC games need Teredo.",
+      "description": "Sets the \"Set Teredo State\" policy to Disabled. Teredo is a fallback that tunnels IPv6 over UDP when there is no native IPv6; it adds a background adapter and outbound UDP. Native IPv6 keeps working. The Xbox app (party chat, some multiplayer titles) uses Teredo for NAT traversal, so leave this off if you use Xbox networking on PC. Adapted from WinUtil, which edits DisabledComponents instead. Turning it off removes the policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows",
+          "https://support.xbox.com/en-US/help/hardware-network/connect-network/troubleshoot-party-chat"
+        ],
+        "notes": "ADMX tcpip.admx Teredo_State (Default, Disabled, Client, Enterprise Client). Windows default: not configured."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Xbox app party chat and Xbox Live multiplayer on PC can show \"Teredo is unable to qualify\" and fail to connect.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Teredo - Disable' (adapted to the documented policy)",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\TCPIP\\v6Transition",
+          "name": "Teredo_State",
+          "valueType": "String",
+          "on": "Disabled",
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "net.prefer-ipv4",
+      "name": "Prefer IPv4 over IPv6",
+      "category": "Network",
+      "group": "IPv6",
+      "order": 61,
+      "level": "Advanced",
+      "hint": "Keeps IPv6 on but tries IPv4 first. Only helps when your IPv6 path is worse; measure ping to your game servers before and after.",
+      "description": "Sets bit 0x20 of DisabledComponents, which Microsoft documents as \"prefer IPv4 over IPv6\" in the prefix policy table; other bits are kept and IPv6 stays enabled. This is the supported alternative to disabling IPv6. It helps only when a provider's IPv6 route is slower or unstable, so measure before and after. Turning it off restores the previous value exactly. Adapted from WinUtil.",
+      "evidence": {
+        "tier": "B",
+        "sources": [ "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows" ],
+        "notes": "Microsoft recommends prefer-IPv4 instead of disabling IPv6. Measure: situational."
+      },
+      "impact": { "performance": "none", "latency": "low", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'IPv6 - Set IPv4 as Preferred'",
+      "conflictsWith": [ "risk.ipv6-disable" ],
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters",
+          "name": "DisabledComponents",
+          "valueType": "DWord",
+          "on": 32,
+          "default": "<absent>",
+          "absentValue": 0,
+          "bitSet": 32
+        }
+      ]
     }
   ]
 }

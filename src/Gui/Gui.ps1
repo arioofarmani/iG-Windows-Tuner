@@ -11,7 +11,8 @@ $script:IgwtGuiControlNames = @(
     'Banner', 'BannerText', 'NavList', 'DetailsColumn', 'DetailsPane',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
-    'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton',
+    'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
+    'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'SearchBox', 'FilterTierA', 'FilterTierB', 'FilterRiskLow', 'FilterRiskMedium', 'FilterRiskHigh',
     'FilterRestart', 'FilterChanged', 'TweakList',
     'StartupRefreshButton', 'StartupList', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotList',
@@ -29,6 +30,10 @@ $script:IgwtGuiControlNames = @(
     'ManageAppSummary', 'ManageAppList', 'ManageAppDetail', 'ManageAppProvisionedBox', 'ManageAppRemoveButton',
     'ManagePersistSummary', 'ManagePersistList', 'ManagePersistDetail', 'ManagePersistDisableButton', 'ManagePersistExportButton',
     'ManageFirewallSummary', 'ManageFirewallList', 'ManageFirewallDetail', 'ManageFirewallToggleButton', 'ManageHostsText',
+    'PageToolkit', 'ToolkitRefreshButton', 'ToolkitSearchBox', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppList', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
+    'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakList', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
+    'ToolkitFeatureSummary', 'ToolkitFeatureList', 'ToolkitFeatureDetail', 'ToolkitFeatureEnableButton', 'ToolkitFeatureDisableButton', 'ToolkitFixSummary', 'ToolkitFixList', 'ToolkitFixDetail', 'ToolkitFixRunButton',
+    'ToolkitPanelList', 'ToolkitPanelDetail', 'ToolkitPanelOpenButton', 'ToolkitUpdateSummary', 'ToolkitUpdateList', 'ToolkitUpdateDetail', 'ToolkitUpdateGoButton', 'ToolkitUpdatePauseButton',
     'PageDiagnostics', 'DiagRefreshButton', 'DiagReportButton', 'DiagTabs', 'DiagOverviewText', 'DiagDriverSummary', 'DiagDriverList', 'DiagUpdateText',
     'DiagDnsButton', 'DiagLatencyBox', 'DiagLatencyButton', 'DiagNetText', 'DiagAdapterSummary', 'DiagAdapterList',
     'PageNetTest', 'NetDurationBox', 'NetTargetsBox', 'NetRunButton', 'NetLoadButton', 'NetExportButton', 'NetStatusText', 'NetGradeText', 'NetScoreText', 'NetLatencyText',
@@ -478,6 +483,27 @@ function Update-IgwtGuiButtons {
     $c.ManagePersistDisableButton.IsEnabled = $canManage -and [bool]$pe -and [string]$pe.Source.ActionKind -ne 'None' -and $pe.Source.Enabled -ne $false
     $c.ManagePersistExportButton.IsEnabled = [bool]$script:Gui.Manage -and $script:Gui.Manage.Persistence.PSObject.Properties['Entries']
     $c.ManageFirewallToggleButton.IsEnabled = $canManage -and [bool]$fw -and [bool]$fw.Source.CanChange
+    $pick = $c.PresetPickBox.SelectedItem
+    $c.SessionStartButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and -not $script:Gui.SessionActive
+    $c.SessionStopButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$script:Gui.SessionActive
+    $c.PresetDriftReapplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$script:Gui.Drift -and @($script:Gui.Drift.Drifted).Count -gt 0
+    $c.PresetDriftAdoptButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$script:Gui.Drift -and @($script:Gui.Drift.Drifted).Count -gt 0
+    foreach ($b in 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton') { $c[$b].IsEnabled = [bool]$pick }
+    $c.PresetDeleteButton.IsEnabled = [bool]$pick -and $pick.PSObject.Properties['custom'] -and [bool]$pick.custom
+    $tkApps = @($c.ToolkitAppList.SelectedItems).Count
+    $tkFeature = $c.ToolkitFeatureList.SelectedItem
+    $c.ToolkitRefreshButton.IsEnabled = -not $busy
+    $c.ToolkitAppStateButton.IsEnabled = -not $busy
+    foreach ($b in 'ToolkitInstallButton', 'ToolkitUpgradeButton', 'ToolkitUninstallButton') { $c[$b].IsEnabled = $canManage -and $tkApps -gt 0 }
+    $c.ToolkitUpgradeAllButton.IsEnabled = $canManage
+    $c.ToolkitExportButton.IsEnabled = $tkApps -gt 0
+    $c.ToolkitImportButton.IsEnabled = [bool]$script:Gui.Toolkit
+    $c.ToolkitFeatureEnableButton.IsEnabled = $canManage -and [bool]$tkFeature -and [bool]$tkFeature.Source.Supported -and [string]$tkFeature.Source.State -ne 'On'
+    $c.ToolkitFeatureDisableButton.IsEnabled = $canManage -and [bool]$tkFeature -and [string]$tkFeature.Source.State -in 'On', 'Partial'
+    $c.ToolkitFixRunButton.IsEnabled = (-not $busy) -and [bool]$c.ToolkitFixList.SelectedItem
+    $c.ToolkitPanelOpenButton.IsEnabled = [bool]$c.ToolkitPanelList.SelectedItem
+    $c.ToolkitTweakGoButton.IsEnabled = [bool]$c.ToolkitTweakList.SelectedItem
+    $c.ToolkitUpdateGoButton.IsEnabled = [bool]$c.ToolkitUpdateList.SelectedItem
     $c.DiagRefreshButton.IsEnabled = -not $busy
     $c.DiagReportButton.IsEnabled = -not $busy
     $c.DiagDnsButton.IsEnabled = -not $busy
@@ -503,7 +529,7 @@ function Update-IgwtGuiPresetCards {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param()
-    $cards = foreach ($p in $script:Gui.Presets) {
+    $cards = foreach ($p in @($script:Gui.Presets | Where-Object { -not ($_.PSObject.Properties['session'] -and $_.session) })) {
         $members = @(Get-IgwtGuiPresetMembers -Preset $p)
         $toChange = 0
         if ($script:Gui.Data) {
@@ -524,6 +550,207 @@ function Update-IgwtGuiPresetCards {
         }
     }
     $script:Gui.C.PresetCards.ItemsSource = @($cards)
+    Update-IgwtGuiPresetExtras
+}
+
+function Update-IgwtGuiPresetExtras {
+    <# .SYNOPSIS Drift banner, Session Mode status and the custom-preset picker on the Presets page. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $script:Gui.Drift = $null
+    $rec = $null
+    try { $rec = Get-IgwtPresetRecord } catch { $rec = $null }
+    if ($rec -and $script:Gui.Data) {
+        $drifted = @(@($rec.ids) | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.State -in 'Off', 'Partial' })
+        $script:Gui.Drift = [pscustomobject]@{ Preset = [string]$rec.preset; Name = [string]$rec.name; Drifted = $drifted }
+        $c.PresetDriftText.Text = $(if ($drifted.Count) { "$($drifted.Count) setting(s) changed since you applied $($rec.name) on $(([datetime]$rec.applied).ToString('g')): $($drifted -join ', '). Re-apply the preset, or adopt the current state as a custom preset." } else { "All items of $($rec.name) (applied $(([datetime]$rec.applied).ToString('g'))) are still in place." })
+        $c.PresetDriftCard.Visibility = 'Visible'
+    } else { $c.PresetDriftCard.Visibility = 'Collapsed' }
+    $st = $null
+    try { $st = Get-IgwtSessionState } catch { $st = $null }
+    $sp = @($script:Gui.Presets | Where-Object { $_.PSObject.Properties['session'] -and $_.session }) | Select-Object -First 1
+    $c.SessionStatusText.Text = $(if ($st -and $st.Active) { "Session active since $($st.Started.ToLocalTime().ToString('t')).$(if ($st.Stale) { " $($st.Reason) End it to restore your settings." } else { ' Ending it, or closing iG Windows Tuner, restores every setting.' })" }
+        elseif ($sp) { "$($sp.hint) Apps it can close: $(@($sp.closeApps) -join ', ')." } else { '' })
+    $script:Gui.SessionActive = [bool]($st -and $st.Active)
+    $sel = $c.PresetPickBox.SelectedItem
+    $c.PresetPickBox.ItemsSource = @($script:Gui.Presets | Where-Object { -not ($_.PSObject.Properties['session'] -and $_.session) })
+    if ($sel) { $again = @($c.PresetPickBox.ItemsSource | Where-Object { $_.id -eq $sel.id }) | Select-Object -First 1; if ($again) { $c.PresetPickBox.SelectedItem = $again } }
+    if (-not $c.PresetPickBox.SelectedItem) { $c.PresetPickBox.SelectedIndex = 0 }
+    Update-IgwtGuiButtons
+}
+
+function Show-IgwtGuiInputDialog {
+    <# .SYNOPSIS Small text input dialog; returns the text or $null. #>
+    [CmdletBinding()]
+    param([string]$Title, [string]$Prompt, [string]$Default = '')
+    $w = New-Object System.Windows.Window
+    $w.Title = $Title; $w.Width = 460; $w.SizeToContent = 'Height'; $w.ResizeMode = 'NoResize'
+    $w.Owner = $script:Gui.Window; $w.WindowStartupLocation = 'CenterOwner'; $w.Background = $script:Gui.Window.FindResource('BrushBackground')
+    $sp = New-Object System.Windows.Controls.StackPanel; $sp.Margin = '16'
+    $lbl = New-Object System.Windows.Controls.TextBlock; $lbl.Text = $Prompt; $lbl.TextWrapping = 'Wrap'; $lbl.Margin = '0,0,0,8'; $lbl.Foreground = $script:Gui.Window.FindResource('BrushText')
+    $tb = New-Object System.Windows.Controls.TextBox; $tb.Text = $Default; $tb.Style = $script:Gui.Window.FindResource([System.Windows.Controls.TextBox])
+    $panel = New-Object System.Windows.Controls.StackPanel; $panel.Orientation = 'Horizontal'; $panel.HorizontalAlignment = 'Right'; $panel.Margin = '0,12,0,0'
+    $result = @{ Text = $null }
+    $ok = New-Object System.Windows.Controls.Button; $ok.Content = 'OK'; $ok.IsDefault = $true; $ok.Style = $script:Gui.Window.FindResource('AccentButton')
+    $ok.Add_Click({ $result.Text = $tb.Text; $w.Close() }.GetNewClosure())
+    $cancel = New-Object System.Windows.Controls.Button; $cancel.Content = 'Cancel'; $cancel.IsCancel = $true; $cancel.Style = $script:Gui.Window.FindResource([System.Windows.Controls.Button])
+    $null = $panel.Children.Add($ok); $null = $panel.Children.Add($cancel)
+    $null = $sp.Children.Add($lbl); $null = $sp.Children.Add($tb); $null = $sp.Children.Add($panel)
+    $w.Content = $sp
+    $null = $tb.Focus()
+    $null = $w.ShowDialog()
+    if ($null -ne $result.Text) { return ([string]$result.Text).Trim() }
+    return $null
+}
+
+function Show-IgwtGuiPresetBuilder {
+    <#
+    .SYNOPSIS
+        Custom preset builder: every catalog item the base preset's rules allow, ticked when it is
+        in the base preset. Returns Name, Add and Remove, or $null.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Base)
+    $members = @($Base.tweaks)
+    $ceiling = Get-IgwtLevelRank -Level ([string]$Base.levelCeiling)
+    $allowed = @($script:Gui.Catalog | Where-Object {
+            [string]$_.level -ne 'Lab' -and [string]$_.evidence.tier -ne 'R' -and [string]$_.group -ne 'Session Mode' -and (Get-IgwtLevelRank -Level ([string]$_.level)) -le $ceiling -and
+            ([string]$Base.antiCheatPolicy -ne 'safeOnly' -or $_.antiCheatSafe)
+        })
+    $w = New-Object System.Windows.Window
+    $w.Title = "New custom preset based on $($Base.name)"; $w.Width = 760; $w.Height = 680
+    $w.Owner = $script:Gui.Window; $w.WindowStartupLocation = 'CenterOwner'; $w.Background = $script:Gui.Window.FindResource('BrushBackground')
+    $grid = New-Object System.Windows.Controls.Grid; $grid.Margin = '14'
+    foreach ($h in 'Auto', '*', 'Auto') { $r = New-Object System.Windows.Controls.RowDefinition; $r.Height = $h; $grid.RowDefinitions.Add($r) }
+    $top = New-Object System.Windows.Controls.StackPanel
+    $lbl = New-Object System.Windows.Controls.TextBlock; $lbl.TextWrapping = 'Wrap'; $lbl.Foreground = $script:Gui.Window.FindResource('BrushText'); $lbl.Margin = '0,0,0,6'
+    $lbl.Text = "Name of the new preset. Ticked items are in it; only items allowed by $($Base.name)'s rules (level up to $($Base.levelCeiling)$(if ([string]$Base.antiCheatPolicy -eq 'safeOnly') { ', anti-cheat safe' })) are listed. Hardware overlays still apply."
+    $name = New-Object System.Windows.Controls.TextBox; $name.Text = "$($Base.name) (custom)"; $name.Style = $script:Gui.Window.FindResource([System.Windows.Controls.TextBox]); $name.Margin = '0,0,0,8'
+    $null = $top.Children.Add($lbl); $null = $top.Children.Add($name)
+    [System.Windows.Controls.Grid]::SetRow($top, 0)
+    $list = New-Object System.Windows.Controls.StackPanel
+    $boxes = New-Object System.Collections.Generic.List[object]
+    foreach ($g in @($allowed | Group-Object category)) {
+        $hdr = New-Object System.Windows.Controls.TextBlock; $hdr.Text = $g.Name; $hdr.FontWeight = 'SemiBold'; $hdr.Margin = '0,8,0,2'; $hdr.Foreground = $script:Gui.Window.FindResource('BrushText')
+        $null = $list.Children.Add($hdr)
+        foreach ($i in $g.Group) {
+            $cb = New-Object System.Windows.Controls.CheckBox
+            $cb.Content = "$($i.name)  ($($i.id), $($i.level), Tier $($i.tier))"; $cb.Tag = [string]$i.id; $cb.IsChecked = ($members -contains [string]$i.id); $cb.ToolTip = [string]$i.hint
+            $cb.Foreground = $script:Gui.Window.FindResource('BrushText'); $cb.Margin = '8,2,0,2'
+            $null = $list.Children.Add($cb); $boxes.Add($cb)
+        }
+    }
+    $sv = New-Object System.Windows.Controls.ScrollViewer; $sv.VerticalScrollBarVisibility = 'Auto'; $sv.Content = $list
+    [System.Windows.Controls.Grid]::SetRow($sv, 1)
+    $panel = New-Object System.Windows.Controls.StackPanel; $panel.Orientation = 'Horizontal'; $panel.HorizontalAlignment = 'Right'; $panel.Margin = '0,12,0,0'
+    [System.Windows.Controls.Grid]::SetRow($panel, 2)
+    $result = @{ Ok = $false }
+    $ok = New-Object System.Windows.Controls.Button; $ok.Content = 'Save preset'; $ok.Style = $script:Gui.Window.FindResource('AccentButton')
+    $ok.Add_Click({ $result.Ok = $true; $w.Close() }.GetNewClosure())
+    $cancel = New-Object System.Windows.Controls.Button; $cancel.Content = 'Cancel'; $cancel.IsCancel = $true; $cancel.Style = $script:Gui.Window.FindResource([System.Windows.Controls.Button])
+    $null = $panel.Children.Add($ok); $null = $panel.Children.Add($cancel)
+    $null = $grid.Children.Add($top); $null = $grid.Children.Add($sv); $null = $grid.Children.Add($panel)
+    $w.Content = $grid
+    $null = $w.ShowDialog()
+    if (-not $result.Ok) { return $null }
+    $checked = @($boxes | Where-Object { $_.IsChecked } | ForEach-Object { [string]$_.Tag })
+    [pscustomobject]@{ Name = ([string]$name.Text).Trim(); Add = @($checked | Where-Object { $members -notcontains $_ }); Remove = @($members | Where-Object { $checked -notcontains $_ }) }
+}
+
+function Update-IgwtGuiPresetList {
+    <# .SYNOPSIS Reloads the presets (after a custom preset was saved, imported or deleted). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $script:Gui.Presets = @(Get-IgwtPreset)
+    Update-IgwtGuiPresetCards
+}
+
+function Invoke-IgwtGuiPresetAction {
+    <# .SYNOPSIS Customize, duplicate, export, import or delete presets from the Presets page. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Customize', 'Duplicate', 'Export', 'Import', 'Delete', 'Adopt')][string]$Action)
+    $p = $script:Gui.C.PresetPickBox.SelectedItem
+    try {
+        switch ($Action) {
+            'Export' {
+                $dlg = New-Object Microsoft.Win32.SaveFileDialog
+                $dlg.Filter = 'iG Windows Tuner preset (*.json)|*.json'; $dlg.FileName = "igwt-preset-$($p.id).json"
+                if ($dlg.ShowDialog($script:Gui.Window)) { $null = Export-IgwtPreset -Name ([string]$p.id) -Path $dlg.FileName; Set-IgwtGuiStatus "Preset saved to $($dlg.FileName)." }
+                return
+            }
+        }
+        if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to save, import or delete custom presets (they are stored in the protected data folder).'; return }
+        switch ($Action) {
+            'Customize' {
+                $r = Show-IgwtGuiPresetBuilder -Base $p
+                if (-not $r) { return }
+                $saved = Save-IgwtCustomPreset -Name $r.Name -BasedOn ([string]$p.id) -AddIds $r.Add -RemoveIds $r.Remove
+                Set-IgwtGuiStatus "Saved custom preset '$($saved.name)' ($(@($saved.tweaks).Count) items)."
+            }
+            'Duplicate' {
+                $n = Show-IgwtGuiInputDialog -Title 'Duplicate preset' -Prompt "Name of the copy of $($p.name):" -Default "$($p.name) copy"
+                if (-not $n) { return }
+                $saved = Copy-IgwtPreset -Name ([string]$p.id) -NewName $n
+                Set-IgwtGuiStatus "Saved '$($saved.name)'."
+            }
+            'Import' {
+                $dlg = New-Object Microsoft.Win32.OpenFileDialog
+                $dlg.Filter = 'iG Windows Tuner preset (*.json)|*.json'
+                if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
+                $saved = Import-IgwtPreset -Path $dlg.FileName
+                Set-IgwtGuiStatus "Imported '$($saved.name)' ($(@($saved.tweaks).Count) items)."
+            }
+            'Delete' {
+                if (-not ($p.PSObject.Properties['custom'] -and $p.custom)) { $null = Show-IgwtGuiMessage -Text "'$($p.name)' is a built-in preset and cannot be deleted."; return }
+                if ((Show-IgwtGuiMessage -Text "Delete the custom preset '$($p.name)'? Settings it applied stay as they are." -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+                Remove-IgwtCustomPreset -Name ([string]$p.id)
+                Set-IgwtGuiStatus "Deleted '$($p.name)'."
+            }
+            'Adopt' {
+                $d = $script:Gui.Drift
+                if (-not $d) { return }
+                $n = Show-IgwtGuiInputDialog -Title 'Adopt as custom preset' -Prompt "Save $($d.Name) without the $(@($d.Drifted).Count) item(s) you changed, as:" -Default "$($d.Name) (as is)"
+                if (-not $n) { return }
+                $saved = Save-IgwtDriftAsPreset -Name $n -Preset $d.Preset
+                Set-IgwtGuiStatus "Saved '$($saved.name)'."
+            }
+        }
+        Update-IgwtGuiPresetList
+    } catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning' }
+}
+
+function Start-IgwtGuiSession {
+    <# .SYNOPSIS Starts Session Mode in the worker after confirmation (apps are closed only when ticked and confirmed). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Asks the user in a dialog, then runs Start-IgwtSession (which supports ShouldProcess) in the worker.')]
+    [CmdletBinding()]
+    param()
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to start Session Mode.'; return }
+    $sp = @($script:Gui.Presets | Where-Object { $_.PSObject.Properties['session'] -and $_.session }) | Select-Object -First 1
+    $apps = @()
+    if ($script:Gui.C.SessionCloseAppsBox.IsChecked) { $apps = @(Get-IgwtSessionApps -Name @($sp.closeApps) | ForEach-Object { $_.Name }) }
+    $text = "Start Session Mode?`n`n- App notifications off`n- Windows Search indexing paused`n- The highest power plan your hardware allows`n$(if ($apps.Count) { "- Close: $($apps -join ', ')`n" })`nA snapshot is written first. Ending the session, or closing iG Windows Tuner, restores every setting."
+    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Session Mode' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    $null = Start-IgwtGuiJob -Command 'Start-IgwtSession' -Parameters @{ Owner = 'gui'; CloseApps = $apps } -Blocking -BusyText 'Starting Session Mode (snapshot first)...' -OnComplete {
+        param($out, $errs)
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode did not start: $(@($errs)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode started. End it on the Presets page or by closing iG Windows Tuner.' }
+        Start-IgwtGuiRefresh
+    }
+}
+
+function Stop-IgwtGuiSession {
+    <# .SYNOPSIS Ends Session Mode in the worker (restores the session snapshot). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Runs Stop-IgwtSession (which supports ShouldProcess) in the worker.')]
+    [CmdletBinding()]
+    param()
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to end Session Mode and restore your settings.'; return }
+    $null = Start-IgwtGuiJob -Command 'Stop-IgwtSession' -Blocking -BusyText 'Ending Session Mode (restoring settings)...' -OnComplete {
+        param($out, $errs)
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode could not be ended: $(@($errs)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode ended; your settings are restored.' }
+        Start-IgwtGuiRefresh
+    }
 }
 
 function Update-IgwtGuiDetails {
@@ -592,6 +819,8 @@ function Invoke-IgwtGuiToggle {
             $answer = Show-IgwtGuiMessage -Text ("EXPERT TOGGLE`n`n$($t.warning)`n`n$($t.description)`n`nStage this change anyway?") -Title 'iG Windows Tuner - expert toggle' -Buttons 'YesNo' -Icon 'Warning'
             if ($answer -ne 'Yes') { Update-IgwtGuiTweakList; return }
         }
+        # Only items confirmed in their dialog may be applied with the risk acknowledgement.
+        if ([string]$t.evidence.tier -eq 'R' -or $t.expert) { $script:Gui.Acked[$id] = $true }
         Set-IgwtGuiStage -Id $id -Mode 'on'
     } else {
         Set-IgwtGuiStage -Id $id -Mode 'off'
@@ -648,6 +877,11 @@ function Invoke-IgwtGuiApply {
     $total = $sets.Apply.Count + $sets.Off.Count + $sets.Reset.Count
     if ($total -eq 0) { return }
     $expert = @($sets.Apply | Where-Object { $id = $_; ($script:Gui.Catalog | Where-Object { $_.id -eq $id }).expert })
+    $unconfirmed = @($expert | Where-Object { -not $script:Gui.Acked.ContainsKey([string]$_) })
+    if ($unconfirmed.Count) {
+        $null = Show-IgwtGuiMessage -Text "These Expert, Lab or Risk Zone items were staged without their confirmation dialog: $($unconfirmed -join ', ').`n`nNothing was applied. Discard them, or turn each one on from its category page so its warning is shown." -Icon 'Warning'
+        return
+    }
     if (-not $SkipConfirm) {
         $msg = "Apply $total staged change(s)?`n`niG Windows Tuner first creates a System Restore point and a JSON snapshot of every value it changes, so you can revert."
         $risky = @($sets.Apply | Where-Object { $id = $_; [string]($script:Gui.Catalog | Where-Object { $_.id -eq $id }).evidence.tier -eq 'R' })
@@ -1533,11 +1767,228 @@ function Invoke-IgwtGuiAsrChange {
 
 #endregion
 
+#region Toolkit
+
+function Update-IgwtGuiToolkitLists {
+    <# .SYNOPSIS Fills the Toolkit lists from the cached Toolkit data and the tweak states, filtered by the search box. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $t = $script:Gui.Toolkit
+    $q = ([string]$c.ToolkitSearchBox.Text).Trim()
+    $has = { param($o, $n) $o -and $o.PSObject.Properties[$n] }
+    $err = { param($o) if (& $has $o 'Error') { "Not readable: $($o.Error)" } else { '' } }
+    if ($t) {
+        $apps = @($t.Apps | Where-Object { $_ -and -not (& $has $_ 'Error') })
+        $c.ToolkitAppList.ItemsSource = @($apps | ForEach-Object {
+                $st = $(if ($_.Installed -eq $true) { "Installed $($_.Version)".Trim() } elseif ($_.Installed -eq $false) { 'Not installed' } elseif ($_.Foss) { 'Open source' } else { '' })
+                New-IgwtGuiManageRow -Title $_.Name -Subtitle "$($_.Id) - $($_.Hint)" -Badge $_.Category -State $st -Tone $(if ($_.Installed -eq $true) { 'Pass' } else { 'Muted' }) -Tip "$($_.Description)$(if ($_.Note) { "`n$($_.Note)" })" -Source $_
+            } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        $installed = @($apps | Where-Object { $_.Installed -eq $true }).Count
+        $stateNote = @($apps | Where-Object { $_.StateNote } | Select-Object -First 1).StateNote
+        $c.ToolkitAppSummary.Text = "$($apps.Count) curated winget packages in $(@($apps | Group-Object Category).Count) categories. " +
+        $(if ($stateNote) { "Installed state unavailable: $stateNote" } elseif ($t.AppState) { "$installed installed." } else { 'Press Check installed to read installed versions (one winget export).' }) +
+        $(if ($t.Consent) { ' winget agreements accepted.' } else { ' The first install shows winget''s agreements for you to accept.' })
+        if (& $has $t.Features 'Error') { $c.ToolkitFeatureSummary.Text = & $err $t.Features } else {
+            $c.ToolkitFeatureList.ItemsSource = @($t.Features | ForEach-Object {
+                    $st = $(if (-not $_.Supported) { 'Not on this edition' } elseif ($_.State -eq 'On') { 'Enabled' } elseif ($_.State -eq 'Off') { 'Disabled' } elseif ($_.State -eq 'Partial') { 'Partly enabled' } else { 'Unknown' })
+                    New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Hint -Badge "$($_.Kind)$(if (@($_.Editions).Count) { ', ' + (@($_.Editions) -join '/') })" -State $st `
+                        -Tone $(if (-not $_.Supported) { 'Muted' } elseif ($_.State -eq 'On') { 'Pass' } elseif ($_.State -eq 'Unknown') { 'Muted' } else { 'Text' }) -Tip $_.Description -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+            $c.ToolkitFeatureSummary.Text = $(if (@($t.Features | Where-Object { $_.State -eq 'Unknown' }).Count -and -not $script:Gui.IsAdmin) { 'Feature states need administrator rights to read; restart as administrator to see and change them.' } else { 'Each change writes a snapshot first. Features that WSL, Docker and other tools depend on are never disabled.' })
+        }
+        if (-not (& $has $t.Fixes 'Error')) {
+            $c.ToolkitFixList.ItemsSource = @($t.Fixes | ForEach-Object {
+                    New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Hint -Badge "$(if ($_.Admin) { 'admin' } else { 'user' })$(if ($_.Reboot) { ', restart' })" -State "about $($_.Minutes) min" -Tone 'Text' -Tip $_.Description -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        }
+        if (-not (& $has $t.Panels 'Error')) {
+            $c.ToolkitPanelList.ItemsSource = @($t.Panels | ForEach-Object { New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Hint -Badge $_.Command -State 'Open' -Tone 'Info' -Tip $_.Description -Source $_ } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        }
+    }
+    if ($script:Gui.Data -and $script:Gui.Catalog) {
+        $mk = {
+            param($items)
+            @($items | ForEach-Object {
+                    $s = $script:Gui.Data.States[$_.id]
+                    $state = $(if ($s) { [string]$s.State } else { '' })
+                    New-IgwtGuiManageRow -Title $_.name -Subtitle $_.hint -Badge "$($_.category) | $($_.level), Tier $($_.tier)" -State $state `
+                        -Tone $(switch ($state) { 'On' { 'Pass' } 'Partial' { 'Warn' } 'ManagedByPolicy' { 'Info' } 'NotApplicable' { 'Muted' } default { 'Text' } }) -Tip "$($_.description)$(if ($_.attribution) { "`nCredit: $($_.attribution)" })" -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        }
+        $tw = @($script:Gui.Catalog | Where-Object { [string]$_.source -eq 'winutil' })
+        $c.ToolkitTweakList.ItemsSource = & $mk $tw
+        $c.ToolkitTweakSummary.Text = "$($tw.Count) items derived from WinUtil (mapping: docs\WINUTIL_MAPPING.md). They also appear in their categories; stage and apply them there like any other item."
+        $c.ToolkitUpdateList.ItemsSource = & $mk @($script:Gui.Catalog | Where-Object { [string]$_.group -eq 'Windows Update' -or [string]$_.id -eq 'net.delivery-optimization-p2p-off' })
+    }
+    Update-IgwtGuiButtons
+}
+
+function Update-IgwtGuiToolkitDetail {
+    <# .SYNOPSIS Detail texts under the Toolkit lists for the selected rows. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $nl = [Environment]::NewLine
+    $apps = @($c.ToolkitAppList.SelectedItems)
+    $c.ToolkitAppDetail.Text = $(if ($apps.Count -eq 1) { $a = $apps[0].Source; "$($a.Name) ($($a.Id), $($a.Category)$(if ($a.Foss) { ', open source' })).$nl$($a.Description)$(if ($a.Note) { "${nl}Note: $($a.Note)" })" }
+        elseif ($apps.Count -gt 1) { "$($apps.Count) apps selected: $(@($apps | ForEach-Object { $_.Source.Name }) -join ', ')." } else { 'Select one or more apps (Ctrl or Shift to select several).' })
+    $f = $c.ToolkitFeatureList.SelectedItem
+    $c.ToolkitFeatureDetail.Text = $(if ($f) {
+            $x = $f.Source
+            "$($x.Name): $($x.Description)${nl}Targets: $(@($x.Targets) -join ', ')$(if (@($x.TargetStates).Count) { ' (' + (@($x.TargetStates | ForEach-Object { "$($_.Target) $($_.Current)" }) -join '; ') + ')' })" +
+            $(if (@($x.Editions).Count) { "${nl}Editions: $(@($x.Editions) -join ', ')$(if (-not $x.Supported) { ' - not available on this edition' })" }) + $(if ($x.Reboot) { "${nl}Needs a restart." }) + $(if ($x.Warning) { "${nl}Warning: $($x.Warning)" })
+        } else { 'Select a feature.' })
+    $x = $c.ToolkitFixList.SelectedItem
+    $c.ToolkitFixDetail.Text = $(if ($x) { $p = $x.Source; "$($p.Name): $($p.Description)${nl}Steps:$nl$(@($p.Steps | ForEach-Object { "  - $_" }) -join $nl)$(if ($p.Warning) { "${nl}Warning: $($p.Warning)" })${nl}Source: $($p.Source)" } else { 'Select a fix to see its steps.' })
+    $p = $c.ToolkitPanelList.SelectedItem
+    $c.ToolkitPanelDetail.Text = $(if ($p) { "$($p.Source.Name): $($p.Source.Description)${nl}Opens: $($p.Source.Command)" } else { 'Select a panel.' })
+    foreach ($pair in @(@('ToolkitTweakList', 'ToolkitTweakDetail'), @('ToolkitUpdateList', 'ToolkitUpdateDetail'))) {
+        $r = $c[$pair[0]].SelectedItem
+        $c[$pair[1]].Text = $(if ($r) { "$($r.Source.name) ($($r.Source.id)): $($r.Source.description)$(if ($r.Source.attribution) { "${nl}Credit: $($r.Source.attribution)" })" } else { 'Select an item.' })
+    }
+    Update-IgwtGuiButtons
+}
+
+function Start-IgwtGuiToolkitRefresh {
+    <# .SYNOPSIS Reads the Toolkit data in the worker (read-only; -WithAppState runs one winget export). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
+    [CmdletBinding()]
+    param([switch]$WithAppState)
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtGuiToolkitData' -Parameters @{ WithAppState = [bool]$WithAppState } -BusyText $(if ($WithAppState) { 'Reading installed packages with winget (read-only)...' } else { 'Reading the Toolkit lists (read-only)...' }) -OnComplete {
+        param($out, $errs)
+        $script:Gui.Toolkit = @($out) | Select-Object -Last 1
+        Update-IgwtGuiToolkitLists
+        Update-IgwtGuiToolkitDetail
+        Set-IgwtGuiStatus 'Toolkit data updated.'
+    }
+}
+
+function Confirm-IgwtGuiWingetAgreements {
+    <# .SYNOPSIS Shows winget's agreements before the first install or upgrade; records the acceptance. Returns $true when accepted. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    if (Test-IgwtWingetConsent) { return $true }
+    $a = Get-IgwtWingetAgreements
+    $text = "Before the first install or upgrade, please read:`n`n$(@($a.Lines | ForEach-Object { "- $_" }) -join "`n`n")`n`nDo you accept these agreements?"
+    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - winget agreements' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return $false }
+    try { Set-IgwtWingetConsent } catch { Write-Verbose "Acceptance not recorded: $($_.Exception.Message)" }
+    return $true
+}
+
+function Invoke-IgwtGuiToolkitApps {
+    <# .SYNOPSIS Installs, upgrades or uninstalls the selected apps with winget in the worker, after confirmation. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Install', 'Upgrade', 'Uninstall', 'UpgradeAll')][string]$Operation)
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to install or remove apps.'; return }
+    $ids = @($script:Gui.C.ToolkitAppList.SelectedItems | ForEach-Object { [string]$_.Source.Id })
+    if ($Operation -ne 'UpgradeAll' -and $ids.Count -eq 0) { Set-IgwtGuiStatus 'Select one or more apps first.'; return }
+    if ($Operation -ne 'Uninstall' -and -not (Confirm-IgwtGuiWingetAgreements)) { Set-IgwtGuiStatus 'Not installed: the winget agreements were not accepted.'; return }
+    $what = $(if ($Operation -eq 'UpgradeAll') { 'Upgrade every package from the winget source' } else { "$Operation $($ids.Count) app(s):`n$(@($script:Gui.C.ToolkitAppList.SelectedItems | ForEach-Object { "  $($_.Source.Name) ($($_.Source.Id))" }) -join "`n")" })
+    if ((Show-IgwtGuiMessage -Text "$what`n`nwinget runs each installer silently; progress is shown in the log. Continue?" -Title 'iG Windows Tuner - Toolkit' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    $cmd = 'Invoke-IgwtToolkitApp'; $params = @{ Operation = $Operation; Id = $ids; AcceptAgreements = ($Operation -ne 'Uninstall') }
+    if ($Operation -eq 'UpgradeAll') { $cmd = 'Invoke-IgwtWingetUpgradeAll'; $params = @{ AcceptAgreements = $true } }
+    $null = Start-IgwtGuiJob -Command $cmd -Parameters $params -Blocking -BusyText "winget: $Operation..." -OnComplete {
+        param($out, $errs)
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "winget did not finish: $(@($errs)[0])" -Icon 'Error' }
+        else {
+            $lines = @(@($out) | Where-Object { $_ } | ForEach-Object { if ($_.PSObject.Properties['Id']) { "[$($_.Result)] $($_.Id) $($_.Message)" } else { "[$($_.Result)] winget upgrade --all (exit $($_.ExitCode))" } })
+            $null = Show-IgwtGuiMessage -Text ($lines -join "`n") -Icon $(if (@(@($out) | Where-Object { $_.Result -eq 'Failed' }).Count) { 'Warning' } else { 'Information' })
+        }
+        Start-IgwtGuiToolkitRefresh -WithAppState
+    }
+}
+
+function Export-IgwtGuiAppSelection {
+    [CmdletBinding()]
+    param()
+    $ids = @($script:Gui.C.ToolkitAppList.SelectedItems | ForEach-Object { [string]$_.Source.Id })
+    if ($ids.Count -eq 0) { Set-IgwtGuiStatus 'Select the apps to export first.'; return }
+    $dlg = New-Object Microsoft.Win32.SaveFileDialog
+    $dlg.Filter = 'iG Windows Tuner app selection (*.json)|*.json'; $dlg.FileName = 'igwt-apps.json'
+    if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
+    try { $null = Export-IgwtAppSelection -Path $dlg.FileName -Id $ids; Set-IgwtGuiStatus "Saved $($ids.Count) app(s) to $($dlg.FileName)." }
+    catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning' }
+}
+
+function Import-IgwtGuiAppSelection {
+    [CmdletBinding()]
+    param()
+    $dlg = New-Object Microsoft.Win32.OpenFileDialog
+    $dlg.Filter = 'iG Windows Tuner app selection (*.json)|*.json'
+    if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
+    try { $ids = @(Import-IgwtAppSelection -Path $dlg.FileName) } catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning'; return }
+    $list = $script:Gui.C.ToolkitAppList
+    $list.SelectedItems.Clear()
+    foreach ($row in @($list.ItemsSource)) { if ($ids -contains [string]$row.Source.Id) { $null = $list.SelectedItems.Add($row) } }
+    $missing = @($ids | Where-Object { $i = $_; -not @($list.ItemsSource | Where-Object { [string]$_.Source.Id -eq $i }).Count })
+    Set-IgwtGuiStatus "Selected $(@($list.SelectedItems).Count) app(s) from the list.$(if ($missing.Count) { " Not in the curated list (install them with the CLI): $($missing -join ', ')." })"
+}
+
+function Invoke-IgwtGuiToolkitFeature {
+    <# .SYNOPSIS Enables or disables the selected Toolkit feature in the worker after confirmation (snapshot first). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Enabled', 'Disabled')][string]$State)
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Windows features.'; return }
+    $row = $script:Gui.C.ToolkitFeatureList.SelectedItem
+    if (-not $row) { return }
+    $f = $row.Source
+    $text = "$(if ($State -eq 'Enabled') { 'Enable' } else { 'Disable' }) $($f.Name)?`n`nTargets: $(@($f.Targets) -join ', ')$(if ($f.Warning) { "`n`nWarning: $($f.Warning)" })$(if ($f.Reboot) { "`n`nA restart is needed afterwards." })`n`nA snapshot is written first; revert it in Backups & Logs."
+    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Windows feature' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtToolkitFeature' -Parameters @{ Id = [string]$f.Id; State = $State } -Blocking -BusyText "$($f.Name) -> $State (snapshot first)..." -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The change was not made: $(@($errs)[0])" -Icon 'Warning' }
+        elseif ($res) { $null = Show-IgwtGuiMessage -Text ((@($res.Results | ForEach-Object { "[$($_.Result)] $($_.Change) $($_.Message)" }) -join "`n") + $(if ($res.RebootRequired) { "`n`nRestart Windows to finish." })) }
+        Start-IgwtGuiToolkitRefresh
+    }
+}
+
+function Invoke-IgwtGuiToolkitFix {
+    <# .SYNOPSIS Shows the selected fix's steps for confirmation, then runs it in the worker and shows each step's result. #>
+    [CmdletBinding()]
+    param()
+    $row = $script:Gui.C.ToolkitFixList.SelectedItem
+    if (-not $row) { return }
+    $p = $row.Source
+    if ($p.Admin -and -not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text "'$($p.Name)' needs administrator rights. Restart as administrator first."; return }
+    $text = "$($p.Name)`n$($p.Description)`n`nSteps:`n$(@($p.Steps | ForEach-Object { "  - $_" }) -join "`n")$(if ($p.Warning) { "`n`nWarning: $($p.Warning)" })$(if ($p.Reboot) { "`n`nA restore point is created first; restart Windows afterwards." })`n`nSource: $($p.Source)"
+    if (-not (Show-IgwtGuiTextDialog -Title "Run fix: $($p.Name)" -Text $text -AcceptText 'Run fix' -CancelText 'Cancel')) { return }
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtToolkitFix' -Parameters @{ Id = [string]$p.Id } -Blocking -BusyText "$($p.Name): running (about $($p.Minutes) min)..." -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The fix did not run: $(@($errs)[0])" -Icon 'Warning'; return }
+        if (-not $res) { return }
+        $lines = @($res.Steps | ForEach-Object { "[$($_.Result)] $($_.Step)$(if ($_.Output) { "`n" + (([string]$_.Output) -replace '(?m)^', '      ') })" })
+        $null = Show-IgwtGuiTextDialog -Title "$($res.Name): $($res.Result)" -Text (($lines -join "`n") + $(if ($res.RebootRequired) { "`n`nRestart Windows to finish this fix." }))
+    }
+}
+
+function Show-IgwtGuiTweakInCategory {
+    <# .SYNOPSIS Switches to the category page of a catalog item and selects it. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Id)
+    $c = $script:Gui.C
+    $t = @($script:Gui.Catalog | Where-Object { $_.id -eq $Id }) | Select-Object -First 1
+    if (-not $t) { return }
+    $nav = @($c.NavList.Items | Where-Object { [string]$_.Tag -eq [string]$t.category }) | Select-Object -First 1
+    if ($nav) { $c.NavList.SelectedItem = $nav }
+    $c.SearchBox.Text = $Id
+    Update-IgwtGuiTweakList
+    $row = @($c.TweakList.ItemsSource | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
+    if ($row) { $c.TweakList.SelectedItem = $row }
+}
+
+#endregion
+
 function Show-IgwtGuiPage {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Page)
     $c = $script:Gui.C
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -1554,6 +2005,7 @@ function Show-IgwtGuiPage {
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiAsrRefresh } }
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiManageRefresh } }
+        'Toolkit' { $c.PageToolkit.Visibility = 'Visible'; Update-IgwtGuiToolkitLists; if (-not $script:Gui.Toolkit -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiToolkitRefresh } }
         'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
@@ -1589,6 +2041,10 @@ function Save-IgwtGuiScreenshots {
         if (@($script:Gui.C.ManageServiceList.ItemsSource).Count) { $script:Gui.C.ManageServiceList.SelectedIndex = 0 }
         Update-IgwtGuiManageDetail
         Set-IgwtGuiDiagData -Data (Get-IgwtGuiDiagnosticsData)
+        # Toolkit lists without the winget inventory (no winget export during screenshots).
+        $script:Gui.Toolkit = Get-IgwtGuiToolkitData; Update-IgwtGuiToolkitLists
+        if (@($script:Gui.C.ToolkitAppList.ItemsSource).Count) { $script:Gui.C.ToolkitAppList.SelectedIndex = 0 }
+        Update-IgwtGuiToolkitDetail
     } catch { Write-Verbose "Manage/diagnostics data unavailable for screenshots: $($_.Exception.Message)" }
     # Optional: a quick network test (pings and DNS queries only) so the Network Test page shows data.
     if ($WithNetworkTest) { try { Set-IgwtGuiNetResult -Result (Invoke-IgwtNetworkQualityTest -Duration Quick) } catch { Write-Verbose "Network test unavailable for screenshots: $($_.Exception.Message)" } }
@@ -1664,7 +2120,7 @@ function Show-IgwtGui {
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = (Test-IgwtIsAdmin)
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Diag = $null; NetResult = $null
+        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Diag = $null; NetResult = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -1719,10 +2175,31 @@ function Show-IgwtGui {
                 $s = $script:Gui.Data.States[$id]
                 if ($s -and $s.State -in 'Off', 'Partial') { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
             }
-            $script:Gui.PresetOperation = "Preset:$($preset.name)"
+            $script:Gui.PresetOperation = "Preset:$($preset.id)"
             Update-IgwtGuiPending
             Set-IgwtGuiStatus "Staged $count change(s) from the $($preset.name) preset. Review them on the category pages (marked 'Pending'), then Preview or Apply."
         })
+    $c.PresetPickBox.Add_SelectionChanged({ Update-IgwtGuiButtons })
+    $c.PresetCustomizeButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Customize })
+    $c.PresetDuplicateButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Duplicate })
+    $c.PresetExportButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Export })
+    $c.PresetImportButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Import })
+    $c.PresetDeleteButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Delete })
+    $c.PresetDriftAdoptButton.Add_Click({ Invoke-IgwtGuiPresetAction -Action Adopt })
+    $c.PresetDriftReapplyButton.Add_Click({
+            $d = $script:Gui.Drift
+            if (-not $d) { return }
+            $script:Gui.Staged.Clear()
+            foreach ($id in @($d.Drifted)) {
+                $dt = $script:Gui.Catalog | Where-Object { $_.id -eq [string]$id } | Select-Object -First 1
+                if ($dt -and -not $dt.expert -and [string]$dt.evidence.tier -ne 'R') { Set-IgwtGuiStage -Id ([string]$id) -Mode 'on' }
+            }
+            $script:Gui.PresetOperation = "Preset:$($d.Preset)"
+            Update-IgwtGuiPending
+            Set-IgwtGuiStatus "Staged $(@($d.Drifted).Count) change(s) to re-apply $($d.Name). Preview or Apply."
+        })
+    $c.SessionStartButton.Add_Click({ Start-IgwtGuiSession })
+    $c.SessionStopButton.Add_Click({ Stop-IgwtGuiSession })
     $c.PreviewButton.Add_Click({ Invoke-IgwtGuiPreview })
     $c.ApplyButton.Add_Click({ Invoke-IgwtGuiApply })
     $c.DiscardButton.Add_Click({ $script:Gui.Staged.Clear(); $script:Gui.PresetOperation = $null; Update-IgwtGuiTweakList; Set-IgwtGuiStatus 'All staged changes discarded.' })
@@ -1786,6 +2263,27 @@ function Show-IgwtGui {
     $c.ManageRefreshButton.Add_Click({ Start-IgwtGuiManageRefresh })
     $c.ManageSearchBox.Add_TextChanged({ Update-IgwtGuiManageLists })
     foreach ($l in 'ManageServiceList', 'ManageTaskList', 'ManageAppList', 'ManagePersistList', 'ManageFirewallList') { $c[$l].Add_SelectionChanged({ Update-IgwtGuiManageDetail }) }
+    # Toolkit
+    $c.ToolkitRefreshButton.Add_Click({ Start-IgwtGuiToolkitRefresh -WithAppState:([bool]($script:Gui.Toolkit -and $script:Gui.Toolkit.AppState)) })
+    $c.ToolkitSearchBox.Add_TextChanged({ Update-IgwtGuiToolkitLists })
+    foreach ($l in 'ToolkitAppList', 'ToolkitTweakList', 'ToolkitFeatureList', 'ToolkitFixList', 'ToolkitPanelList', 'ToolkitUpdateList') { $c[$l].Add_SelectionChanged({ Update-IgwtGuiToolkitDetail }) }
+    $c.ToolkitAppStateButton.Add_Click({ Start-IgwtGuiToolkitRefresh -WithAppState })
+    $c.ToolkitInstallButton.Add_Click({ Invoke-IgwtGuiToolkitApps -Operation Install })
+    $c.ToolkitUpgradeButton.Add_Click({ Invoke-IgwtGuiToolkitApps -Operation Upgrade })
+    $c.ToolkitUninstallButton.Add_Click({ Invoke-IgwtGuiToolkitApps -Operation Uninstall })
+    $c.ToolkitUpgradeAllButton.Add_Click({ Invoke-IgwtGuiToolkitApps -Operation UpgradeAll })
+    $c.ToolkitExportButton.Add_Click({ Export-IgwtGuiAppSelection })
+    $c.ToolkitImportButton.Add_Click({ Import-IgwtGuiAppSelection })
+    $c.ToolkitFeatureEnableButton.Add_Click({ Invoke-IgwtGuiToolkitFeature -State Enabled })
+    $c.ToolkitFeatureDisableButton.Add_Click({ Invoke-IgwtGuiToolkitFeature -State Disabled })
+    $c.ToolkitFixRunButton.Add_Click({ Invoke-IgwtGuiToolkitFix })
+    $c.ToolkitPanelOpenButton.Add_Click({
+            $row = $script:Gui.C.ToolkitPanelList.SelectedItem
+            if ($row) { try { Start-IgwtPanel -Id ([string]$row.Source.Id) } catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning' } }
+        })
+    $c.ToolkitTweakGoButton.Add_Click({ $row = $script:Gui.C.ToolkitTweakList.SelectedItem; if ($row) { Show-IgwtGuiTweakInCategory -Id ([string]$row.Source.id) } })
+    $c.ToolkitUpdateGoButton.Add_Click({ $row = $script:Gui.C.ToolkitUpdateList.SelectedItem; if ($row) { Show-IgwtGuiTweakInCategory -Id ([string]$row.Source.id) } })
+    $c.ToolkitUpdatePauseButton.Add_Click({ try { Start-IgwtPanel -Id 'panel.windows-update' } catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning' } })
     $c.ManageServiceStartBox.Add_SelectionChanged({ Update-IgwtGuiButtons })
     $c.ManageServiceApplyButton.Add_Click({
             $row = $script:Gui.C.ManageServiceList.SelectedItem; $v = [string]$script:Gui.C.ManageServiceStartBox.SelectedItem
@@ -1915,6 +2413,13 @@ function Show-IgwtGui {
             if ($script:Gui.Job -and $script:Gui.Job.Blocking -and -not $script:Gui.AllowClose) {
                 $null = Show-IgwtGuiMessage -Text 'An apply, revert or clean is in progress. Please wait until it finishes.' -Icon 'Warning'
                 $e.Cancel = $true
+                return
+            }
+            if (-not $e.Cancel -and $script:Gui.IsAdmin) {
+                try {
+                    $st = Get-IgwtSessionState
+                    if ($st.Active -and $st.Owner -eq 'gui' -and -not $st.Stale -and $st.OwnerPid -eq $PID) { $null = Stop-IgwtSession }
+                } catch { $null = Show-IgwtGuiMessage -Text "Session Mode could not be ended: $($_.Exception.Message). Use -Session Stop." -Icon 'Warning' }
             }
         })
 
@@ -1929,7 +2434,18 @@ function Show-IgwtGui {
     $timer.Interval = [TimeSpan]::FromMilliseconds(150)
     $timer.Add_Tick({ Invoke-IgwtGuiTick })
     $timer.Start()
-    $window.Add_ContentRendered({ Start-IgwtGuiRefresh -IncludeHealth })
+    $window.Add_ContentRendered({
+            try {
+                $st = Get-IgwtSessionState
+                if ($st.Stale) {
+                    $msg = "A Session Mode session from $(if ($st.Started) { $st.Started.ToLocalTime().ToString('g') }) was not ended: $($st.Reason)`n`nRestore your settings from the session snapshot now?"
+                    if ((Show-IgwtGuiMessage -Text $msg -Title 'iG Windows Tuner - Session Mode' -Buttons 'YesNo' -Icon 'Question') -eq 'Yes') {
+                        if ($script:Gui.IsAdmin) { Stop-IgwtGuiSession; return } else { $null = Show-IgwtGuiMessage -Text 'Restart as administrator, then end the session on the Presets page.' }
+                    }
+                }
+            } catch { Write-Verbose "Session check failed: $($_.Exception.Message)" }
+            Start-IgwtGuiRefresh -IncludeHealth
+        })
     Update-IgwtGuiButtons
 
     try {

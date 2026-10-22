@@ -98,6 +98,7 @@
         "absentValue": { "description": "What Windows uses when the value is missing (for state detection)." },
         "equivalentOn": { "type": "array", "description": "Other existing values that also count as on." },
         "bitClear": { "type": "integer", "description": "Clear these flag bits from the current value instead of writing a fixed value." },
+        "bitSet": { "type": "integer", "description": "Set these flag bits in the current value (other bits are kept) instead of writing a fixed value." },
         "onlyIfAbsent": { "type": "boolean", "description": "Write only when the value does not exist." },
         "item": { "type": "string", "description": "registryListMerge: key inside the semicolon string." },
         "scheme": { "type": "string" },

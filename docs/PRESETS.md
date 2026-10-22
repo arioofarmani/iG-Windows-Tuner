@@ -9,6 +9,13 @@ Choosing a preset stages only the tweaks whose current state differs; you can un
 | Competitive | 44 | 32 | 12 | 14 | 3 |
 | Balanced | 35 | 35 | 0 | 8 | 2 |
 | Hardened | 43 | 40 | 3 | 10 | 2 |
+| Streamer & Creator | 36 | 34 | 2 | 9 | 2 |
+| Engineer Workstation | 33 | 32 | 1 | 10 | 4 |
+| Laptop Gamer | 32 | 30 | 2 | 7 | 2 |
+| Privacy Max | 22 | 18 | 4 | 2 | 4 |
+| Clean Install / Debloat | 16 | 13 | 3 | 0 | 4 |
+| Fortress | 51 | 47 | 4 | 13 | 3 |
+| Session Mode (Tournament / LAN) | 2 | 0 | 2 | 0 | 0 |
 
 ## Competitive: Maximum performance, lowest latency
 
@@ -164,6 +171,275 @@ Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes
 | `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
 | `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
 | `sec.ps-scriptblock-logging` | PowerShell script block logging | Security | Advanced | B | none |
+
+## Streamer & Creator: Gaming plus streaming and recording
+
+*Balanced gaming plus streaming needs: Game Bar capture and background apps stay on for OBS and Discord, game QoS marking.*
+
+Built on Balanced for a PC that games and streams at the same time. Game Bar capture stays available, background apps keep running for OBS, Discord and stream tools, USB power saving is off for capture cards and webcams, and game traffic gets DSCP marking for routers that honor it. Interrupt moderation stays on because encoding needs the CPU time. The security baseline is the same as Balanced.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes | excluded: gfx.background-recording-off, privacy.background-apps-off, net.interrupt-moderation-off
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `power.high-performance-plan` | High performance power plan | Power & CPU | Standard | A | none |
+| `power.usb-selective-suspend-off` | USB selective suspend off | Power & CPU | Standard | A | none |
+| `power.pcie-aspm-off` | PCI Express Link State Power Management off | Power & CPU | Standard | A | none |
+| `power.fast-startup-off` | Fast Startup off | Power & CPU | Standard | A | none |
+| `power.power-throttling-on` | Keep Power Throttling on (hybrid CPU) | Power & CPU | Standard | A | reboot |
+| `gfx.game-mode` | Game Mode on | Graphics & Display | Standard | A | none |
+| `gfx.windowed-optimizations` | Optimizations for windowed games | Graphics & Display | Standard | A | none |
+| `gfx.vrr-optimizations` | Optimizations for variable refresh rate | Graphics & Display | Standard | A | none |
+| `gfx.gpu-preference-games` | Per-game GPU preference: High performance | Graphics & Display | Advanced | B | none |
+| `input.pointer-precision-off` | Enhance pointer precision off | Input | Standard | A | none |
+| `input.accessibility-hotkeys-off` | Accessibility shortcut keys off | Input | Standard | A | none |
+| `net.eee-off` | Energy Efficient Ethernet off | Network | Standard | A | reboot |
+| `net.rss-on` | Receive Side Scaling on | Network | Standard | A | reboot |
+| `net.tcp-autotuning-normal` | TCP auto-tuning: Normal | Network | Standard | A | none |
+| `net.qos-dscp-games` | Game traffic QoS marking (DSCP 46) | Network | Advanced | B | reboot |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.update-active-hours` | Windows Update active hours 10:00-04:00 | Background & Privacy | Standard | A | none |
+| `privacy.keep-drivers` | Keep my drivers (no driver updates via Windows Update) | Background & Privacy | Standard | A | none |
+| `sec.hvci-on` | Memory integrity (HVCI) and VBS on | Security | Advanced | A | reboot |
+| `sec.vulnerable-driver-blocklist` | Microsoft vulnerable driver blocklist on | Security | Standard | A | reboot |
+| `sec.lsa-protection` | LSA protection (RunAsPPL, no UEFI lock) | Security | Standard | A | reboot |
+| `sec.defender-hardening` | Defender: PUA blocking, cloud protection, safe sample submission | Security | Standard | A | none |
+| `sec.network-protection` | Defender Network Protection | Security | Standard | A | none |
+| `sec.gaming-friendly-scans` | Gaming-friendly Defender scans | Security | Standard | A | none |
+| `sec.asr-baseline` | Attack surface reduction: gaming-safe baseline (Block) | Security | Standard | A | none |
+| `sec.asr-office-audit` | Attack surface reduction: Office and Adobe rules (Audit) | Security | Standard | A | none |
+| `sec.uac-on` | User Account Control on | Security | Standard | A | reboot |
+| `sec.llmnr-off` | LLMNR off | Security | Standard | A | none |
+| `sec.autorun-off` | AutoRun and AutoPlay off | Security | Standard | A | none |
+| `sec.smb-hardening` | SMB signing required, SMBv1 off | Security | Standard | A | reboot |
+| `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
+| `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
+
+## Engineer Workstation: Development and virtualization ready
+
+*Developer comfort and the security baseline: long paths, file extensions, hidden files. WSL 2, Hyper-V, Sandbox and Docker stay compatible.*
+
+For development PCs. Turns on Win32 long paths, shows file extensions and hidden files, adds End task to the taskbar, turns PowerShell 7 telemetry off and keeps the full security baseline. Nothing here touches virtualization, so WSL 2, Hyper-V, Windows Sandbox and Docker keep working, and no services are disabled. Developer Mode, Dev Drive and the developer cleaner rules are guidance, because each is your decision.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: no
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `power.high-performance-plan` | High performance power plan | Power & CPU | Standard | A | none |
+| `power.fast-startup-off` | Fast Startup off | Power & CPU | Standard | A | none |
+| `power.power-throttling-on` | Keep Power Throttling on (hybrid CPU) | Power & CPU | Standard | A | reboot |
+| `net.rss-on` | Receive Side Scaling on | Network | Standard | A | reboot |
+| `net.tcp-autotuning-normal` | TCP auto-tuning: Normal | Network | Standard | A | none |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.update-active-hours` | Windows Update active hours 10:00-04:00 | Background & Privacy | Standard | A | none |
+| `privacy.powershell-telemetry-off` | PowerShell 7 telemetry off | Background & Privacy | Standard | A | logoff |
+| `system.long-paths` | Win32 long paths enabled | System | Standard | A | reboot |
+| `system.show-file-extensions` | Show file name extensions | System | Standard | A | none |
+| `system.show-hidden-files` | Show hidden files and folders | System | Standard | A | none |
+| `system.end-task-taskbar` | End task in the taskbar right-click menu | System | Standard | A | none |
+| `system.verbose-status` | Detailed startup, shutdown and sign-in status messages | System | Advanced | A | none |
+| `system.bsod-details` | Show stop code parameters on the blue screen | System | Advanced | B | reboot |
+| `sec.wdigest-off` | WDigest plain-text credential caching off | Security | Standard | A | logoff |
+| `sec.exploit-protection-defaults` | Exploit protection system defaults on (DEP, SEHOP, CFG, ASLR) | Security | Standard | A | reboot |
+| `sec.hvci-on` | Memory integrity (HVCI) and VBS on | Security | Advanced | A | reboot |
+| `sec.vulnerable-driver-blocklist` | Microsoft vulnerable driver blocklist on | Security | Standard | A | reboot |
+| `sec.lsa-protection` | LSA protection (RunAsPPL, no UEFI lock) | Security | Standard | A | reboot |
+| `sec.defender-hardening` | Defender: PUA blocking, cloud protection, safe sample submission | Security | Standard | A | none |
+| `sec.network-protection` | Defender Network Protection | Security | Standard | A | none |
+| `sec.asr-baseline` | Attack surface reduction: gaming-safe baseline (Block) | Security | Standard | A | none |
+| `sec.asr-office-audit` | Attack surface reduction: Office and Adobe rules (Audit) | Security | Standard | A | none |
+| `sec.uac-on` | User Account Control on | Security | Standard | A | reboot |
+| `sec.llmnr-off` | LLMNR off | Security | Standard | A | none |
+| `sec.autorun-off` | AutoRun and AutoPlay off | Security | Standard | A | none |
+| `sec.smb-hardening` | SMB signing required, SMBv1 off | Security | Standard | A | reboot |
+| `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
+| `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
+
+## Laptop Gamer: Fast on AC, efficient on battery
+
+*Gaming tweaks that do not cost battery life: Windows power plans and throttling stay in charge, Wi-Fi at full power only on AC.*
+
+For gaming laptops. The power plan, PCIe and USB power saving, EEE and hibernation stay at Windows defaults so battery life is unchanged; Power Throttling stays on and the Ultimate plan is never used. Games are pinned to the dedicated GPU, Wi-Fi runs at maximum performance only when plugged in, and the gaming, privacy and security items match Balanced. Driver updates from Windows Update stay on, because laptop vendors ship firmware and power drivers that way.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes | excluded: power.high-performance-plan, power.ultimate-plan, power.pcie-aspm-off, power.usb-selective-suspend-off, power.hibernation-off, net.eee-off, privacy.keep-drivers
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `power.fast-startup-off` | Fast Startup off | Power & CPU | Standard | A | none |
+| `power.power-throttling-on` | Keep Power Throttling on (hybrid CPU) | Power & CPU | Standard | A | reboot |
+| `gfx.game-mode` | Game Mode on | Graphics & Display | Standard | A | none |
+| `gfx.background-recording-off` | Background recording (Game DVR capture) off | Graphics & Display | Standard | A | none |
+| `gfx.windowed-optimizations` | Optimizations for windowed games | Graphics & Display | Standard | A | none |
+| `gfx.vrr-optimizations` | Optimizations for variable refresh rate | Graphics & Display | Standard | A | none |
+| `gfx.gpu-preference-games` | Per-game GPU preference: High performance | Graphics & Display | Advanced | B | none |
+| `input.pointer-precision-off` | Enhance pointer precision off | Input | Standard | A | none |
+| `input.accessibility-hotkeys-off` | Accessibility shortcut keys off | Input | Standard | A | none |
+| `net.wifi-power-max-performance` | Wi-Fi adapter power saving: Maximum Performance | Network | Advanced | B | none |
+| `net.rss-on` | Receive Side Scaling on | Network | Standard | A | reboot |
+| `net.tcp-autotuning-normal` | TCP auto-tuning: Normal | Network | Standard | A | none |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.update-active-hours` | Windows Update active hours 10:00-04:00 | Background & Privacy | Standard | A | none |
+| `sec.hvci-on` | Memory integrity (HVCI) and VBS on | Security | Advanced | A | reboot |
+| `sec.vulnerable-driver-blocklist` | Microsoft vulnerable driver blocklist on | Security | Standard | A | reboot |
+| `sec.lsa-protection` | LSA protection (RunAsPPL, no UEFI lock) | Security | Standard | A | reboot |
+| `sec.defender-hardening` | Defender: PUA blocking, cloud protection, safe sample submission | Security | Standard | A | none |
+| `sec.network-protection` | Defender Network Protection | Security | Standard | A | none |
+| `sec.gaming-friendly-scans` | Gaming-friendly Defender scans | Security | Standard | A | none |
+| `sec.asr-baseline` | Attack surface reduction: gaming-safe baseline (Block) | Security | Standard | A | none |
+| `sec.asr-office-audit` | Attack surface reduction: Office and Adobe rules (Audit) | Security | Standard | A | none |
+| `sec.uac-on` | User Account Control on | Security | Standard | A | reboot |
+| `sec.llmnr-off` | LLMNR off | Security | Standard | A | none |
+| `sec.autorun-off` | AutoRun and AutoPlay off | Security | Standard | A | none |
+| `sec.smb-hardening` | SMB signing required, SMBv1 off | Security | Standard | A | reboot |
+| `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
+| `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
+
+## Privacy Max: Least data sent, nothing security-critical off
+
+*Lowest diagnostic data, no ads, AI, activity history, location, Bing or Edge/Office extras. SmartScreen, Defender and updates stay on.*
+
+Every documented privacy item: diagnostic data at Required (the lowest level on Pro), ads, suggestions and AI features off, activity history and location off, Bing results in Start off, Edge and Microsoft 365 Apps privacy policies, PowerShell 7 telemetry off, telemetry tasks and the DiagTrack service off, background apps off and encrypted DNS through Quad9. Security features that send data to Microsoft, such as SmartScreen and cloud-delivered protection, stay on: privacy here never lowers security.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.ai-features-off` | AI features off (Recall, Click to Do, Paint AI) | Background & Privacy | Standard | A | reboot |
+| `privacy.activity-history-off` | Activity history off | Background & Privacy | Standard | A | none |
+| `privacy.location-off` | Location services off | Background & Privacy | Advanced | A | none |
+| `privacy.bing-search-off` | Bing web results in Start search off | Background & Privacy | Standard | B | logoff |
+| `privacy.consumer-features-off` | Microsoft consumer experiences off | Background & Privacy | Standard | A | none |
+| `privacy.device-metadata-off` | No automatic device metadata and companion apps | Background & Privacy | Standard | A | none |
+| `privacy.powershell-telemetry-off` | PowerShell 7 telemetry off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.edge-privacy-policies` | Microsoft Edge privacy policies | Background & Privacy | Standard | A | none |
+| `privacy.office-privacy-policies` | Microsoft 365 Apps diagnostic data off | Background & Privacy | Advanced | A | none |
+| `privacy.telemetry-tasks-off` | Microsoft telemetry and CEIP scheduled tasks off | Background & Privacy | Advanced | B | none |
+| `privacy.diagtrack-disabled` | Connected User Experiences and Telemetry service off | Background & Privacy | Advanced | B | none |
+| `privacy.background-apps-off` | Background apps off (Store apps) | Background & Privacy | Advanced | B | none |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `net.doh-quad9` | Encrypted DNS (DoH): Quad9 | Network | Advanced | A | none |
+| `sec.uac-on` | User Account Control on | Security | Standard | A | reboot |
+| `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
+| `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
+| `sec.defender-hardening` | Defender: PUA blocking, cloud protection, safe sample submission | Security | Standard | A | none |
+
+## Clean Install / Debloat: A fresh Windows without the extras
+
+*WinUtil's standard tweaks, mapped to safe documented items, plus removal of six consumer inbox apps (reinstallable from the Store).*
+
+The safe equivalent of WinUtil's Standard preset for a freshly installed PC: activity history, location, consumer experiences, telemetry tasks, DiagTrack and Delivery Optimization peer-to-peer off, End task on the taskbar, file extensions shown, Widgets and Bing results off, no automatic vendor companion apps, and six consumer inbox apps removed through the protected list (Store, Xbox identity, Gaming Services and Windows Security are never removed). WinUtil's rejected items (service changes, Explorer folder discovery reset, WPBT) are not included.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `privacy.activity-history-off` | Activity history off | Background & Privacy | Standard | A | none |
+| `privacy.consumer-features-off` | Microsoft consumer experiences off | Background & Privacy | Standard | A | none |
+| `privacy.location-off` | Location services off | Background & Privacy | Advanced | A | none |
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.telemetry-tasks-off` | Microsoft telemetry and CEIP scheduled tasks off | Background & Privacy | Advanced | B | none |
+| `privacy.diagtrack-disabled` | Connected User Experiences and Telemetry service off | Background & Privacy | Advanced | B | none |
+| `privacy.powershell-telemetry-off` | PowerShell 7 telemetry off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.bing-search-off` | Bing web results in Start search off | Background & Privacy | Standard | B | logoff |
+| `privacy.device-metadata-off` | No automatic device metadata and companion apps | Background & Privacy | Standard | A | none |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.inbox-apps-consumer-off` | Consumer inbox apps removed | Background & Privacy | Advanced | A | none |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `system.end-task-taskbar` | End task in the taskbar right-click menu | System | Standard | A | none |
+| `system.show-file-extensions` | Show file name extensions | System | Standard | A | none |
+
+## Fortress: Maximum security, still anti-cheat compatible
+
+*Hardened plus every gaming-safe ASR rule on Block, exploit protection, script-host and LOLBin blocks and a minimal network surface.*
+
+The strongest configuration that competitive anti-cheat still accepts. On top of Hardened: the Safe Mode ASR rule on Block, exploit protection defaults repaired, Windows Script Host off, outbound blocks for tools malware abuses, NTLMv2 only, no anonymous enumeration, no inbound print spooler, Teredo off, NetBIOS, LLMNR and remote access off. VBS, HVCI, TPM and Secure Boot stay exactly as anti-cheat requires. Untrusted programs on USB drives are blocked by the ASR baseline.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `power.high-performance-plan` | High performance power plan | Power & CPU | Standard | A | none |
+| `power.usb-selective-suspend-off` | USB selective suspend off | Power & CPU | Standard | A | none |
+| `power.pcie-aspm-off` | PCI Express Link State Power Management off | Power & CPU | Standard | A | none |
+| `power.fast-startup-off` | Fast Startup off | Power & CPU | Standard | A | none |
+| `power.power-throttling-on` | Keep Power Throttling on (hybrid CPU) | Power & CPU | Standard | A | reboot |
+| `gfx.game-mode` | Game Mode on | Graphics & Display | Standard | A | none |
+| `gfx.background-recording-off` | Background recording (Game DVR capture) off | Graphics & Display | Standard | A | none |
+| `gfx.windowed-optimizations` | Optimizations for windowed games | Graphics & Display | Standard | A | none |
+| `gfx.vrr-optimizations` | Optimizations for variable refresh rate | Graphics & Display | Standard | A | none |
+| `input.pointer-precision-off` | Enhance pointer precision off | Input | Standard | A | none |
+| `input.accessibility-hotkeys-off` | Accessibility shortcut keys off | Input | Standard | A | none |
+| `net.eee-off` | Energy Efficient Ethernet off | Network | Standard | A | reboot |
+| `net.rss-on` | Receive Side Scaling on | Network | Standard | A | reboot |
+| `net.tcp-autotuning-normal` | TCP auto-tuning: Normal | Network | Standard | A | none |
+| `net.delivery-optimization-p2p-off` | Delivery Optimization peer-to-peer off | Network | Standard | A | none |
+| `net.doh-quad9` | Encrypted DNS (DoH): Quad9 | Network | Advanced | A | none |
+| `net.teredo-off` | Teredo tunneling off | Network | Advanced | A | reboot |
+| `privacy.diagnostic-data-required` | Diagnostic data: Required only | Background & Privacy | Standard | A | none |
+| `privacy.ads-suggestions-off` | Ads, tips and suggestions off | Background & Privacy | Standard | A | logoff |
+| `privacy.widgets-off` | Widgets off | Background & Privacy | Standard | A | logoff |
+| `privacy.edge-background-off` | Microsoft Edge background activity off | Background & Privacy | Standard | A | none |
+| `privacy.update-active-hours` | Windows Update active hours 10:00-04:00 | Background & Privacy | Standard | A | none |
+| `privacy.keep-drivers` | Keep my drivers (no driver updates via Windows Update) | Background & Privacy | Standard | A | none |
+| `privacy.ai-features-off` | AI features off (Recall, Click to Do, Paint AI) | Background & Privacy | Standard | A | reboot |
+| `sec.hvci-on` | Memory integrity (HVCI) and VBS on | Security | Advanced | A | reboot |
+| `sec.vulnerable-driver-blocklist` | Microsoft vulnerable driver blocklist on | Security | Standard | A | reboot |
+| `sec.lsa-protection` | LSA protection (RunAsPPL, no UEFI lock) | Security | Standard | A | reboot |
+| `sec.wdigest-off` | WDigest plain-text credential caching off | Security | Standard | A | logoff |
+| `sec.ntlmv2-only` | NTLMv2 only (refuse LM and NTLMv1) | Security | Advanced | A | none |
+| `sec.defender-hardening` | Defender: PUA blocking, cloud protection, safe sample submission | Security | Standard | A | none |
+| `sec.network-protection` | Defender Network Protection | Security | Standard | A | none |
+| `sec.gaming-friendly-scans` | Gaming-friendly Defender scans | Security | Standard | A | none |
+| `sec.asr-baseline` | Attack surface reduction: gaming-safe baseline (Block) | Security | Standard | A | none |
+| `sec.asr-office-block` | Attack surface reduction: Office and Adobe rules (Block) | Security | Standard | A | none |
+| `sec.asr-safe-mode-block` | Attack surface reduction: block rebooting into Safe Mode (Block) | Security | Advanced | A | none |
+| `sec.cfa-audit` | Controlled Folder Access (Audit mode) | Security | Advanced | B | none |
+| `sec.uac-on` | User Account Control on | Security | Standard | A | reboot |
+| `sec.uac-always-notify` | UAC: Always notify | Security | Standard | A | none |
+| `sec.llmnr-off` | LLMNR off | Security | Standard | A | none |
+| `sec.netbios-off` | NetBIOS over TCP/IP off (wired adapter) | Security | Standard | A | reboot |
+| `sec.remote-access-off` | Remote Desktop and Remote Assistance off | Security | Standard | A | none |
+| `sec.restrict-anonymous` | No anonymous listing of accounts and shares | Security | Advanced | A | none |
+| `sec.autorun-off` | AutoRun and AutoPlay off | Security | Standard | A | none |
+| `sec.smb-hardening` | SMB signing required, SMBv1 off | Security | Standard | A | reboot |
+| `sec.firewall-on` | Windows Firewall on, inbound blocked by default | Security | Standard | A | none |
+| `sec.print-spooler-no-inbound` | Print Spooler: no incoming client connections | Security | Standard | A | reboot |
+| `sec.smartscreen-on` | SmartScreen on (apps and Edge) | Security | Standard | A | none |
+| `sec.ps-scriptblock-logging` | PowerShell script block logging | Security | Advanced | B | none |
+| `sec.exploit-protection-defaults` | Exploit protection system defaults on (DEP, SEHOP, CFG, ASLR) | Security | Standard | A | reboot |
+| `sec.wsh-off` | Windows Script Host off (.vbs, .js, .wsf) | Security | Advanced | B | none |
+| `sec.lolbin-outbound-block` | Block internet access for script and download tools (mshta, wscript, cscript, regsvr32, certutil) | Security | Advanced | B | none |
+
+## Session Mode (Tournament / LAN): Temporary, reverts when the session ends
+
+*For one match day: notifications off, search indexing paused, the highest power plan your hardware allows. Everything reverts at the end.*
+
+A temporary preset, never applied permanently. Starting a session turns app notifications off, pauses Windows Search indexing, switches to the highest power plan the hardware overlays allow (Ultimate on desktops, High performance where Ultimate is blocked, unchanged on laptops) and offers to close listed background apps after you confirm. Ending the session, or closing the app, restores every setting from the session snapshot; if the PC or the app crashed, the next start offers to restore it.
+
+Level ceiling: Advanced | anti-cheat policy: safeOnly | gaming preset: yes
+
+| Id | Name | Category | Level | Tier | Restart |
+|---|---|---|---|---|---|
+| `system.session-notifications-off` | Notifications off (Do Not Disturb for a session) | System | Advanced | B | none |
+| `system.session-search-paused` | Search indexing paused (for a session) | System | Advanced | B | none |
 
 ## Differences
 

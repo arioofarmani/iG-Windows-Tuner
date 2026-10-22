@@ -102,7 +102,8 @@ function Invoke-IgwtWinget {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
     if ($script:IgwtSettings.TestMode) { throw 'TestMode safety: winget.exe must be mocked in tests.' }
-    $readOnly = @('list', 'search', 'show', '--version')
+    # 'export' only writes the inventory file the caller names (a temporary file).
+    $readOnly = @('list', 'search', 'show', 'export', '--version')
     if ($readOnly -notcontains $Arguments[0] -and -not $PSCmdlet.ShouldProcess("winget $($Arguments -join ' ')", 'Run')) { return [pscustomobject]@{ ExitCode = 0; Output = '' } }
     $cmd = Get-Command -Name 'winget.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $cmd) { throw 'winget (App Installer) is not available on this PC.' }
@@ -122,8 +123,14 @@ function Test-IgwtWingetInstalled {
 }
 
 function Install-IgwtWingetPackage {
+    <#
+    .SYNOPSIS Installs a winget package. The accept flags are passed only after the user accepted the agreements.
+    .PARAMETER AcceptAgreements
+        The user accepted the winget package and source agreements for this install.
+    #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)][string]$Id, [string]$Source = 'winget')
+    param([Parameter(Mandatory = $true)][string]$Id, [string]$Source = 'winget', [switch]$AcceptAgreements)
+    if (-not ([bool]$AcceptAgreements -or (Test-IgwtWingetConsent))) { throw "winget's package and source agreements have not been accepted (Toolkit > Install shows them)." }
     if (-not $PSCmdlet.ShouldProcess($Id, "winget install ($Source)")) { return }
     $r = Invoke-IgwtWinget -Arguments @('install', '--id', $Id, '--exact', '--source', $Source, '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
     if ($r.ExitCode -ne 0) { throw "winget install $Id failed (exit $($r.ExitCode))." }

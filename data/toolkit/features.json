@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "features": [
+    {
+      "id": "feature.netfx3",
+      "name": ".NET Framework 3.5 (includes 2.0 and 3.0)",
+      "kind": "feature",
+      "targets": [ "NetFx3" ],
+      "reboot": false,
+      "hint": "Needed by older apps, games and tools built for .NET 2.0-3.5. Downloaded from Windows Update when you enable it.",
+      "description": "Enables the .NET Framework 3.5 feature on demand. Some older games, launchers and admin tools still need it. Windows downloads the files from Windows Update. .NET 4.x is already part of Windows and is never changed.",
+      "source": "winutil"
+    },
+    {
+      "id": "feature.hyperv",
+      "name": "Hyper-V",
+      "kind": "feature",
+      "targets": [ "Microsoft-Hyper-V-All" ],
+      "reboot": true,
+      "editions": [ "Professional", "Enterprise", "Education" ],
+      "hint": "Microsoft's hypervisor and Hyper-V Manager for running virtual machines. Pro, Enterprise and Education only.",
+      "description": "Enables Hyper-V and its management tools. Windows then always runs on the hypervisor, which VBS and HVCI already use, so anti-cheat compatibility does not change. Third-party hypervisors use the Windows Hypervisor Platform when Hyper-V is on. Needs a restart.",
+      "source": "winutil"
+    },
+    {
+      "id": "feature.wsl",
+      "name": "Windows Subsystem for Linux (WSL 2)",
+      "kind": "feature",
+      "targets": [ "Microsoft-Windows-Subsystem-Linux", "VirtualMachinePlatform" ],
+      "reboot": true,
+      "hint": "Enables WSL and the Virtual Machine Platform so Linux distributions and Docker Desktop can run. Restart, then run wsl --install.",
+      "description": "Enables the two features WSL 2 needs. After the restart, run \"wsl --install\" or install the WSL package from Toolkit > Install to get the current kernel and a distribution. Disabling either feature later breaks WSL and Docker, so iG Windows Tuner never disables them.",
+      "source": "winutil"
+    },
+    {
+      "id": "feature.vmp",
+      "name": "Virtual Machine Platform",
+      "kind": "feature",
+      "targets": [ "VirtualMachinePlatform" ],
+      "reboot": true,
+      "hint": "The lightweight virtualization layer used by WSL 2 and other container tools.",
+      "description": "Enables Virtual Machine Platform on its own, for tools that need it without WSL. iG Windows Tuner never disables it because WSL and Docker depend on it.",
+      "source": "igwt"
+    },
+    {
+      "id": "feature.sandbox",
+      "name": "Windows Sandbox",
+      "kind": "feature",
+      "targets": [ "Containers-DisposableClientVM" ],
+      "reboot": true,
+      "editions": [ "Professional", "Enterprise", "Education" ],
+      "hint": "A disposable desktop for testing unknown programs; everything is discarded when it closes. Pro, Enterprise and Education only.",
+      "description": "Enables Windows Sandbox, which iG Windows Tuner also uses for its own end-to-end tests. Needs hardware virtualization enabled in the firmware.",
+      "source": "winutil"
+    },
+    {
+      "id": "feature.directplay",
+      "name": "DirectPlay (legacy games)",
+      "kind": "feature",
+      "targets": [ "DirectPlay" ],
+      "reboot": false,
+      "hint": "Enables DirectPlay, which some games from before 2008 need for multiplayer or even to start.",
+      "description": "Enables the legacy DirectPlay networking component under Legacy Components. Only older games need it; modern games do not.",
+      "source": "winutil"
+    },
+    {
+      "id": "feature.nfs-client",
+      "name": "NFS client",
+      "kind": "feature",
+      "targets": [ "ServicesForNFS-ClientOnly", "ClientForNFS-Infrastructure" ],
+      "reboot": false,
+      "editions": [ "Professional", "Enterprise", "Education" ],
+      "hint": "Lets Windows mount NFS shares from a NAS or Linux server.",
+      "description": "Enables the Client for NFS. Mount shares with \"mount \\\\server\\share X:\". iG Windows Tuner does not change the anonymous UID or GID that the NFS client uses.",
+      "source": "winutil"
+    },
+    {
+      "id": "capability.openssh-client",
+      "name": "OpenSSH client",
+      "kind": "capability",
+      "targets": [ "OpenSSH.Client~~~~0.0.1.0" ],
+      "reboot": false,
+      "hint": "The ssh, scp and sftp commands. Installed by default on Windows 11; this repairs it if it was removed.",
+      "description": "Installs the OpenSSH client capability. It is part of a default Windows 11 installation and iG Windows Tuner never removes it.",
+      "source": "igwt"
+    },
+    {
+      "id": "capability.openssh-server",
+      "name": "OpenSSH server",
+      "kind": "capability",
+      "targets": [ "OpenSSH.Server~~~~0.0.1.0" ],
+      "reboot": false,
+      "hint": "Lets other computers sign in to this PC over SSH. Adds attack surface: it listens on port 22.",
+      "description": "Installs the OpenSSH server capability. The sshd service listens on TCP port 22 once started, and Windows adds a firewall rule for it. Use key-based authentication, keep the service on Manual when you do not need it, and remove the capability when you are done.",
+      "warning": "Attack surface: a listening SSH server accepts sign-in attempts from your network. Use keys, not passwords.",
+      "source": "winutil"
+    }
+  ]
+}

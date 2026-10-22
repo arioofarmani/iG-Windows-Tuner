@@ -118,6 +118,7 @@ function Resolve-IgwtPresetSelection {
         param($It)
         $t = $catalog[$It.Id]
         if (-not $t) { $It.Included = $false; $It.Notes.Add('Unknown item.'); return }
+        if ($It.Origin -eq 'preset' -and ([string]$t.level -eq 'Lab' -or [string]$t.evidence.tier -eq 'R')) { $It.Included = $false; $It.Notes.Add('Lab and Risk Zone items are never part of a preset.'); return }
         $b = Get-IgwtHardwareBlock -Tweak $t -Tags $Tags
         if ($b) { $It.Included = $false; $It.Blocked = $true; $It.Notes.Add($b.Reason) }
     }

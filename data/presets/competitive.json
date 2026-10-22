@@ -3,6 +3,7 @@
   "id": "competitive",
   "name": "Competitive",
   "order": 1,
+  "code": "C",
   "tagline": "Maximum performance, lowest latency",
   "hint": "Maximum performance and lowest latency: every Tier A item plus situational Tier B latency tweaks. Anti-cheat safe.",
   "description": "Every Tier A performance, input and network item plus the Tier B latency items (Ultimate Performance plan, HAGS, MMCSS, adapter power saving, interrupt moderation, DSCP marking, per-game GPU, unused Wi-Fi off). The security baseline stays fully on: Defender, VBS/HVCI, ASR baseline, LSA protection, firewall. Nothing that anti-cheat needs is touched.",

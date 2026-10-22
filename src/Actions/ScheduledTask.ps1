@@ -16,10 +16,42 @@ function Assert-IgwtTaskAllowed {
     }
 }
 
-function Get-IgwtTaskEnabled {
-    <# .SYNOPSIS $true enabled, $false disabled, $null when the task does not exist. #>
+function Get-IgwtTaskIndex {
+    <#
+    .SYNOPSIS
+        Returns a hashtable of every scheduled task's state keyed by its lower-case full path.
+    .DESCRIPTION
+        One Get-ScheduledTask call (about 0.3 s) replaces one call per task (about 0.4 s each). The
+        index is cached for 60 seconds; New-IgwtContext and every apply or restore clear the cache.
+    #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Action)
+    [OutputType([hashtable])]
+    param()
+    return (Get-IgwtCached -Key 'task:index' -TtlSeconds 60 -ScriptBlock {
+        $index = @{}
+        foreach ($t in @(Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+            if ($t) { $index[("$($t.TaskPath)$($t.TaskName)").ToLowerInvariant()] = [string]$t.State }
+        }
+        $index
+    })
+}
+
+function Get-IgwtTaskEnabled {
+    <#
+    .SYNOPSIS $true enabled, $false disabled, $null when the task does not exist.
+    .PARAMETER Fresh
+        Query the task directly instead of the cached index (snapshots and writes).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Action, [switch]$Fresh)
+    if (-not $Fresh -and -not $script:IgwtSettings.TestMode) {
+        $index = Get-IgwtTaskIndex
+        if ($index.Count -gt 0) {
+            $key = ("$($Action.path)$($Action.name)").ToLowerInvariant()
+            if (-not $index.ContainsKey($key)) { return $null }
+            return ($index[$key] -ne 'Disabled')
+        }
+    }
     $t = Get-ScheduledTask -TaskPath ([string]$Action.path) -TaskName ([string]$Action.name) -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $t) { return $null }
     return ([string]$t.State -ne 'Disabled')
@@ -38,7 +70,7 @@ function Get-IgwtScheduledTaskState {
 function Get-IgwtScheduledTaskSnapshot {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Action, $Context)
-    $en = Get-IgwtTaskEnabled -Action $Action
+    $en = Get-IgwtTaskEnabled -Action $Action -Fresh
     return @{ exists = ($null -ne $en); enabled = [bool]$en }
 }
 
@@ -48,6 +80,7 @@ function Set-IgwtTaskEnabled {
     if (-not $Enabled) { Assert-IgwtTaskAllowed -Path ([string]$Action.path) }
     $what = $(if ($Enabled) { 'Enable' } else { 'Disable' })
     if (-not $PSCmdlet.ShouldProcess("$($Action.path)$($Action.name)", "$what scheduled task")) { return }
+    Clear-IgwtCache -Prefix 'task:' -WhatIf:$false
     if ($Enabled) { $null = Enable-ScheduledTask -TaskPath ([string]$Action.path) -TaskName ([string]$Action.name) -ErrorAction Stop }
     else { $null = Disable-ScheduledTask -TaskPath ([string]$Action.path) -TaskName ([string]$Action.name) -ErrorAction Stop }
 }
@@ -55,7 +88,7 @@ function Set-IgwtTaskEnabled {
 function Invoke-IgwtScheduledTaskApply {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, $Context, [ValidateSet('on', 'default')][string]$Mode = 'on')
-    $en = Get-IgwtTaskEnabled -Action $Action
+    $en = Get-IgwtTaskEnabled -Action $Action -Fresh
     if ($null -eq $en) { return }
     $target = [string]$Action.on
     if ($Mode -eq 'default') { $target = [string]$Action.default }
@@ -67,7 +100,7 @@ function Restore-IgwtScheduledTaskSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     if (-not $Snapshot.exists) { return }
-    $en = Get-IgwtTaskEnabled -Action $Action
+    $en = Get-IgwtTaskEnabled -Action $Action -Fresh
     if ($null -eq $en) { Write-IgwtLog -Level Warn -Message "Scheduled task $($Action.path)$($Action.name) no longer exists; not restored."; return }
     if ($en -ne [bool]$Snapshot.enabled) { Set-IgwtTaskEnabled -Action $Action -Enabled ([bool]$Snapshot.enabled) }
 }

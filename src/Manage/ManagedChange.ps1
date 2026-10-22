@@ -15,8 +15,12 @@ $script:IgwtManagedValues = @{
     capability   = @('Installed', 'NotPresent')
     firewallRule = @('Enabled', 'Disabled')
 }
-# Features and capabilities the manager never changes.
+# Features and capabilities the manager never disables or removes (enabling them is allowed).
 $script:IgwtProtectedFeatures = @('Windows-Defender*', 'NetFx4*', 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform', 'Printing-PrintToPDFServices-Features', 'SearchEngine-Client-Package')
+# Legacy components that lower security when enabled (SMBv1, PowerShell 2.0 bypasses AMSI and
+# script block logging, cleartext protocols, the IE engine): never enabled or installed.
+$script:IgwtInsecureFeatures = @('SMB1Protocol*', 'MicrosoftWindowsPowerShellV2*', 'TelnetClient', 'TelnetServer', 'TFTP', 'Internet-Explorer-Optional*', 'SimpleTCP')
+$script:IgwtInsecureCapabilities = @('Browser.InternetExplorer*')
 $script:IgwtProtectedCapabilities = @('Language.*', 'Microsoft.Windows.Notepad*', 'Microsoft.Windows.PowerShell.ISE*', 'Windows.Client.ShellComponents*', 'OpenSSH.Client*')
 $script:IgwtAntiCheatTaskPattern = '(?i)(vgc|vanguard|faceit|easyanticheat|battleye|ricochet|javelin)'
 
@@ -61,7 +65,7 @@ function Test-IgwtManageCatalog {
             if (-not [string]$g.reason -or ([string]$g.reason).Length -gt 200) { $errors.Add('manage\services.json: every group needs a reason of 200 characters or fewer.') }
             if (@($g.names).Count + @($g.patterns | Where-Object { $_ }).Count -eq 0) { $errors.Add('manage\services.json: empty group.') }
         }
-        foreach ($must in 'RpcSs', 'DcomLaunch', 'BFE', 'mpssvc', 'WinDefend', 'EventLog', 'Winmgmt', 'CryptSvc', 'Audiosrv', 'Dhcp', 'Dnscache', 'nsi', 'TrustedInstaller', 'vgc', 'EasyAntiCheat_EOS', 'BEService') {
+        foreach ($must in 'RpcSs', 'DcomLaunch', 'BFE', 'mpssvc', 'WinDefend', 'EventLog', 'Winmgmt', 'CryptSvc', 'BITS', 'DoSvc', 'MDCoreSvc', 'webthreatdefsvc', 'AppIDSvc', 'Audiosrv', 'Dhcp', 'Dnscache', 'nsi', 'TrustedInstaller', 'vgc', 'EasyAntiCheat_EOS', 'BEService') {
             if (@($all | Where-Object { [string]$_ -eq $must }).Count -eq 0) { $errors.Add("manage\services.json: required protected service '$must' is missing.") }
         }
     }
@@ -139,12 +143,14 @@ function New-IgwtManagedAction {
         }
         'feature' {
             if ($t -notmatch '^[\w\.\-]+$') { throw "'$t' is not a valid feature name." }
-            if (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtProtectedFeatures) { throw "Feature '$t' is protected (Defender, .NET 4, WSL and virtualization, Print to PDF, search)." }
+            if ($Value -eq 'Enabled' -and (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtInsecureFeatures)) { throw "Feature '$t' lowers security (legacy or cleartext component) and is never enabled by iG Windows Tuner." }
+            if ($Value -eq 'Disabled' -and (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtProtectedFeatures)) { throw "Feature '$t' is protected (Defender, .NET 4, WSL and virtualization, Print to PDF, search) and is never disabled." }
             return [pscustomobject]@{ type = 'optionalFeature'; feature = $t; on = $Value; default = $(if ($Value -eq 'Enabled') { 'Disabled' } else { 'Enabled' }) }
         }
         'capability' {
             if ($t -notmatch '^[\w\.\-~]+$') { throw "'$t' is not a valid capability name." }
-            if (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtProtectedCapabilities) { throw "Capability '$t' is protected (languages, Notepad, shell components, OpenSSH client)." }
+            if ($Value -eq 'Installed' -and (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtInsecureCapabilities)) { throw "Capability '$t' lowers security and is never installed by iG Windows Tuner." }
+            if ($Value -eq 'NotPresent' -and (Test-IgwtNamePattern -Name $t -Patterns $script:IgwtProtectedCapabilities)) { throw "Capability '$t' is protected (languages, Notepad, shell components, OpenSSH client) and is never removed." }
             return [pscustomobject]@{ type = 'capability'; name = $t; on = $Value; default = $(if ($Value -eq 'Installed') { 'NotPresent' } else { 'Installed' }) }
         }
         'firewallRule' {
@@ -231,7 +237,7 @@ function Invoke-IgwtManagedChange {
         managed = [ordered]@{ kind = $Kind; target = $Target; value = $Value; provisioned = [bool]$Provisioned } }
     Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions @($entryAction) -Result 'Applied' -Message $label
     try {
-        if ([string]$action.type -eq 'managedFirewallRule') { Set-NetFirewallRule -Name ([string]$action.name) -Enabled $(if ($Value -eq 'Enabled') { 'True' } else { 'False' }) -ErrorAction Stop }
+        if ([string]$action.type -eq 'managedFirewallRule') { Clear-IgwtCache -Prefix 'fw:' -WhatIf:$false; Set-NetFirewallRule -Name ([string]$action.name) -Enabled $(if ($Value -eq 'Enabled') { 'True' } else { 'False' }) -ErrorAction Stop }
         else { Invoke-IgwtActionApply -Action $action -Context $null -Mode on }
         Write-IgwtLog -Message "Managed change: $label. Snapshot: $($snap.Path)"
         $msg = $(if ($Kind -eq 'service') { 'The new startup type applies from the next start of the service or Windows.' } elseif ($Kind -eq 'appx') { 'Revert re-registers the app or reinstalls it from the Store.' } else { '' })
@@ -272,7 +278,7 @@ function Restore-IgwtManagedSnapshot {
                 if ([string]$action.type -ne [string]$a.type) { throw 'Snapshot action type does not match its kind.' }
                 $current = Get-IgwtManagedSnapshotData -Action $action
                 Add-IgwtSnapshotEntry -Snapshot $undo -TweakId $tid -Actions @([ordered]@{ index = 0; type = [string]$action.type; fingerprint = [string]$a.fingerprint; data = $current; managed = $m }) -Result 'Applied' -Message 'before revert'
-                if ([string]$action.type -eq 'managedFirewallRule') { Set-NetFirewallRule -Name ([string]$action.name) -Enabled $(if ([bool]$a.data.enabled) { 'True' } else { 'False' }) -ErrorAction Stop }
+                if ([string]$action.type -eq 'managedFirewallRule') { Clear-IgwtCache -Prefix 'fw:' -WhatIf:$false; Set-NetFirewallRule -Name ([string]$action.name) -Enabled $(if ([bool]$a.data.enabled) { 'True' } else { 'False' }) -ErrorAction Stop }
                 else { Restore-IgwtActionSnapshot -Action $action -Snapshot $a.data -Context $null }
                 $results.Add([pscustomobject]@{ Id = $tid; Result = 'Reverted'; Message = '' })
             } catch {

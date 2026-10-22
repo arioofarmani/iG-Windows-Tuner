@@ -86,7 +86,8 @@ Describe 'Hardware overlays: presets per fixture' {
         foreach ($p in @(Get-IgwtPreset)) {
             $s = Resolve-IgwtPresetSelection -Preset $p -Tags $tags
             @($s.Blocked) | Should -BeNullOrEmpty -Because $p.id
-            @($s.Ids) | Should -Be @($p.tweaks) -Because $p.id
+            @($s.Ids | Where-Object { @($p.tweaks) -notcontains $_ -and $_ -ne 'power.power-throttling-on' }) | Should -BeNullOrEmpty -Because $p.id   # the hybrid-CPU overlay adds Power Throttling where missing
+            foreach ($x in @($p.tweaks)) { @($s.Ids) | Should -Contain $x -Because $p.id }
             @($s.Items | Where-Object { $_.Id -eq 'power.power-throttling-on' }).Notes | Should -Match 'Intel hybrid CPU'
             @($s.Overlays.Id) | Should -Contain 'overlay.raptorlake-voltage'
         }

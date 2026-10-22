@@ -65,7 +65,7 @@
       "group": "Core isolation",
       "order": 50,
       "level": "Lab",
-      "hint": "EXPERT: disables VBS/HVCI for a few % FPS on some systems. Breaks FACEIT AC and Vanguard On-Demand. Measure first.",
+      "hint": "Retired in 2.3: VBS and HVCI are never turned off. Kept only so an earlier change can be reverted (turning it off restores VBS/HVCI).",
       "description": "Sets HypervisorEnforcedCodeIntegrity Enabled = 0 and EnableVirtualizationBasedSecurity = 0. Microsoft notes memory integrity can cost performance, mostly on CPUs without MBEC; on a 13700K the cost is small. This removes kernel exploit protection, and FACEIT Anti-Cheat and Riot Vanguard On-Demand mode require VBS/HVCI, so those games will refuse to run. Never part of a preset. Measure before deciding.",
       "warning": "This lowers security and BREAKS FACEIT Anti-Cheat (VBS/IOMMU requirement) and Riot Vanguard On-Demand mode (VBS + HVCI requirement). Keep it off unless you only play games without these anti-cheats.",
       "evidence": {
@@ -101,7 +101,9 @@
           "default": 1
         },
         { "type": "check", "checker": "HvciNotRunning" }
-      ]
+      ],
+      "status": "NotApplicable",
+      "statusReason": "Retired: iG Windows Tuner never turns VBS or HVCI off (security boundary). If you applied it with an earlier version, revert it to turn VBS and HVCI back on."
     },
     {
       "id": "sec.vulnerable-driver-blocklist",
@@ -1269,6 +1271,36 @@
       "source": "igwt",
       "actions": [
         { "type": "service", "name": "Spooler", "startupType": "Disabled", "default": "Automatic", "stop": true }
+      ]
+    },
+    {
+      "id": "sec.asr-safe-mode-block",
+      "name": "Attack surface reduction: block rebooting into Safe Mode (Block)",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 56,
+      "level": "Advanced",
+      "hint": "Stops ransomware from rebooting into Safe Mode to escape Defender. Safe Mode stays reachable from Windows Recovery (Shift + Restart).",
+      "description": "Sets the ASR rule \"Block rebooting machine in Safe Mode\" to Block. Ransomware uses boot-configuration commands to restart into Safe Mode, where security software does not run. Administrators can still enter Safe Mode manually from the Windows Recovery Environment. The rule has no effect on games. Turning it off returns the rule to its previous mode.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/attack-surface-reduction-rules-reference" ],
+        "notes": "GUID 33ddedf1-c6e0-47cb-833e-de6133960387; gamer impact none (ASR Center)."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Tools that schedule a reboot into Safe Mode, such as the Safe boot option in System Configuration, are blocked.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "igwt",
+      "policyKeys": [
+        { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }
+      ],
+      "actions": [
+        { "type": "asrRule", "label": "Block rebooting machine in Safe Mode", "id": "33ddedf1-c6e0-47cb-833e-de6133960387", "on": "Block" }
       ]
     }
   ]

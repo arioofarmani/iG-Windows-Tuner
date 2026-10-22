@@ -2,7 +2,7 @@
 # Module-wide settings: data folders, registry redirection (used only by the test suite)
 # and the interactive-user hive mapping used when elevation happens under a different account.
 
-$script:IgwtVersion = '2.2.0'
+$script:IgwtVersion = '2.3.0'
 
 $script:IgwtSettings = @{
     DataRoot         = (Join-Path $env:ProgramData 'iGWindowsTuner')
@@ -113,7 +113,7 @@ function Get-IgwtDataPath {
     #>
     [CmdletBinding()]
     param(
-        [ValidateSet('Root', 'Backups', 'Logs', 'State', 'Reports', 'LegacyBackups', 'LegacyState')]
+        [ValidateSet('Root', 'Backups', 'Logs', 'State', 'Reports', 'Presets', 'LegacyBackups', 'LegacyState')]
         [string]$Kind = 'Root'
     )
     $root = $script:IgwtSettings.DataRoot
@@ -124,6 +124,7 @@ function Get-IgwtDataPath {
         'Root'    { return $root }
         'Backups' { return (Join-Path $root 'Backups') }
         'State'   { return (Join-Path $root 'State') }
+        'Presets' { return (Join-Path $root 'Presets') }
         'Logs' {
             if ((Test-IgwtIsAdmin) -or $script:IgwtSettings.TestMode) { return (Join-Path $root 'Logs') }
             return (Join-Path $script:IgwtSettings.UserLogRoot 'Logs')
@@ -147,7 +148,7 @@ function Initialize-IgwtDataRoot {
     $isAdmin = Test-IgwtIsAdmin
     $root = $script:IgwtSettings.DataRoot
     if ($isAdmin -or $script:IgwtSettings.TestMode) {
-        foreach ($kind in 'Root', 'Backups', 'Logs', 'State', 'Reports') {
+        foreach ($kind in 'Root', 'Backups', 'Logs', 'State', 'Reports', 'Presets') {
             $p = Get-IgwtDataPath -Kind $kind
             if (-not (Test-Path -LiteralPath $p)) {
                 if ($PSCmdlet.ShouldProcess($p, 'Create folder')) { $null = New-Item -ItemType Directory -Path $p -Force }

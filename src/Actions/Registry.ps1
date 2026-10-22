@@ -32,6 +32,8 @@ function Resolve-IgwtRegistryPath {
             }
         }
     }
+    # HKU:\.DEFAULT is the profile of the sign-in screen (for example NumLock at boot).
+    if ($p -match '^HKU:\\') { $p = 'Registry::HKEY_USERS\' + $p.Substring(5) }
     if ($script:IgwtSettings.TestMode -and -not $p.StartsWith('TestRegistry:', [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "TestMode safety: registry path '$Path' does not resolve into TestRegistry:."
     }
@@ -410,6 +412,14 @@ function Get-IgwtRegistryDesired {
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Current, [string]$Mode = 'on')
     $target = $Action.on
     if ($Mode -eq 'default') { $target = $Action.default }
+    if ($Mode -eq 'default' -and $null -ne $Action.bitSet -and $Current.Exists) {
+        $left = (ConvertTo-IgwtUInt64 ([string]$Current.Value)) -band (-bnot (ConvertTo-IgwtUInt64 $Action.bitSet))
+        if ($left -ne 0 -or [string]$target -ne $script:IgwtAbsent) {
+            $k = [string]$Action.valueType
+            $v = $(if ($k -eq 'String') { [string]$left } else { $left })
+            return [pscustomobject]@{ Absent = $false; Kind = $k; Value = (ConvertFrom-IgwtSerializableValue -Data $v -Kind $k) }
+        }
+    }
     if ([string]$target -eq $script:IgwtAbsent) {
         return [pscustomobject]@{ Absent = $true; Kind = $null; Value = $null }
     }
@@ -424,6 +434,13 @@ function Get-IgwtRegistryDesired {
         $newNum = $num -band (-bnot $mask)
         if ($kind -eq 'String') { $target = [string]$newNum } else { $target = $newNum }
     }
+    if ($Mode -eq 'on' -and $null -ne $Action.bitSet) {
+        $base = 0
+        if ($Current.Exists) { $base = $Current.Value }
+        elseif ($null -ne $Action.default -and [string]$Action.default -ne $script:IgwtAbsent) { $base = $Action.default }
+        $newNum = (ConvertTo-IgwtUInt64 ([string]$base)) -bor (ConvertTo-IgwtUInt64 $Action.bitSet)
+        if ($kind -eq 'String') { $target = [string]$newNum } else { $target = $newNum }
+    }
     return [pscustomobject]@{ Absent = $false; Kind = $kind; Value = (ConvertFrom-IgwtSerializableValue -Data $target -Kind $kind) }
 }
 
@@ -433,6 +450,13 @@ function Test-IgwtRegistryOn {
     [OutputType([bool])]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Current)
     if ($Action.onlyIfAbsent -and $Current.Exists) { return $true }
+    if ($null -ne $Action.bitSet) {
+        $mask = ConvertTo-IgwtUInt64 $Action.bitSet
+        $num = [uint64]0
+        if ($Current.Exists) { try { $num = ConvertTo-IgwtUInt64 ([string]$Current.Value) } catch { return $false } }
+        elseif ($null -ne $Action.absentValue) { $num = ConvertTo-IgwtUInt64 ([string]$Action.absentValue) }
+        return (($num -band $mask) -eq $mask)
+    }
     if ($null -ne $Action.bitClear -and $Current.Exists) {
         try {
             $num = ConvertTo-IgwtUInt64 ([string]$Current.Value)
@@ -485,7 +509,10 @@ function Get-IgwtRegistryTargets {
         }
         return @($targets)
     }
-    return @([pscustomobject]@{ Path = [string]$Action.path; Name = [string]$Action.name; Scope = ''; Label = '' })
+    # '(default)' in the catalog names the key's default (unnamed) value.
+    $valueName = [string]$Action.name
+    if ($valueName -eq '(default)') { $valueName = '' }
+    return @([pscustomobject]@{ Path = [string]$Action.path; Name = $valueName; Scope = ''; Label = '' })
 }
 
 function Get-IgwtRegistryActionEffective {
@@ -498,7 +525,7 @@ function Get-IgwtRegistryActionEffective {
     $on = 24
     if ($Action.allowTurnOff) { $on = 0 }
     return [pscustomobject]@{ type = 'netAdapterPower'; valueType = 'DWord'; on = $on; default = 0; absentValue = 0;
-        bitClear = $null; onlyIfAbsent = $false; equivalentOn = $null }
+        bitClear = $null; bitSet = $null; onlyIfAbsent = $false; equivalentOn = $null }
 }
 
 function Get-IgwtRegistryState {
@@ -571,7 +598,7 @@ function Invoke-IgwtRegistryApply {
 function Restore-IgwtRegistryItem {
     <# .SYNOPSIS Restores one captured value exactly, including "did not exist" and created keys. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)]$Item)
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Name, [Parameter(Mandatory = $true)]$Item)
     if ($Item.exists) {
         $value = ConvertFrom-IgwtSerializableValue -Data $Item.value -Kind ([string]$Item.kind)
         if ($PSCmdlet.ShouldProcess("$Path\$Name", "Restore $($Item.kind)")) {

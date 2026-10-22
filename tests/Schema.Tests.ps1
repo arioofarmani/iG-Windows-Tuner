@@ -214,7 +214,7 @@ Describe 'v1 to v2 data migration' {
     It 'passes v2 validation after migration' {
         Set-IgwtEnvironment -DataFolder $script:V1
         # The kernel inspector data links to 2.0 catalog items, so a v1 folder ships without it.
-        @(Test-IgwtCatalog | Where-Object { $_ -notlike 'inspectors\kernel.json: missing*' -and $_ -notlike 'manage\*.json: missing.' -and $_ -notlike 'rejected.json: * needs exactly one of riskItem or unavailable.' }) | Should -BeNullOrEmpty
+        @(Test-IgwtCatalog | Where-Object { $_ -notlike 'inspectors\kernel.json: missing*' -and $_ -notlike 'manage\*.json: missing.' -and $_ -notlike 'toolkit\*.json: missing.' -and $_ -notlike 'rejected.json: * needs exactly one of riskItem or unavailable.' }) | Should -BeNullOrEmpty
         (Get-IgwtPreset -Name 'balanced').tweaks.Count | Should -Be 35
     }
     It 'still loads unmigrated v1 files by upgrading them in memory' {

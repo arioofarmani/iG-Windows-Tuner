@@ -8,7 +8,7 @@ These popular tweaks are **not recommended**: each is placebo, obsolete, unstabl
 |---|---|---|---|
 | BCD timer tweaks (useplatformclock, useplatformtick, disabledynamictick, tscsyncpolicy) | unstable | No consistent measured gain on modern TSC-invariant CPUs; forcing the platform clock often increases timer overhead. Any BCD change can trigger BitLocker recovery, and iG Windows Tuner never runs bcdedit. | No |
 | Disabling HPET in Device Manager or BIOS | placebo | Windows already prefers the invariant TSC; disabling the HPET device changes nothing measurable or breaks software that needs it. | Risk Zone: `risk.hpet-disable` |
-| Disabling VBS / Memory integrity in a preset | anti-cheat-hostile | FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Available only as the warned expert toggle sec.vbs-hvci-off-expert, never in a preset. | No |
+| Disabling VBS / Memory integrity in a preset | anti-cheat-hostile | FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Not offered: iG Windows Tuner never turns VBS or HVCI off (the former expert toggle sec.vbs-hvci-off-expert was retired in 2.3 and only reverts earlier changes). | No |
 | Disabling Spectre/Meltdown mitigations (FeatureSettingsOverride) | security-reducing | Removes protection against speculative-execution attacks reachable from browsers and games; gains on Raptor Lake are negligible for games. | No |
 | Win32PrioritySeparation edits | placebo | The default (programs) already boosts the foreground; arbitrary hex values from guides change quantum lengths in ways that were never measured to help and can hurt background audio/voice. | Risk Zone: `risk.win32-priority-separation` |
 | Disabling the page file | unstable | Games and drivers reserve commit charge; without a page file, commit can run out with RAM still free, causing crashes. No crash dumps either. | Risk Zone: `risk.pagefile-off` |
@@ -64,8 +64,8 @@ These popular tweaks are **not recommended**: each is placebo, obsolete, unstabl
 
 - **Claim:** A few percent more FPS.
 - **Category:** anti-cheat-hostile
-- **Reason:** FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Available only as the warned expert toggle sec.vbs-hvci-off-expert, never in a preset.
-- **Availability:** Not offered in the Risk Zone: it turns off a security protection that kernel anti-cheats require. The separately warned expert toggle sec.vbs-hvci-off-expert remains in the Security category.
+- **Reason:** FACEIT Anti-Cheat and Riot Vanguard On-Demand require VBS/HVCI, and it removes kernel exploit protection. Not offered: iG Windows Tuner never turns VBS or HVCI off (the former expert toggle sec.vbs-hvci-off-expert was retired in 2.3 and only reverts earlier changes).
+- **Availability:** Not offered in the Risk Zone: it turns off a security protection that kernel anti-cheats require. The former expert toggle sec.vbs-hvci-off-expert was retired in 2.3.
 - **Sources:** <https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity>
 
 ## Disabling Spectre/Meltdown mitigations (FeatureSettingsOverride)

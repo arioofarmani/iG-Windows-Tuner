@@ -102,6 +102,9 @@
                     <ListBoxItem Tag="Manage" ToolTip="Services, scheduled tasks, apps, the persistence inspector and the firewall rule browser">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE912;" Margin="0,0,12,0"/><TextBlock Text="Manage"/></StackPanel>
                     </ListBoxItem>
+                    <ListBoxItem Tag="Toolkit" ToolTip="Install apps with winget, Windows features, previewed repair fixes, classic panels and Windows Update options (inspired by WinUtil)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE90F;" Margin="0,0,12,0"/><TextBlock Text="Toolkit"/></StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="Diagnostics" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D2;" Margin="0,0,12,0"/><TextBlock Text="Diagnostics &amp; Network"/></StackPanel>
                     </ListBoxItem>
@@ -278,6 +281,28 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource TextTitle}" Text="Presets"/>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Choosing a preset stages only the changes that differ from your current state. Review them on the category pages (pending items are marked), untick anything you do not want, then Preview and Apply."/>
+                        <Border x:Name="PresetDriftCard" Style="{StaticResource Card}" Margin="0,12,10,0" Visibility="Collapsed">
+                            <DockPanel>
+                                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                    <Button x:Name="PresetDriftReapplyButton" Content="Re-apply" ToolTip="Stage the changed items again, then Preview and Apply."/>
+                                    <Button x:Name="PresetDriftAdoptButton" Content="Adopt as custom..." Margin="0" ToolTip="Save the preset without the items you changed as your own custom preset."/>
+                                </WrapPanel>
+                                <TextBlock x:Name="PresetDriftText" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            </DockPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,12,10,0">
+                            <DockPanel>
+                                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                    <CheckBox x:Name="SessionCloseAppsBox" Style="{StaticResource FilterCheck}" Content="Close listed apps" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="Also close running apps from the Session Mode list (OneDrive, Teams, Spotify, Dropbox and similar) after you confirm them."/>
+                                    <Button x:Name="SessionStartButton" Style="{StaticResource AccentButton}" Content="Start session" ToolTip="Apply the temporary session settings with a snapshot. They are restored when you end the session or close iG Windows Tuner."/>
+                                    <Button x:Name="SessionStopButton" Content="End session" Margin="0" ToolTip="Restore every setting from the session snapshot."/>
+                                </WrapPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Session Mode (Tournament / LAN)" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="SessionStatusText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,12,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
                         <ItemsControl x:Name="PresetCards" Margin="0,12,0,0">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -300,6 +325,16 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock Style="{StaticResource TextSection}" Text="Custom presets"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Start from any preset, add or remove items and save it as your own. Custom presets follow the same rules as the built-in ones (level ceiling, never Lab or Risk Zone items, gaming presets anti-cheat safe only) and are stored with a SHA256 integrity field."/>
+                        <WrapPanel Margin="0,8,0,0">
+                            <ComboBox x:Name="PresetPickBox" Width="260" Margin="0,0,10,0" DisplayMemberPath="name" ToolTip="The preset the buttons on the right work with."/>
+                            <Button x:Name="PresetCustomizeButton" Content="Customize..." ToolTip="Pick the items of a new custom preset, starting from the selected preset."/>
+                            <Button x:Name="PresetDuplicateButton" Content="Duplicate..." ToolTip="Save a copy of the selected preset as a custom preset."/>
+                            <Button x:Name="PresetExportButton" Content="Export..." ToolTip="Save the selected preset as a JSON file with a SHA256 integrity field."/>
+                            <Button x:Name="PresetImportButton" Content="Import..." ToolTip="Import a preset file; its SHA256 field and the preset rules are checked first."/>
+                            <Button x:Name="PresetDeleteButton" Content="Delete" Margin="0" ToolTip="Delete the selected custom preset (built-in presets cannot be deleted)."/>
+                        </WrapPanel>
                         <TextBlock Style="{StaticResource TextSection}" Text="Undo"/>
                         <WrapPanel>
                             <Button x:Name="RevertLastButton" Content="Revert last apply" ToolTip="Restore every value captured before the most recent apply or preset."/>
@@ -593,6 +628,109 @@
                                     </StackPanel>
                                 </Border>
                                 <ListView x:Name="ManageFirewallList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+
+                <!-- Toolkit -->
+                <Grid x:Name="PageToolkit" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <DockPanel>
+                            <Button x:Name="ToolkitRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read the Toolkit lists and states again (read-only)."/>
+                            <TextBox x:Name="ToolkitSearchBox" DockPanel.Dock="Right" Width="220" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab."/>
+                            <TextBlock Style="{StaticResource TextTitle}" Text="Toolkit"/>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Inspired by Chris Titus Tech's WinUtil (MIT), re-implemented with documented sources: install apps with winget, turn Windows features on or off, run repair fixes after a preview, and open classic panels. Nothing is downloaded except the packages you pick. Feature changes write a snapshot first."/>
+                    </StackPanel>
+                    <TabControl x:Name="ToolkitTabs" Grid.Row="1" Margin="0,10,0,0" Background="Transparent" BorderThickness="0">
+                        <TabItem Header="Install" ToolTip="Curated winget packages: install, upgrade, uninstall, import and export a selection">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="ToolkitAppSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitAppDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select one or more apps (Ctrl or Shift to select several)."/>
+                                        <WrapPanel>
+                                            <Button x:Name="ToolkitAppStateButton" Content="Check installed" ToolTip="Read which packages are installed with one winget export (read-only)."/>
+                                            <Button x:Name="ToolkitInstallButton" Style="{StaticResource AccentButton}" Content="Install selected" ToolTip="Install the selected packages with winget. The first time, winget's agreements are shown for you to accept."/>
+                                            <Button x:Name="ToolkitUpgradeButton" Content="Upgrade selected" ToolTip="Upgrade the selected packages with winget."/>
+                                            <Button x:Name="ToolkitUninstallButton" Content="Uninstall selected" ToolTip="Uninstall the selected packages with winget."/>
+                                            <Button x:Name="ToolkitUpgradeAllButton" Content="Upgrade all" ToolTip="winget upgrade --all for packages from the winget source."/>
+                                            <Button x:Name="ToolkitImportButton" Content="Import list" ToolTip="Select the apps from a saved selection file (SHA256-checked)."/>
+                                            <Button x:Name="ToolkitExportButton" Content="Export selection" Margin="0" ToolTip="Save the selected apps to a selection file with a SHA256 integrity field."/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitAppList" SelectionMode="Extended" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Tweaks" ToolTip="WinUtil-derived catalog items; they also appear in their normal categories">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="ToolkitTweakSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitTweakDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select an item."/>
+                                        <Button x:Name="ToolkitTweakGoButton" Content="Open in its category" HorizontalAlignment="Left" Margin="0" ToolTip="Show this item on its category page, where you can stage, preview and apply it."/>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitTweakList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Features" ToolTip="Optional Windows features and capabilities (WSL, Hyper-V, Sandbox, .NET 3.5, OpenSSH)">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="ToolkitFeatureSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitFeatureDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a feature."/>
+                                        <WrapPanel>
+                                            <Button x:Name="ToolkitFeatureEnableButton" Content="Enable" ToolTip="Confirm, write a snapshot and enable this feature. Needs administrator rights."/>
+                                            <Button x:Name="ToolkitFeatureDisableButton" Content="Disable" Margin="0" ToolTip="Confirm, write a snapshot and disable this feature. Features other tools depend on are never disabled."/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitFeatureList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Fixes" ToolTip="Repair fixes; each shows every step before it runs">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="ToolkitFixSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Each fix shows its steps first. Fixes that need a restart create a restore point before they run."/>
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitFixDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a fix to see its steps."/>
+                                        <Button x:Name="ToolkitFixRunButton" Content="Run fix" HorizontalAlignment="Left" Margin="0" ToolTip="Shows the steps again for confirmation, then runs the fix and reports each step."/>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitFixList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Panels" ToolTip="Classic Windows tools and consoles">
+                            <DockPanel Margin="0,8,0,0">
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitPanelDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a panel."/>
+                                        <Button x:Name="ToolkitPanelOpenButton" Content="Open" HorizontalAlignment="Left" Margin="0" ToolTip="Open this Windows tool. Opening changes nothing by itself."/>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitPanelList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Updates" ToolTip="Windows Update deferrals, driver exclusion and active hours. There is no 'disable updates'.">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="ToolkitUpdateSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="iG Windows Tuner never disables Windows Update. Defer feature updates, keep your drivers, set active hours, or pause updates natively in Settings."/>
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ToolkitUpdateDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select an item."/>
+                                        <WrapPanel>
+                                            <Button x:Name="ToolkitUpdateGoButton" Content="Open in its category" ToolTip="Show this item on its category page, where you can stage, preview and apply it."/>
+                                            <Button x:Name="ToolkitUpdatePauseButton" Content="Pause updates in Settings" Margin="0" ToolTip="Open Settings > Windows Update, where updates can be paused natively."/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                <ListView x:Name="ToolkitUpdateList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
                             </DockPanel>
                         </TabItem>
                     </TabControl>

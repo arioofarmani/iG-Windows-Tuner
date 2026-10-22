@@ -305,6 +305,9 @@ function Invoke-IgwtApply {
     }
     if ($todo.Count -eq 0) {
         Write-IgwtLog -Message "$Operation`: nothing to change."
+        if ($Mode -eq 'on' -and $Operation -like 'Preset:*' -and -not $WhatIfPreference) {
+            try { Save-IgwtPresetRecord -Preset $Operation.Substring(7) -Id $Id } catch { Write-IgwtLog -Level Warn -Message "Preset record not saved: $($_.Exception.Message)" }
+        }
         return [pscustomobject]@{ Operation = $Operation; Snapshot = $null; RestorePoint = $null; Results = $results.ToArray(); Requires = 'none' }
     }
     if (-not $PSCmdlet.ShouldProcess("$($todo.Count) tweak(s): $(@($todo | ForEach-Object { $_.id }) -join ', ')", $Operation)) {
@@ -340,6 +343,10 @@ function Invoke-IgwtApply {
     $logoffIds = @($applied | Where-Object { $_.Requires -eq 'logoff' } | ForEach-Object { $_.Id })
     if ($rebootIds.Count -gt 0) { $requires = 'reboot' } elseif ($logoffIds.Count -gt 0) { $requires = 'logoff' }
     if ($requires -ne 'none' -and -not $script:IgwtSettings.TestMode) { Set-IgwtPendingRestartState -Requires $requires -TweakId (@($rebootIds) + @($logoffIds)) }
+    if ($Mode -eq 'on' -and $Operation -like 'Preset:*' -and @($results | Where-Object { $_.Result -eq 'Failed' }).Count -eq 0) {
+        # Drift report baseline: every item of the preset selection, not only the ones that changed.
+        try { Save-IgwtPresetRecord -Preset $Operation.Substring(7) -Id $Id -Snapshot $snap.Path } catch { Write-IgwtLog -Level Warn -Message "Preset record not saved: $($_.Exception.Message)" }
+    }
     Send-IgwtProgress -Text 'Done' -Percent 100 -Callback $OnProgress
     Write-IgwtLog -Message "$Operation finished: $($applied.Count) applied, $(@($results | Where-Object { $_.Result -eq 'Failed' }).Count) failed. Requires: $requires."
     return [pscustomobject]@{ Operation = $Operation; Snapshot = $snap.Path; RestorePoint = $rp; Results = $results.ToArray(); Requires = $requires }

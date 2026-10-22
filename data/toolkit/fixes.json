@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "fixes": [
+    {
+      "id": "fix.sfc",
+      "name": "System File Checker (sfc /scannow)",
+      "admin": true,
+      "reboot": false,
+      "minutes": 15,
+      "hint": "Scans protected Windows files and replaces corrupted ones from the component store. Takes 5-15 minutes.",
+      "description": "Runs sfc /scannow. If it reports files it could not repair, run the DISM RestoreHealth fix first and then this one again. The log is %SystemRoot%\\Logs\\CBS\\CBS.log.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/installing-updates-features-roles/system-file-checker",
+      "steps": [
+        { "kind": "run", "exe": "sfc.exe", "arguments": [ "/scannow" ], "unicodeOutput": true }
+      ]
+    },
+    {
+      "id": "fix.dism-restorehealth",
+      "name": "DISM RestoreHealth",
+      "admin": true,
+      "reboot": false,
+      "minutes": 30,
+      "hint": "Repairs the Windows component store from Windows Update so SFC can fix system files. Takes 10-30 minutes.",
+      "description": "Runs DISM /Online /Cleanup-Image /RestoreHealth, which compares the component store with Windows Update and repairs it. Needs an internet connection. Run System File Checker afterwards.",
+      "source": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/repair-a-windows-image",
+      "steps": [
+        { "kind": "run", "exe": "dism.exe", "arguments": [ "/Online", "/Cleanup-Image", "/RestoreHealth" ] }
+      ]
+    },
+    {
+      "id": "fix.chkdsk-scan",
+      "name": "Check disk online scan (chkdsk /scan)",
+      "admin": true,
+      "reboot": false,
+      "minutes": 10,
+      "hint": "Checks the system drive's file system while Windows runs. It reports problems and does not take the drive offline.",
+      "description": "Runs chkdsk C: /scan, the online scan that finds file-system errors without locking the drive. If it finds problems, Windows offers a spot fix (chkdsk /spotfix) at the next restart.",
+      "source": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/chkdsk",
+      "steps": [
+        { "kind": "run", "exe": "chkdsk.exe", "arguments": [ "{SystemDrive}", "/scan" ] }
+      ]
+    },
+    {
+      "id": "fix.windows-update-reset",
+      "name": "Reset Windows Update components",
+      "admin": true,
+      "reboot": true,
+      "minutes": 3,
+      "hint": "Stops the update services, renames the download cache and catroot2 folders, and starts the services again. Fixes stuck updates.",
+      "description": "Microsoft's documented manual reset: stops BITS, Windows Update and Cryptographic Services, renames SoftwareDistribution\\DataStore, SoftwareDistribution\\Download and System32\\catroot2 to *.igwt-<time> (nothing is deleted), then starts the services. The update history in Settings starts empty because it lives in DataStore. The ACL reset step of the article is not run. Restart afterwards and check for updates.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/additional-resources-for-windows-update",
+      "warning": "Update history shown in Settings is reset. Installed updates are not affected.",
+      "steps": [
+        { "kind": "service", "name": "bits", "operation": "stop" },
+        { "kind": "service", "name": "wuauserv", "operation": "stop" },
+        { "kind": "service", "name": "cryptsvc", "operation": "stop" },
+        { "kind": "renameFolder", "path": "{SystemRoot}\\SoftwareDistribution\\DataStore" },
+        { "kind": "renameFolder", "path": "{SystemRoot}\\SoftwareDistribution\\Download" },
+        { "kind": "renameFolder", "path": "{SystemRoot}\\System32\\catroot2" },
+        { "kind": "service", "name": "cryptsvc", "operation": "start" },
+        { "kind": "service", "name": "bits", "operation": "start" },
+        { "kind": "service", "name": "wuauserv", "operation": "start" }
+      ]
+    },
+    {
+      "id": "fix.network-reset",
+      "name": "Reset Winsock and TCP/IP",
+      "admin": true,
+      "reboot": true,
+      "minutes": 2,
+      "hint": "Resets the Winsock catalog and TCP/IP settings to defaults and flushes DNS. Last resort for broken connectivity; needs a restart.",
+      "description": "Runs netsh winsock reset, netsh int ip reset and ipconfig /flushdns. Static IP addresses, DNS servers and some VPN or firewall software settings may have to be configured again afterwards, so note them first. It is refused in a Remote Desktop session because it can cut the connection.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/reset-tcp-ip-net-shell",
+      "warning": "Static IP, DNS and VPN adapter settings may need to be set again. Restart required.",
+      "refuseInRdp": true,
+      "steps": [
+        { "kind": "run", "exe": "netsh.exe", "arguments": [ "winsock", "reset" ] },
+        { "kind": "run", "exe": "netsh.exe", "arguments": [ "int", "ip", "reset" ] },
+        { "kind": "run", "exe": "ipconfig.exe", "arguments": [ "/flushdns" ] }
+      ]
+    },
+    {
+      "id": "fix.winget-reregister",
+      "name": "Repair winget (re-register App Installer)",
+      "admin": false,
+      "reboot": false,
+      "minutes": 1,
+      "hint": "Re-registers the inbox App Installer package that provides winget when \"winget is not recognized\". Downloads nothing.",
+      "description": "Re-registers Microsoft.DesktopAppInstaller for your account from the copy already on the PC (Add-AppxPackage -RegisterByFamilyName, the method Microsoft documents for inbox apps). If App Installer is missing entirely, install it from the Microsoft Store.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/modern-inbox-store-apps-troubleshooting-guidance",
+      "steps": [
+        { "kind": "appxRegisterFamily", "family": "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" }
+      ]
+    },
+    {
+      "id": "fix.store-reset",
+      "name": "Reset the Microsoft Store cache (wsreset)",
+      "admin": false,
+      "reboot": false,
+      "minutes": 1,
+      "hint": "Clears the Microsoft Store cache when the Store does not open, download or update apps. Your apps and purchases stay.",
+      "description": "Runs wsreset.exe, Microsoft's Store cache reset. The Store opens when it finishes. Installed apps, purchases and sign-in are not affected.",
+      "source": "https://support.microsoft.com/en-us/account-billing/microsoft-store-doesn-t-open-126a875d-8b72-def1-0af6-d325276a058b",
+      "steps": [
+        { "kind": "run", "exe": "wsreset.exe", "arguments": [] }
+      ]
+    },
+    {
+      "id": "fix.start-reregister",
+      "name": "Repair Start and search",
+      "admin": false,
+      "reboot": false,
+      "minutes": 1,
+      "hint": "Re-registers the Start menu package and restarts the Windows Search service when Start or search does not open or find anything.",
+      "description": "Re-registers Microsoft.Windows.StartMenuExperienceHost for your account from its install folder and restarts the Windows Search (WSearch) service. Pinned items and the search index are kept.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/troubleshoot-start-menu-errors",
+      "steps": [
+        { "kind": "appxRegisterInstalled", "package": "Microsoft.Windows.StartMenuExperienceHost" },
+        { "kind": "service", "name": "WSearch", "operation": "restart" }
+      ]
+    },
+    {
+      "id": "fix.wmi-verify",
+      "name": "Verify the WMI repository",
+      "admin": true,
+      "reboot": false,
+      "minutes": 1,
+      "hint": "Checks the WMI repository for consistency and only reports. Broken WMI breaks system tools, inventories and some game launchers.",
+      "description": "Runs winmgmt /verifyrepository. \"WMI repository is consistent\" means nothing needs to be done. If it is inconsistent, use the salvage fix.",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/wmisdk/winmgmt",
+      "steps": [
+        { "kind": "run", "exe": "winmgmt.exe", "arguments": [ "/verifyrepository" ] }
+      ]
+    },
+    {
+      "id": "fix.wmi-salvage",
+      "name": "Salvage the WMI repository",
+      "admin": true,
+      "reboot": false,
+      "minutes": 2,
+      "hint": "Rebuilds an inconsistent WMI repository while keeping the data it can read. Use only after the verify fix reported a problem.",
+      "description": "Runs winmgmt /salvagerepository, Microsoft's documented consistency repair. It merges readable content into a new repository. Run the verify fix first; do not use it on a consistent repository.",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/wmisdk/winmgmt",
+      "steps": [
+        { "kind": "run", "exe": "winmgmt.exe", "arguments": [ "/salvagerepository" ] }
+      ]
+    },
+    {
+      "id": "fix.icon-cache-rebuild",
+      "name": "Rebuild icon and thumbnail caches",
+      "admin": false,
+      "reboot": false,
+      "minutes": 1,
+      "hint": "Fixes blank or wrong icons and thumbnails: Explorer restarts, the cache files are cleared and Windows rebuilds them.",
+      "description": "Closes Explorer, clears the iconcache_*.db and thumbcache_*.db files in %LocalAppData%\\Microsoft\\Windows\\Explorer through the cleaner's safe delete (rules clean.explorer-icon-cache and clean.thumbnail-cache), and starts Explorer again, following Microsoft's blank-icons article. Windows rebuilds both caches as you browse. Open Explorer windows close.",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/application-shortcuts-show-blank-icons",
+      "steps": [
+        { "kind": "explorer", "operation": "stop" },
+        { "kind": "cleanerRule", "rule": "clean.explorer-icon-cache" },
+        { "kind": "cleanerRule", "rule": "clean.thumbnail-cache" },
+        { "kind": "explorer", "operation": "start" }
+      ]
+    }
+  ]
+}

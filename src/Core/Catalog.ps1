@@ -140,15 +140,20 @@ function ConvertTo-IgwtNormalizedPreset {
 }
 
 function Get-IgwtPreset {
-    <# .SYNOPSIS Returns one preset (Competitive, Balanced, Hardened) or all presets. #>
+    <#
+    .SYNOPSIS Returns one preset (built-in or custom, by id or name) or all presets.
+    .PARAMETER Builtin
+        Only the built-in presets from data\presets (no custom presets).
+    #>
     [CmdletBinding()]
-    param([string]$Name)
+    param([string]$Name, [switch]$Builtin)
     $folder = Join-Path (Get-IgwtDataFolder) 'presets'
     $presets = foreach ($file in (Get-ChildItem -LiteralPath $folder -Filter '*.json' | Sort-Object Name)) {
         $doc = Read-IgwtJsonFile -Path $file.FullName
         ConvertTo-IgwtNormalizedPreset -Preset $doc -SourceFile $file.Name -SourceSchema (Get-IgwtFileSchemaVersion -Document $doc)
     }
-    $presets = @($presets | Sort-Object order)
+    if (-not $Builtin) { $presets = @($presets) + @(Get-IgwtCustomPresets) }
+    $presets = @($presets | Where-Object { $_ } | Sort-Object order, name)
     if ($Name) {
         $p = $presets | Where-Object { $_.id -eq $Name -or $_.name -eq $Name } | Select-Object -First 1
         if (-not $p) { throw "Unknown preset '$Name'." }
@@ -395,7 +400,8 @@ function Test-IgwtCatalog {
             switch ([string]$a.type) {
                 { $_ -in 'registry', 'adapterRegistry' } {
                     if (-not $a.path -or -not $a.name) { $errors.Add("${where}: registry actions need path and name.") }
-                    if ($a.type -eq 'registry' -and [string]$a.path -notmatch '^(HKLM|HKCU):\\') { $errors.Add("${where}: path must start with HKLM:\ or HKCU:\.") }
+                    if ($a.type -eq 'registry' -and [string]$a.path -notmatch '^(HKLM|HKCU):\\' -and [string]$a.path -notmatch '^HKU:\\\.DEFAULT\\') { $errors.Add("${where}: path must start with HKLM:\, HKCU:\ or HKU:\.DEFAULT\.") }
+                    if ($null -ne $a.bitSet -and $null -ne $a.bitClear) { $errors.Add("${where}: use either bitSet or bitClear, not both.") }
                     if ([string]$a.on -ne '<absent>' -and $script:IgwtRegistryKinds -notcontains [string]$a.valueType) { $errors.Add("${where}: valueType '$($a.valueType)' invalid.") }
                     if ($null -eq $a.PSObject.Properties['default']) { $errors.Add("${where}: missing 'default' (Windows default or <absent>), needed for Reset to default.") }
                     if ($null -eq $a.PSObject.Properties['on']) { $errors.Add("${where}: missing 'on'.") }
@@ -461,33 +467,13 @@ function Test-IgwtCatalog {
     }
     $rejectedIds = @($rejected | ForEach-Object { [string]$_.id })
 
-    foreach ($p in @(Get-IgwtPreset)) {
-        $presetId = [string]$p.id
-        $label = "preset ${presetId}"
-        Test-IgwtItemText -Item $p -Label $label -Errors $errors
+    foreach ($p in @(Get-IgwtPreset -Builtin)) {
         if ([int]$p.sourceSchema -lt $script:IgwtSchemaVersion) { $errors.Add("presets\$($p.sourceFile): schemaVersion $($p.sourceSchema); run tools\Convert-IgwtV1Data.ps1 to migrate it.") }
-        $ceiling = Get-IgwtLevelRank -Level ([string]$p.levelCeiling)
-        if ($ceiling -lt 0 -or [string]$p.levelCeiling -eq 'Lab') { $errors.Add("${label}: levelCeiling must be Standard, Advanced or Expert (Lab items are never in presets).") }
-        if ($script:IgwtAntiCheatPolicies -notcontains [string]$p.antiCheatPolicy) { $errors.Add("${label}: antiCheatPolicy must be safeOnly or any.") }
-        if ($p.gaming -and [string]$p.antiCheatPolicy -ne 'safeOnly') { $errors.Add("${label}: gaming presets must use antiCheatPolicy safeOnly.") }
-        foreach ($x in @($p.exclude | Where-Object { $_ })) {
-            if (-not $ids.ContainsKey([string]$x)) { $errors.Add("${label}: exclude lists unknown tweak '$x'.") }
-            if (@($p.include) -contains $x) { $errors.Add("${label}: '$x' is both included and excluded.") }
-        }
-        $members = @($p.include | Where-Object { $_ })
-        foreach ($m in $members) {
-            if (-not $ids.ContainsKey([string]$m)) { $errors.Add("${label}: unknown tweak '$m'."); continue }
-            $t = $ids[[string]$m]
-            if ($rejectedIds -contains [string]$m) { $errors.Add("${label}: contains rejected item '$m'.") }
-            if ([string]$t.evidence.tier -eq 'R') { $errors.Add("${label}: contains Risk Zone item '$m' (rejected tweaks are never in presets).") }
-            if ([string]$t.level -eq 'Lab') { $errors.Add("${label}: contains Lab item '$m' (Lab items are never in presets).") }
-            elseif ($ceiling -ge 0 -and (Get-IgwtLevelRank -Level ([string]$t.level)) -gt $ceiling) { $errors.Add("${label}: contains $($t.level) item '$m' above its level ceiling $($p.levelCeiling).") }
-            if ([string]$p.antiCheatPolicy -eq 'safeOnly' -and -not $t.antiCheatSafe) { $errors.Add("${label}: contains '$m', which is not anti-cheat safe.") }
-            foreach ($c in @($t.conflictsWith)) { if ($members -contains [string]$c) { $errors.Add("${label}: contains conflicting '$m' and '$c'.") } }
-            if ($presetId -eq 'balanced' -and [string]$t.evidence.tier -ne 'A') { $errors.Add("preset balanced: contains Tier B item '$m' (Balanced is Tier A only).") }
-        }
-        if (@($members | Select-Object -Unique).Count -ne $members.Count) { $errors.Add("${label}: duplicate entries.") }
+        Test-IgwtPresetDefinition -Preset $p -CatalogIndex $ids -RejectedIds $rejectedIds -Errors $errors
     }
+    $sessionPresets = @(Get-IgwtPreset -Builtin | Where-Object { $_.PSObject.Properties['session'] -and $_.session })
+    if ($sessionPresets.Count -gt 1) { $errors.Add('presets: only one Session Mode preset (session: true) is allowed.') }
+    if ($sessionPresets.Count -eq 0 -and @($catalog | Where-Object { [string]$_.group -eq 'Session Mode' }).Count) { $errors.Add('presets: the Session Mode items need the session preset (session: true).') }
 
     $tagIds = @{}
     $tagFile = Join-Path (Get-IgwtDataFolder) 'hardware\tags.json'
@@ -508,5 +494,6 @@ function Test-IgwtCatalog {
     foreach ($e in @(Test-IgwtPowerSettingCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtKernelInspectorCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtManageCatalog)) { $errors.Add([string]$e) }
+    foreach ($e in @(Test-IgwtToolkitCatalog)) { $errors.Add([string]$e) }
     return $errors.ToArray()
 }

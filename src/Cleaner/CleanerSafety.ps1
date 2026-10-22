@@ -240,8 +240,30 @@ function Test-IgwtCleanerRootAllowed {
     try {
         $di = New-Object System.IO.DirectoryInfo($Root)
         if ($di.Exists -and ((([long]$di.Attributes) -band $script:IgwtAttrReparse) -ne 0)) { return 'root is a reparse point (not followed)' }
+        if (-not (Test-IgwtCleanerRootChain -Root $Root)) { return 'a folder above the root is a reparse point (junction); not followed' }
     } catch { return 'root is not accessible' }
     return $null
+}
+
+function Test-IgwtCleanerRootChain {
+    <#
+    .SYNOPSIS
+        True when no existing folder from the drive root down to Root is a reparse point. A
+        junction above a rule root (for example another user's AppData\Local swapped for a
+        junction) would otherwise redirect deletions while every path still looks normal.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Root)
+    try {
+        $dir = [System.IO.Path]::GetDirectoryName(([string]$Root).TrimEnd('\'))
+        while ($dir -and $dir.Length -gt 3) {
+            $di = New-Object System.IO.DirectoryInfo($dir)
+            if ($di.Exists -and ((([long]$di.Attributes) -band $script:IgwtAttrReparse) -ne 0)) { return $false }
+            $dir = [System.IO.Path]::GetDirectoryName($dir)
+        }
+        return $true
+    } catch { return $false }
 }
 
 function Test-IgwtCleanerAttributesSkippable {
@@ -270,6 +292,7 @@ function Test-IgwtCleanerAncestry {
     try {
         $rootInfo = New-Object System.IO.DirectoryInfo($Root)
         if (-not $rootInfo.Exists -or (([long]$rootInfo.Attributes) -band $script:IgwtAttrReparse) -ne 0) { return $false }
+        if (-not (Test-IgwtCleanerRootChain -Root $Root)) { return $false }
         $dir = [System.IO.Path]::GetDirectoryName($Path)
         while ($dir -and (Test-IgwtPathUnder -Path $dir -Parent $Root -Strict)) {
             $di = New-Object System.IO.DirectoryInfo($dir)
@@ -289,6 +312,34 @@ function Get-IgwtCleanerFileAge {
     $newest = $Item.LastWriteTimeUtc
     if ($Item.CreationTimeUtc -gt $newest) { $newest = $Item.CreationTimeUtc }
     return ([DateTime]::UtcNow - $newest).TotalHours
+}
+
+function Get-IgwtRecycleRefusal {
+    <#
+    .SYNOPSIS
+        Reason why a file cannot be moved to the Recycle Bin, or $null. Windows deletes such files
+        permanently without asking (network and removable drives, a bin set to delete immediately,
+        files larger than the bin), so those files are skipped instead.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path, [long]$Bytes = 0)
+    if ($script:IgwtSettings.TestMode) { return $null }
+    try {
+        $drive = New-Object System.IO.DriveInfo([System.IO.Path]::GetPathRoot($Path))
+        if ([string]$drive.DriveType -ne 'Fixed') { return "the file is on a $($drive.DriveType) drive, which has no Recycle Bin" }
+        $letter = $drive.Name.TrimEnd('\')
+        $vol = @(Get-CimInstance -ClassName Win32_Volume -Filter "DriveLetter='$letter'" -ErrorAction Stop) | Select-Object -First 1
+        if (-not $vol) { return 'the Recycle Bin settings of this drive cannot be read' }
+        $guid = [regex]::Match([string]$vol.DeviceID, '\{[0-9A-Fa-f\-]+\}').Value
+        $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\BitBucket\Volume\$guid"
+        $cfg = $null
+        if ($guid) { $cfg = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue }
+        if ($cfg -and $null -ne $cfg.PSObject.Properties['NukeOnDelete'] -and [int]$cfg.NukeOnDelete -eq 1) { return 'the Recycle Bin of this drive is set to delete files immediately' }
+        $maxBytes = [long]($drive.TotalSize * 0.05)
+        if ($cfg -and $null -ne $cfg.PSObject.Properties['MaxCapacity']) { $maxBytes = [long]$cfg.MaxCapacity * 1MB }
+        if ($Bytes -ge $maxBytes) { return 'the file is larger than this drive''s Recycle Bin' }
+        return $null
+    } catch { return "the Recycle Bin cannot be checked ($($_.Exception.Message))" }
 }
 
 function Send-IgwtToRecycleBin {
@@ -335,6 +386,8 @@ function Remove-IgwtCleanerFile {
     if (-not $PSCmdlet.ShouldProcess($path, 'Delete file')) { return (& $out 'Skipped' 'WhatIf') }
     try {
         if ($Rule.recycle) {
+            $why = Get-IgwtRecycleRefusal -Path $path -Bytes ([long]$fi.Length)
+            if ($why) { return (& $out 'Skipped' "not deleted: $why") }
             Send-IgwtToRecycleBin -Path $path
         } else {
             if (($fi.Attributes -band [System.IO.FileAttributes]::ReadOnly) -ne 0) {
@@ -359,6 +412,7 @@ function Remove-IgwtCleanerEmptyDirectory {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Root, $Rule)
     try { $p = ConvertTo-IgwtCanonicalPath -Path $Path; $r = ConvertTo-IgwtCanonicalPath -Path $Root } catch { return $false }
     if (-not (Test-IgwtPathUnder -Path $p -Parent $r -Strict)) { return $false }
+    if ($Rule -and $null -ne $Rule.PSObject.Properties['ResolvedRoots'] -and @($Rule.ResolvedRoots | Where-Object { [string]::Equals((ConvertTo-IgwtCanonicalPath -Path ([string]$_)), $r, [System.StringComparison]::OrdinalIgnoreCase) }).Count -eq 0) { return $false }
     if ($script:IgwtSettings.TestMode -and (-not $script:IgwtCleanerTestRoot -or -not (Test-IgwtPathUnder -Path $p -Parent $script:IgwtCleanerTestRoot -Strict))) { return $false }
     if (Test-IgwtCleanerPathProtected -Path $p -AllowDownloads:([bool]$Rule.allowDownloads)) { return $false }
     $di = New-Object System.IO.DirectoryInfo($p)

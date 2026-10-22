@@ -3,6 +3,7 @@
   "id": "hardened",
   "name": "Hardened",
   "order": 3,
+  "code": "H",
   "tagline": "Maximum security, still anti-cheat compatible",
   "hint": "Balanced plus stronger security: ASR rules on Block, DNS over HTTPS and extra hardening. Still anti-cheat compatible.",
   "description": "Balanced plus encrypted DNS (Quad9), AI features off, Office/Adobe ASR rules in Block mode (instead of Audit), Controlled Folder Access in Audit mode, UAC always notify, NetBIOS off, Remote Desktop/Assistance off, PowerShell script block logging and the unused Wi-Fi adapter off. VBS, HVCI, TPM and Secure Boot stay exactly as competitive anti-cheat requires.",

@@ -365,7 +365,7 @@ Describe 'Expert and System catalog items' {
             $t.antiCheat | Should -Be 'safe' -Because $id
             $t.reversible | Should -Be 'full' -Because $id
         }
-        @($script:Cat | Where-Object { $_.category -eq 'System' }).Count | Should -Be 4
+        @($script:Cat | Where-Object { $_.category -eq 'System' }).Count | Should -Be 14   # 4 from 2.0, 8 WinUtil-derived and 2 Session Mode items (3.0 phase 1)
     }
     It 'never disables the page file and only unhides power settings' {
         $pf = @($script:Cat | Where-Object { $_.id -eq 'system.pagefile-auto' })[0]

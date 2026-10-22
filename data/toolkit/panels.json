@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "panels": [
+    {
+      "id": "panel.control",
+      "name": "Control Panel",
+      "launch": "exe",
+      "target": "control.exe",
+      "hint": "The classic Control Panel.",
+      "description": "Opens the classic Control Panel home with every legacy applet."
+    },
+    {
+      "id": "panel.network-connections",
+      "name": "Network Connections",
+      "launch": "cpl",
+      "target": "ncpa.cpl",
+      "hint": "Adapters, their properties, IP settings and protocol bindings.",
+      "description": "Opens the classic Network Connections folder (adapter properties, IPv4/IPv6 settings, enable/disable)."
+    },
+    {
+      "id": "panel.power",
+      "name": "Power Options",
+      "launch": "cpl",
+      "target": "powercfg.cpl",
+      "hint": "Power plans and their advanced settings.",
+      "description": "Opens the classic power plan selector. iG Windows Tuner's power plan editor shows hidden processor settings too."
+    },
+    {
+      "id": "panel.sound",
+      "name": "Sound",
+      "launch": "cpl",
+      "target": "mmsys.cpl",
+      "hint": "Playback and recording devices, formats and exclusive mode.",
+      "description": "Opens the classic Sound dialog: default devices, sample rate and bit depth, exclusive mode and communications ducking."
+    },
+    {
+      "id": "panel.mouse",
+      "name": "Mouse properties",
+      "launch": "cpl",
+      "target": "main.cpl",
+      "hint": "Buttons, pointer speed and Enhance pointer precision.",
+      "description": "Opens the classic Mouse Properties dialog."
+    },
+    {
+      "id": "panel.system",
+      "name": "System Properties",
+      "launch": "cpl",
+      "target": "sysdm.cpl",
+      "hint": "Computer name, performance options, page file, System Protection and environment variables.",
+      "description": "Opens System Properties (advanced settings, System Protection and restore points, startup and recovery)."
+    },
+    {
+      "id": "panel.region",
+      "name": "Region",
+      "launch": "cpl",
+      "target": "intl.cpl",
+      "hint": "Formats, location and the system locale for non-Unicode programs.",
+      "description": "Opens the classic Region dialog (formats, home location, administrative language settings)."
+    },
+    {
+      "id": "panel.datetime",
+      "name": "Date and Time",
+      "launch": "cpl",
+      "target": "timedate.cpl",
+      "hint": "Time zone, additional clocks and internet time sync.",
+      "description": "Opens the classic Date and Time dialog with time zone, extra clocks and internet time."
+    },
+    {
+      "id": "panel.programs",
+      "name": "Programs and Features",
+      "launch": "cpl",
+      "target": "appwiz.cpl",
+      "hint": "Uninstall desktop programs and turn Windows features on or off.",
+      "description": "Opens the classic Programs and Features list."
+    },
+    {
+      "id": "panel.firewall",
+      "name": "Windows Defender Firewall",
+      "launch": "cpl",
+      "target": "firewall.cpl",
+      "hint": "Firewall status per network profile and allowed apps.",
+      "description": "Opens the classic Windows Defender Firewall page."
+    },
+    {
+      "id": "panel.security-maintenance",
+      "name": "Security and Maintenance",
+      "launch": "cpl",
+      "target": "wscui.cpl",
+      "hint": "Security and maintenance messages, reliability and problem reports.",
+      "description": "Opens Security and Maintenance with security messages, maintenance status and problem reports."
+    },
+    {
+      "id": "panel.user-accounts",
+      "name": "User Accounts (netplwiz)",
+      "launch": "exe",
+      "target": "netplwiz.exe",
+      "hint": "Advanced user account management, including the sign-in requirement.",
+      "description": "Opens the advanced User Accounts dialog. Turning off \"Users must enter a user name and password\" weakens security; iG Windows Tuner does not automate sign-in."
+    },
+    {
+      "id": "panel.device-manager",
+      "name": "Device Manager",
+      "launch": "msc",
+      "target": "devmgmt.msc",
+      "hint": "Devices, drivers, driver versions and device power management.",
+      "description": "Opens Device Manager to check drivers, driver versions and device power settings."
+    },
+    {
+      "id": "panel.services",
+      "name": "Services",
+      "launch": "msc",
+      "target": "services.msc",
+      "hint": "Windows services and their startup types.",
+      "description": "Opens the Services console. iG Windows Tuner's Manage > Services page adds safe-to-change ratings and snapshots."
+    },
+    {
+      "id": "panel.event-viewer",
+      "name": "Event Viewer",
+      "launch": "msc",
+      "target": "eventvwr.msc",
+      "hint": "Windows, application and security event logs.",
+      "description": "Opens Event Viewer with the Windows, application, security and Defender logs."
+    },
+    {
+      "id": "panel.disk-management",
+      "name": "Disk Management",
+      "launch": "msc",
+      "target": "diskmgmt.msc",
+      "hint": "Partitions, volumes and drive letters.",
+      "description": "Opens Disk Management. Changes here can destroy data; read each dialog carefully."
+    },
+    {
+      "id": "panel.computer-management",
+      "name": "Computer Management",
+      "launch": "msc",
+      "target": "compmgmt.msc",
+      "hint": "Local users and groups, shared folders, storage and services in one console.",
+      "description": "Opens Computer Management (users and groups, shares, storage, services and logs)."
+    },
+    {
+      "id": "panel.gpedit",
+      "name": "Local Group Policy Editor",
+      "launch": "msc",
+      "target": "gpedit.msc",
+      "hint": "Local Group Policy. Not available on Windows Home.",
+      "description": "Opens the Local Group Policy Editor. Policies set here override the matching iG Windows Tuner items, which then show \"Managed by policy\"."
+    },
+    {
+      "id": "panel.firewall-advanced",
+      "name": "Windows Firewall with Advanced Security",
+      "launch": "msc",
+      "target": "wf.msc",
+      "hint": "Inbound and outbound rules, connection security and monitoring.",
+      "description": "Opens the advanced firewall console with every inbound and outbound rule and its logging settings."
+    },
+    {
+      "id": "panel.task-scheduler",
+      "name": "Task Scheduler",
+      "launch": "msc",
+      "target": "taskschd.msc",
+      "hint": "Scheduled tasks and their history.",
+      "description": "Opens Task Scheduler with every scheduled task, its triggers and its run history."
+    },
+    {
+      "id": "panel.resource-monitor",
+      "name": "Resource Monitor",
+      "launch": "exe",
+      "target": "resmon.exe",
+      "hint": "Live CPU, memory, disk and network use per process.",
+      "description": "Opens Resource Monitor to see which process uses CPU, memory, disk or network right now."
+    },
+    {
+      "id": "panel.reliability-monitor",
+      "name": "Reliability Monitor",
+      "launch": "exe",
+      "target": "perfmon.exe /rel",
+      "hint": "Crash and failure history by day.",
+      "description": "Opens Reliability Monitor. iG Windows Tuner's diagnostics read the same history."
+    },
+    {
+      "id": "panel.msinfo32",
+      "name": "System Information",
+      "launch": "exe",
+      "target": "msinfo32.exe",
+      "hint": "Hardware resources, components, drivers and the VBS status.",
+      "description": "Opens System Information (msinfo32): hardware, drivers, BIOS mode and the VBS status."
+    },
+    {
+      "id": "panel.system-restore",
+      "name": "System Restore",
+      "launch": "exe",
+      "target": "rstrui.exe",
+      "hint": "Roll Windows back to a restore point.",
+      "description": "Opens the System Restore wizard. iG Windows Tuner creates a restore point before every apply."
+    },
+    {
+      "id": "panel.windows-update",
+      "name": "Windows Update settings",
+      "launch": "uri",
+      "target": "ms-settings:windowsupdate",
+      "hint": "Check for updates, pause updates and see update history.",
+      "description": "Opens Settings > Windows Update, where you can pause updates natively (iG Windows Tuner never disables updates)."
+    }
+  ]
+}

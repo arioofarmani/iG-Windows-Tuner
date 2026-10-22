@@ -21,11 +21,33 @@ function Get-IgwtFirewallGroupRules {
     return $rules
 }
 
+function Get-IgwtOwnedFirewallRule {
+    <#
+    .SYNOPSIS
+        Returns the iG Windows Tuner-owned firewall rule with this name, or $null.
+    .DESCRIPTION
+        State detection reads all owned rules with one wildcard query (cached for 60 seconds and
+        cleared by New-IgwtContext and every apply or restore) instead of one query per rule.
+        -Fresh, and TestMode, query the rule directly.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name, [switch]$Fresh)
+    if (-not $Fresh -and -not $script:IgwtSettings.TestMode -and $Name.StartsWith('iGWindowsTuner-')) {
+        $index = Get-IgwtCached -Key 'fw:owned' -TtlSeconds 60 -ScriptBlock {
+            $all = @{}
+            foreach ($r in @(Get-NetFirewallRule -Name 'iGWindowsTuner-*' -ErrorAction SilentlyContinue)) { if ($r) { $all[[string]$r.Name] = $r } }
+            $all
+        }
+        return $index[$Name]
+    }
+    return (Get-NetFirewallRule -Name $Name -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
 function Get-IgwtFirewallRuleState {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Action, $Context)
     if (Test-IgwtOwnedFirewallAction -Action $Action) {
-        $r = Get-NetFirewallRule -Name ([string]$Action.rule) -ErrorAction SilentlyContinue | Select-Object -First 1
+        $r = Get-IgwtOwnedFirewallRule -Name ([string]$Action.rule)
         $label = "Firewall rule $($Action.rule) ($($Action.direction) $($Action.action))"
         if (-not $r) { return [pscustomobject]@{ Target = $label; Current = 'not present'; Desired = 'present and enabled'; State = 'Off'; Note = '' } }
         $ok = ([string]$r.Enabled -eq 'True' -and [string]$r.Action -eq [string]$Action.action -and [string]$r.Direction -eq [string]$Action.direction)
@@ -52,6 +74,7 @@ function Invoke-IgwtFirewallRuleApply {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, $Context, [ValidateSet('on', 'default')][string]$Mode = 'on')
     if (Test-IgwtOwnedFirewallAction -Action $Action) {
+        Clear-IgwtCache -Prefix 'fw:' -WhatIf:$false
         $name = [string]$Action.rule
         if (-not $name.StartsWith('iGWindowsTuner-')) { throw "iG Windows Tuner only manages its own firewall rules (names starting with 'iGWindowsTuner-')." }
         $r = Get-NetFirewallRule -Name $name -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -86,6 +109,7 @@ function Restore-IgwtFirewallRuleSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     if (Test-IgwtOwnedFirewallAction -Action $Action) {
+        Clear-IgwtCache -Prefix 'fw:' -WhatIf:$false
         $name = [string]$Action.rule
         $r = Get-NetFirewallRule -Name $name -ErrorAction SilentlyContinue | Select-Object -First 1
         if (-not $Snapshot.existed) {

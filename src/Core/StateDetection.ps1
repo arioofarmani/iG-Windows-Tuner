@@ -68,6 +68,11 @@ function Test-IgwtTweakApplicable {
     if ($null -ne $a.PSObject.Properties['maxBuild'] -and $a.maxBuild -and [int]$Context.Build -gt [int]$a.maxBuild) {
         return [pscustomobject]@{ Applicable = $false; Reason = "Not honored on builds newer than $($a.maxBuild)." }
     }
+    $editions = @($a.editions | Where-Object { $_ })
+    if ($editions.Count -gt 0 -and -not (Test-IgwtEditionSupported -Editions $editions -EditionId ([string]$Context.EditionId))) {
+        # Blocked: an already written value still shows its state so it can be removed.
+        return [pscustomobject]@{ Applicable = $false; Reason = "Not effective on this edition ($(Get-IgwtEditionFamily -EditionId ([string]$Context.EditionId))): Windows honors it only on $($editions -join ', ')."; Blocked = $true }
+    }
     $conds = @($a.conditions | Where-Object { $_ })
     if ($conds -contains 'multipleGpus' -and [int]$Context.GpuCount -lt 2) { return [pscustomobject]@{ Applicable = $false; Reason = 'Only one GPU is active (enable the iGPU in BIOS for this to matter).' } }
     if ($conds -contains 'wiredAdapter' -and @($Context.WiredAdapters).Count -lt 1) { return [pscustomobject]@{ Applicable = $false; Reason = 'No active wired network adapter.' } }

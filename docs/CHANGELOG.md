@@ -1,5 +1,41 @@
 # Changelog
 
+## 2.3.0 (v2 final)
+
+Completes the 2.x scope before 3.0 (audit: `docs\V3_STARTING_AUDIT.md`).
+
+### Presets 2.0
+
+- Seven new presets: **Streamer & Creator**, **Engineer Workstation**, **Laptop Gamer**, **Privacy Max**, **Clean Install / Debloat**, **Fortress** and **Session Mode** (ten in total, each with a one-letter code and guidance shown in dry runs).
+- **Custom presets**: start from any preset, add or remove items (GUI builder, `-SavePreset -BasedOn -AddItem -RemoveItem`), duplicate, export and import as JSON with a SHA256 integrity field, delete. The built-in preset rules apply to them; changed files are skipped.
+- **Drift report** (`-Drift`, Presets page banner): which items changed since the last applied preset; re-apply or adopt the current state as a custom preset (`-AdoptDrift`).
+- **Session Mode** (`-Session Start|Stop|Status`, Presets page): notifications off, search indexing paused and the highest power plan the hardware allows, with a snapshot; ends with the session or when the app closes, and a stale session after a crash or restart is offered for restore. Listed background apps are closed only after confirmation.
+
+### Toolkit (inspired by WinUtil)
+
+- New **Toolkit** page and CLI (`-Toolkit Apps|Features|Fixes|Panels|Tweaks|Updates`): 92 curated winget packages (install, upgrade, uninstall, upgrade all, import/export of a selection with SHA256; winget's agreements are shown before the first install), Windows features and capabilities (WSL, Hyper-V, Sandbox, .NET 3.5, DirectPlay, NFS client, OpenSSH), 11 previewed fixes (SFC, DISM, chkdsk, Windows Update reset, network reset, winget, Store, Start and search, WMI, icon cache), 25 panel launchers and the Windows Update options.
+- `docs\WINUTIL_MAPPING.md` maps every WinUtil item (commit d32efeb) to adopt, adapt, covered or reject; `THIRD_PARTY_NOTICES.md`.
+- 23 new catalog items (127 in total), including the WinUtil-derived classic context menu, End task, file extensions, hidden files, Home/Gallery off, dark mode, long paths, Num Lock, activity history, location, consumer experiences, Bing in Start, device metadata, PowerShell telemetry, 365-day feature deferral, Teredo off and prefer IPv4, plus Edge and Microsoft 365 Apps privacy policies, consumer inbox app removal, the Safe Mode ASR rule and the two Session Mode items.
+
+### Engine
+
+- State scan: scheduled tasks and iG Windows Tuner firewall rules are read with one query each per scan (cached, invalidated on every write); warm rescans take about 4 s instead of 10-15 s.
+- Edition gating: items honored only on some editions show "not effective on this edition".
+- Registry actions: `bitSet`, the key default value (`(default)`) and `HKU:\.DEFAULT` (sign-in screen).
+- Protected features can be enabled but never disabled.
+
+### Independent review
+
+- `docs\REVIEW.md`: 3 High, 6 Medium and 8 Low findings; all High and Medium fixed with regression tests (`tests\Review.Tests.ps1`). Recycle Bin rules run first and never purge what another rule just recycled; files that cannot be recycled are skipped instead of deleted; the bin is emptied only when it did not grow since the scan; junctions above a cleaner root are refused; the GUI applies Expert, Lab and Risk Zone items only after their dialog; custom presets are re-validated on load; Session Mode records the session before anything changes; insecure legacy features (SMBv1, PowerShell 2.0, Telnet) are never enabled and more security services are protected.
+- **The VBS/HVCI-off expert toggle is retired**: it can no longer be applied and stays only so an earlier change can be reverted.
+
+### Quality
+
+- Sandbox runner: presets on the VM fixture, Session Mode, the cleaner scan/clean/verify cycle and custom presets.
+- Docs: `docs\CLI.md` (generated from the help), `docs\EXPERT_LAB.md`, `docs\WINUTIL_MAPPING.md`, `docs\REVIEW.md`.
+- Tests: `Toolkit.Tests.ps1`, `Presets.Tests.ps1`; the safety tests allow the Toolkit's fix programs and panel launchers only in its allow-lists and `netsh` resets only in the network-reset fix.
+
+
 ## 2.2.0 (preview)
 
 ### Network Test

@@ -262,6 +262,25 @@ function Get-IgwtGuiManageData {
     }
 }
 
+function Get-IgwtGuiToolkitData {
+    <#
+    .SYNOPSIS
+        (worker) Read-only data for the Toolkit page: apps, features with their state, fixes and
+        panels. -WithAppState adds the installed packages (one winget export).
+    #>
+    [CmdletBinding()]
+    param([switch]$WithAppState)
+    $part = { param($block) try { & $block } catch { [pscustomobject]@{ Error = $_.Exception.Message } } }
+    [pscustomobject]@{
+        Apps     = & $part { @(Get-IgwtToolkitApps -WithState:$WithAppState) }
+        AppState = [bool]$WithAppState
+        Consent  = (Test-IgwtWingetConsent)
+        Features = & $part { @(Get-IgwtToolkitFeatures -WithState) }
+        Fixes    = & $part { @(Get-IgwtToolkitFixes) }
+        Panels   = & $part { @(Get-IgwtToolkitPanels) }
+    }
+}
+
 function Get-IgwtGuiDiagnosticsData {
     <# .SYNOPSIS (worker) Read-only data for the Diagnostics page: diagnostics, Windows Update status and adapter properties. #>
     [CmdletBinding()]

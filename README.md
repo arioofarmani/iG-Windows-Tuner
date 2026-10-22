@@ -2,9 +2,9 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Version](https://img.shields.io/badge/version-2.2-0078D4)
+![Version](https://img.shields.io/badge/version-2.3-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-553%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-619%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
@@ -24,14 +24,15 @@ iG Windows Tuner takes the opposite approach:
 
 | Area | Highlights |
 |---|---|
-| **Presets** | Competitive, Balanced and Hardened, adjusted automatically to your hardware (hybrid Intel CPUs, AMD X3D, laptops, VMs and more). |
-| **Tweak catalog** | 85 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
+| **Presets** | Ten presets (Competitive, Balanced, Hardened, Streamer & Creator, Engineer Workstation, Laptop Gamer, Privacy Max, Clean Install / Debloat, Fortress and a temporary Session Mode for match days), adjusted automatically to your hardware. Build your own custom presets, export and import them with an integrity check, and see what drifted since you applied one. |
+| **Tweak catalog** | 127 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
 | **Health report** | Read-only checks of firmware, microcode, Secure Boot, VBS/HVCI, GPU (Resizable BAR, refresh rate), network adapter, storage and an anti-cheat readiness score. HTML export. |
 | **ASR Center** | All 19 Microsoft Defender attack surface reduction rules with modes, gamer-impact notes, per-rule exclusions and an audit view of what each rule blocked. |
 | **Security score** | 25 weighted checks, each with the exact fix, plus a local accounts audit and a listening-ports report. |
 | **Expert inspectors** | Power plan (hidden processor settings included), interrupts and MSI mode, network queues, kernel and memory values, timer, crash dumps, all next to their Windows defaults. |
 | **Cleaner** | Allow-list rules for temp files, caches and logs with a scan that deletes nothing, plus a disk analyzer and Storage Sense policies. |
 | **Manage** | Services with a safe-to-change rating, scheduled tasks, apps, an Autoruns-style persistence inspector with signature checks, and a firewall rule browser. |
+| **Toolkit** | Inspired by WinUtil and re-implemented with documented sources: a curated winget app installer, Windows features (WSL, Hyper-V, Sandbox, .NET 3.5), previewed repair fixes (SFC, DISM, Windows Update and network reset), classic panels and Windows Update deferrals. |
 | **Diagnostics** | DPC/ISR time, reliability history, crashes and minidumps, boot performance, driver inventory, Windows Update status, DNS benchmark, latency and jitter test, and a full system report. |
 
 The WPF interface follows the Windows 11 design language and starts **read-only**. It asks for administrator rights through the normal UAC prompt only when you choose to apply something.
@@ -77,7 +78,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 
 - **Data-driven.** The catalog lives in `data\*.json` (schema v2). The engine dispatches typed actions (registry, service, power plan, firewall, QoS, scheduled task, and more), and each action type implements detect, snapshot, apply and restore.
 - **Plain PowerShell.** It is readable, modular and has comment-based help on every function. It uses one documented P/Invoke (`SystemParametersInfo`) and no compiled binaries.
-- **Tested.** 553 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
+- **Tested.** 619 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
 - **Safe end-to-end testing.** `tools\New-SandboxConfig.ps1` generates a Windows Sandbox configuration that runs a full apply and revert cycle in a disposable VM.
 
 ## Documentation
@@ -91,13 +92,15 @@ These rules are enforced by a static safety test suite that runs against the sou
 | [docs/ANTICHEAT.md](docs/ANTICHEAT.md) | Anti-cheat requirements and compatibility |
 | [docs/SECURITY.md](docs/SECURITY.md) | Engineering and safety rules |
 | [docs/ASR_CENTER.md](docs/ASR_CENTER.md), [docs/INSPECTORS.md](docs/INSPECTORS.md), [docs/HARDWARE.md](docs/HARDWARE.md), [docs/CLEANER.md](docs/CLEANER.md) | Module references |
+| [docs/CLI.md](docs/CLI.md), [docs/EXPERT_LAB.md](docs/EXPERT_LAB.md) | Command-line reference; levels, gates and expert controls |
+| [docs/WINUTIL_MAPPING.md](docs/WINUTIL_MAPPING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | How each WinUtil item was adopted, adapted or rejected; credits |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions and their reasons |
 | [docs/TESTING.md](docs/TESTING.md) | Test suite, Sandbox test and measurement plan |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release notes |
 
 ## Project status
 
-This is version **2.2** (preview). The engine, catalog, hardware profiles, cleaner, ASR Center, security modules, expert inspectors, management and diagnostic modules, the network test and the Risk Zone are complete and covered by tests. Still planned: a curated toolkit section, custom presets with drift detection, a GUI command palette and timeline, and the full end-to-end Sandbox verification before a stable release.
+This is version **2.3** (the final 2.x release, preview). Everything planned for 2.x is complete and covered by tests. Version 3.0 is in progress: a Group Policy engine, a Defender & Security Control Center, a network analyzer and optimizer, and automation for system administrators.
 
 Run the read-only commands and `-DryRun` first, and review what a change does before you apply it.
 

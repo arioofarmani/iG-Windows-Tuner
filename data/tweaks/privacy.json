@@ -645,6 +645,420 @@
       "actions": [
         { "type": "wufbPolicy", "setting": "featureDeferralDays", "value": 90 }
       ]
+    },
+    {
+      "id": "privacy.activity-history-off",
+      "name": "Activity history off",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 60,
+      "level": "Standard",
+      "hint": "Windows stops recording and uploading the apps, files and sites you use (activity history), using the documented policies.",
+      "description": "Sets the Group Policy values PublishUserActivities and UploadUserActivities to 0. Windows no longer stores your activity history locally or sends it to Microsoft. Nothing in Windows 11 depends on the history for gaming or productivity. Turning it off removes both policies. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-privacy",
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services"
+        ],
+        "notes": "ADMX OSPolicy.admx (PublishUserActivities, UploadUserActivities). Windows default: not configured."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Activity History - Disable'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "PublishUserActivities",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "UploadUserActivities",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.location-off",
+      "name": "Location services off",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 61,
+      "level": "Advanced",
+      "hint": "Turns off Windows location for every app and service with the documented policy. Breaks Find my device, auto time zone and local weather.",
+      "description": "Sets the \"Turn off location\" policy (DisableLocation = 1). No app or Windows feature can read the PC location. Find my device, setting the time zone automatically, maps and local weather or news stop working, which is why this is Advanced and adapted from WinUtil (which also disabled the geolocation service; the policy alone is enough). Turning it off removes the policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-system",
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services"
+        ],
+        "notes": "ADMX Sensors.admx DisableLocation (machine). Windows default: not configured."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "medium",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Find my device, automatic time zone, Maps and location-based weather, news and search results stop working.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Location Tracking - Disable' (adapted to the documented policy)",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\LocationAndSensors",
+          "name": "DisableLocation",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.consumer-features-off",
+      "name": "Microsoft consumer experiences off",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 62,
+      "level": "Standard",
+      "hint": "Stops Windows from installing suggested third-party apps and showing Microsoft account promotions. Honored on Enterprise and Education only.",
+      "description": "Sets the \"Turn off Microsoft consumer experiences\" policy (DisableWindowsConsumerFeatures = 1). Windows then stops auto-installing promoted Store apps and games and stops account-related promotions. Microsoft honors this policy only on Enterprise and Education; on Pro and Home it is shown as not applicable, and the ads and suggestions item covers the per-user part. Turning it off removes the policy. Derived from WinUtil.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience" ],
+        "notes": "ADMX CloudContent.admx. Policy CSP Experience/AllowWindowsConsumerFeatures lists Enterprise and Education only."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100, "editions": [ "Enterprise", "Education" ] },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'ConsumerFeatures - Disable'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+          "name": "DisableWindowsConsumerFeatures",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.bing-search-off",
+      "name": "Bing web results in Start search off",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 63,
+      "level": "Standard",
+      "hint": "Start menu search shows only local apps, files and settings, and stops sending what you type to Bing.",
+      "description": "Sets BingSearchEnabled = 0 for your account, so Windows Search no longer queries Bing as you type in Start. Local results are unchanged and usually appear faster. Microsoft does not document the value (it is Tier B); the documented web-search policies are not honored on every Windows 11 edition. Nothing to measure: it is a privacy preference. Turning it off removes the value. Derived from WinUtil.",
+      "evidence": {
+        "tier": "B",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services",
+          "https://github.com/ChrisTitusTech/winutil"
+        ],
+        "notes": "Undocumented per-user value; Windows default: absent (web results on). Nothing to measure: privacy preference."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, toggle 'Start Menu Bing Search'",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Search",
+          "name": "BingSearchEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>",
+          "absentValue": 1
+        }
+      ]
+    },
+    {
+      "id": "privacy.device-metadata-off",
+      "name": "No automatic device metadata and companion apps",
+      "category": "Background & Privacy",
+      "group": "Apps",
+      "order": 64,
+      "level": "Standard",
+      "hint": "Windows stops downloading device metadata and the vendor companion apps that come with it when you plug in a mouse, headset or keyboard.",
+      "description": "Sets the documented \"Prevent device metadata retrieval from the Internet\" policy. Plugging in a peripheral no longer pulls vendor software (for example a mouse or RGB suite) through Windows Update; drivers still install, and you can install vendor software yourself. This replaces WinUtil's folder-permission blocks for Razer and Logitech installers with the supported policy. Turning it off removes the policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/overview-of-device-metadata-packages",
+          "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services"
+        ],
+        "notes": "ADMX DeviceSetup.admx DeviceMetadata_PreventDeviceMetadataFromNetwork. Windows default: not configured."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Prevent Device Companion Apps' (also replaces 'Razer/Logitech Software Auto-Install - Disable')",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata",
+          "name": "PreventDeviceMetadataFromNetwork",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.powershell-telemetry-off",
+      "name": "PowerShell 7 telemetry off",
+      "category": "Background & Privacy",
+      "group": "Telemetry",
+      "order": 65,
+      "level": "Standard",
+      "hint": "Sets POWERSHELL_TELEMETRY_OPTOUT=1 for the whole PC, the documented opt-out for PowerShell 7 usage data. Windows PowerShell 5.1 sends none.",
+      "description": "Adds the machine environment variable POWERSHELL_TELEMETRY_OPTOUT with value 1, which PowerShell 7 checks at start-up before sending its anonymous start-up telemetry. Windows PowerShell 5.1 is not affected. New PowerShell sessions pick it up after you sign out or restart. Turning it off removes the variable. Derived from WinUtil's telemetry tweak (the only part of it that is not already covered).",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_telemetry" ],
+        "notes": "Windows default: variable not set."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "logoff",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, tweak 'Telemetry - Disable' (PowerShell part)",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+          "name": "POWERSHELL_TELEMETRY_OPTOUT",
+          "valueType": "String",
+          "on": "1",
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.defer-feature-365",
+      "name": "Defer feature updates by 365 days",
+      "category": "Background & Privacy",
+      "group": "Windows Update",
+      "order": 51,
+      "level": "Advanced",
+      "hint": "New Windows versions arrive a year after release (the maximum). Monthly security updates keep installing on time.",
+      "description": "Sets the Windows Update for Business policy DeferFeatureUpdatesPeriodInDays to 365, the security-focused option WinUtil also offers. You keep a supported version longer and skip early feature-update issues; monthly quality updates are not deferred. Check that the version you are on stays in support. Turning it off removes the policy.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/deployment/update/waas-configure-wufb",
+          "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update"
+        ],
+        "notes": "Supported on Pro, Enterprise and Education."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, Updates 'Security Settings' (feature deferral)",
+      "conflictsWith": [ "privacy.defer-feature-90" ],
+      "actions": [
+        { "type": "wufbPolicy", "setting": "featureDeferralDays", "value": 365 }
+      ]
+    },
+    {
+      "id": "privacy.edge-privacy-policies",
+      "name": "Microsoft Edge privacy policies",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 66,
+      "level": "Standard",
+      "hint": "Edge stops personalizing ads and news from your browsing data, and shows no shopping, Rewards or recommendation pop-ups.",
+      "description": "Sets five documented Microsoft Edge policies: no personalization from browsing data (PersonalizationReportingEnabled), no recommendations and promotional notifications, no shopping assistant, no Microsoft Rewards and no in-browser feedback prompts. Browsing, sync and security features such as SmartScreen are not affected. Edge shows \"Your browser is managed by your organization\" while policies are set. Turning it off removes the five policies.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies" ],
+        "notes": "PersonalizationReportingEnabled, ShowRecommendationsEnabled, EdgeShoppingAssistantEnabled, ShowMicrosoftRewards, UserFeedbackAllowed = 0. Not domain-restricted. Windows default: not configured."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "microsoft",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "PersonalizationReportingEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "ShowRecommendationsEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "EdgeShoppingAssistantEnabled",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "ShowMicrosoftRewards",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "UserFeedbackAllowed",
+          "valueType": "DWord",
+          "on": 0,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.office-privacy-policies",
+      "name": "Microsoft 365 Apps diagnostic data off",
+      "category": "Background & Privacy",
+      "group": "Content",
+      "order": 67,
+      "level": "Advanced",
+      "hint": "Office sends no client diagnostic data and offers no optional connected experiences. Co-authoring and OneDrive keep working.",
+      "description": "Sets the documented Microsoft 365 Apps privacy policies for your account: client software diagnostic data \"Neither\" (SendTelemetry = 3) and optional connected experiences disabled (ControllerConnectedServicesEnabled = 2). Microsoft notes that \"Neither\" limits its ability to diagnose Office problems; required service data is still sent. Core connected experiences such as co-authoring and online storage are not touched. Turning it off removes both policies.",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/microsoft-365-apps/privacy/manage-privacy-controls" ],
+        "notes": "Registry mapping from the same article. Applies to Microsoft 365 Apps version 1904 and later."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Optional Office features such as Bing-powered 3D Maps and online pictures from optional services are unavailable.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "microsoft",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Policies\\Microsoft\\Office\\Common\\ClientTelemetry",
+          "name": "SendTelemetry",
+          "valueType": "DWord",
+          "on": 3,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKCU:\\Software\\Policies\\Microsoft\\Office\\16.0\\Common\\Privacy",
+          "name": "ControllerConnectedServicesEnabled",
+          "valueType": "DWord",
+          "on": 2,
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "privacy.inbox-apps-consumer-off",
+      "name": "Consumer inbox apps removed",
+      "category": "Background & Privacy",
+      "group": "Apps",
+      "order": 68,
+      "level": "Advanced",
+      "hint": "Removes News, Weather, Solitaire, Clipchamp, Microsoft 365 Copilot (hub) and Get Help. Revert reinstalls them from the Microsoft Store.",
+      "description": "Removes six consumer apps that come with Windows, for your account and for new user profiles, through the protected app-removal path (Store, App Installer, Xbox identity, Gaming Services, Windows Security and frameworks are never touched). This is the safe part of WinUtil's default app list; Calculator, Clock, Sound Recorder, Sticky Notes and Quick Assist stay. Turning it off re-registers each app or reinstalls it from the Microsoft Store, which needs an internet connection.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/powershell/module/appx/remove-appxpackage",
+          "https://learn.microsoft.com/en-us/windows/application-management/overview-windows-apps"
+        ],
+        "notes": "Store ids checked on apps.microsoft.com on 2026-10-21."
+      },
+      "impact": { "performance": "low", "latency": "none", "security": "0" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "partial",
+      "sideEffects": "The apps disappear for every user; reinstalling needs the Microsoft Store and an internet connection.",
+      "requires": "none",
+      "appliesTo": { "minBuild": 26100 },
+      "hardware": { "tags": [], "excludeTags": [] },
+      "source": "winutil",
+      "attribution": "Chris Titus Tech WinUtil (commit d32efeb), MIT License, preset 'AppxDefault' (adapted to the protected list)",
+      "actions": [
+        { "type": "appx", "package": "Microsoft.BingNews", "on": "Removed", "default": "Installed", "provisioned": true, "storeId": "9WZDNCRFHVFW" },
+        { "type": "appx", "package": "Microsoft.BingWeather", "on": "Removed", "default": "Installed", "provisioned": true, "storeId": "9WZDNCRFJ3Q2" },
+        {
+          "type": "appx",
+          "package": "Microsoft.MicrosoftSolitaireCollection",
+          "on": "Removed",
+          "default": "Installed",
+          "provisioned": true,
+          "storeId": "9WZDNCRFHWD2"
+        },
+        { "type": "appx", "package": "Clipchamp.Clipchamp", "on": "Removed", "default": "Installed", "provisioned": true, "storeId": "9P1J8S7CCWWT" },
+        { "type": "appx", "package": "Microsoft.MicrosoftOfficeHub", "on": "Removed", "default": "Installed", "provisioned": true, "storeId": "9WZDNCRD29V9" },
+        { "type": "appx", "package": "Microsoft.GetHelp", "on": "Removed", "default": "Installed", "provisioned": true, "storeId": "9PKDZBMV1H3T" }
+      ]
     }
   ]
 }

@@ -179,6 +179,30 @@ Describe 'scheduledTask' {
         $items = @(InModuleScope iGWindowsTuner { Get-IgwtActionState -Action ([pscustomobject]@{ type = 'scheduledTask'; path = '\X\'; name = 'Gone'; on = 'Disabled'; default = 'Enabled' }) -Context $null })
         $items[0].State | Should -Be 'NotApplicable'
     }
+    It 'reads every task with one query in the cached index outside TestMode, and invalidates it on writes' {
+        Mock -ModuleName iGWindowsTuner Get-ScheduledTask {
+            if ($TaskName) { [pscustomobject]@{ TaskPath = $TaskPath; TaskName = $TaskName; State = $script:TaskState } }
+            else { @([pscustomobject]@{ TaskPath = '\Microsoft\Windows\Application Experience\'; TaskName = 'ProgramDataUpdater'; State = $script:TaskState }, [pscustomobject]@{ TaskPath = '\X\'; TaskName = 'Other'; State = 'Ready' }) }
+        }
+        $r = InModuleScope iGWindowsTuner {
+            $saved = $script:IgwtSettings.TestMode
+            $script:IgwtSettings.TestMode = $false
+            try {
+                Clear-IgwtCache -WhatIf:$false
+                $a = [pscustomobject]@{ type = 'scheduledTask'; path = '\Microsoft\Windows\Application Experience\'; name = 'ProgramDataUpdater'; on = 'Disabled'; default = 'Enabled' }
+                $missing = [pscustomobject]@{ type = 'scheduledTask'; path = '\X\'; name = 'Gone'; on = 'Disabled'; default = 'Enabled' }
+                $first = (Get-IgwtScheduledTaskState -Action $a).State
+                $gone = (Get-IgwtScheduledTaskState -Action $missing).State
+                Set-IgwtTaskEnabled -Action $a -Enabled $false
+                $second = (Get-IgwtScheduledTaskState -Action $a).State
+                [pscustomobject]@{ First = $first; Gone = $gone; Second = $second }
+            } finally { $script:IgwtSettings.TestMode = $saved; Clear-IgwtCache -WhatIf:$false }
+        }
+        $r.First | Should -Be 'Off'
+        $r.Gone | Should -Be 'NotApplicable'
+        $r.Second | Should -Be 'On'
+        Should -Invoke Get-ScheduledTask -ModuleName iGWindowsTuner -Times 2 -Exactly -ParameterFilter { -not $TaskName }
+    }
 }
 
 Describe 'firewallRule' {
@@ -207,6 +231,29 @@ Describe 'firewallRule' {
         $script:Fw['RA-1'].Enabled | Should -Be 'True'
         $script:Fw['RA-3'].Enabled | Should -Be 'False'
     }
+    It 'reads all owned rules with one wildcard query outside TestMode, and invalidates it on writes' {
+        Mock -ModuleName iGWindowsTuner Get-NetFirewallRule {
+            if ($Name -and $Name[0] -eq 'iGWindowsTuner-*') { @($script:Fw.Values | Where-Object { $_.Name -like 'iGWindowsTuner-*' }) }
+            elseif ($Name) { if ($script:Fw.ContainsKey($Name[0])) { $script:Fw[$Name[0]] } }
+        }
+        $r = InModuleScope iGWindowsTuner {
+            $saved = $script:IgwtSettings.TestMode
+            $script:IgwtSettings.TestMode = $false
+            try {
+                Clear-IgwtCache -WhatIf:$false
+                $mk = { param($n) [pscustomobject]@{ type = 'firewallRule'; rule = $n; displayName = 'x'; direction = 'Outbound'; action = 'Block'; program = 'C:\x.exe' } }
+                $a = & $mk 'iGWindowsTuner-A'
+                $b = & $mk 'iGWindowsTuner-B'
+                $s1 = (Get-IgwtFirewallRuleState -Action $a).State
+                $s2 = (Get-IgwtFirewallRuleState -Action $b).State
+                Invoke-IgwtFirewallRuleApply -Action $a -Mode on
+                $s3 = (Get-IgwtFirewallRuleState -Action $a).State
+                [pscustomobject]@{ S1 = $s1; S2 = $s2; S3 = $s3 }
+            } finally { $script:IgwtSettings.TestMode = $saved; Clear-IgwtCache -WhatIf:$false }
+        }
+        $r.S1 | Should -Be 'Off'; $r.S2 | Should -Be 'Off'; $r.S3 | Should -Be 'On'
+        Should -Invoke Get-NetFirewallRule -ModuleName iGWindowsTuner -Times 2 -Exactly -ParameterFilter { $Name -and $Name[0] -eq 'iGWindowsTuner-*' }
+    }
     It 'refuses rules it does not own and allow rules' {
         { InModuleScope iGWindowsTuner { Invoke-IgwtActionApply -Action ([pscustomobject]@{ type = 'firewallRule'; rule = 'CoreNet-DHCP-In'; displayName = 'x'; direction = 'Inbound'; action = 'Block' }) -Context $null } } | Should -Throw "*own firewall rules*"
         { InModuleScope iGWindowsTuner { Invoke-IgwtActionApply -Action ([pscustomobject]@{ type = 'firewallRule'; rule = 'iGWindowsTuner-Open'; displayName = 'x'; direction = 'Inbound'; action = 'Allow' }) -Context $null } } | Should -Throw '*only creates Block rules*'
@@ -214,6 +261,7 @@ Describe 'firewallRule' {
 }
 
 Describe 'appx, winget and capability' {
+    AfterEach { InModuleScope iGWindowsTuner { $script:IgwtSettings.WingetConsent = $null } }
     BeforeEach {
         $script:AppInstalled = $true
         $script:AppDir = Join-Path $TestDrive 'WindowsApps\Microsoft.BingWeather_4.53'
@@ -225,6 +273,7 @@ Describe 'appx, winget and capability' {
         Mock -ModuleName iGWindowsTuner Get-AppxProvisionedPackage { @([pscustomobject]@{ DisplayName = 'Microsoft.BingWeather'; PackageName = 'Microsoft.BingWeather_4.53_neutral_~_8wekyb3d8bbwe' }) }
         Mock -ModuleName iGWindowsTuner Remove-AppxProvisionedPackage { }
         $script:Winget = @{}
+        InModuleScope iGWindowsTuner { $script:IgwtSettings.WingetConsent = $true }   # the user accepted winget's agreements
         Mock -ModuleName iGWindowsTuner Invoke-IgwtWinget {
             switch ($Arguments[0]) {
                 'list' { [pscustomobject]@{ ExitCode = $(if ($script:Winget[$Arguments[2]]) { 0 } else { -1978335212 }); Output = '' } }
