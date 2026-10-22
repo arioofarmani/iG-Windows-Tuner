@@ -74,6 +74,22 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-AcknowledgeManaged` | On a domain-joined or MDM-enrolled PC, policy items are report-only. This switch confirms local changes that a domain or MDM policy may override (with -Apply or -Preset). |
 | `-Persona` | Sets your persona for the GUI (Gamer, PowerUser or Sysadmin): it changes the navigation order and which item levels are shown, never a safety rule. |
 
+## Group Policy
+
+| Parameter | Description |
+|---|---|
+| `-PolicySearch` | Searches every installed ADMX policy by name, explain text or registry path (words are ANDed). -PolicyClass Machine or User filters. Read-only; the first run parses the definitions (cached). |
+| `-PolicyClass` | Machine or User, with -PolicySearch, -PolicyShow or -PolicySet. |
+| `-PolicyShow` | Shows one policy (id such as WindowsUpdate:DeferFeatureUpdates): explain text, elements, registry mapping and the effective state and source (Local GPO, registry, domain GPO, MDM). |
+| `-PolicySet` | Sets a policy in the Local Group Policy Object: backup, Registry.pol, gpt.ini, gpupdate and verification. Needs -PolicyState; -DryRun shows the Registry.pol operations only. Policy values that turn off a security protection are refused. |
+| `-PolicyState` | Enabled, Disabled or NotConfigured, with -PolicySet. |
+| `-PolicyValue` | Element values for -PolicySet as "elementId=value;elementId2=value" (list values separated by \|). |
+| `-PolicyBackup` | Backs up the Local Group Policy folders to the data root. |
+| `-PolicyRestore` | Restores the Local Group Policy folders from a backup folder and refreshes policy. |
+| `-PolicyReset` | Resets Local Group Policy to default after a backup (-DryRun shows the files and steps). |
+| `-PolicyTattoo` | Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only. |
+| `-AdmxFolder` | Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog. |
+
 ## Cleaner and disk
 
 | Parameter | Description |
@@ -188,4 +204,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 .\iGWindowsTuner.ps1 -Install OBSProject.OBSStudio -DryRun
 .\iGWindowsTuner.ps1 -Fix fix.sfc -DryRun
 .\iGWindowsTuner.ps1 -EnableFeature feature.wsl -DryRun
+.\iGWindowsTuner.ps1 -PolicySearch "defer feature"
+.\iGWindowsTuner.ps1 -PolicyShow WindowsUpdate:DeferFeatureUpdates
+.\iGWindowsTuner.ps1 -PolicySet WindowsUpdate:DeferFeatureUpdates -PolicyState Enabled -PolicyValue "DeferFeatureUpdatesPeriodId=90" -DryRun
 ```

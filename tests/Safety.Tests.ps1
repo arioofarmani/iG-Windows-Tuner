@@ -44,11 +44,15 @@ Describe 'Forbidden techniques are absent from shipped code' {
         @(Get-Matches '(?i)DllImport').Count | Should -Be 1
     }
     It 'runs only the allowed external executables' {
-        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality)\.ps1:' }
+        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore)\.ps1:' }
+        # Group Policy: gpupdate only for the targeted refresh in GpoStore.ps1, gpresult only to export RSoP XML in PolicyEngine.ps1.
+        foreach ($m in @(Get-Matches '(?i)gpupdate\.exe')) { $m | Should -Match '^GpoStore\.ps1:' }
+        foreach ($m in @(Get-Matches '(?i)gpresult\.exe')) { $m | Should -Match '^PolicyEngine\.ps1:.*gpresult\.exe''\) /x ' }
+        foreach ($m in @(Get-Matches '&\s*\$exe\b' | Where-Object { $_ -match '^GpoStore\.ps1:' })) { $m | Should -Match '"/target:\$t" ''/force''' }
         $literals = foreach ($m in @(Get-Matches "(?i)'[^']*\.exe'")) { foreach ($x in [regex]::Matches($m, "(?i)'([^']*\.exe)'")) { Split-Path $x.Groups[1].Value -Leaf } }
         # The Toolkit's fix programs and panel launchers live only in its allow-lists (Toolkit.ps1).
         $toolkitOnly = @('sfc.exe', 'chkdsk.exe', 'ipconfig.exe', 'winmgmt.exe', 'wsreset.exe', 'control.exe', 'mmc.exe', 'netplwiz.exe', 'resmon.exe', 'perfmon.exe', 'msinfo32.exe', 'rstrui.exe')
-        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe') + $toolkitOnly) }
+        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe') + $toolkitOnly) }
         foreach ($m in @(Get-Matches "(?i)'(sfc|chkdsk|ipconfig|winmgmt|wsreset|control|mmc|netplwiz|resmon|perfmon|msinfo32|rstrui)\.exe'")) { $m | Should -Match '^Toolkit\.ps1:\d+: +\$script:Igwt(FixExecutables|PanelExecutables) = |^Toolkit\.ps1:.*''(control|mmc)\.exe''\)' }
         foreach ($i in @(Get-Matches '&\s*\$FilePath\b')) { $i | Should -Match '^Toolkit\.ps1:' }
     }

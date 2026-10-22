@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "description": "Policy values the Group Policy engine never writes, because they turn off a security protection. Matching is case-insensitive; key and valueName are regular expressions anchored to the whole name; values lists forbidden values, or 'any' to refuse every value.",
+  "entries": [
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender", "valueName": "DisableAntiSpyware|DisableAntiVirus|DisableRoutinelyTakingAction", "values": [ "1" ], "reason": "Turns Microsoft Defender Antivirus off." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Real-Time Protection", "valueName": "DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableOnAccessProtection|DisableIOAVProtection|DisableScriptScanning|DisableScanOnRealtimeEnable", "values": [ "1" ], "reason": "Turns off a Defender real-time protection component." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Spynet", "valueName": "SpynetReporting", "values": [ "0" ], "reason": "Turns off cloud-delivered protection." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Exclusions(\\\\.*)?", "valueName": ".*", "values": [ "any" ], "reason": "Adds antivirus exclusions (iG Windows Tuner never adds exclusions)." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Features", "valueName": "TamperProtection", "values": [ "any" ], "reason": "Tamper Protection is managed by Windows Security or Defender for Endpoint only." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\WindowsFirewall\\\\(DomainProfile|PrivateProfile|PublicProfile|StandardProfile)", "valueName": "EnableFirewall", "values": [ "0" ], "reason": "Turns the Windows Firewall off." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\System", "valueName": "EnableSmartScreen", "values": [ "0" ], "reason": "Turns SmartScreen off." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Edge", "valueName": "SmartScreenEnabled|SmartScreenPuaEnabled", "values": [ "0" ], "reason": "Turns Microsoft Defender SmartScreen off in Edge." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\MicrosoftEdge\\\\PhishingFilter", "valueName": "EnabledV9", "values": [ "0" ], "reason": "Turns SmartScreen off." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\WindowsUpdate\\\\AU", "valueName": "NoAutoUpdate", "values": [ "1" ], "reason": "Turns automatic Windows Update off (iG Windows Tuner only defers updates)." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\WindowsUpdate", "valueName": "DisableWindowsUpdateAccess|SetDisableUXWUAccess|DoNotConnectToWindowsUpdateInternetLocations", "values": [ "1" ], "reason": "Blocks access to Windows Update." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\DeviceGuard", "valueName": "EnableVirtualizationBasedSecurity|HypervisorEnforcedCodeIntegrity", "values": [ "0" ], "reason": "Turns virtualization-based security or memory integrity off." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\DeviceGuard", "valueName": "LsaCfgFlags", "values": [ "0" ], "reason": "Turns Credential Guard off." },
+    { "key": "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Policies\\\\System", "valueName": "EnableLUA", "values": [ "0" ], "reason": "Turns User Account Control off." },
+    { "key": "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Policies\\\\System", "valueName": "ConsentPromptBehaviorAdmin", "values": [ "0" ], "reason": "Elevates administrators without a prompt." },
+    { "key": "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Policies\\\\System", "valueName": "PromptOnSecureDesktop", "values": [ "0" ], "reason": "Moves the UAC prompt off the secure desktop." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\Explorer", "valueName": "NoDataExecutionPrevention|NoHeapTerminationOnCorruption", "values": [ "1" ], "reason": "Turns off DEP or heap protection for Explorer." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Windows Defender Exploit Guard\\\\ASR\\\\Rules", "valueName": ".*", "values": [ "0" ], "reason": "Turns an attack surface reduction rule off (use the ASR Center)." },
+    { "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Windows Defender Exploit Guard\\\\Network Protection", "valueName": "EnableNetworkProtection", "values": [ "0" ], "reason": "Turns network protection off." }
+  ]
+}

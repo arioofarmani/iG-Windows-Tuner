@@ -5,7 +5,7 @@
 $script:IgwtModuleRoot = $PSScriptRoot
 $script:IgwtProjectRoot = Split-Path -Parent $PSScriptRoot
 
-$folders = @('Core', 'Actions', 'Health', 'Hardware', 'Cleaner', 'Security', 'Inspectors', 'Manage', 'Network', 'Toolkit', 'Gui')
+$folders = @('Core', 'Actions', 'Health', 'Hardware', 'Cleaner', 'Security', 'Inspectors', 'Manage', 'Network', 'Policy', 'Toolkit', 'Gui')
 foreach ($folder in $folders) {
     $path = Join-Path $PSScriptRoot $folder
     if (-not (Test-Path -LiteralPath $path)) { continue }
@@ -46,5 +46,7 @@ Export-ModuleMember -Function (
     'Save-IgwtCustomPreset', 'Copy-IgwtPreset', 'Remove-IgwtCustomPreset', 'Export-IgwtPreset', 'Import-IgwtPreset', 'Get-IgwtPresetDrift', 'Get-IgwtPresetRecord', 'Save-IgwtDriftAsPreset', 'Test-IgwtPresetDefinition',
     'Get-IgwtSessionState', 'Get-IgwtSessionPlan', 'Get-IgwtSessionApps', 'Start-IgwtSession', 'Stop-IgwtSession', 'Close-IgwtSessionApps',
     'Get-IgwtManagementState', 'Format-IgwtManagementState', 'Get-IgwtItemAuthority', 'Get-IgwtPersona', 'Set-IgwtPersona', 'Get-IgwtPersonaProfile',
+    'Get-IgwtAdmxCatalog', 'Find-IgwtPolicy', 'Get-IgwtPolicyDefinition', 'Get-IgwtPolicyState', 'Get-IgwtPolicyChangePlan', 'Set-IgwtLocalPolicy', 'Get-IgwtTattooedPolicyValues', 'Read-IgwtRegistryPol', 'Write-IgwtRegistryPol',
+    'Backup-IgwtLocalGpo', 'Restore-IgwtLocalGpo', 'Reset-IgwtLocalGpo', 'Get-IgwtLocalGpoResetPlan', 'Get-IgwtPolicyRegistryOps',
     'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiToolkitData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'
 )

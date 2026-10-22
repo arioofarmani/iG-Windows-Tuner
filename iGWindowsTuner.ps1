@@ -47,6 +47,32 @@
 .PARAMETER Session
     Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot,
     Stop restores them, Status shows the session. -DryRun with Start shows the plan.
+.PARAMETER PolicySearch
+    Searches every installed ADMX policy by name, explain text or registry path (words are ANDed).
+    -PolicyClass Machine or User filters. Read-only; the first run parses the definitions (cached).
+.PARAMETER PolicyClass
+    Machine or User, with -PolicySearch, -PolicyShow or -PolicySet.
+.PARAMETER PolicyShow
+    Shows one policy (id such as WindowsUpdate:DeferFeatureUpdates): explain text, elements,
+    registry mapping and the effective state and source (Local GPO, registry, domain GPO, MDM).
+.PARAMETER PolicySet
+    Sets a policy in the Local Group Policy Object: backup, Registry.pol, gpt.ini, gpupdate and
+    verification. Needs -PolicyState; -DryRun shows the Registry.pol operations only. Policy values
+    that turn off a security protection are refused.
+.PARAMETER PolicyState
+    Enabled, Disabled or NotConfigured, with -PolicySet.
+.PARAMETER PolicyValue
+    Element values for -PolicySet as "elementId=value;elementId2=value" (list values separated by |).
+.PARAMETER PolicyBackup
+    Backs up the Local Group Policy folders to the data root.
+.PARAMETER PolicyRestore
+    Restores the Local Group Policy folders from a backup folder and refreshes policy.
+.PARAMETER PolicyReset
+    Resets Local Group Policy to default after a backup (-DryRun shows the files and steps).
+.PARAMETER PolicyTattoo
+    Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only.
+.PARAMETER AdmxFolder
+    Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog.
 .PARAMETER Platform
     Read-only platform and management report: edition family, Local Group Policy support, domain
     and Entra ID join, MDM enrollment, Defender for Endpoint, other antivirus and whether policy
@@ -288,6 +314,19 @@ param(
     [string]$Session,
     [switch]$CloseApps,
     [switch]$Platform,
+    [string]$PolicySearch,
+    [ValidateSet('Machine', 'User')]
+    [string]$PolicyClass,
+    [string]$PolicyShow,
+    [string]$PolicySet,
+    [ValidateSet('Enabled', 'Disabled', 'NotConfigured')]
+    [string]$PolicyState,
+    [string]$PolicyValue,
+    [switch]$PolicyBackup,
+    [string]$PolicyRestore,
+    [switch]$PolicyReset,
+    [switch]$PolicyTattoo,
+    [string[]]$AdmxFolder,
     [switch]$AcknowledgeManaged,
     [ValidateSet('Gamer', 'PowerUser', 'Sysadmin')]
     [string]$Persona,
@@ -593,6 +632,13 @@ if ($Drift) { $modes += 'Drift' }
 if ($AdoptDrift) { $modes += 'AdoptDrift' }
 if ($Session) { $modes += 'Session' }
 if ($Platform) { $modes += 'Platform' }
+if ($PSBoundParameters.ContainsKey('PolicySearch')) { $modes += 'PolicySearch' }
+if ($PolicyShow) { $modes += 'PolicyShow' }
+if ($PolicySet) { $modes += 'PolicySet' }
+if ($PolicyBackup) { $modes += 'PolicyBackup' }
+if ($PolicyRestore) { $modes += 'PolicyRestore' }
+if ($PolicyReset) { $modes += 'PolicyReset' }
+if ($PolicyTattoo) { $modes += 'PolicyTattoo' }
 if ($Persona) { $modes += 'Persona' }
 if ($Apply) { $modes += 'Apply' }
 if ($Revert) { $modes += 'Revert' }
@@ -1075,6 +1121,106 @@ try {
             Write-IgwtCleanResult -CleanResult $c
             if (@($c.Rules | Where-Object { $_.Status -eq 'Error' }).Count -gt 0) { Complete-IgwtCli 5 }
             Complete-IgwtCli 0
+        }
+        'PolicySearch' {
+            $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ })
+            $hits = @(Find-IgwtPolicy -Search $PolicySearch -Class $(if ($PolicyClass) { $PolicyClass } else { '' }))
+            if ($Json) { $hits | Select-Object Id, Class, CategoryPath, DisplayName, Key, ValueName, SupportedOn | ConvertTo-Json -Depth 3; exit 0 }
+            foreach ($g in @($hits | Group-Object CategoryPath)) {
+                Write-IgwtCliLine ''
+                Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                foreach ($p in $g.Group) { Write-IgwtCliLine ("  {0,-55} {1,-7} {2}" -f $p.Id, $p.Class, $p.DisplayName) ([ConsoleColor]::Gray) }
+            }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine "$($hits.Count) policies. Details and effective state: -PolicyShow <id>." ([ConsoleColor]::White)
+            exit 0
+        }
+        'PolicyShow' {
+            $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ })
+            try { $p = Get-IgwtPolicyDefinition -Id $PolicyShow } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
+            $classes = $(if ($PolicyClass) { @($PolicyClass) } elseif ([string]$p.Class -eq 'Both') { @('Machine', 'User') } else { @([string]$p.Class) })
+            $states = @($classes | ForEach-Object { Get-IgwtPolicyState -Policy $p -Class $_ })
+            if ($Json) { [pscustomobject]@{ Policy = ($p | Select-Object -Property * -ExcludeProperty Search); State = $states } | ConvertTo-Json -Depth 8; exit 0 }
+            Write-IgwtCliLine "$($p.DisplayName)  [$($p.Id), $($p.Class)]" ([ConsoleColor]::White)
+            Write-IgwtCliLine "  $($p.CategoryPath)" ([ConsoleColor]::Gray)
+            Write-IgwtCliLine "  Supported on: $($p.SupportedOn)" ([ConsoleColor]::Gray)
+            Write-IgwtCliLine "  Registry: $($p.Key)$(if ($p.ValueName) { "\$($p.ValueName)" })" ([ConsoleColor]::Gray)
+            foreach ($e in @($p.Elements)) { Write-IgwtCliLine ("  Element {0} ({1}): {2} -> {3}\{4}" -f $e.Id, $e.Type, $e.Label, $e.Key, $e.ValueName) ([ConsoleColor]::Gray) }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine ($p.Explain -replace '(?m)^', '  ') ([ConsoleColor]::DarkGray)
+            foreach ($s in $states) {
+                Write-IgwtCliLine ''
+                Write-IgwtCliLine ("State ({0}): Local GPO {1}; effective source: {2}{3}" -f $s.Class, $s.LocalGpo, $s.Source, $(if ($s.Tattooed) { '; TATTOOED (in the registry but in no Registry.pol)' } else { '' })) $(if ($s.Tattooed) { [ConsoleColor]::Yellow } else { [ConsoleColor]::Green })
+                foreach ($r in @($s.Registry)) { Write-IgwtCliLine ("  {0}\{1} = {2}{3}" -f $r.Key, $r.ValueName, $(if ($r.Exists) { @($r.Value) -join ',' } else { '<absent>' }), $(if ($r.InLocalGpo) { ' (Local GPO)' } else { '' })) ([ConsoleColor]::Gray) }
+                if ($s.Mdm) { Write-IgwtCliLine ("  MDM: {0}\{1} = {2}" -f $s.Mdm.Area, $s.Mdm.Name, $s.Mdm.Value) ([ConsoleColor]::Cyan) }
+                foreach ($d in @($s.Domain)) { Write-IgwtCliLine ("  Domain GPO {0}: {1}\{2} = {3}" -f $d.Gpo, $d.Key, $d.ValueName, $d.Value) ([ConsoleColor]::Cyan) }
+                foreach ($c in @($s.Conflicts)) { Write-IgwtCliLine "  Conflict: $c" ([ConsoleColor]::Yellow) }
+            }
+            exit 0
+        }
+        'PolicySet' {
+            if (-not $PolicyState) { Write-IgwtCliLine '-PolicySet needs -PolicyState Enabled, Disabled or NotConfigured.' ([ConsoleColor]::Red); exit 2 }
+            $vals = @{}
+            foreach ($pair in @(([string]$PolicyValue) -split ';' | Where-Object { $_.Trim() })) {
+                $kv = $pair.Split([char[]]@('='), 2)
+                if ($kv.Count -ne 2) { Write-IgwtCliLine "Invalid -PolicyValue part '$pair' (use elementId=value)." ([ConsoleColor]::Red); exit 2 }
+                $v = $kv[1].Trim(); if ($v.Contains('|')) { $v = @($v.Split('|')) }
+                $vals[$kv[0].Trim()] = $v
+            }
+            $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ })
+            $classArg = @{}; if ($PolicyClass) { $classArg.Class = $PolicyClass }
+            try { $plan = Get-IgwtPolicyChangePlan -Id $PolicySet -State $PolicyState -Values $vals @classArg }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json -and $DryRun) { $plan | Select-Object Class, State, Ops, Refusals, Managed | ConvertTo-Json -Depth 5; exit 0 }
+            Write-IgwtCliLine "$($plan.Policy.DisplayName) ($($plan.Class)) -> $PolicyState; currently $($plan.Current.LocalGpo) in the Local GPO (source: $($plan.Current.Source))" ([ConsoleColor]::White)
+            foreach ($o in $plan.Ops) { Write-IgwtCliLine ("  {0,-14} {1}\{2} {3} {4}" -f $o.Op, $o.Key, $o.ValueName, $o.Type, (@($o.Value) -join ',')) ([ConsoleColor]::Gray) }
+            foreach ($r in $plan.Refusals) { Write-IgwtCliLine "  Refused: $r" ([ConsoleColor]::Red) }
+            if ($plan.Managed) { Write-IgwtCliLine "  This PC is managed ($($plan.Authorities -join ', ')): -AcknowledgeManaged is needed." ([ConsoleColor]::Yellow) }
+            if ($plan.Refusals.Count) { exit 2 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was written.' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $res = Set-IgwtLocalPolicy -Id $PolicySet -State $PolicyState -Values $vals -Class $plan.Class -AcknowledgeManaged:$AcknowledgeManaged }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if ($Json) { $res | ConvertTo-Json -Depth 5 } else {
+                Write-IgwtCliLine ("Set. Verified after gpupdate: {0}. Backup: {1}" -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
+                Write-IgwtCliLine "Undo with -PolicyRestore `"$($res.Backup)`"." ([ConsoleColor]::Gray)
+            }
+            Complete-IgwtCli $(if ($res.Verified -eq $false) { 5 } else { 0 })
+        }
+        'PolicyBackup' {
+            if ($DryRun) { Write-IgwtCliLine 'Would back up the Local Group Policy folders to the data root.'; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $b = Backup-IgwtLocalGpo -Reason 'manual backup'
+            Write-IgwtCliLine "Backup written to $b" ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'PolicyRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would restore the Local Group Policy from $PolicyRestore and refresh policy."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Restore-IgwtLocalGpo -BackupPath $PolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Restored $($r.Files) file(s) from $($r.Restored) and refreshed policy." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'PolicyReset' {
+            $plan = Get-IgwtLocalGpoResetPlan
+            if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 3; exit 0 }
+            Write-IgwtCliLine 'Reset Local Group Policy to default:' ([ConsoleColor]::White)
+            foreach ($s in $plan.Steps) { Write-IgwtCliLine "  - $s" ([ConsoleColor]::Gray) }
+            Write-IgwtCliLine "  Files: $(@($plan.Files).Count)" ([ConsoleColor]::Gray)
+            foreach ($f in @($plan.Files)) { Write-IgwtCliLine "    $f" ([ConsoleColor]::DarkGray) }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $r = Reset-IgwtLocalGpo
+            Write-IgwtCliLine "Local Group Policy reset. Backup: $($r.Backup) (undo with -PolicyRestore)." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'PolicyTattoo' {
+            $rows = @(Get-IgwtTattooedPolicyValues)
+            if ($Json) { $rows | ConvertTo-Json -Depth 3; exit 0 }
+            foreach ($r in $rows) { Write-IgwtCliLine ("  {0,-7} {1}\{2} = {3}  ({4})" -f $r.Class, $r.Key, $r.ValueName, (@($r.Value) -join ','), $r.WrittenBy) $(if ($r.WrittenBy -like 'iG*') { [ConsoleColor]::Gray } else { [ConsoleColor]::Yellow }) }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine "$($rows.Count) tattooed value(s): present under the Policies keys but in no Registry.pol or domain GPO. Items written by iG Windows Tuner move to the Local GPO in a later 3.0 phase." ([ConsoleColor]::White)
+            exit 0
         }
         'Platform' {
             $st = Get-IgwtManagementState

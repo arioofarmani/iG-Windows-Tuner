@@ -208,3 +208,15 @@ Every design choice that departs from common tuning advice, or where several opt
 | P4 | **On a managed PC, policy items are report-only** (plan state `ReportOnly`, apply result `ReportOnly`) unless `-AcknowledgeManaged` (CLI) or the GUI's Yes is given; reverts are never blocked. The full effective-source view (Local GPO, domain GPO, MDM) comes with the Group Policy engine (phase 3). | SPEC-v3 section 2. |
 | P5 | **Personas only change what is shown** (navigation order, visible levels, Risk Zone page); they are a per-user preference in `%LOCALAPPDATA%\iGWindowsTuner\settings.json`. Applied Expert or Lab items stay visible so they can be turned off. | SPEC-v3: a persona never changes safety rules. |
 | P6 | **Hardware detection failure fails closed**: items that any hardware overlay can block are blocked until detection works (review L3). | Protects guarded items such as processor idle settings on affected CPU families. |
+
+## Group Policy engine (phase 3)
+
+| # | Decision | Reason |
+|---|---|---|
+| G1 | **The ADMX catalog cache lives per user** in `%LOCALAPPDATA%\iGWindowsTuner\Cache` (Clixml), keyed by a hash of every definition file's path, size and write time; TestMode uses the data root. | Parsing 3,500+ policies takes about 14 s; the cache loads in under 1 s and needs no admin rights. Clixml keeps the nested objects without a custom serializer. |
+| G2 | **Registry.pol entries keep their original bytes**, and only the policy's own entries are rebuilt. | Byte-exact round trips (verified read-only on the development PC's 24-entry file) mean unknown or vendor entries are never altered. |
+| G3 | **Every Local GPO write is backup → Registry.pol → gpt.ini → targeted gpupdate → verification**, refused for denylisted values, on Windows Home, and on managed PCs without `-AcknowledgeManaged`. | SPEC-v3: write policy the professional way, never weaken a security protection. |
+| G4 | **The "reset Local Group Policy" fix has no Microsoft source.** The URL first used returned 404 (checked 2026-10-22) and no official article was found; the reset (empty both GPO folders, refresh) is long-standing community practice and is made reversible by the backup. | Never cite an unverified source. |
+| G5 | **Domain results come from `gpresult /x` only on domain-joined PCs**, to a temp file, cached for the session. MDM values are read from `PolicyManager\current\device` by policy or value name (a heuristic: area names do not always match ADMX files). | Read-only and allowed by SPEC-v3 section 11; avoids running gpresult where it adds nothing. |
+| G6 | **The GUI policy browser comes with phase 12**; phase 3 ships the engine and the CLI. | The GUI restructure happens once, in phase 12. |
+| G7 | **Large byte arrays are never passed to PowerShell functions inside the PReg reader loop.** Binding a `byte[]` to a typed parameter copies it, which made parsing quadratic (107 s for 3,000 entries; now 0.6 s). | Performance found by the large-file test. |

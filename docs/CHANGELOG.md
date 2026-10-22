@@ -2,6 +2,12 @@
 
 ## 3.0.0 (in progress)
 
+### Group Policy engine (phase 3)
+
+- **ADMX catalog**: every installed policy (plus the Central Store and extra template folders) with category path, supported-on text, explain text, registry mapping and elements; cached per user. `-PolicySearch`, `-PolicyShow` (effective state and source: Local GPO, registry, domain GPO, MDM; conflicts; tattoo flag).
+- **Registry.pol reader/writer** per [MS-GPREG] (byte-exact round trips, all special value names, corruption refused with the offset) and **gpt.ini** version and client-side extension updates.
+- **`-PolicySet`**: backup, Registry.pol, gpt.ini, targeted gpupdate and verification, for every ADMX element type; security-disabling values are refused by `data\policy\denylist.json`. `-PolicyBackup`, `-PolicyRestore`, `-PolicyReset` (with backup), `-PolicyTattoo`.
+- Docs: `docs\GROUP_POLICY.md`.
 ### Platform (phase 2)
 
 - **Schema v3** for tweak files: `scope`, `editions`, `managedBy`, `gpoPath`, `admxRef`, `requiresDomain`, `requiresMdm`, with an in-memory and on-disk migration from v1/v2 (actions unchanged, snapshots stay valid). 26 items are marked as Group Policy items.
