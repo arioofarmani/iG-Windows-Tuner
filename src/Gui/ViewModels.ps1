@@ -9,8 +9,8 @@ $script:IgwtGlyph = @{
     Unknown = [string][char]0xE9CE   # Unknown
 }
 $script:IgwtColor = @{
-    Pass = '#FF6CCB5F'; Warn = '#FFFCE100'; Fail = '#FFFF99A4'; Info = '#FF60CDFF'; Unknown = '#FFFCE100'
-    Muted = '#FFB9B9B9'; Text = '#FFFFFFFF'; Accent = '#FF60CDFF'
+    Pass = '#FF5BD08A'; Warn = '#FFF5C451'; Fail = '#FFFF8A93'; Info = '#FF4CC2FF'; Unknown = '#FFF5C451'
+    Muted = '#FF98A2AE'; Text = '#FFF2F4F7'; Accent = '#FF4CC2FF'
 }
 
 #region Worker-side (background runspace)

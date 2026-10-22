@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Interface
+
+- New dark theme: calmer palette, softer amber warnings, rounded cards, dark check boxes, combo boxes and thin scroll bars.
+- Dashboard redesigned for quick scanning: four status tiles (anti-cheat, security, system health, your changes), one numbered *Do this next* list with at most five items, and every detail section folded into a collapsible panel (problems listed first).
+- The ASR Center is part of Security: it sits under Security in the menu for every persona, and both pages have a *Hardening items | ASR Center* switch.
+- Manage: every tab has sortable column headers (click to sort, click again to reverse; sizes sort by value).
+
 ## 3.0.0 (2026-10-22)
 
 3.0 preview release. The new features are available on the command line (`docs\CLI.md`); the GUI shows the 2.x features. A packet capture and a full network analyzer are not part of 3.0.

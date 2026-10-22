@@ -8,7 +8,7 @@ $script:IgwtPersonas = [ordered]@{
     Gamer     = [pscustomobject]@{
         Name = 'Gamer'; VisibleLevels = @('Standard', 'Advanced'); ShowRiskZone = $true
         Hint = 'Gaming first: presets, performance pages and the network test lead; Expert items are hidden (switch persona to see them).'
-        NavOrder = @('Dashboard', 'Presets', 'Power & CPU', 'Graphics & Display', 'Input', 'Network', 'NetTest', 'Background & Privacy', 'Security', 'System', 'Risk Zone', 'Cleaner', 'Toolkit', 'Startup', 'Storage', 'Disk', 'Asr', 'Diagnostics', 'Manage', 'Inspect', 'Backups', 'Rejected', 'About')
+        NavOrder = @('Dashboard', 'Presets', 'Power & CPU', 'Graphics & Display', 'Input', 'Network', 'NetTest', 'Background & Privacy', 'Security', 'Asr', 'System', 'Risk Zone', 'Cleaner', 'Toolkit', 'Startup', 'Storage', 'Disk', 'Diagnostics', 'Manage', 'Inspect', 'Backups', 'Rejected', 'About')
     }
     PowerUser = [pscustomobject]@{
         Name = 'PowerUser'; VisibleLevels = @('Standard', 'Advanced', 'Expert', 'Lab'); ShowRiskZone = $true

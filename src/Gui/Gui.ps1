@@ -39,7 +39,11 @@ $script:IgwtGuiControlNames = @(
     'PageNetTest', 'NetDurationBox', 'NetTargetsBox', 'NetRunButton', 'NetLoadButton', 'NetExportButton', 'NetStatusText', 'NetGradeText', 'NetScoreText', 'NetLatencyText',
     'NetJitterText', 'NetLossText', 'NetStabilityText', 'NetConnectionText', 'NetEvidenceText', 'NetTargetList', 'NetApplyButton', 'NetRecoTitle', 'NetRecoList', 'NetGuidanceList', 'NetPathText',
     'DetName', 'DetMeta', 'DetWarning', 'DetWarningText', 'DetDescription', 'DetChanges', 'DetSources', 'DetEvidence', 'DetRevert', 'DetResetButton',
-    'PendingText', 'StatusText', 'BusyBar', 'PreviewButton', 'ApplyButton', 'DiscardButton', 'LogExpander', 'LogBox'
+    'PendingText', 'StatusText', 'BusyBar', 'PreviewButton', 'ApplyButton', 'DiscardButton', 'LogExpander', 'LogBox',
+    'SecuritySwitch', 'SecHardeningButton', 'SecAsrButton', 'AsrHardeningButton', 'AsrSelfButton',
+    'DashSubtitle', 'DashTileAc', 'DashAcDisc', 'DashAcIcon', 'DashAcValue', 'DashAcNote', 'DashTileSec', 'DashSecDisc', 'DashSecIcon', 'DashSecValue', 'DashSecNote',
+    'DashTileHealth', 'DashHealthDisc', 'DashHealthIcon', 'DashHealthValue', 'DashHealthNote', 'DashTileChanges', 'DashChangesDisc', 'DashChangesIcon', 'DashChangesValue', 'DashChangesNote',
+    'DashAllClear', 'DashActionList', 'DashMoreText', 'DashAcSummary', 'DashSecSummary', 'DashHealthSummary', 'DashHwSummary'
 )
 
 #region XAML
@@ -375,6 +379,104 @@ function Update-IgwtGuiFromData {
     Update-IgwtGuiSnapshots -Snapshots $Data.Snapshots
     Update-IgwtGuiPresetCards
     Update-IgwtGuiTweakList
+    Update-IgwtGuiDashboard -Data $Data
+}
+
+function Set-IgwtGuiTile {
+    <# .SYNOPSIS Sets one dashboard tile: value, note and a calm tone (Pass, Warn, Fail, Info). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name, [string]$Value, [string]$Note, [ValidateSet('Pass', 'Warn', 'Fail', 'Info')][string]$Tone = 'Info')
+    $c = $script:Gui.C
+    $soft = @{ Pass = '#FF173726'; Warn = '#FF3A3016'; Fail = '#FF3D1C21'; Info = '#FF16324A' }
+    $conv = New-Object System.Windows.Media.BrushConverter
+    $c["Dash${Name}Value"].Text = $Value
+    $c["Dash${Name}Note"].Text = $Note
+    $c["Dash${Name}Disc"].Background = $conv.ConvertFromString($soft[$Tone])
+    $c["Dash${Name}Icon"].Foreground = $conv.ConvertFromString($script:IgwtColor[$Tone])
+    $tile = $c["DashTile$Name"]
+    $tile.BorderBrush = $(if ($Tone -in 'Warn', 'Fail') { $conv.ConvertFromString($script:IgwtColor[$Tone]) } else { $script:Gui.Window.FindResource('BrushBorder') })
+}
+
+function Update-IgwtGuiDashboard {
+    <#
+    .SYNOPSIS
+        The dashboard at a glance: four status tiles (anti-cheat, security, health, your changes),
+        one short numbered "Do this next" list with the most important open items, and summaries
+        for the folded detail sections. Display only.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Data)
+    $c = $script:Gui.C
+    $c.DashSubtitle.Text = "Read-only overview, updated $((Get-Date).ToString('HH:mm')). Open a section below for the details."
+    $actions = New-Object System.Collections.Generic.List[object]
+    $add = { param($level, $title, $action, $tip) if (-not @($actions | Where-Object { $_.Title -eq $title }).Count) { $actions.Add([pscustomobject]@{ Level = $level; Title = $title; Action = $action; Tip = $tip }) } }
+
+    # Anti-cheat.
+    $reqs = @($Data.AntiCheat.Requirements.PSObject.Properties | ForEach-Object { $_.Value })
+    $passReq = @($reqs | Where-Object { $_.Pass }).Count
+    $games = @($Data.AntiCheat.Matrix)
+    $readyGames = @($games | Where-Object { [string]$_.Status -eq 'Pass' }).Count
+    $acTone = switch ([string]$Data.AntiCheat.Overall) { 'Green' { 'Pass' } 'Amber' { 'Warn' } default { 'Fail' } }
+    $acValue = switch ($acTone) { 'Pass' { 'Ready' } 'Warn' { 'Partly ready' } default { 'Not ready' } }
+    Set-IgwtGuiTile -Name 'Ac' -Value $acValue -Note "$passReq of $($reqs.Count) requirements met, $readyGames of $($games.Count) games ready" -Tone $acTone
+    $c.DashAcSummary.Text = "$passReq of $($reqs.Count) requirements, $readyGames of $($games.Count) games"
+    foreach ($r in @($reqs | Where-Object { -not $_.Pass -and -not $_.Unknown })) { & $add 'Important' "Anti-cheat needs $($r.Name)" $(if ($r.Detail) { [string]$r.Detail } else { 'Turn it on in the firmware setup or Windows Security.' }) 'Kernel anti-cheat checks this before games start.' }
+
+    # Security score.
+    $sec = $null
+    if ($Data.Health -and $Data.Health.PSObject.Properties['Security']) { $sec = $Data.Health.Security }
+    if ($sec) {
+        $open = @($sec.ToFix).Count
+        $secTone = $(if ([int]$sec.Score -ge 90) { 'Pass' } elseif ([int]$sec.Score -ge 70) { 'Warn' } else { 'Fail' })
+        Set-IgwtGuiTile -Name 'Sec' -Value "$($sec.Score)/100" -Note "$($sec.Grade). $(if ($open) { "$open thing(s) to fix" } else { 'Nothing to fix' })" -Tone $secTone
+        $c.DashSecSummary.Text = "$($sec.Score)/100, $($sec.Grade)"
+        foreach ($f in @($sec.ToFix)) {
+            $route = (New-IgwtGuiSecurityCheckRow -Check $f).Route
+            & $add $(if ([string]$f.Status -eq 'Fail') { 'Important' } else { 'Check' }) "$($f.Name): $($f.Value)" $(if ($route) { $route } else { [string]$f.Hint }) ([string]$f.Hint)
+        }
+    } else { Set-IgwtGuiTile -Name 'Sec' -Value '-' -Note 'Press Refresh to read the security score' -Tone 'Info' }
+
+    # System health.
+    if ($Data.Health) {
+        $checks = @($Data.Health.Checks)
+        $fail = @($checks | Where-Object { [string]$_.Status -eq 'Fail' }); $warn = @($checks | Where-Object { [string]$_.Status -in 'Warn', 'Unknown' })
+        $pass = @($checks | Where-Object { [string]$_.Status -eq 'Pass' }).Count
+        $issues = $fail.Count + $warn.Count
+        Set-IgwtGuiTile -Name 'Health' -Value $(if ($issues) { "$issues to review" } else { 'All good' }) -Note "$($checks.Count) checks: $pass pass, $($warn.Count) to check, $($fail.Count) failed" -Tone $(if ($fail.Count) { 'Fail' } elseif ($warn.Count) { 'Warn' } else { 'Pass' })
+        $c.DashHealthSummary.Text = "$($checks.Count) checks, $issues to review"
+        foreach ($h in @($fail) + @($warn)) { if ($Data.Pending -and [string]$h.Name -like 'Pending reboot*') { continue }; & $add $(if ([string]$h.Status -eq 'Fail') { 'Important' } else { 'Check' }) "$($h.Name): $($h.Value)" $(if ($h.Advice) { [string]$h.Advice } else { [string]$h.Detail }) "$($h.Section). $($h.Detail)" }
+        # Problems first in the detail list.
+        $rank = @{ Fail = 0; Warn = 1; Unknown = 2; Info = 3; Pass = 4 }
+        $c.HealthList.ItemsSource = @($checks | Sort-Object @{ Expression = { $k = [string]$_.Status; if ($rank.ContainsKey($k)) { $rank[$k] } else { 5 } } } | ForEach-Object { New-IgwtGuiCheckRow -Check $_ })
+    } else { Set-IgwtGuiTile -Name 'Health' -Value '-' -Note 'Press Refresh to run the health checks' -Tone 'Info' }
+
+    # Your changes.
+    $snaps = @($Data.Snapshots | Where-Object { $_ }).Count
+    if ($Data.Pending) {
+        $what = $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart Windows' } else { 'Sign out and back in' })
+        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart needed' } else { 'Sign-out needed' }) -Note "To finish $(@($Data.Pending.Tweaks).Count) change(s)" -Tone 'Warn'
+        & $add 'Important' "$what to finish your changes" "$(@($Data.Pending.Tweaks).Count) change(s) wait for it: $(@($Data.Pending.Tweaks) -join ', ')" ''
+    } else {
+        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($snaps) { "$snaps snapshot(s)" } else { 'No changes yet' }) -Note 'Every change can be undone in Backups & Logs' -Tone 'Info'
+    }
+    if ($Data.PSObject.Properties['Hardware'] -and $Data.Hardware) { $c.DashHwSummary.Text = "$(@($Data.Hardware.Tags).Count) tags, $(@($Data.Hardware.Overlays).Count) overlay(s)" }
+
+    # Do this next: important first, at most five, numbered.
+    $ordered = @($actions | Sort-Object @{ Expression = { if ($_.Level -eq 'Important') { 0 } else { 1 } } })
+    $top = @($ordered | Select-Object -First 5)
+    $i = 0
+    $c.DashActionList.ItemsSource = @(foreach ($a in $top) {
+            $i++
+            $tone = $(if ($a.Level -eq 'Important') { 'Fail' } else { 'Warn' })
+            [pscustomobject]@{ Number = $i; Title = $a.Title; Action = $a.Action; Level = $a.Level; Tip = $(if ($a.Tip) { $a.Tip } else { $a.Action })
+                Brush = $script:IgwtColor[$tone]; DiscBrush = $(if ($tone -eq 'Fail') { '#FF3D1C21' } else { '#FF3A3016' }); RowBrush = 'Transparent' }
+        })
+    $c.DashAllClear.Visibility = $(if ($top.Count) { 'Collapsed' } else { 'Visible' })
+    $more = $ordered.Count - $top.Count
+    $c.DashMoreText.Text = "$more more item(s) in the sections below."
+    $c.DashMoreText.Visibility = $(if ($more -gt 0) { 'Visible' } else { 'Collapsed' })
 }
 
 function Update-IgwtGuiSnapshots {
@@ -1267,6 +1369,55 @@ function Test-IgwtGuiSearchMatch {
     return ("$($Row.Title) $($Row.Subtitle) $($Row.Tip)".IndexOf($Text, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
 }
 
+function ConvertTo-IgwtGuiSortedRows {
+    <#
+    .SYNOPSIS
+        Sorts Manage rows by the column chosen in that tab's header (Title, Badge or State), numbers
+        by value ("120 MB" after "9 MB"), text case-insensitively; unsorted when no column is chosen.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$Rows, [Parameter(Mandatory = $true)][string]$Tab)
+    $s = $null
+    if ($script:Gui.ManageSort -and $script:Gui.ManageSort.ContainsKey($Tab)) { $s = $script:Gui.ManageSort[$Tab] }
+    if (-not $s -or -not $Rows -or $Rows.Count -lt 2) { return , @($Rows) }
+    $key = [string]$s.Key
+    $num = { param($v) $m = [regex]::Match([string]$v, '^\s*(\d+(?:[.,]\d+)?)'); if ($m.Success) { [double]($m.Groups[1].Value -replace ',', '.') } else { [double]::NaN } }
+    $allNum = @($Rows | Where-Object { [double]::IsNaN((& $num $_.$key)) }).Count -eq 0
+    $sorted = $(if ($allNum) { @($Rows | Sort-Object -Property @{ Expression = { & $num $_.$key } }, Title -Descending:([bool]$s.Descending)) }
+        else { @($Rows | Sort-Object -Property @{ Expression = { ([string]$_.$key).ToLowerInvariant() } }, @{ Expression = { ([string]$_.Title).ToLowerInvariant() } } -Descending:([bool]$s.Descending)) })
+    return , $sorted
+}
+
+function Get-IgwtGuiSortHeaders {
+    <# .SYNOPSIS The sortable column header buttons of the Manage page (Tag sort:<tab>:<column>). #>
+    [CmdletBinding()]
+    param($Node)
+    if ($null -eq $Node) { return }
+    if ($Node -is [System.Windows.Controls.Button] -and ([string]$Node.Tag).StartsWith('sort:')) { $Node }
+    if ($Node -is [System.Windows.DependencyObject]) { foreach ($child in [System.Windows.LogicalTreeHelper]::GetChildren($Node)) { Get-IgwtGuiSortHeaders -Node $child } }
+}
+
+function Set-IgwtGuiManageSort {
+    <# .SYNOPSIS Header click on the Manage page: sorts that tab by the column, a second click reverses, and marks the column with an arrow. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Tag)
+    $parts = $Tag.Split(':')
+    if ($parts.Count -ne 3) { return }
+    $tab = $parts[1]; $key = $parts[2]
+    if (-not $script:Gui.ManageSort) { $script:Gui.ManageSort = @{} }
+    $cur = $script:Gui.ManageSort[$tab]
+    $desc = $(if ($cur -and $cur.Key -eq $key) { -not [bool]$cur.Descending } else { $false })
+    $script:Gui.ManageSort[$tab] = [pscustomobject]@{ Key = $key; Descending = $desc }
+    foreach ($b in @(Get-IgwtGuiSortHeaders -Node $script:Gui.C.ManageTabs)) {
+        $p = ([string]$b.Tag).Split(':')
+        if ($p[1] -ne $tab) { continue }
+        $label = ([string]$b.Content) -replace '\s+[\u25B2\u25BC]$', ''
+        $b.Content = $(if ($p[2] -eq $key) { "$label $(if ($desc) { [char]0x25BC } else { [char]0x25B2 })" } else { $label })
+    }
+    Update-IgwtGuiManageLists
+}
+
 function Update-IgwtGuiManageLists {
     <# .SYNOPSIS Fills the Manage lists from the cached data, filtered by the search box. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
@@ -1281,36 +1432,36 @@ function Update-IgwtGuiManageLists {
     $tone = @{ Protected = 'Muted'; Catalogued = 'Info'; Windows = 'Text'; ThirdParty = 'Warn' }
     if (& $has $m.Services 'Services') {
         $rows = @($m.Services.Services | ForEach-Object { New-IgwtGuiManageRow -Title $_.DisplayName -Subtitle "$($_.Name) - $($_.Description)" -Badge "$($_.State), $($_.StartupType)" -State $_.Rating -Tone $tone[[string]$_.Rating] -Tip "$($_.Advice)`n$($_.Path)" -Source $_ } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
-        $c.ManageServiceList.ItemsSource = $rows
+        $c.ManageServiceList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'Service')
         $k = $m.Services.Counts
         $c.ManageServiceSummary.Text = "$($k.Total) services, $($k.Running) running, $($k.Protected) protected, $($k.ThirdParty) installed by apps. Catalogued services are managed by catalog items with documented reasons; prefer those."
     } else { $c.ManageServiceSummary.Text = & $err $m.Services }
     if (& $has $m.Tasks 'Tasks') {
-        $c.ManageTaskList.ItemsSource = @($m.Tasks.Tasks | ForEach-Object {
-                New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.TaskPath -Badge $(if ($_.IsMicrosoft) { 'Microsoft' } else { 'third-party' }) -State $(if ($_.Protected) { 'Protected' } else { $_.State }) `
-                    -Tone $(if ($_.Protected) { 'Muted' } elseif ($_.State -eq 'Disabled') { 'Muted' } elseif (-not $_.IsMicrosoft) { 'Warn' } else { 'Text' }) -Tip "$($_.Description)`n$($_.Action)" -Source $_
-            } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        $c.ManageTaskList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Tab 'Task' -Rows @($m.Tasks.Tasks | ForEach-Object {
+                    New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.TaskPath -Badge $(if ($_.IsMicrosoft) { 'Microsoft' } else { 'third-party' }) -State $(if ($_.Protected) { 'Protected' } else { $_.State }) `
+                        -Tone $(if ($_.Protected) { 'Muted' } elseif ($_.State -eq 'Disabled') { 'Muted' } elseif (-not $_.IsMicrosoft) { 'Warn' } else { 'Text' }) -Tip "$($_.Description)`n$($_.Action)" -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q }))
         $c.ManageTaskSummary.Text = "$($m.Tasks.Counts.Total) tasks, $($m.Tasks.Counts.Disabled) disabled, $($m.Tasks.Counts.ThirdParty) third-party. $($m.Tasks.Note)"
     } else { $c.ManageTaskSummary.Text = & $err $m.Tasks }
     if (& $has $m.Apps 'Appx') {
         $appx = @($m.Apps.Appx | ForEach-Object { New-IgwtGuiManageRow -Title $_.Name -Subtitle "Inbox / Store app $($_.Version)" -Badge 'Appx' -State $(if ($_.Protected) { 'Protected' } else { 'Removable' }) -Tone $(if ($_.Protected) { 'Muted' } else { 'Text' }) -Tip $_.Note -Source $_ })
         $win32 = @($m.Apps.Win32 | ForEach-Object { New-IgwtGuiManageRow -Title $_.Name -Subtitle "$($_.Publisher) $($_.Version)" -Badge 'Win32' -State $(if ($_.SizeMB) { "$($_.SizeMB) MB" } else { $_.Scope }) -Tone 'Muted' -Tip 'Uninstall Win32 apps with their own uninstaller (Settings > Apps > Installed apps).' -Source $_ })
-        $c.ManageAppList.ItemsSource = @(@($appx) + @($win32) | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        $c.ManageAppList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Tab 'App' -Rows @(@($appx) + @($win32) | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q }))
         $c.ManageAppSummary.Text = "$(@($m.Apps.Appx).Count) inbox/Store apps ($(@($m.Apps.Appx | Where-Object { $_.CanRemove }).Count) removable) and $(@($m.Apps.Win32).Count) Win32 apps. $($m.Apps.Note)"
     } else { $c.ManageAppSummary.Text = & $err $m.Apps }
     if (& $has $m.Persistence 'Entries') {
-        $c.ManagePersistList.ItemsSource = @($m.Persistence.Entries | ForEach-Object {
-                $sig = $(if ($_.Signature) { "$($_.Signature) $($_.Signer)".Trim() } else { '' })
-                New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Command -Badge "$($_.Category)$(if ($_.Enabled -eq $false) { ', disabled' })" -State $_.Severity -Tone $(switch ($_.Severity) { 'Warn' { 'Fail' } 'Review' { 'Warn' } default { 'Pass' } }) -Tip "$($_.Location)`n$sig`n$($_.Note)" -Source $_
-            } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        $c.ManagePersistList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Tab 'Persist' -Rows @($m.Persistence.Entries | ForEach-Object {
+                    $sig = $(if ($_.Signature) { "$($_.Signature) $($_.Signer)".Trim() } else { '' })
+                    New-IgwtGuiManageRow -Title $_.Name -Subtitle $_.Command -Badge "$($_.Category)$(if ($_.Enabled -eq $false) { ', disabled' })" -State $_.Severity -Tone $(switch ($_.Severity) { 'Warn' { 'Fail' } 'Review' { 'Warn' } default { 'Pass' } }) -Tip "$($_.Location)`n$sig`n$($_.Note)" -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q }))
         $k = $m.Persistence.Counts
         $c.ManagePersistSummary.Text = "$($k.Total) entries (Microsoft-signed services, drivers and tasks hidden), $($k.Warn) warning(s), $($k.Review) to review. $($m.Persistence.Note)"
     } else { $c.ManagePersistSummary.Text = & $err $m.Persistence }
     if (& $has $m.Firewall 'Rules') {
-        $c.ManageFirewallList.ItemsSource = @($m.Firewall.Rules | ForEach-Object {
-                New-IgwtGuiManageRow -Title $_.DisplayName -Subtitle $(if ($_.Program) { $_.Program } else { $_.Group }) -Badge "$($_.Direction), $($_.Action)$(if ($_.IsWindowsRule) { ', Windows' })" -State $(if ($_.Enabled) { 'Enabled' } else { 'Disabled' }) `
-                    -Tone $(if ($_.IsWindowsRule) { 'Muted' } elseif ($_.Enabled) { 'Pass' } else { 'Muted' }) -Tip "$($_.Name)`nProfile: $($_.Profile)" -Source $_
-            } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q })
+        $c.ManageFirewallList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Tab 'Firewall' -Rows @($m.Firewall.Rules | ForEach-Object {
+                    New-IgwtGuiManageRow -Title $_.DisplayName -Subtitle $(if ($_.Program) { $_.Program } else { $_.Group }) -Badge "$($_.Direction), $($_.Action)$(if ($_.IsWindowsRule) { ', Windows' })" -State $(if ($_.Enabled) { 'Enabled' } else { 'Disabled' }) `
+                        -Tone $(if ($_.IsWindowsRule) { 'Muted' } elseif ($_.Enabled) { 'Pass' } else { 'Muted' }) -Tip "$($_.Name)`nProfile: $($_.Profile)" -Source $_
+                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q }))
         $c.ManageFirewallSummary.Text = "$(@($m.Firewall.Rules).Count) rules, $($m.Firewall.AppRules) created by apps. $($m.Firewall.Note)"
     } else { $c.ManageFirewallSummary.Text = & $err $m.Firewall }
     if (& $has $m.Hosts 'Entries') {
@@ -1795,6 +1946,14 @@ function Set-IgwtGuiPersona {
     $rank = @{}
     for ($i = 0; $i -lt $order.Count; $i++) { $rank[[string]$order[$i]] = $i }
     $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
+    # The ASR Center is part of Security: keep it directly under Security in every persona.
+    $asr = @($sorted | Where-Object { [string]$_.Tag -eq 'Asr' }) | Select-Object -First 1
+    if ($asr) {
+        $rest = New-Object System.Collections.Generic.List[object]
+        foreach ($it in $sorted) { if ($it -ne $asr) { $rest.Add($it); if ([string]$it.Tag -eq 'Security') { $rest.Add($asr) } } }
+        if (-not $rest.Contains($asr)) { $rest.Add($asr) }
+        $sorted = $rest.ToArray()
+    }
     $nav.Items.Clear()
     foreach ($it in $sorted) {
         $it.Visibility = $(if ([string]$it.Tag -eq 'Risk Zone' -and -not $p.ShowRiskZone) { 'Collapsed' } else { 'Visible' })
@@ -2032,6 +2191,7 @@ function Show-IgwtGuiPage {
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
+    $c.SecuritySwitch.Visibility = $(if ($Page -eq 'Security') { 'Visible' } else { 'Collapsed' })
     if ($isTweakPage) {
         $script:Gui.Category = $Page
         $c.SearchBox.Text = ''
@@ -2193,6 +2353,14 @@ function Show-IgwtGui {
 
     # Navigation and page wiring
     $c.NavList.Add_SelectionChanged({ $item = $script:Gui.C.NavList.SelectedItem; if ($item) { Show-IgwtGuiPage -Page ([string]$item.Tag) } })
+    $c.SecAsrButton.Add_Click({ $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Asr' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } })
+    $c.AsrHardeningButton.Add_Click({ $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Security' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } })
+    $c.ManageTabs.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, [System.Windows.RoutedEventHandler] {
+            param($source, $e)
+            $null = $source
+            $src = $e.OriginalSource
+            if ($src -is [System.Windows.Controls.Button] -and ([string]$src.Tag).StartsWith('sort:')) { Set-IgwtGuiManageSort -Tag ([string]$src.Tag); $e.Handled = $true }
+        })
     $c.NavList.SelectedIndex = 0
     $c.TweakList.Add_SelectionChanged({ Update-IgwtGuiDetails })
     $toggleHandler = [System.Windows.RoutedEventHandler] {
