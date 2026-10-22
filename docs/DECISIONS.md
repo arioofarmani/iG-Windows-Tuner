@@ -259,3 +259,9 @@ Every design choice that departs from common tuning advice, or where several opt
 | D5 | **Exclusion setting names appear only in `src\Defender\Exclusions.ps1`**, which only reads and removes exclusions; the safety test was extended precisely: no `Add-` or `Set-MpPreference` with antivirus exclusion parameters anywhere, `Remove-MpPreference` only in the known files. Script-host and extension lists for the risk rating live in `data\defender\exclusion-risk.json`. | SPEC-v3 4.1 requires the exclusions audit; the rule "never adds exclusions" stays enforced by a test. |
 | D6 | **Quarantine restore needs `-IUnderstandTheRisk`**, validates the threat name and never runs in TestMode; Defender Offline needs `-ConfirmRestart`. | User-initiated only (SPEC-v3 4.1). |
 | D7 | **The "Managed device: report-only" Defender preset is the existing managed-PC rule** (every preset is report-only on a managed PC without `-AcknowledgeManaged`), not a separate preset. | Avoids a preset that does nothing. |
+## Release 3.0.0 (scope)
+
+| # | Decision | Reason |
+|---|---|---|
+| R1 | **3.0.0 is released after phase 8, re-scoped to a gaming network optimizer** (measure, plan, apply, verify with automatic revert, re-measure). Packet capture (pktmon), the full network analyzer, the network optimization engine with modes, category preset framework, sysadmin automation, the GUI integration and the final review (phases 9-14 of SPEC-v3) are not part of 3.0. | Ario's request on 2026-10-22. |
+| R2 | **The new 3.0 features are command-line only**; the GUI is unchanged from 2.3. | The GUI integration was phase 12. |

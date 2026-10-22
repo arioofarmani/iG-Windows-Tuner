@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '2.3.0'
+    ModuleVersion        = '3.0.0'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -43,6 +43,7 @@
         'Get-IgwtAdmxCatalog', 'Find-IgwtPolicy', 'Get-IgwtPolicyDefinition', 'Get-IgwtPolicyState', 'Get-IgwtPolicyChangePlan', 'Set-IgwtLocalPolicy', 'Get-IgwtTattooedPolicyValues', 'Read-IgwtRegistryPol', 'Write-IgwtRegistryPol',
         'Backup-IgwtLocalGpo', 'Restore-IgwtLocalGpo', 'Reset-IgwtLocalGpo', 'Get-IgwtLocalGpoResetPlan', 'Get-IgwtPolicyRegistryOps',
         'Get-IgwtDefenderCenter', 'Get-IgwtDefenderStatus', 'Get-IgwtDefenderSettings', 'Get-IgwtDefenderThreats', 'Set-IgwtDefenderParsersOn', 'Start-IgwtDefenderScan', 'Restore-IgwtQuarantineItem', 'Remove-IgwtDefenderThreat', 'Get-IgwtWebProtectionStatus', 'Get-IgwtDeviceControlStatus', 'Get-IgwtDetectionLoggingStatus', 'Get-IgwtSysmonEventSummary', 'Get-IgwtDefenderExclusionAudit', 'Remove-IgwtDefenderExclusion', 'Test-IgwtExclusionRisk', 'Get-IgwtFirewallLoggingStatus', 'Read-IgwtFirewallLog', 'Get-IgwtFirewallLogAnalysis', 'Export-IgwtFirewallLogAnalysis', 'Get-IgwtOutboundAllowListPlan',
+        'Get-IgwtGamingNetworkPlan', 'Invoke-IgwtGamingNetworkOptimization', 'Compare-IgwtNetworkQuality', 'Test-IgwtNetworkConnectivity',
         'Import-IgwtPolicyBaseline', 'Compare-IgwtPolicyBaseline', 'Export-IgwtPolicyComparison', 'Get-IgwtPolicyBaselinePlan', 'Invoke-IgwtPolicyBatch',
         'Get-IgwtPolicyPresets', 'Test-IgwtPolicyPresetCatalog', 'Get-IgwtPolicyPresetPlan', 'Invoke-IgwtPolicyPreset', 'Restore-IgwtPolicyPreset', 'Export-IgwtPolicyPreset',
         'Get-IgwtTattooAdoptionPlan', 'Invoke-IgwtTattooAdoption', 'Restore-IgwtTattooRemoval', 'Test-IgwtPolicyBridgeEnabled',

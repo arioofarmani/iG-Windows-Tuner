@@ -384,6 +384,14 @@
     User-initiated DNS benchmark of the current DNS servers and public resolvers (uses the network, changes nothing).
 .PARAMETER Latency
     User-initiated latency, jitter and loss test to the host names or IP addresses you give.
+.PARAMETER NetworkOptimize
+    Gaming network optimization for this PC: measures latency, jitter and loss, picks the Windows
+    network settings and registry values that lower latency and jitter on this connection, applies
+    them with a restore point and snapshot, checks that the network still works (reverting
+    automatically if it does not), measures again and shows before and after. -DryRun measures and
+    shows the plan only. Accepts -Duration, -NetTarget (a game server) and -RouterHonorsDscp.
+.PARAMETER RouterHonorsDscp
+    With -NetworkOptimize: also mark game traffic with DSCP (only when your router prioritizes by DSCP).
 .PARAMETER NetworkTest
     Network quality test: latency, jitter, packet loss and stability to your router, ISP and the
     internet, path trace, path MTU, connection type guess and recommended Windows adjustments.
@@ -607,6 +615,8 @@ param(
     [switch]$DnsBenchmark,
     [string[]]$Latency,
     [switch]$NetworkTest,
+    [switch]$NetworkOptimize,
+    [switch]$RouterHonorsDscp,
     [ValidateSet('Quick', 'Standard', 'Extended')]
     [string]$Duration = 'Standard',
     [string[]]$NetTarget,
@@ -904,6 +914,7 @@ if ($SystemReport) { $modes += 'SystemReport' }
 if ($DnsBenchmark) { $modes += 'DnsBenchmark' }
 if ($Latency) { $modes += 'Latency' }
 if ($NetworkTest) { $modes += 'NetworkTest' }
+if ($NetworkOptimize) { $modes += 'NetworkOptimize' }
 if ($RiskZone) { $modes += 'RiskZone' }
 if ($Toolkit) { $modes += 'Toolkit' }
 if ($Install -or ($AppList -and -not ($Uninstall -or $Upgrade))) { $modes += 'Install' }
@@ -937,7 +948,8 @@ if ($Quick -and -not ($SystemReport -or $Toolkit)) { Write-IgwtCliLine '-Quick i
 if ($SystemReport -and -not $ReportPath) { Write-IgwtCliLine '-SystemReport needs -ReportPath (.html or .json).' ([ConsoleColor]::Red); exit 2 }
 if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport -or $NetworkTest)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence, -SystemReport or -NetworkTest.' ([ConsoleColor]::Red); exit 2 }
 $netOnly = @('Duration', 'NetTarget', 'UnderLoad') | Where-Object { $PSBoundParameters.ContainsKey($_) }
-if ($netOnly -and -not $NetworkTest) { Write-IgwtCliLine "-$($netOnly -join ', -') only valid with -NetworkTest." ([ConsoleColor]::Red); exit 2 }
+if ($netOnly -and -not ($NetworkTest -or $NetworkOptimize)) { Write-IgwtCliLine "-$($netOnly -join ', -') only valid with -NetworkTest or -NetworkOptimize." ([ConsoleColor]::Red); exit 2 }
+if ($RouterHonorsDscp -and -not $NetworkOptimize) { Write-IgwtCliLine '-RouterHonorsDscp is only valid with -NetworkOptimize.' ([ConsoleColor]::Red); exit 2 }
 if ($AsrMode -and -not $AsrRule) { Write-IgwtCliLine '-AsrMode needs -AsrRule.' ([ConsoleColor]::Red); exit 2 }
 $powerOnly = @('Ac', 'Dc', 'PowerDefault') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($powerOnly -and -not $PowerSetting) { Write-IgwtCliLine "-$($powerOnly -join ', -') only valid with -PowerSetting." ([ConsoleColor]::Red); exit 2 }
@@ -1234,6 +1246,35 @@ try {
                 if (-not $Json) { Write-IgwtCliLine "Report written to $out" ([ConsoleColor]::Gray) }
             }
             exit $(if ($res.Error) { 1 } else { 0 })
+        }
+        'NetworkOptimize' {
+            if (-not $DryRun -and -not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            if (-not $Json) { Write-IgwtCliLine "Measuring the connection ($($Duration.ToLowerInvariant()) test: pings and DNS queries)..." ([ConsoleColor]::Gray) }
+            try { $r = Invoke-IgwtGamingNetworkOptimization -Duration $Duration -Target @(Split-IgwtIdList $NetTarget) -RouterHonorsDscp:$RouterHonorsDscp -PlanOnly:$DryRun -SkipRestorePoint:$SkipRestorePoint -AcknowledgeManaged:$AcknowledgeManaged }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if ($Json) { $r | ConvertTo-Json -Depth 8; Complete-IgwtCli $(if ($r.Error) { 1 } else { 0 }) }
+            if ($r.Before -and -not $r.Before.Error) { Write-IgwtCliLine (Format-IgwtNetworkQuality -Result $r.Before) ([ConsoleColor]::Gray) }
+            $p = $r.Plan
+            if ($p) {
+                Write-IgwtCliLine ''; Write-IgwtCliLine "Gaming network plan ($($p.Profile), $($p.Connection)$(if ($p.LinkSpeed) { ' ' + $p.LinkSpeed })):" ([ConsoleColor]::White)
+                foreach ($e in $p.Evidence) { Write-IgwtCliLine "  Measured: $e" ([ConsoleColor]::DarkGray) }
+                foreach ($i in $p.Items) { Write-IgwtCliLine ("  [APPLY] {0,-34} {1}" -f $i.Id, $i.Why) ([ConsoleColor]::Yellow) }
+                foreach ($k in $p.Skipped) { Write-IgwtCliLine ("  [SKIP]  {0,-34} {1}" -f $k.Id, $k.Reason) ([ConsoleColor]::DarkGray) }
+                if (-not $p.Items.Count) { Write-IgwtCliLine '  Every recommended setting is already in place or does not apply here.' ([ConsoleColor]::Green) }
+            }
+            if ($r.Error) { Write-IgwtCliLine $r.Error ([ConsoleColor]::Red); Complete-IgwtCli $(if ($r.RevertedAutomatically) { 5 } else { 1 }) }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed. Run without -DryRun to apply and measure again.' ([ConsoleColor]::White); exit 0 }
+            if ($r.Applied) {
+                foreach ($x in @($r.Applied.Results)) { Write-IgwtCliLine ("  {0,-10} {1} {2}" -f $x.Result, $x.Id, $x.Message) $(if ($x.Result -eq 'Applied') { [ConsoleColor]::Green } elseif ($x.Result -eq 'Failed') { [ConsoleColor]::Red } else { [ConsoleColor]::Gray }) }
+                Write-IgwtCliLine "Network check after the change: router $($r.Connectivity.Gateway), internet $($r.Connectivity.Internet), DNS $($r.Connectivity.Dns)." ([ConsoleColor]::Gray)
+            }
+            if (@($r.Comparison).Count) {
+                Write-IgwtCliLine ''; Write-IgwtCliLine 'Before -> after (median ms, jitter ms, loss %):' ([ConsoleColor]::White)
+                foreach ($c in $r.Comparison) { Write-IgwtCliLine ("  {0,-30} {1,7} -> {2,-7} {3,6} -> {4,-6} {5,5} -> {6,-5} {7}" -f $c.Name.Substring(0, [Math]::Min(30, $c.Name.Length)), $c.MedianBefore, $c.MedianAfter, $c.JitterBefore, $c.JitterAfter, $c.LossBefore, $c.LossAfter, $c.Verdict) $(switch ($c.Verdict) { 'Better' { [ConsoleColor]::Green } 'Worse' { [ConsoleColor]::Yellow } default { [ConsoleColor]::Gray } }) }
+                if (@($r.Comparison | Where-Object Verdict -EQ 'Worse').Count) { Write-IgwtCliLine "Some targets look worse; one test can be noisy, so run -NetworkTest again. Undo with -RevertAll -Snapshot `"$($r.Applied.Snapshot)`"." ([ConsoleColor]::Yellow) }
+            }
+            if ($r.Applied -and $r.Applied.Snapshot) { Write-IgwtCliLine "Snapshot: $($r.Applied.Snapshot) (undo with -RevertAll -Snapshot <file>)." ([ConsoleColor]::DarkGray) }
+            Complete-IgwtCli $(if ($r.Applied -and $r.Applied.Requires -eq 'reboot') { 3010 } else { 0 })
         }
         'RiskZone' {
             $ctx = New-IgwtContext

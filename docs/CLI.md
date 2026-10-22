@@ -173,6 +173,8 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 
 | Parameter | Description |
 |---|---|
+| `-NetworkOptimize` | Gaming network optimization for this PC: measures latency, jitter and loss, picks the Windows network settings and registry values that lower latency and jitter on this connection, applies them with a restore point and snapshot, checks that the network still works (reverting automatically if it does not), measures again and shows before and after. -DryRun measures and shows the plan only. Accepts -Duration, -NetTarget (a game server) and -RouterHonorsDscp. |
+| `-RouterHonorsDscp` | With -NetworkOptimize: also mark game traffic with DSCP (only when your router prioritizes by DSCP). |
 | `-DnsBenchmark` | User-initiated DNS benchmark of the current DNS servers and public resolvers (uses the network, changes nothing). |
 | `-Latency` | User-initiated latency, jitter and loss test to the host names or IP addresses you give. |
 | `-NetworkTest` | Network quality test: latency, jitter, packet loss and stability to your router, ISP and the internet, path trace, path MTU, connection type guess and recommended Windows adjustments. Read-only (pings and DNS queries). -ReportPath saves an .html or .json report. |

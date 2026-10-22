@@ -1,6 +1,12 @@
 # Changelog
 
-## 3.0.0 (in progress)
+## 3.0.0 (2026-10-22)
+
+3.0 preview release. The new features are available on the command line (`docs\CLI.md`); the GUI shows the 2.x features. A packet capture and a full network analyzer are not part of 3.0.
+
+### Gaming network optimizer
+
+- `-NetworkOptimize`: measures latency, jitter and loss to the router, the ISP, internet anchors and game servers, applies the Windows network settings and registry values that lower latency and jitter on that connection through the engine (restore point, snapshot), checks connectivity and reverts automatically when the network does not come back, then measures again and compares before and after. Interrupt moderation is turned off only on links up to 2.5 Gbit/s; DSCP marking only with `-RouterHonorsDscp`; refused in Remote Desktop sessions. `docs\NETWORK_GAMING.md`.
 
 ### Defender & Security Control Center (phase 7)
 
