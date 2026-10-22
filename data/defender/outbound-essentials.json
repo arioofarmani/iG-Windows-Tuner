@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "description": "Windows components that need outbound access when outbound traffic is default-block (shown by the outbound allow-list planner; iG Windows Tuner never creates the rules).",
+  "essential": [
+    { "program": "%SystemRoot%\\System32\\svchost.exe", "service": "wuauserv", "why": "Windows Update" },
+    { "program": "%SystemRoot%\\System32\\svchost.exe", "service": "BITS", "why": "Background downloads for Windows Update" },
+    { "program": "%SystemRoot%\\System32\\svchost.exe", "service": "Dnscache", "why": "DNS resolution" },
+    { "program": "%SystemRoot%\\System32\\svchost.exe", "service": "W32Time", "why": "Time sync" },
+    { "program": "%SystemRoot%\\System32\\svchost.exe", "service": "DoSvc", "why": "Delivery Optimization" },
+    { "program": "%ProgramData%\\Microsoft\\Windows Defender\\Platform\\<version>\\MsMpEng.exe", "service": "WinDefend", "why": "Defender cloud protection and security intelligence updates" }
+  ]
+}

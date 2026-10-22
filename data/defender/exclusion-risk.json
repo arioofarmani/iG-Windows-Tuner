@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "description": "Inputs for the Defender exclusions audit: programs whose exclusion hides whatever they run (script hosts and living-off-the-land binaries) and file extensions that can carry code.",
+  "sources": [
+    "https://learn.microsoft.com/en-us/defender-endpoint/defender-endpoint-exclusions-common-mistakes",
+    "https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-exclusions-configure"
+  ],
+  "scriptHosts": [ "powershell.exe", "pwsh.exe", "powershell_ise.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "rundll32.exe", "regsvr32.exe", "msbuild.exe", "installutil.exe", "python.exe", "pythonw.exe", "node.exe", "java.exe", "javaw.exe", "bash.exe", "wsl.exe", "certutil.exe", "bitsadmin.exe", "msiexec.exe", "explorer.exe", "svchost.exe", "dllhost.exe", "schtasks.exe", "wmic.exe" ],
+  "riskyExtensions": [ "exe", "dll", "sys", "ps1", "psm1", "bat", "cmd", "js", "jse", "vbs", "vbe", "wsf", "hta", "scr", "msi", "lnk", "com", "cpl", "jar", "zip", "rar", "7z", "iso", "docm", "xlsm" ]
+}

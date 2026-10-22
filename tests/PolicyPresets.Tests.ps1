@@ -28,6 +28,8 @@ Describe 'Policy presets' {
         $script:GpoRoot = Join-Path $TestDrive ('GPO-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         InModuleScope iGWindowsTuner -Parameters @{ R = $script:GpoRoot; A = $script:AdmxDir } { param($R, $A) $script:IgwtSettings.GpoRoot = $R; $script:IgwtSettings.GpoUsersRoot = "$R-Users"; $script:IgwtSettings.AdmxFolders = @($A); $script:IgwtPolicyPresets = $null }
         Mock -ModuleName iGWindowsTuner Get-IgwtManagementState { [pscustomobject]@{ Managed = $false; DomainJoined = $false; DomainName = ''; Authorities = @(); LocalGroupPolicy = $true } }
+        Mock -ModuleName iGWindowsTuner Get-MpPreference { [pscustomobject]@{ DisableDnsParsing = $false; DisableQuicParsing = $true; EnableDnsSinkhole = $true } }
+        Mock -ModuleName iGWindowsTuner Set-MpPreference { }
         Mock -ModuleName iGWindowsTuner Get-IgwtOsInfo { [pscustomobject]@{ EditionId = 'Professional'; Build = 26300 } }
         Mock -ModuleName iGWindowsTuner Get-IgwtCurrentIdentity { [pscustomobject]@{ Name = 'PC\ario'; Sid = 'S-1-5-21-1-2-3-1001'; GroupSids = @('S-1-5-32-544', 'S-1-5-32-545'); IsRemote = $false } }
         Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'ario'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-3) }, [pscustomobject]@{ Name = 'admin2'; Sid = 'S-1-5-21-1-2-3-1002'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }
@@ -67,7 +69,7 @@ Describe 'Policy presets' {
         It 'ships at least the 12 categories of SPEC-v3 3.6 and passes validation' {
             $script:Presets.Count | Should -BeGreaterOrEqual 12
             @(InModuleScope iGWindowsTuner { Test-IgwtPolicyPresetCatalog }) | Should -BeNullOrEmpty
-            foreach ($id in 'privacy-telemetry', 'wufb-pilot', 'wufb-broad', 'wufb-gaming', 'defender-antivirus', 'attack-surface', 'edge-security', 'credentials-hardening', 'remote-access-lockdown', 'removable-media', 'audit-logging', 'kiosk-shared', 'developer-workstation', 'secure-gaming') { @($script:Presets | Where-Object id -EQ "policy.$id").Count | Should -Be 1 -Because $id }
+            foreach ($id in 'privacy-telemetry', 'wufb-pilot', 'wufb-broad', 'wufb-gaming', 'defender-recommended', 'defender-gaming', 'defender-strict', 'defender-audit', 'firewall-logging', 'attack-surface', 'edge-security', 'credentials-hardening', 'remote-access-lockdown', 'removable-media', 'audit-logging', 'kiosk-shared', 'developer-workstation', 'secure-gaming') { @($script:Presets | Where-Object id -EQ "policy.$id").Count | Should -Be 1 -Because $id }
         }
         It 'refuses invalid presets' {
             $bad = @([pscustomobject]@{ id = 'policy.bad'; name = 'B'; scope = 'Privacy'; hint = 'h'; description = 'd'; antiCheat = 'safe'; sources = @('https://learn.microsoft.com/'); settings = @(

@@ -63,6 +63,11 @@ function Test-IgwtPolicyPresetCatalog {
                     if ([string]$s.guid -notmatch '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$') { $errors.Add("${where}: guid must be a subcategory GUID without braces.") }
                     if (-not (ConvertTo-IgwtAuditSetting -Value ([string]$s.setting))) { $errors.Add("${where}: invalid audit setting $($s.setting).") }
                 }
+                'mppref' {
+                    $known = @((Get-IgwtDefenderSettingCatalog).settings | Where-Object { $_.kind -eq 'parser' } | ForEach-Object { [string]$_.mp })
+                    $names = @($s.parsers)
+                    if (-not ($names.Count -eq 1 -and [string]$names[0] -eq 'all')) { foreach ($n in $names) { if ($known -notcontains [string]$n) { $errors.Add("${where}: '$n' is not a Network Inspection parser setting.") } } }
+                }
                 'secpol' {
                     try { $c = @(ConvertFrom-IgwtSecurityChangeText -Text ("{0}={1}" -f $s.key, $s.value)); if ($c.Count -ne 1) { $errors.Add("${where}: one security setting per entry.") } }
                     catch { $errors.Add("${where}: $($_.Exception.Message)") }
@@ -132,6 +137,20 @@ function Get-IgwtPolicyPresetPlan {
                     elseif ($cur.Setting -eq (ConvertTo-IgwtAuditSetting -Value ([string]$s.setting))) { $row.Status = 'InPlace' }
                 }
             }
+            'mppref' {
+                $row.Name = $(if ($s.label) { [string]$s.label } else { 'Network Inspection parsers on' })
+                $all = @((Get-IgwtDefenderSettingCatalog).settings | Where-Object { $_.kind -eq 'parser' })
+                if (-not (@($s.parsers).Count -eq 1 -and [string]@($s.parsers)[0] -eq 'all')) { $all = @($all | Where-Object { @($s.parsers) -contains [string]$_.mp }) }
+                $pref = $null
+                try { $pref = Get-IgwtMpPreferenceSafe } catch { $row.Status = 'Unknown'; $row.Reason = "Defender preferences are unavailable: $($_.Exception.Message)" }
+                if ($pref) {
+                    $present = @($all | Where-Object { $pref.PSObject.Properties[[string]$_.mp] })
+                    $off = @($present | Where-Object { [string]$pref.([string]$_.mp) -ne [string]$_.on })
+                    $row.Ops = @($off | ForEach-Object { [string]$_.mp })
+                    $row.Note = (@($(if ($off.Count) { "Turns on: $(@($off | ForEach-Object { $_.name }) -join ', ')." } else { '' }), 'Inspection parsers are only ever turned on; reverting the preset leaves them on.', $row.Note) | Where-Object { $_ }) -join ' '
+                    if (-not $off.Count) { $row.Status = 'InPlace' }
+                }
+            }
             'secpol' {
                 $c = @(ConvertFrom-IgwtSecurityChangeText -Text ("{0}={1}" -f $s.key, $s.value))[0]
                 $row.Name = $(if ($s.label) { [string]$s.label } else { "$($c.Section)\$($c.Key) = $($c.Value)" })
@@ -189,12 +208,12 @@ function Invoke-IgwtPolicyBatch {
     $refused = @($plan.Rows | Where-Object { $_.Status -eq 'Refused' })
     if ($plan.Refusals.Count -or $refused.Count) { throw "Refused: $(@($plan.Refusals) + @($refused | ForEach-Object { "$($_.Name): $($_.Reason)" }) -join ' ')" }
     if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local policies. Pass -AcknowledgeManaged to apply the preset locally." }
-    if (@($plan.Rows | Where-Object { $_.Kind -in 'audit', 'secpol' -and $_.Status -eq 'Unknown' }).Count) { throw 'This preset changes audit or security settings, which need administrator rights to read and change.' }
+    if (@($plan.Rows | Where-Object { $_.Kind -in 'audit', 'secpol', 'mppref' -and $_.Status -eq 'Unknown' }).Count) { throw 'This preset changes audit, security or Defender settings that could not be read; run it elevated.' }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Applying a policy preset needs administrator rights.' }
     $todo = @($plan.Rows | Where-Object { $_.Status -eq 'Change' })
     if (-not $todo.Count) { return [pscustomobject]@{ Id = $plan.Preset.id; Changed = 0; Record = $null; Verified = $true; Mismatch = @(); Skipped = @($plan.Rows | Where-Object { $_.Status -eq 'Unavailable' }) } }
     if (-not $PSCmdlet.ShouldProcess($plan.Preset.name, "Apply $($todo.Count) policy setting(s)")) { return $null }
-    $record = [ordered]@{ kind = 'igwt-policy-preset'; preset = [string]$plan.Preset.id; created = (Get-Date).ToString('o'); gpoBackup = $null; auditBackup = $null; secpolBackup = $null; settings = @($todo | ForEach-Object { $_.Name }) }
+    $record = [ordered]@{ kind = 'igwt-policy-preset'; preset = [string]$plan.Preset.id; created = (Get-Date).ToString('o'); gpoBackup = $null; auditBackup = $null; secpolBackup = $null; parsersTurnedOn = @(); settings = @($todo | ForEach-Object { $_.Name }) }
     $polRows = @($todo | Where-Object { $_.Kind -in 'admx', 'registry' })
     $classes = @($polRows | ForEach-Object { $_.Class } | Select-Object -Unique)
     if ($polRows.Count) {
@@ -204,6 +223,10 @@ function Invoke-IgwtPolicyBatch {
             $after = @(Update-IgwtPolEntries -Entries $before -Ops @($polRows | Where-Object { $_.Class -eq $cls } | ForEach-Object { $_.Ops }))
             $null = Save-IgwtBridgePol -Class $cls -Before $before -After $after
         }
+    }
+    if (@($todo | Where-Object Kind -EQ 'mppref').Count) {
+        $names = @($todo | Where-Object Kind -EQ 'mppref' | ForEach-Object { $_.Ops } | Select-Object -Unique)
+        $record.parsersTurnedOn = @((Set-IgwtDefenderParsersOn -Name $names -AcknowledgeManaged:$AcknowledgeManaged).TurnedOn)
     }
     if (@($todo | Where-Object Kind -EQ 'audit').Count) {
         $changes = @{}; foreach ($r in @($todo | Where-Object Kind -EQ 'audit')) { $changes[[string]$r.Setting.guid] = [string]$r.Setting.setting }
@@ -246,7 +269,7 @@ function Restore-IgwtPolicyPreset {
     if ($r.auditBackup) { $null = Restore-IgwtAuditPolicy -BackupPath ([string]$r.auditBackup); $done += 'audit policy' }
     if ($r.gpoBackup) { $null = Restore-IgwtLocalGpo -BackupPath ([string]$r.gpoBackup) -NoRefresh:$NoRefresh; Clear-IgwtCache -Prefix 'pol:' -WhatIf:$false; $done += 'Local GPO' }
     Write-IgwtLog -Message "Policy preset $($r.preset) reverted ($($done -join ', '))."
-    return [pscustomobject]@{ Preset = [string]$r.preset; Restored = $done }
+    return [pscustomobject]@{ Preset = [string]$r.preset; Restored = $done; StillOn = @($r.parsersTurnedOn | Where-Object { $_ }) }
 }
 
 #region Exports
@@ -271,6 +294,7 @@ function Get-IgwtPolicyExportContent {
         User    = @($ok | Where-Object { $_.Kind -in 'admx', 'registry' -and $_.Class -eq 'User' } | ForEach-Object { $_.Ops })
         Audit   = @($ok | Where-Object Kind -EQ 'audit' | ForEach-Object { [pscustomobject]@{ Subcategory = [string]$_.Setting.name; Guid = ([string]$_.Setting.guid).ToUpperInvariant(); Setting = (ConvertTo-IgwtAuditSetting -Value ([string]$_.Setting.setting)); Option = $false } })
         Security = $sec
+        Parsers = @($ok | Where-Object Kind -EQ 'mppref' | ForEach-Object { $_.Setting } | ForEach-Object { $names = @($_.parsers); if ($names.Count -eq 1 -and [string]$names[0] -eq 'all') { @((Get-IgwtDefenderSettingCatalog).settings | Where-Object { $_.kind -eq 'parser' }) } else { @((Get-IgwtDefenderSettingCatalog).settings | Where-Object { $_.kind -eq 'parser' -and $names -contains [string]$_.mp }) } })
         Skipped = @($Plan.Rows | Where-Object { $_.Status -in 'Unavailable', 'Refused' } | ForEach-Object { "$($_.Name): $($_.Reason)" })
     }
 }
@@ -339,6 +363,9 @@ function ConvertTo-IgwtPolicyScriptText {
             }
         }
     }
+    foreach ($pp in @($Content.Parsers)) {
+        $null = $sb.Append("if (`$PSCmdlet.ShouldProcess($(& $q $pp.name), 'Turn on')) { Set-MpPreference -$($pp.mp) `$$(([string]$pp.on).ToLowerInvariant()) }`r`n")
+    }
     foreach ($a in @($Content.Audit)) {
         $s = $(if ($a.Setting -in 'Success', 'SuccessAndFailure') { 'enable' } else { 'disable' }); $f = $(if ($a.Setting -in 'Failure', 'SuccessAndFailure') { 'enable' } else { 'disable' })
         $null = $sb.Append("if (`$PSCmdlet.ShouldProcess($(& $q "Audit $($a.Subcategory)"), $(& $q $a.Setting))) { auditpol /set /subcategory:'{$($a.Guid)}' /success:$s /failure:$f }`r`n")
@@ -398,6 +425,7 @@ function Export-IgwtPolicyPreset {
             if ($c.Security.Count) { $lines.Add("  LGPO.exe /s `"$guid\DomainSysvol\GPO\Machine\microsoft\windows nt\SecEdit\GptTmpl.inf`"") }
             if (@($c.Audit).Count) { $lines.Add("  LGPO.exe /a `"$guid\DomainSysvol\GPO\Machine\microsoft\windows nt\Audit\audit.csv`"") }
             $lines.Add('Check the switches with LGPO.exe /? for your LGPO version. The folder uses the layout of a GPO backup but has no Backup.xml or bkupInfo.xml, so it is not a GPMC backup and GPMC cannot import it; in a domain, create a GPO and import these files into it.')
+            if (@($c.Parsers).Count) { $lines.Add(''); $lines.Add("Network Inspection parsers have no policy file; turn them on with the Script export or Set-MpPreference: $(@($c.Parsers | ForEach-Object { $_.mp }) -join ', ').") }
             if ($c.Skipped.Count) { $lines.Add(''); $lines.Add('Not included (unavailable on the exporting PC):'); foreach ($k in $c.Skipped) { $lines.Add("  - $k") } }
             [System.IO.File]::WriteAllText($readme, (($lines -join "`r`n") + "`r`n"), $utf);            $files.Add($readme)
         }

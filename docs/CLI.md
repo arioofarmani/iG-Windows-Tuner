@@ -113,6 +113,23 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-AuditExport` | Writes the current audit policy as audit.csv to this path. |
 | `-AuditRestore` | Restores the audit policy from an -AuditSet or -AuditImport backup folder. |
 
+## Defender & Security Control Center
+
+| Parameter | Description |
+|---|---|
+| `-DefenderCenter` | Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web, DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights. |
+| `-DefenderThreats` | Threat history (Get-MpThreatDetection); -Days limits it. Read-only. |
+| `-RemoveExclusion` | Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress), after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first. |
+| `-DefenderScan` | Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart). |
+| `-ScanPath` | Folder or file for -DefenderScan Custom. |
+| `-ConfirmRestart` | Confirms that -DefenderScan Offline restarts the PC immediately. |
+| `-DefenderParsersOn` | Turns on every Network Inspection parser, inbound connection filtering, datagram processing and the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first. |
+| `-QuarantineRestore` | Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again). |
+| `-IUnderstandTheRisk` | Confirms -QuarantineRestore. |
+| `-FirewallLog` | Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline. -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only. |
+| `-FirewallLogPath` | Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log). |
+| `-OutboundAllowList` | Expert planning aid for default-block outbound: programs seen in the firewall log and Windows components that need outbound access, with warnings. Nothing is changed. |
+
 ## Cleaner and disk
 
 | Parameter | Description |

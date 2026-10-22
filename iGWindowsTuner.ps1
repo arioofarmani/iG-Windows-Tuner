@@ -97,6 +97,35 @@
 .PARAMETER BaselineApply
     Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
     or Ref values from the comparison separated by ;. Use -DryRun first.
+.PARAMETER DefenderCenter
+    Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
+    DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
+.PARAMETER DefenderThreats
+    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
+.PARAMETER RemoveExclusion
+    Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
+    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
+.PARAMETER DefenderScan
+    Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
+.PARAMETER ScanPath
+    Folder or file for -DefenderScan Custom.
+.PARAMETER ConfirmRestart
+    Confirms that -DefenderScan Offline restarts the PC immediately.
+.PARAMETER DefenderParsersOn
+    Turns on every Network Inspection parser, inbound connection filtering, datagram processing and
+    the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first.
+.PARAMETER QuarantineRestore
+    Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again).
+.PARAMETER IUnderstandTheRisk
+    Confirms -QuarantineRestore.
+.PARAMETER FirewallLog
+    Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline.
+    -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only.
+.PARAMETER FirewallLogPath
+    Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log).
+.PARAMETER OutboundAllowList
+    Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
+    components that need outbound access, with warnings. Nothing is changed.
 .PARAMETER SecPolicy
     Shows the local security policy: account policies, user rights assignment and security options
     (secedit /export to a temporary file). Read-only; asks for administrator rights.
@@ -126,6 +155,35 @@
 .PARAMETER BaselineApply
     Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
     or Ref values from the comparison separated by ;. Use -DryRun first.
+.PARAMETER DefenderCenter
+    Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
+    DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
+.PARAMETER DefenderThreats
+    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
+.PARAMETER RemoveExclusion
+    Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
+    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
+.PARAMETER DefenderScan
+    Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
+.PARAMETER ScanPath
+    Folder or file for -DefenderScan Custom.
+.PARAMETER ConfirmRestart
+    Confirms that -DefenderScan Offline restarts the PC immediately.
+.PARAMETER DefenderParsersOn
+    Turns on every Network Inspection parser, inbound connection filtering, datagram processing and
+    the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first.
+.PARAMETER QuarantineRestore
+    Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again).
+.PARAMETER IUnderstandTheRisk
+    Confirms -QuarantineRestore.
+.PARAMETER FirewallLog
+    Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline.
+    -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only.
+.PARAMETER FirewallLogPath
+    Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log).
+.PARAMETER OutboundAllowList
+    Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
+    components that need outbound access, with warnings. Nothing is changed.
 .PARAMETER SecPolicySet
     Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess,
     PrivilegeRights (accounts separated by |, names or *SIDs) and RegistryValues (type,value).
@@ -156,6 +214,35 @@
 .PARAMETER BaselineApply
     Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
     or Ref values from the comparison separated by ;. Use -DryRun first.
+.PARAMETER DefenderCenter
+    Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
+    DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
+.PARAMETER DefenderThreats
+    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
+.PARAMETER RemoveExclusion
+    Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
+    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
+.PARAMETER DefenderScan
+    Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
+.PARAMETER ScanPath
+    Folder or file for -DefenderScan Custom.
+.PARAMETER ConfirmRestart
+    Confirms that -DefenderScan Offline restarts the PC immediately.
+.PARAMETER DefenderParsersOn
+    Turns on every Network Inspection parser, inbound connection filtering, datagram processing and
+    the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first.
+.PARAMETER QuarantineRestore
+    Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again).
+.PARAMETER IUnderstandTheRisk
+    Confirms -QuarantineRestore.
+.PARAMETER FirewallLog
+    Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline.
+    -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only.
+.PARAMETER FirewallLogPath
+    Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log).
+.PARAMETER OutboundAllowList
+    Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
+    components that need outbound access, with warnings. Nothing is changed.
 .PARAMETER SecPolicyRestore
     Restores the settings a -SecPolicySet backup folder changed.
 .PARAMETER AuditPolicy
@@ -436,6 +523,20 @@ param(
     [string]$ExportPath,
     [string]$Baseline,
     [string]$BaselineApply,
+    [ValidateSet('All', 'Status', 'Settings', 'Exclusions', 'Firewall', 'Web', 'DeviceControl', 'Logging')]
+    [string]$DefenderCenter,
+    [switch]$DefenderThreats,
+    [string]$RemoveExclusion,
+    [ValidateSet('Quick', 'Full', 'Custom', 'Offline')]
+    [string]$DefenderScan,
+    [string]$ScanPath,
+    [switch]$ConfirmRestart,
+    [switch]$DefenderParsersOn,
+    [string]$QuarantineRestore,
+    [switch]$IUnderstandTheRisk,
+    [switch]$FirewallLog,
+    [string]$FirewallLogPath,
+    [switch]$OutboundAllowList,
     [switch]$SecPolicy,
     [string]$SecPolicySet,
     [string]$SecPolicyRestore,
@@ -764,6 +865,14 @@ if ($PolicyPresetRestore) { $modes += 'PolicyPresetRestore' }
 if ($PolicyExport) { $modes += 'PolicyExport' }
 if ($Baseline -and -not $BaselineApply) { $modes += 'Baseline' }
 if ($BaselineApply) { $modes += 'BaselineApply' }
+if ($DefenderCenter) { $modes += 'DefenderCenter' }
+if ($DefenderThreats) { $modes += 'DefenderThreats' }
+if ($RemoveExclusion) { $modes += 'RemoveExclusion' }
+if ($DefenderScan) { $modes += 'DefenderScan' }
+if ($DefenderParsersOn) { $modes += 'DefenderParsersOn' }
+if ($QuarantineRestore) { $modes += 'QuarantineRestore' }
+if ($FirewallLog) { $modes += 'FirewallLog' }
+if ($OutboundAllowList) { $modes += 'OutboundAllowList' }
 if ($SecPolicy) { $modes += 'SecPolicy' }
 if ($SecPolicySet) { $modes += 'SecPolicySet' }
 if ($SecPolicyRestore) { $modes += 'SecPolicyRestore' }
@@ -1442,6 +1551,109 @@ try {
             }
             $c = @($rows | Group-Object Status | ForEach-Object { "$($_.Count) $($_.Name)" }) -join ', '
             Write-IgwtCliLine ''; Write-IgwtCliLine "$($rows.Count) settings: $c. Apply with -Baseline <folder> -BaselineApply differs -DryRun." ([ConsoleColor]::White)
+            exit 0
+        }
+        'DefenderCenter' {
+            $c = Get-IgwtDefenderCenter -Section $DefenderCenter
+            if ($Json) { $c | ConvertTo-Json -Depth 6; exit 0 }
+            $sec = { param($t) Write-IgwtCliLine ''; Write-IgwtCliLine $t ([ConsoleColor]::White) }
+            if ($c.PSObject.Properties['Status']) {
+                $st = $c.Status; & $sec 'Status & health'
+                if ($st.Error) { Write-IgwtCliLine "  $($st.Error)" ([ConsoleColor]::Yellow) } else {
+                    Write-IgwtCliLine ("  Mode {0}; engine {1}, platform {2}; security intelligence {3} ({4} day(s) old)" -f $st.RunningMode, $st.EngineVersion, $st.PlatformVersion, $st.SignatureVersion, $st.SignatureAgeDays) ([ConsoleColor]::Gray)
+                    Write-IgwtCliLine ("  Real-time protection {0}; Tamper Protection {1} (read-only); Smart App Control {2}; Defender for Endpoint {3}; managed {4}" -f $(if ($st.RealTimeProtection) { 'on' } else { 'OFF' }), $(if ($st.TamperProtected) { 'on' } else { 'OFF' }), $st.SmartAppControl, $(if ($st.DefenderForEndpoint) { 'onboarded' } else { 'no' }), $(if ($st.Managed) { "yes ($($st.Authorities -join ', '))" } else { 'no' })) ([ConsoleColor]::Gray)
+                    foreach ($f in $st.Findings) { Write-IgwtCliLine "  [$($f.Severity)] $($f.Text)" $(if ($f.Severity -eq 'Fail') { [ConsoleColor]::Red } else { [ConsoleColor]::Yellow }) }
+                }
+            }
+            if ($c.PSObject.Properties['Settings']) {
+                if ($c.Settings.Error) { & $sec 'Settings'; Write-IgwtCliLine "  $($c.Settings.Error)" ([ConsoleColor]::Yellow) }
+                else { foreach ($g in @($c.Settings | Group-Object Category)) { & $sec "Settings: $($g.Name)"; foreach ($r in $g.Group) { Write-IgwtCliLine ("  {0,-6} {1,-46} {2,-12} {3}" -f $r.Status, $r.Name, [string]$r.Current, $r.Source) $(switch ($r.Status) { 'On' { [ConsoleColor]::Green } 'Off' { [ConsoleColor]::Yellow } 'Below' { [ConsoleColor]::Yellow } default { [ConsoleColor]::Gray } }) } } }
+            }
+            if ($c.PSObject.Properties['Exclusions']) {
+                & $sec 'Exclusions audit'; $x = $c.Exclusions
+                if ($x.Error) { Write-IgwtCliLine "  $($x.Error)" ([ConsoleColor]::Yellow) } else {
+                    if ($x.Note) { Write-IgwtCliLine "  $($x.Note)" ([ConsoleColor]::DarkGray) }
+                    foreach ($r in @($x.Exclusions)) { Write-IgwtCliLine ("  [{0}] {1} {2} ({3}){4}" -f $r.Severity, $r.Kind, $r.Value, $r.Source, $(if (@($r.Reasons).Count) { ': ' + (@($r.Reasons) -join ' ') } else { '' })) $(if ($r.Severity -eq 'High') { [ConsoleColor]::Red } elseif ($r.Severity -eq 'Medium') { [ConsoleColor]::Yellow } else { [ConsoleColor]::Gray }) }
+                    if ($x.Readable -and -not @($x.Exclusions).Count) { Write-IgwtCliLine '  No exclusions.' ([ConsoleColor]::Green) }
+                }
+            }
+            if ($c.PSObject.Properties['Firewall']) { & $sec 'Firewall logging'; foreach ($r in @($c.Firewall)) { if ($r.Error) { Write-IgwtCliLine "  $($r.Error)"; continue }; Write-IgwtCliLine ("  {0,-8} dropped {1,-14} allowed {2,-14} {3} KB  {4}" -f $r.Profile, $r.LogBlocked, $r.LogAllowed, $r.MaxSizeKB, $r.Finding) ([ConsoleColor]::Gray) } }
+            if ($c.PSObject.Properties['Web']) { & $sec 'Web & phishing'; foreach ($r in @($c.Web)) { Write-IgwtCliLine ("  {0,-48} {1}" -f $r.Name, $r.Value) ([ConsoleColor]::Gray) } }
+            if ($c.PSObject.Properties['DeviceControl']) { & $sec 'Device control'; $d = $c.DeviceControl; foreach ($r in @($d.Policies)) { Write-IgwtCliLine "  $($r.Area): $($r.Setting) = $($r.Value)" ([ConsoleColor]::Gray) }; Write-IgwtCliLine "  Defender device control: $($d.DefenderDeviceControl). $($d.Note)" ([ConsoleColor]::DarkGray) }
+            if ($c.PSObject.Properties['Logging']) {
+                & $sec 'Detection logging'; $l = $c.Logging
+                foreach ($r in @($l.Checks)) { Write-IgwtCliLine ("  {0,-5} {1} {2}" -f $(if ($r.On) { 'on' } else { 'off' }), $r.Name, $r.Note) $(if ($r.On) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }) }
+                Write-IgwtCliLine "  Sysmon: $(if ($l.Sysmon.Installed) { "$($l.Sysmon.Service) ($(if ($l.Sysmon.Running) { 'running' } else { 'stopped' }))" } else { 'not installed' }). $($l.Sysmon.Note)" ([ConsoleColor]::DarkGray)
+                Write-IgwtCliLine "  Turn the logging on with -PolicyPreset audit-logging." ([ConsoleColor]::DarkGray)
+            }
+            Write-IgwtCliLine ''; Write-IgwtCliLine $c.AsrCenter ([ConsoleColor]::DarkGray)
+            Write-IgwtCliLine 'Defender presets: -PolicyPreset defender-gaming | defender-recommended | defender-strict | defender-audit (managed PCs stay report-only).' ([ConsoleColor]::DarkGray)
+            exit 0
+        }
+        'DefenderThreats' {
+            $rows = @(Get-IgwtDefenderThreats -Days $(if ($Days) { $Days } else { 0 }))
+            if ($Json) { $rows | ConvertTo-Json -Depth 4; exit 0 }
+            foreach ($r in $rows) { Write-IgwtCliLine ("  {0}  {1,-9} {2}  {3}{4}" -f $r.Time, $r.Severity, $r.Threat, (@($r.Resources) -join ', '), $(if ($r.Active) { '  ACTIVE' } else { '' })) $(if ($r.Active) { [ConsoleColor]::Red } else { [ConsoleColor]::Gray }) }
+            Write-IgwtCliLine "$($rows.Count) detection(s)." ([ConsoleColor]::White)
+            exit 0
+        }
+        'RemoveExclusion' {
+            $kv = $RemoveExclusion.Split([char[]]@(':'), 2)
+            if ($kv.Count -ne 2 -or $kv[0] -notin 'Path', 'Process', 'Extension', 'IpAddress') { Write-IgwtCliLine 'Use -RemoveExclusion Kind:Value with Kind Path, Process, Extension or IpAddress.' ([ConsoleColor]::Red); exit 2 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $a = Get-IgwtDefenderExclusionAudit
+            $row = @($a.Exclusions | Where-Object { $_.Kind -eq $kv[0] -and [string]::Equals([string]$_.Value, $kv[1], [System.StringComparison]::OrdinalIgnoreCase) }) | Select-Object -First 1
+            if (-not $row) { Write-IgwtCliLine "No $($kv[0]) exclusion '$($kv[1])'." ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine ("  [{0}] {1} {2} from {3}. {4}" -f $row.Severity, $row.Kind, $row.Value, $row.Source, (@($row.Reasons) -join ' ')) ([ConsoleColor]::Gray)
+            if ($DryRun) { Write-IgwtCliLine "Dry run: would remove it$(if (-not $row.Removable) { ' (not possible locally: it comes from ' + $row.Source + ')' })." ([ConsoleColor]::White); Complete-IgwtCli 0 }
+            try { $r = Remove-IgwtDefenderExclusion -Kind $kv[0] -Value $kv[1] -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Removed. If something needed it, add it back by hand in Windows Security." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'DefenderScan' {
+            if ($DryRun) { Write-IgwtCliLine "Would start a $DefenderScan scan$(if ($ScanPath) { " of $ScanPath" })$(if ($DefenderScan -eq 'Offline') { ' (restarts the PC)' })."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $null = Start-IgwtDefenderScan -Type $DefenderScan -Path $ScanPath -ConfirmRestart:$ConfirmRestart -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "$DefenderScan scan finished or started; see -DefenderThreats for results." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'DefenderParsersOn' {
+            $off = @(Get-IgwtDefenderSettings -Category network | Where-Object { $_.Kind -eq 'parser' -and $_.Status -eq 'Off' })
+            foreach ($o in $off) { Write-IgwtCliLine "  Turn on: $($o.Name)" ([ConsoleColor]::Gray) }
+            if (-not $off.Count) { Write-IgwtCliLine 'Every Network Inspection parser is already on.' ([ConsoleColor]::Green); exit 0 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed. (Parsers are only ever turned on.)' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Set-IgwtDefenderParsersOn -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Turned on: $(@($r.TurnedOn) -join ', ')." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'QuarantineRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would restore '$QuarantineRestore' from quarantine (it can run again)."; exit 0 }
+            if (-not $IUnderstandTheRisk) { Write-IgwtCliLine 'Restoring a quarantined file can reintroduce malware. Add -IUnderstandTheRisk to confirm.' ([ConsoleColor]::Red); exit 2 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Restore-IgwtQuarantineItem -ThreatName $QuarantineRestore -IUnderstandTheRisk -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine $r.Output ([ConsoleColor]::Gray)
+            Complete-IgwtCli $(if ($r.ExitCode -eq 0) { 0 } else { 5 })
+        }
+        { $_ -in 'FirewallLog', 'OutboundAllowList' } {
+            try { $entries = @(Read-IgwtFirewallLog -Path $FirewallLogPath) } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
+            if ($modes[0] -eq 'OutboundAllowList') {
+                $plan = Get-IgwtOutboundAllowListPlan -Entries $entries
+                if ($ReportPath) { @($plan.Observed) | Export-Csv -LiteralPath $ReportPath -NoTypeInformation -Encoding UTF8; Write-IgwtCliLine "Observed programs written to $ReportPath" ([ConsoleColor]::Green) }
+                if ($Json) { $plan | ConvertTo-Json -Depth 4; exit 0 }
+                foreach ($w in $plan.Warnings) { Write-IgwtCliLine "  WARNING: $w" ([ConsoleColor]::Yellow) }
+                Write-IgwtCliLine ''; Write-IgwtCliLine 'Always needed:' ([ConsoleColor]::White); foreach ($e in $plan.Essential) { Write-IgwtCliLine "  $($e.Program) [$($e.Service)] $($e.Why)" ([ConsoleColor]::Gray) }
+                Write-IgwtCliLine ''; Write-IgwtCliLine 'Seen in the log (allowed outbound):' ([ConsoleColor]::White); foreach ($o in $plan.Observed) { Write-IgwtCliLine ("  {0,6}  {1}" -f $o.Connections, $o.Program) ([ConsoleColor]::Gray) }
+                if (-not @($plan.Observed).Count) { Write-IgwtCliLine '  Nothing: log allowed connections (wf.msc > Properties > Logging) for a while first.' ([ConsoleColor]::DarkGray) }
+                Write-IgwtCliLine ''; foreach ($st in $plan.Steps) { Write-IgwtCliLine "  - $st" ([ConsoleColor]::White) }
+                exit 0
+            }
+            $an = Get-IgwtFirewallLogAnalysis -Entries $entries
+            if ($ReportPath) { Export-IgwtFirewallLogAnalysis -Analysis $an -Entries $entries -Path $ReportPath; Write-IgwtCliLine "Written to $ReportPath" ([ConsoleColor]::Green) }
+            if ($Json) { $an | ConvertTo-Json -Depth 4; exit 0 }
+            Write-IgwtCliLine "$($an.Entries) entries from $($an.From) to $($an.To): $($an.Dropped) dropped, $($an.Allowed) allowed." ([ConsoleColor]::White)
+            foreach ($pair in @(@('Top blocked sources', $an.TopBlockedSources), @('Top blocked ports', $an.TopBlockedPorts), @('Top blocked processes', $an.TopBlockedProcesses))) { Write-IgwtCliLine ''; Write-IgwtCliLine $pair[0] ([ConsoleColor]::White); foreach ($r in @($pair[1])) { Write-IgwtCliLine ("  {0,7}  {1}" -f $r.Count, $r.Value) ([ConsoleColor]::Gray) } }
+            Write-IgwtCliLine ''; Write-IgwtCliLine 'Timeline (dropped / allowed per hour):' ([ConsoleColor]::White); foreach ($r in @($an.Timeline | Select-Object -Last 24)) { Write-IgwtCliLine ("  {0}  {1,6} / {2,6}" -f $r.Hour, $r.Dropped, $r.Allowed) ([ConsoleColor]::Gray) }
             exit 0
         }
         'SecPolicy' {

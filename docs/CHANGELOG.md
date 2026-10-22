@@ -2,6 +2,14 @@
 
 ## 3.0.0 (in progress)
 
+### Defender & Security Control Center (phase 7)
+
+- `-DefenderCenter`: status and health (versions, signature age, Tamper Protection read-only, passive mode, Defender for Endpoint, management), every Defender setting with current value, status and source, exclusions audit with risk rating, firewall logging, web and phishing protection, device control and detection logging (Sysmon detected, never installed).
+- Defender presets: Gaming-friendly, Microsoft Recommended, Strict and Audit / Evaluation; `-DefenderParsersOn` turns Network Inspection parsers on (never off).
+- `-DefenderThreats`, `-DefenderScan` (Quick, Full, Custom, Offline with confirmation), `-QuarantineRestore` (with risk acknowledgement), `-RemoveExclusion` (removal only).
+- Firewall as a detection source: `-FirewallLog` analyzer and export, Firewall Logging preset, `-OutboundAllowList` planning aid.
+- Docs: `docs\DEFENDER_CENTER.md`, `docs\NETWORK_IDS_IPS.md`.
+
 ### Policy presets, baselines and exports (phase 6)
 
 - **14 category policy presets** (`-PolicyPreset`): Privacy & Telemetry, three Windows Update rings (Pilot, Broad, Gaming), Defender Antivirus, Attack Surface, Microsoft Edge Security, Credentials & Authentication Hardening, Remote Access Lockdown, Removable Media, Audit & Logging, Kiosk / Shared Device, Developer Workstation and Secure Gaming PC. Applied as one batch with backups and verification; `-PolicyPresetRestore` reverts.

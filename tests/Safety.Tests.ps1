@@ -30,8 +30,13 @@ Describe 'Forbidden techniques are absent from shipped code' {
     It 'never hides windows' { Get-Matches '(?i)WindowStyle\s+Hidden|-w\s+hidden|CreateNoWindow' | Should -BeNullOrEmpty }
     It 'never changes machine or user execution policy' { Get-Matches '(?i)Set-ExecutionPolicy' | Should -BeNullOrEmpty }
     It 'never touches AMSI, ETW, real-time protection, Tamper Protection or Defender exclusions' {
-        Get-Matches '(?i)(AmsiUtils|amsiInitFailed|EtwEventWrite|DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableIOAVProtection|TamperProtection\s*=|ExclusionPath|ExclusionProcess|ExclusionExtension)' | Should -BeNullOrEmpty
-    }
+        Get-Matches '(?i)(AmsiUtils|amsiInitFailed|EtwEventWrite|DisableRealtimeMonitoring|DisableBehaviorMonitoring|DisableIOAVProtection|TamperProtection\s*=)' | Should -BeNullOrEmpty
+        # Antivirus exclusions are named only in the exclusions audit, which only reads and removes them.
+        foreach ($h in @(Get-Matches '(?i)Exclusion(Path|Process|Extension|IpAddress)')) { $h | Should -Match '^Exclusions\.ps1:' }
+        foreach ($h in @(Get-Matches '(?i)Add-MpPreference')) { $h | Should -Match '(?i)AttackSurfaceReduction|ControlledFolderAccessAllowedApplications|^(AsrRule|AsrCenter)\.ps1:\d+: +# ' }
+        Get-Matches '(?i)(Add|Set)-MpPreference\s.*-Exclusion(Path|Process|Extension|IpAddress)' | Should -BeNullOrEmpty
+        foreach ($h in @(Get-Matches '(?i)Remove-MpPreference')) { $h | Should -Match '^(Exclusions|AsrRule|AsrCenter|Custom)\.ps1:' }
+        foreach ($h in @(Get-Matches '(?i)Set-MpPreference')) { $h | Should -Match '^(Defender|DefenderCenter|PolicyPresets)\.ps1:' }    }
     It 'never disables driver signature enforcement or enables test signing' { Get-Matches '(?i)(testsigning\s+on|nointegritychecks|DISABLE_INTEGRITY_CHECKS\s*=)' | Should -BeNullOrEmpty }
     It 'uses no UAC bypass (only Start-Process -Verb RunAs)' {
         Get-Matches '(?i)(fodhelper|eventvwr|ms-settings\\shell|computerdefaults|sdclt|ConsentPromptBehaviorAdmin\s*=\s*0)' | Should -BeNullOrEmpty
@@ -44,7 +49,9 @@ Describe 'Forbidden techniques are absent from shipped code' {
         @(Get-Matches '(?i)DllImport').Count | Should -Be 1
     }
     It 'runs only the allowed external executables' {
-        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy)\.ps1:' }
+        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter)\.ps1:' }
+        foreach ($m in @(Get-Matches '(?i)MpCmdRun\.exe')) { $m | Should -Match '^DefenderCenter\.ps1:' }
+        foreach ($m in @(Get-Matches '&\s*\$exe\b' | Where-Object { $_ -match '^DefenderCenter\.ps1:' })) { $m | Should -Match "'-Restore' '-Name'" }
         # Security policy: secedit only for /export and /configure, auditpol only for /get, /set, /backup and /restore (checked at run time too).
         foreach ($m in @(Get-Matches '(?i)secedit\.exe')) { $m | Should -Match '^SecurityPolicy\.ps1:' }
         foreach ($m in @(Get-Matches '(?i)auditpol\.exe')) { $m | Should -Match '^AuditPolicy\.ps1:' }
@@ -57,7 +64,7 @@ Describe 'Forbidden techniques are absent from shipped code' {
         $literals = foreach ($m in @(Get-Matches "(?i)'[^']*\.exe'")) { foreach ($x in [regex]::Matches($m, "(?i)'([^']*\.exe)'")) { Split-Path $x.Groups[1].Value -Leaf } }
         # The Toolkit's fix programs and panel launchers live only in its allow-lists (Toolkit.ps1).
         $toolkitOnly = @('sfc.exe', 'chkdsk.exe', 'ipconfig.exe', 'winmgmt.exe', 'wsreset.exe', 'control.exe', 'mmc.exe', 'netplwiz.exe', 'resmon.exe', 'perfmon.exe', 'msinfo32.exe', 'rstrui.exe')
-        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe') + $toolkitOnly) }
+        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe', 'MpCmdRun.exe') + $toolkitOnly) }
         foreach ($m in @(Get-Matches "(?i)'(sfc|chkdsk|ipconfig|winmgmt|wsreset|control|mmc|netplwiz|resmon|perfmon|msinfo32|rstrui)\.exe'")) { $m | Should -Match '^Toolkit\.ps1:\d+: +\$script:Igwt(FixExecutables|PanelExecutables) = |^Toolkit\.ps1:.*''(control|mmc)\.exe''\)' }
         foreach ($i in @(Get-Matches '&\s*\$FilePath\b')) { $i | Should -Match '^Toolkit\.ps1:' }
     }

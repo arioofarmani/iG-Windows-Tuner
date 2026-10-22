@@ -69,8 +69,8 @@
       ]
     },
     {
-      "id": "policy.defender-antivirus",
-      "name": "Defender Antivirus",
+      "id": "policy.defender-recommended",
+      "name": "Defender: Microsoft Recommended",
       "scope": "Defender",
       "hint": "Advanced cloud protection, Block at First Sight, high cloud block level, PUA blocking and network protection.",
       "description": "Turns on the protections Microsoft recommends for Defender Antivirus: Advanced MAPS membership with safe sample submission, Block at First Sight with a 50-second extended cloud check and the High cloud block level, blocking of potentially unwanted apps, network protection in block mode, scanning of removable drives and e-mail, and a security intelligence check before scheduled scans. Nothing here turns a protection off.",
@@ -91,6 +91,89 @@
       ]
     },
     {
+      "id": "policy.defender-gaming",
+      "name": "Defender: Gaming-friendly",
+      "scope": "Defender",
+      "hint": "Full protection with scheduled scans at 5 AM, only when idle, at low CPU priority and a 30% CPU cap.",
+      "description": "Keeps every protection on (cloud protection with Block at First Sight, PUA blocking, network protection) and moves scanning out of play time: the daily quick scan runs at 5 AM, scheduled scans start only when the PC is idle, at low CPU priority and with at most 30% CPU, missed scans catch up later and security intelligence is updated before each scan. Nothing here interferes with anti-cheat software.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/schedule-antivirus-scans", "https://learn.microsoft.com/en-us/defender-endpoint/configure-block-at-first-sight-microsoft-defender-antivirus" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsDefender:SpynetReporting", "state": "Enabled", "values": { "SpynetReporting": "Advanced MAPS" } },
+        { "kind": "admx", "policy": "WindowsDefender:SubmitSamplesConsent", "state": "Enabled", "values": { "SubmitSamplesConsent": "Send safe samples" } },
+        { "kind": "admx", "policy": "WindowsDefender:DisableBlockAtFirstSeen", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Root_PUAProtection", "state": "Enabled", "values": { "Root_PUAProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:ExploitGuard_EnableNetworkProtection", "state": "Enabled", "values": { "ExploitGuard_EnableNetworkProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_ScheduleQuickScantime", "state": "Enabled", "values": { "Scan_ScheduleQuickScantime": 300 }, "label": "Daily quick scan at 5:00 AM" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_ScanOnlyIfIdle", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_LowCpuPriority", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_AvgCPULoadFactor", "state": "Enabled", "values": { "Scan_AvgCPULoadFactor": 30 }, "label": "Scheduled scans use at most 30% CPU" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableCatchupQuickScan", "state": "Enabled", "note": "Enabled means missed quick scans catch up." },
+        { "kind": "admx", "policy": "WindowsDefender:CheckForSignaturesBeforeRunningScan", "state": "Enabled" }
+      ]
+    },
+    {
+      "id": "policy.defender-strict",
+      "name": "Defender: Strict",
+      "scope": "Defender",
+      "hint": "High+ cloud block level, network protection Block, every inspection parser on, PUA Block, warn turns into block.",
+      "description": "For PCs that should block aggressively: the High+ cloud block level with a 50-second extended check, Block at First Sight, network protection in block mode with warn verdicts converted to block, PUA blocking, script, archive, download, network file and e-mail scanning, catch-up scans, and every Network Inspection parser, inbound connection filtering, datagram processing and the DNS sinkhole turned on. Expect more false positives on unusual or brand-new programs; parsers are only ever turned on and are not reverted.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/cloud-protection-configure", "https://learn.microsoft.com/en-us/defender-endpoint/network-protection", "https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsDefender:SpynetReporting", "state": "Enabled", "values": { "SpynetReporting": "Advanced MAPS" } },
+        { "kind": "admx", "policy": "WindowsDefender:SubmitSamplesConsent", "state": "Enabled", "values": { "SubmitSamplesConsent": "Send safe samples" } },
+        { "kind": "admx", "policy": "WindowsDefender:DisableBlockAtFirstSeen", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:MpEngine_MpCloudBlockLevel", "state": "Enabled", "values": { "MpCloudBlockLevel": "High+ blocking level" } },
+        { "kind": "admx", "policy": "WindowsDefender:MpEngine_MpBafsExtendedTimeout", "state": "Enabled", "values": { "MpBafsExtendedTimeout": 50 } },
+        { "kind": "admx", "policy": "WindowsDefender:Root_PUAProtection", "state": "Enabled", "values": { "Root_PUAProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:ExploitGuard_EnableNetworkProtection", "state": "Enabled", "values": { "ExploitGuard_EnableNetworkProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:EnableConvertWarnToBlock", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:RealtimeProtection_DisableSriptScanning", "state": "Enabled", "note": "Enabled means script scanning is on." },
+        { "kind": "admx", "policy": "WindowsDefender:RealtimeProtection_DisableBehaviorMonitoring", "state": "Enabled", "note": "Enabled means behavior monitoring is on." },
+        { "kind": "admx", "policy": "WindowsDefender:RealtimeProtection_DisableIOAVProtection", "state": "Enabled", "note": "Enabled means downloads and attachments are scanned." },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableArchiveScanning", "state": "Enabled", "note": "Enabled means archives are scanned." },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableScanningNetworkFiles", "state": "Enabled", "note": "Enabled means network files are scanned." },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableEmailScanning", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableRemovableDriveScanning", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableCatchupQuickScan", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableCatchupFullScan", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:CheckForSignaturesBeforeRunningScan", "state": "Enabled" },
+        { "kind": "mppref", "parsers": "all", "label": "Every Network Inspection parser, inbound connection filtering, datagram processing and the DNS sinkhole on" }
+      ]
+    },
+    {
+      "id": "policy.defender-audit",
+      "name": "Defender: Audit / Evaluation",
+      "scope": "Defender",
+      "hint": "PUA, network protection, brute-force and remote encryption protection in Audit mode, to see impact before blocking.",
+      "description": "For evaluating impact before enforcing: potentially unwanted app detection, network protection, brute-force protection and remote encryption protection are set to Audit, so Defender logs what it would block (Microsoft-Windows-Windows Defender/Operational) without blocking it. Real-time and cloud protection stay as they are. Set attack surface reduction rules to Audit in the ASR Center. Switch to the Recommended or Strict preset when the logs look clean.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/evaluate-microsoft-defender-antivirus", "https://learn.microsoft.com/en-us/defender-endpoint/network-protection" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsDefender:Root_PUAProtection", "state": "Enabled", "values": { "Root_PUAProtection": "Audit Mode" } },
+        { "kind": "admx", "policy": "WindowsDefender:ExploitGuard_EnableNetworkProtection", "state": "Enabled", "values": { "ExploitGuard_EnableNetworkProtection": "Audit Mode" } },
+        { "kind": "admx", "policy": "WindowsDefender:Remediation_BNB_BFP_BruteForceProtection_ConfiguredState", "state": "Enabled", "values": { "Remediation_BNB_BFP_BruteForceProtection_ConfiguredState": "Audit" } },
+        { "kind": "admx", "policy": "WindowsDefender:Remediation_BNB_REP_RemoteEncryptionProtection_ConfiguredState", "state": "Enabled", "values": { "Remediation_BNB_REP_RemoteEncryptionProtection_ConfiguredState": "Audit" } }
+      ]
+    },
+    {
+      "id": "policy.firewall-logging",
+      "name": "Firewall Logging",
+      "scope": "AuditLogging",
+      "hint": "Logs dropped packets for the Domain and Private profiles to a 32 MB log, for the firewall log analyzer.",
+      "description": "Turns on logging of packets the firewall drops for the Domain and Private profiles, in %systemroot%\\system32\\LogFiles\\Firewall\\pfirewall.log with a 32 MB limit, so -FirewallLog can show what is blocked. Allowed connections are not logged (that log grows quickly; turn it on in wf.msc when building an outbound allow-list). The Public profile is set in wf.msc (Windows Defender Firewall with Advanced Security > Properties > Public Profile > Logging); its policy is not in the Administrative Templates.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/configure-logging" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsFirewall:WF_Logging_Name_1", "state": "Enabled", "values": { "WF_Logging_LogDroppedPackets": true, "WF_Logging_LogSuccessfulConnections": false, "WF_Logging_LogFilePathAndName": "%systemroot%\\system32\\LogFiles\\Firewall\\pfirewall.log", "WF_Logging_SizeLimit": 32767 }, "label": "Domain profile: log dropped packets" },
+        { "kind": "admx", "policy": "WindowsFirewall:WF_Logging_Name_2", "state": "Enabled", "values": { "WF_Logging_LogDroppedPackets": true, "WF_Logging_LogSuccessfulConnections": false, "WF_Logging_LogFilePathAndName": "%systemroot%\\system32\\LogFiles\\Firewall\\pfirewall.log", "WF_Logging_SizeLimit": 32767 }, "label": "Private profile: log dropped packets" }
+      ]
+    },    {
       "id": "policy.attack-surface",
       "name": "Attack Surface",
       "scope": "AttackSurface",
