@@ -2,9 +2,10 @@
 # Defender & Security Control Center (SPEC-v3 section 4): status and health, every Defender setting
 # with its current value, the recommended value and who manages it, threat history, quarantine,
 # on-demand scans, web and phishing protection, device control and detection logging. Reading is
-# done with Get-Mp*, the registry and event log metadata. Changes go through the policy presets
-# (Local GPO); the only direct Defender writes are turning Network Inspection parsers ON, starting
-# scans the user asked for, and quarantine actions the user confirms. Nothing here turns a
+# done with Get-Mp*, the registry and event log metadata. Changes go through the settings editor
+# (DefenderSettings.ps1, snapshot first, writes through Invoke-IgwtMpPreferenceWrite) or the policy
+# presets (Local GPO); the other direct Defender writes are turning Network Inspection parsers ON,
+# starting scans the user asked for, and quarantine actions the user confirms. Nothing here turns a
 # protection off. Controlled folder access, ASR and exploit protection live in the ASR Center.
 
 $script:IgwtDefenderSettings = $null
@@ -113,8 +114,9 @@ function Get-IgwtDefenderSettings {
     <#
     .SYNOPSIS
         Every catalog Defender setting that exists on this platform version: category, current
-        value, the protective value, status (On, Off, Below, Info), who manages it, and the ADMX
-        policy that changes it. Settings that Get-MpPreference does not report are left out. Read-only.
+        value (raw and as shown), the protective value, status (On, Off, Below, Optional, Info), who
+        manages it, the ADMX policy, how it can be changed and the values the editor may set.
+        Settings that Get-MpPreference does not report are left out. Read-only.
     #>
     [CmdletBinding()]
     param([string]$Category)
@@ -124,23 +126,74 @@ function Get-IgwtDefenderSettings {
     if (-not $pref) { throw "Defender preferences are unavailable: $err" }
     $admx = $null
     try { $admx = Get-IgwtAdmxCatalog } catch { Write-Verbose "ADMX catalog unavailable: $($_.Exception.Message)" }
+    $catNames = @{}
+    foreach ($c in @($cat.categories)) { $catNames[[string]$c.id] = [string]$c.name }
     foreach ($s in @($cat.settings)) {
         if ($Category -and $s.category -ne $Category) { continue }
         if (-not $pref.PSObject.Properties[[string]$s.mp]) { continue }
-        $cur = $pref.([string]$s.mp)
+        $cur = ConvertFrom-IgwtMpRawValue -Definition $s -Raw $pref.([string]$s.mp)
         $pd = $null
         if ($s.policy -and $admx) { $pd = @($admx.Policies | Where-Object { $_.Id -eq [string]$s.policy }) | Select-Object -First 1 }
-        $status = 'Info'
-        if ($null -ne $s.on -and $s.kind -in 'protection', 'parser') { $status = $(if ([string]$cur -eq [string]$s.on) { 'On' } else { 'Off' }) }
-        elseif ($null -ne $s.on -and $s.kind -eq 'level') { $status = $(if ([double]$cur -ge [double]$s.on) { 'On' } elseif ([double]$cur -eq 0) { 'Off' } else { 'Below' }) }
+        $source = Get-IgwtDefenderSettingSource -Setting $s -PolicyDefinition $pd
+        $edit = [string]$s.edit
+        $change = switch ($edit) {
+            'parser' { 'Network Inspection parser: turned on with -DefenderParsersOn or -DefenderSet (never off).' }
+            'set' { $(if ($source -eq 'Local') { "-DefenderSet `"$($s.mp)=<value>`" (snapshot, revert in Backups)." } else { "Set by $source; change it there$(if ($pd -and $source -like '*GPO*') { " or with -PolicySet $($pd.Id)" })." }) }
+            'policy' { "Group Policy only: -PolicySet $($s.policy)." }
+            default { $(if ($s.note) { [string]$s.note } else { 'Shown only.' }) }
+        }
         [pscustomobject]@{
-            Category = [string]$s.category; Name = [string]$s.name; Property = [string]$s.mp; Kind = [string]$s.kind
-            Current = $cur; Protective = $s.on; Status = $status; Hint = [string]$s.hint
-            Source = (Get-IgwtDefenderSettingSource -Setting $s -PolicyDefinition $pd)
-            Policy = $(if ($pd) { $pd.Id } else { '' })
-            Change = $(if ($s.kind -eq 'parser') { 'Network Inspection parser: -DefenderParsersOn turns it on (never off).' } elseif ($pd) { "Policy $($pd.Id) (policy presets, -PolicySet)" } else { 'Shown only.' })
+            Category = [string]$s.category; CategoryName = [string]$catNames[[string]$s.category]; Name = [string]$s.name; Property = [string]$s.mp
+            Kind = [string]$s.kind; Type = [string]$s.type; Edit = $edit
+            Current = $cur; Display = (Format-IgwtDefenderSettingValue -Definition $s -Value $cur)
+            Protective = $s.on; ProtectiveDisplay = $(if ($null -ne $s.on) { Format-IgwtDefenderSettingValue -Definition $s -Value (ConvertTo-IgwtDefenderSettingValue -Definition $s -Value $s.on) } else { '' })
+            Status = (Get-IgwtDefenderSettingStatus -Definition $s -Value $cur); Hint = [string]$s.hint; Note = [string]$s.note
+            Source = $source; Policy = $(if ($pd) { $pd.Id } elseif ($s.policy) { [string]$s.policy } else { '' })
+            Editable = ($edit -in 'set', 'parser' -and $source -eq 'Local')
+            Choices = @(Get-IgwtDefenderSettingChoices -Definition $s -Current $cur)
+            Unit = [string]$s.unit; Min = $s.min; Max = $s.max
+            Doc = (Get-IgwtDefenderSettingDoc -Definition $s)
+            Change = $change
         }
     }
+    # Preferences a newer Defender platform reports that are not in the catalog yet: shown only.
+    if (-not $Category -or $Category -eq 'advanced') {
+        $known = @(@($cat.settings | ForEach-Object { [string]$_.mp }) + @($cat.coveredElsewhere | ForEach-Object { [string]$_.mp }))
+        $note = 'New in this Defender platform and not in the catalog yet: shown only until it is documented and reviewed.'
+        foreach ($p in @($pref.PSObject.Properties | Where-Object { $_.MemberType -in 'Property', 'NoteProperty' -and $_.Name -notmatch '^(PSComputerName|CimClass|CimInstanceProperties|CimSystemProperties)$' -and $known -notcontains $_.Name })) {
+            $shown = $(if ($null -eq $p.Value) { '(not reported)' } else { (@($p.Value) | ForEach-Object { [string]$_ }) -join ' | ' })
+            [pscustomobject]@{
+                Category = 'advanced'; CategoryName = [string]$catNames['advanced']; Name = [string]$p.Name; Property = [string]$p.Name
+                Kind = 'info'; Type = 'text'; Edit = 'readonly'; Current = $p.Value; Display = $shown; Protective = $null; ProtectiveDisplay = ''
+                Status = 'Info'; Hint = 'A Defender preference this version of iG Windows Tuner does not describe yet.'; Note = $note
+                Source = 'Local'; Policy = ''; Editable = $false; Choices = @(); Unit = ''; Min = $null; Max = $null
+                Doc = [string]$cat.docs.mp; Change = $note
+            }
+        }
+    }
+}
+
+function Invoke-IgwtMpPreferenceWrite {
+    <#
+    .SYNOPSIS
+        Writes one Defender preference with Set-MpPreference, converting the catalog value to the
+        parameter type (time values become a time of day). Callers validate the value first
+        (Invoke-IgwtDefenderSettingChange, Restore-IgwtDefenderSettingSnapshot); lists are never written.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)]$Definition, [Parameter(Mandatory = $true)][AllowNull()]$Value)
+    $mp = [string]$Definition.mp
+    if ([string]$Definition.edit -ne 'set') { throw "Defender $mp is not written by the settings editor." }
+    $arg = @{ ErrorAction = 'Stop' }
+    switch ([string]$Definition.type) {
+        'bool' { $arg[$mp] = [bool]$Value }
+        { $_ -in 'enum', 'uint' } { $arg[$mp] = [uint32]$Value }
+        'time' { $arg[$mp] = [datetime]::Today.AddMinutes([int]$Value) }
+        'text' { $arg[$mp] = [string]$Value }
+        default { throw "Defender $mp ($($Definition.type)) is not written by the settings editor." }
+    }
+    if (-not $PSCmdlet.ShouldProcess("Defender $mp", "Set to $Value")) { return }
+    try { Set-MpPreference @arg } finally { Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false }
 }
 
 #region Network Inspection parsers

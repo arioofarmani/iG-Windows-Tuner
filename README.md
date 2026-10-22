@@ -4,7 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-3.0-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-762%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-782%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
@@ -38,7 +38,7 @@ iG Windows Tuner takes the opposite approach:
 | **Group Policy engine** | Every installed Administrative Template policy with search, effective state and source (Local GPO, domain, MDM) and tattoo detection. Writes the Local GPO like gpedit (Registry.pol, gpt.ini, gpupdate, verification) with backup, restore and reset. Policy items of the catalog now also land in the Local GPO. |
 | **Security policy & auditing** | Account policies, user rights and security options (secedit) and advanced audit policy (auditpol) with backups and lockout safeguards that refuse anything that would lock you or the administrators out. |
 | **Policy presets & baselines** | 18 category presets (privacy, Windows Update rings, Defender, attack surface, Edge, credentials, remote access, removable media, audit and logging, firewall logging, kiosk, developer, secure gaming), import and compare of Security Compliance Toolkit baselines, and export as LGPO-style GPO folder, .reg, script or JSON. |
-| **Defender & Security Control Center** | Defender status and every setting with who manages it, an exclusions audit that flags risky exclusions (removal only), threat history, scans, Network Inspection parsers (only ever turned on), web and phishing protection, detection logging and a firewall log analyzer. |
+| **Defender & Security Control Center** | Every Microsoft Defender Antivirus setting (all 137, including the hidden ones) and every Defender Group Policy with who manages it, a safe editor that only moves protections toward on (snapshot and revert), an exclusions audit that flags risky exclusions (removal only), threat history, scans, Network Inspection parsers (only ever turned on), web and phishing protection, detection logging and a firewall log analyzer. Coverage: `docs\SECURITY_COVERAGE.md`. |
 
 The WPF interface follows the Windows 11 design language and starts **read-only**. It asks for administrator rights through the normal UAC prompt only when you choose to apply something.
 
@@ -58,6 +58,7 @@ Or use the command line (read-only commands need no elevation):
 .\iGWindowsTuner.ps1 -SecurityScore               # security score with the fix for each finding
 .\iGWindowsTuner.ps1 -NetworkOptimize -DryRun     # measure the connection and show the gaming network plan
 .\iGWindowsTuner.ps1 -DefenderCenter All          # Defender & Security Control Center
+.\iGWindowsTuner.ps1 -DefenderSettings            # every Defender setting, including hidden ones
 ```
 
 Optimize the network for gaming (measures, applies, verifies, measures again; add your game server with `-NetTarget`):
@@ -91,7 +92,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 
 - **Data-driven.** The catalog lives in `data\*.json` (tweak files use schema v3). The engine dispatches typed actions (registry, service, power plan, firewall, QoS, scheduled task, and more), and each action type implements detect, snapshot, apply and restore.
 - **Plain PowerShell.** It is readable, modular and has comment-based help on every function. It uses one documented P/Invoke (`SystemParametersInfo`) and no compiled binaries.
-- **Tested.** 762 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
+- **Tested.** 782 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
 - **Safe end-to-end testing.** `tools\New-SandboxConfig.ps1` generates a Windows Sandbox configuration that runs a full apply and revert cycle in a disposable VM.
 
 ## Documentation
@@ -107,7 +108,7 @@ These rules are enforced by a static safety test suite that runs against the sou
 | [docs/ASR_CENTER.md](docs/ASR_CENTER.md), [docs/INSPECTORS.md](docs/INSPECTORS.md), [docs/HARDWARE.md](docs/HARDWARE.md), [docs/CLEANER.md](docs/CLEANER.md) | Module references |
 | [docs/CLI.md](docs/CLI.md), [docs/EXPERT_LAB.md](docs/EXPERT_LAB.md) | Command-line reference; levels, gates and expert controls |
 | [docs/GROUP_POLICY.md](docs/GROUP_POLICY.md) | Group Policy engine, security policy and auditing, policy presets, baselines and exports |
-| [docs/DEFENDER_CENTER.md](docs/DEFENDER_CENTER.md), [docs/NETWORK_IDS_IPS.md](docs/NETWORK_IDS_IPS.md) | Defender & Security Control Center; what the endpoint adds to a network IDS/IPS |
+| [docs/DEFENDER_CENTER.md](docs/DEFENDER_CENTER.md), [docs/SECURITY_COVERAGE.md](docs/SECURITY_COVERAGE.md), [docs/NETWORK_IDS_IPS.md](docs/NETWORK_IDS_IPS.md) | Defender & Security Control Center and settings editor; coverage of every ASR rule, Defender setting and Windows Security feature; what the endpoint adds to a network IDS/IPS |
 | [docs/NETWORK_GAMING.md](docs/NETWORK_GAMING.md) | Gaming network optimizer: what it measures, the rules it follows, and how to undo it |
 | [docs/WINUTIL_MAPPING.md](docs/WINUTIL_MAPPING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | How each WinUtil item was adopted, adapted or rejected; credits |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions and their reasons |

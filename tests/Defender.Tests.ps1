@@ -46,8 +46,9 @@ Describe 'Defender & Security Control Center' {
             $null = New-ItemProperty -LiteralPath 'TestRegistry:\HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Defender' -Name 'PUAProtection' -Value 1 -PropertyType DWord
             $rows = @(InModuleScope iGWindowsTuner { Get-IgwtDefenderSettings })
             @($rows | ForEach-Object { $_.Property }) | Should -Not -Contain 'DisableArchiveScanning' -Because 'the mocked platform does not report it'
-            ($rows | Where-Object Property -EQ 'DisableEmailScanning').Status | Should -Be 'Off'
-            ($rows | Where-Object Property -EQ 'CloudBlockLevel').Status | Should -Be 'Off'
+            ($rows | Where-Object Property -EQ 'DisableEmailScanning').Status | Should -Be 'Optional' -Because 'e-mail scanning is optional hardening that is off by default'
+            ($rows | Where-Object Property -EQ 'CloudBlockLevel').Status | Should -Be 'Below' -Because 'Default is a lower level, not off'
+            ($rows | Where-Object Property -EQ 'MAPSReporting').Display | Should -Be 'Advanced'
             ($rows | Where-Object Property -EQ 'MAPSReporting').Status | Should -Be 'On'
             ($rows | Where-Object Property -EQ 'DisableQuicParsing').Status | Should -Be 'Off'
             ($rows | Where-Object Property -EQ 'PUAProtection').Source | Should -Be 'MDM'

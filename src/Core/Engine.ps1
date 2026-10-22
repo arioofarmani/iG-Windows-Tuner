@@ -404,6 +404,10 @@ function Invoke-IgwtRevert {
             $mg = Restore-IgwtManagedSnapshot -SnapshotPath $SnapshotPath
             return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $mg.Snapshot; Results = @($mg.Results); Requires = 'none' }
         }
+        if ([string]$doc.operation -eq 'Defender') {
+            $df = Restore-IgwtDefenderSettingSnapshot -SnapshotPath $SnapshotPath
+            return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $df.Snapshot; Results = @($df.Results); Requires = 'none' }
+        }
         foreach ($e in @($doc.entries | Where-Object { $_ -and $_.result -eq 'Applied' })) {
             if ($Id -and $Id -notcontains [string]$e.tweakId) { continue }
             $work.Add([pscustomobject]@{ Entry = $e; Source = $SnapshotPath })

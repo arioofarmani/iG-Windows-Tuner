@@ -126,123 +126,28 @@
 .PARAMETER OutboundAllowList
     Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
     components that need outbound access, with warnings. Nothing is changed.
+.PARAMETER DefenderSettings
+    Every Microsoft Defender Antivirus preference (123 settings, also the hidden ones Windows
+    Security does not show): current value, recommended value, status, who sets it and how it can
+    be changed. -DefenderCategory filters; -Json for scripts. Read-only.
+.PARAMETER DefenderCategory
+    Category for -DefenderSettings: realtime, cloud, scans, updates, threats, pua, network,
+    netbehavior, ai, performance, reporting, server or advanced.
+.PARAMETER DefenderSet
+    Changes Defender preferences as "Name=Value;Name2=Value2" (property names from -DefenderSettings;
+    values as numbers, labels, true/false, on/off or HH:mm). A snapshot is written first; values that
+    turn a protection off, read-only settings and settings a policy controls are refused. Use -DryRun first.
+.PARAMETER DefenderPolicies
+    Every Defender Group Policy setting of the installed ADMX files (also those without a
+    preference), with the Local GPO state and the states the denylist refuses; the value filters by
+    name (use '' for all). Change one with -PolicySet. Read-only.
 .PARAMETER SecPolicy
     Shows the local security policy: account policies, user rights assignment and security options
     (secedit /export to a temporary file). Read-only; asks for administrator rights.
-.PARAMETER PolicyAdopt
-    Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or
-    igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that
-    would keep a security protection off are refused. Use -DryRun first.
-.PARAMETER PolicyRemoveTattoo
-    Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them
-    to a restore file. Use -DryRun first.
-.PARAMETER TattooRestore
-    Writes back values removed by -PolicyRemoveTattoo from its restore file.
-.PARAMETER PolicyPreset
-    A category policy preset (list shows them): ADMX policies, documented policy values, audit and
-    security settings applied as one batch with backups. Use -DryRun first.
-.PARAMETER PolicyPresetRestore
-    Reverts a policy preset or baseline apply from the record file it printed.
-.PARAMETER PolicyExport
-    Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath.
-.PARAMETER ExportFormat
-    GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport.
-.PARAMETER ExportPath
-    Folder for -PolicyExport.
-.PARAMETER Baseline
-    Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this
-    PC; -ReportPath writes the comparison as CSV. Read-only.
-.PARAMETER BaselineApply
-    Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
-    or Ref values from the comparison separated by ;. Use -DryRun first.
-.PARAMETER DefenderCenter
-    Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
-    DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
-.PARAMETER DefenderThreats
-    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
-.PARAMETER RemoveExclusion
-    Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
-    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
-.PARAMETER DefenderScan
-    Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
-.PARAMETER ScanPath
-    Folder or file for -DefenderScan Custom.
-.PARAMETER ConfirmRestart
-    Confirms that -DefenderScan Offline restarts the PC immediately.
-.PARAMETER DefenderParsersOn
-    Turns on every Network Inspection parser, inbound connection filtering, datagram processing and
-    the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first.
-.PARAMETER QuarantineRestore
-    Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again).
-.PARAMETER IUnderstandTheRisk
-    Confirms -QuarantineRestore.
-.PARAMETER FirewallLog
-    Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline.
-    -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only.
-.PARAMETER FirewallLogPath
-    Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log).
-.PARAMETER OutboundAllowList
-    Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
-    components that need outbound access, with warnings. Nothing is changed.
 .PARAMETER SecPolicySet
     Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess,
     PrivilegeRights (accounts separated by |, names or *SIDs) and RegistryValues (type,value).
     Lockout safeguards refuse changes that would lock out you or the administrators. Use -DryRun first.
-.PARAMETER PolicyAdopt
-    Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or
-    igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that
-    would keep a security protection off are refused. Use -DryRun first.
-.PARAMETER PolicyRemoveTattoo
-    Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them
-    to a restore file. Use -DryRun first.
-.PARAMETER TattooRestore
-    Writes back values removed by -PolicyRemoveTattoo from its restore file.
-.PARAMETER PolicyPreset
-    A category policy preset (list shows them): ADMX policies, documented policy values, audit and
-    security settings applied as one batch with backups. Use -DryRun first.
-.PARAMETER PolicyPresetRestore
-    Reverts a policy preset or baseline apply from the record file it printed.
-.PARAMETER PolicyExport
-    Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath.
-.PARAMETER ExportFormat
-    GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport.
-.PARAMETER ExportPath
-    Folder for -PolicyExport.
-.PARAMETER Baseline
-    Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this
-    PC; -ReportPath writes the comparison as CSV. Read-only.
-.PARAMETER BaselineApply
-    Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
-    or Ref values from the comparison separated by ;. Use -DryRun first.
-.PARAMETER DefenderCenter
-    Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
-    DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
-.PARAMETER DefenderThreats
-    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
-.PARAMETER RemoveExclusion
-    Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
-    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
-.PARAMETER DefenderScan
-    Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
-.PARAMETER ScanPath
-    Folder or file for -DefenderScan Custom.
-.PARAMETER ConfirmRestart
-    Confirms that -DefenderScan Offline restarts the PC immediately.
-.PARAMETER DefenderParsersOn
-    Turns on every Network Inspection parser, inbound connection filtering, datagram processing and
-    the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first.
-.PARAMETER QuarantineRestore
-    Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again).
-.PARAMETER IUnderstandTheRisk
-    Confirms -QuarantineRestore.
-.PARAMETER FirewallLog
-    Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline.
-    -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only.
-.PARAMETER FirewallLogPath
-    Firewall log file for -FirewallLog or -OutboundAllowList (default: the profile log).
-.PARAMETER OutboundAllowList
-    Expert planning aid for default-block outbound: programs seen in the firewall log and Windows
-    components that need outbound access, with warnings. Nothing is changed.
 .PARAMETER SecPolicyRestore
     Restores the settings a -SecPolicySet backup folder changed.
 .PARAMETER AuditPolicy
@@ -545,6 +450,11 @@ param(
     [switch]$FirewallLog,
     [string]$FirewallLogPath,
     [switch]$OutboundAllowList,
+    [switch]$DefenderSettings,
+    [ValidateSet('realtime', 'cloud', 'scans', 'updates', 'threats', 'pua', 'network', 'netbehavior', 'ai', 'performance', 'reporting', 'server', 'advanced')]
+    [string]$DefenderCategory,
+    [string]$DefenderSet,
+    [string]$DefenderPolicies,
     [switch]$SecPolicy,
     [string]$SecPolicySet,
     [string]$SecPolicyRestore,
@@ -883,6 +793,9 @@ if ($DefenderParsersOn) { $modes += 'DefenderParsersOn' }
 if ($QuarantineRestore) { $modes += 'QuarantineRestore' }
 if ($FirewallLog) { $modes += 'FirewallLog' }
 if ($OutboundAllowList) { $modes += 'OutboundAllowList' }
+if ($DefenderSettings) { $modes += 'DefenderSettings' }
+if ($DefenderSet) { $modes += 'DefenderSet' }
+if ($PSBoundParameters.ContainsKey('DefenderPolicies')) { $modes += 'DefenderPolicies' }
 if ($SecPolicy) { $modes += 'SecPolicy' }
 if ($SecPolicySet) { $modes += 'SecPolicySet' }
 if ($SecPolicyRestore) { $modes += 'SecPolicyRestore' }
@@ -1667,6 +1580,58 @@ try {
             try { $r = Set-IgwtDefenderParsersOn -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
             Write-IgwtCliLine "Turned on: $(@($r.TurnedOn) -join ', ')." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
+        }
+        'DefenderSettings' {
+            $catArg = @{}; if ($DefenderCategory) { $catArg.Category = $DefenderCategory }
+            try { $rows = @(Get-IgwtDefenderSettings @catArg) } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 3 }
+            if ($Json) { $rows | Select-Object Category, Property, Name, Kind, Type, Edit, Current, Display, Protective, ProtectiveDisplay, Status, Source, Policy, Editable, Note, Hint, Doc | ConvertTo-Json -Depth 4; exit 0 }
+            foreach ($g in @($rows | Group-Object CategoryName)) {
+                Write-IgwtCliLine ''; Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                foreach ($r in $g.Group) {
+                    $color = switch ($r.Status) { 'On' { [ConsoleColor]::Green } 'Off' { [ConsoleColor]::Red } 'Below' { [ConsoleColor]::Yellow } 'Optional' { [ConsoleColor]::Cyan } default { [ConsoleColor]::Gray } }
+                    $how = switch ($r.Edit) { 'set' { $(if ($r.Editable) { 'editable' } else { $r.Source }) } 'parser' { 'on only' } 'policy' { 'policy' } default { 'shown only' } }
+                    Write-IgwtCliLine ("  {0,-8} {1,-46} {2,-30} {3,-11} {4}" -f $r.Status, $r.Name, $r.Display, $how, $r.Property) $color
+                }
+            }
+            $c = @($rows | Group-Object Status | ForEach-Object { "$($_.Count) $($_.Name)" }) -join ', '
+            Write-IgwtCliLine ''; Write-IgwtCliLine "$($rows.Count) settings: $c. Change with -DefenderSet `"Property=Value`" -DryRun; policy-only settings with -DefenderPolicies and -PolicySet." ([ConsoleColor]::White)
+            exit 0
+        }
+        'DefenderSet' {
+            $pairs = [ordered]@{}
+            foreach ($part in @($DefenderSet.Split(';') | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+                $kv = $part.Split([char[]]@('='), 2)
+                if ($kv.Count -ne 2 -or -not $kv[0].Trim()) { Write-IgwtCliLine "Use -DefenderSet `"Property=Value;Property2=Value2`" ('$part' has no value)." ([ConsoleColor]::Red); exit 2 }
+                $pairs[$kv[0].Trim()] = $kv[1].Trim()
+            }
+            try { $plan = Get-IgwtDefenderSettingChangePlan -Setting $pairs } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            foreach ($r in $plan.Rows) {
+                if ($r.Refused) { Write-IgwtCliLine ("  REFUSED {0}: {1} -> {2}. {3}" -f $r.Name, $r.Current, $r.New, $r.Refused) ([ConsoleColor]::Red) }
+                elseif ($r.HasChange) { Write-IgwtCliLine ("  change  {0}: {1} -> {2}{3}" -f $r.Name, $r.Current, $r.New, $(if ($r.Route -eq 'parser') { ' (parser: only on, no revert)' })) ([ConsoleColor]::Gray) }
+                else { Write-IgwtCliLine ("  same    {0}: already {1}" -f $r.Name, $r.Current) ([ConsoleColor]::DarkGray) }
+            }
+            if ($plan.Refused) { Write-IgwtCliLine 'Nothing was changed: fix or remove the refused settings.' ([ConsoleColor]::Red); exit 2 }
+            if ($plan.Managed -and -not $AcknowledgeManaged) { Write-IgwtCliLine "This PC is managed ($($plan.Authorities -join ', ')); add -AcknowledgeManaged to change Defender settings locally." ([ConsoleColor]::Yellow); exit 2 }
+            if (-not $plan.Changes) { Write-IgwtCliLine 'Nothing to change.' ([ConsoleColor]::Green); exit 0 }
+            if ($DryRun) { Write-IgwtCliLine "Dry run: $($plan.Changes) change(s), nothing was changed. A snapshot is written before a real change." ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $res = Invoke-IgwtDefenderSettingChange -Setting $pairs -AcknowledgeManaged:$AcknowledgeManaged -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            foreach ($r in @($res.Results)) { Write-IgwtCliLine ("  [{0}] {1}: {2}{3}" -f $r.Result, $r.Target, $r.Change, $(if ($r.Message) { " - $($r.Message)" })) $(if ($r.Result -eq 'Applied') { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }) }
+            if ($res.Snapshot) { Write-IgwtCliLine "Snapshot: $($res.Snapshot) (revert with -Revert -Snapshot <path> or in Backups & Logs)." ([ConsoleColor]::DarkGray) }
+            Complete-IgwtCli $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 5 } else { 0 })
+        }
+        'DefenderPolicies' {
+            try { $rows = @(Get-IgwtDefenderPolicySettings -Search $DefenderPolicies) } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 3 }
+            if ($Json) { $rows | Select-Object Id, Name, Category, State, Source, Preference, Simple, Refused | ConvertTo-Json -Depth 4; exit 0 }
+            foreach ($g in @($rows | Group-Object Category)) {
+                Write-IgwtCliLine ''; Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                foreach ($r in $g.Group) {
+                    Write-IgwtCliLine ("  {0,-14} {1}{2}" -f $r.State, $r.Name, $(if ($r.Preference) { "  [preference $($r.Preference)]" })) $(if ($r.State -eq 'NotConfigured') { [ConsoleColor]::Gray } else { [ConsoleColor]::Cyan })
+                    Write-IgwtCliLine ("                 {0}{1}" -f $r.Id, $(if (@($r.Refused).Count) { "  refused: $(@($r.Refused) -join '; ')" })) ([ConsoleColor]::DarkGray)
+                }
+            }
+            Write-IgwtCliLine ''; Write-IgwtCliLine "$($rows.Count) Defender policies. Details: -PolicyShow <id>; change: -PolicySet <id> -PolicyState Enabled|Disabled|NotConfigured [-PolicyValue ...] -DryRun." ([ConsoleColor]::White)
+            exit 0
         }
         'QuarantineRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would restore '$QuarantineRestore' from quarantine (it can run again)."; exit 0 }

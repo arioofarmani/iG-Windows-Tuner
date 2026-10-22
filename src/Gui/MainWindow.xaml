@@ -88,11 +88,14 @@
                     <ListBoxItem Tag="Background &amp; Privacy" ToolTip="Telemetry, suggestions, Windows Update behavior, services">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72E;" Margin="0,0,12,0"/><TextBlock Text="Background &amp; Privacy"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Security" ToolTip="VBS/HVCI, Defender, firewall and hardening items; the ASR Center is part of Security">
+                    <ListBoxItem Tag="Security" ToolTip="VBS/HVCI, Defender, firewall and hardening items; the ASR Center and the Defender settings are part of Security">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Margin="0,0,12,0"/><TextBlock Text="Security"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Asr" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="ASR Center" FontSize="12.5"/></StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="12.5"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
@@ -460,7 +463,8 @@
                     <StackPanel Grid.Row="0">
                         <StackPanel x:Name="SecuritySwitch" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
                             <Button x:Name="SecHardeningButton" Style="{StaticResource AccentButton}" Content="Hardening items" ToolTip="Security items of the catalog (VBS/HVCI, Defender, firewall, hardening)."/>
-                            <Button x:Name="SecAsrButton" Content="ASR Center" Margin="0" ToolTip="Attack surface reduction rules (part of Security)."/>
+                            <Button x:Name="SecAsrButton" Content="ASR Center" ToolTip="Attack surface reduction rules (part of Security)."/>
+                            <Button x:Name="SecDefenderButton" Content="Defender settings" Margin="0" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy (part of Security)."/>
                         </StackPanel>
                         <TextBlock x:Name="TweakPageTitle" Style="{StaticResource TextTitle}" Text="Tweaks"/>
                         <TextBlock x:Name="TweakPageSubtitle" Style="{StaticResource TextMuted}" Text="Toggles show the real current state. Toggling stages a change; nothing happens until you press Apply."/>
@@ -1017,7 +1021,8 @@
                     <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                             <Button x:Name="AsrHardeningButton" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
-                            <Button x:Name="AsrSelfButton" Style="{StaticResource AccentButton}" Content="ASR Center" Margin="0" ToolTip="You are here: Security > ASR Center."/>
+                            <Button x:Name="AsrSelfButton" Style="{StaticResource AccentButton}" Content="ASR Center" ToolTip="You are here: Security > ASR Center."/>
+                            <Button x:Name="AsrDefenderButton" Content="Defender settings" Margin="0" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy."/>
                         </StackPanel>
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -1108,6 +1113,116 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+                </Grid>
+
+                <!-- Security > Defender settings -->
+                <Grid x:Name="PageDefender" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="350"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button x:Name="DefHardeningButton" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
+                            <Button x:Name="DefAsrButton" Content="ASR Center" ToolTip="Attack surface reduction rules."/>
+                            <Button x:Name="DefSelfButton" Style="{StaticResource AccentButton}" Content="Defender settings" Margin="0" ToolTip="You are here: Security > Defender settings."/>
+                        </StackPanel>
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Button x:Name="DefPrefsViewButton" Style="{StaticResource AccentButton}" Content="Defender preferences" ToolTip="Every Microsoft Defender Antivirus preference (Get-MpPreference), also the ones Windows Security does not show."/>
+                                <Button x:Name="DefPolicyViewButton" Content="Group Policy" ToolTip="Every Defender Group Policy setting of the installed ADMX files, also those without a preference (heuristics, packed executables, notifications, ...)."/>
+                                <Button x:Name="DefRefreshButton" Content="Refresh" Margin="0" ToolTip="Read the settings again (read-only)."/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{StaticResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{StaticResource BrushTextMuted}"/><Run Text="Defender settings"/></TextBlock>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every Microsoft Defender Antivirus setting with its current and recommended value, including the hidden ones. Protection settings only move toward on, values that turn a protection off are refused, and settings a policy controls are changed through that policy. Every change writes a snapshot you can revert in Backups &amp; Logs (a protection that is on stays on)."/>
+                        <WrapPanel Margin="0,10,0,6" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="DefSearchBox" Width="220" Margin="0,0,12,0" ToolTip="Search names, descriptions and property names"/>
+                            <ComboBox x:Name="DefCategoryBox" MinWidth="250" ToolTip="Show one category"/>
+                            <CheckBox x:Name="DefAttentionBox" Style="{StaticResource FilterCheck}" Content="Needs attention" VerticalAlignment="Center" ToolTip="Only settings that are Off, below the recommended level or optional hardening that is off"/>
+                            <CheckBox x:Name="DefEditableBox" Style="{StaticResource FilterCheck}" Content="Changeable here" VerticalAlignment="Center" ToolTip="Only settings this page can change"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="DefSummaryText" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
+                    </StackPanel>
+                    <ListView x:Name="DefList" Grid.Row="2" Grid.Column="0" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ToolTip="{Binding Hint}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="190"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="11"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding EditBrush}"><TextBlock Text="{Binding EditText}" FontSize="11" Foreground="{Binding EditBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding SourceVisibility}"><TextBlock Text="{Binding SourceText}" FontSize="11"/></Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding ValueText}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <ListView x:Name="DefPolicyList" Grid.Row="2" Grid.Column="0" Visibility="Collapsed" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ToolTip="{Binding Id}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding CategoryText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PreferenceVisibility}"><TextBlock Text="{Binding PreferenceText}" FontSize="11"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RefusedVisibility}" BorderBrush="{StaticResource BrushWarning}"><TextBlock Text="{Binding RefusedText}" FontSize="11" Foreground="{StaticResource BrushWarning}"/></Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding SourceText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <ScrollViewer Grid.Row="2" Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock x:Name="DefDetName" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a setting"/>
+                            <TextBlock x:Name="DefDetMeta" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                            <TextBlock x:Name="DefDetDescription" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <StackPanel x:Name="DefEditPanel">
+                                <TextBlock Text="Value" FontWeight="SemiBold"/>
+                                <ComboBox x:Name="DefValueBox" Margin="0,4,0,4" HorizontalAlignment="Stretch" DisplayMemberPath="Label" ToolTip="Values marked 'not allowed' turn a protection off or are refused for another reason."/>
+                                <TextBox x:Name="DefValueText" Margin="0,4,0,4" ToolTip="Type the new value."/>
+                                <TextBlock x:Name="DefValueHelp" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <WrapPanel>
+                                    <Button x:Name="DefApplyButton" Style="{StaticResource AccentButton}" Content="Apply value" ToolTip="Check the value, then change it after a confirmation (snapshot first). Needs administrator rights."/>
+                                    <Button x:Name="DefRecommendButton" Content="Use recommended" Margin="0" ToolTip="Pick the recommended value for this setting (you still press Apply value)."/>
+                                </WrapPanel>
+                            </StackPanel>
+                            <StackPanel x:Name="DefPolicyPanel" Visibility="Collapsed">
+                                <TextBlock Text="Local Group Policy state" FontWeight="SemiBold"/>
+                                <ComboBox x:Name="DefPolicyStateBox" Margin="0,4,0,4" HorizontalAlignment="Stretch" ToolTip="Enabled and Disabled write the policy to the Local Group Policy Object; Not configured removes it."/>
+                                <TextBlock x:Name="DefPolicyHelp" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <Button x:Name="DefPolicyApplyButton" Style="{StaticResource AccentButton}" Content="Set policy" HorizontalAlignment="Left" ToolTip="Set the policy after a confirmation (Group Policy backup first). States that turn a protection off are refused. Needs administrator rights."/>
+                            </StackPanel>
+                            <Button x:Name="DefDocButton" Style="{StaticResource LinkButton}" Margin="0,12,0,0" HorizontalAlignment="Left" Content="Microsoft documentation" ToolTip="Open the Microsoft documentation in your browser."/>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- Cleaner -->

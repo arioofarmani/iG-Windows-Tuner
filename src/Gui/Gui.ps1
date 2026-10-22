@@ -40,7 +40,10 @@ $script:IgwtGuiControlNames = @(
     'NetJitterText', 'NetLossText', 'NetStabilityText', 'NetConnectionText', 'NetEvidenceText', 'NetTargetList', 'NetApplyButton', 'NetRecoTitle', 'NetRecoList', 'NetGuidanceList', 'NetPathText',
     'DetName', 'DetMeta', 'DetWarning', 'DetWarningText', 'DetDescription', 'DetChanges', 'DetSources', 'DetEvidence', 'DetRevert', 'DetResetButton',
     'PendingText', 'StatusText', 'BusyBar', 'PreviewButton', 'ApplyButton', 'DiscardButton', 'LogExpander', 'LogBox',
-    'SecuritySwitch', 'SecHardeningButton', 'SecAsrButton', 'AsrHardeningButton', 'AsrSelfButton',
+    'SecuritySwitch', 'SecHardeningButton', 'SecAsrButton', 'AsrHardeningButton', 'AsrSelfButton', 'SecDefenderButton', 'AsrDefenderButton',
+    'PageDefender', 'DefHardeningButton', 'DefAsrButton', 'DefSelfButton', 'DefPrefsViewButton', 'DefPolicyViewButton', 'DefRefreshButton', 'DefSearchBox', 'DefCategoryBox',
+    'DefAttentionBox', 'DefEditableBox', 'DefSummaryText', 'DefList', 'DefPolicyList', 'DefDetName', 'DefDetMeta', 'DefDetDescription', 'DefEditPanel', 'DefValueBox', 'DefValueText',
+    'DefValueHelp', 'DefApplyButton', 'DefRecommendButton', 'DefPolicyPanel', 'DefPolicyStateBox', 'DefPolicyHelp', 'DefPolicyApplyButton', 'DefDocButton',
     'DashSubtitle', 'DashTileAc', 'DashAcDisc', 'DashAcIcon', 'DashAcValue', 'DashAcNote', 'DashTileSec', 'DashSecDisc', 'DashSecIcon', 'DashSecValue', 'DashSecNote',
     'DashTileHealth', 'DashHealthDisc', 'DashHealthIcon', 'DashHealthValue', 'DashHealthNote', 'DashTileChanges', 'DashChangesDisc', 'DashChangesIcon', 'DashChangesValue', 'DashChangesNote',
     'DashAllClear', 'DashActionList', 'DashMoreText', 'DashAcSummary', 'DashSecSummary', 'DashHealthSummary', 'DashHwSummary'
@@ -571,6 +574,13 @@ function Update-IgwtGuiButtons {
     $c.AsrAddExclusionButton.IsEnabled = $canChange -and ([bool]$asrRow -or [bool]$c.AsrGlobalBox.IsChecked)
     $c.AsrRemoveExclusionButton.IsEnabled = $canChange -and [bool]$c.AsrExclusionList.SelectedItem
     $c.AsrAuditExcludeButton.IsEnabled = [bool]$c.AsrAuditList.SelectedItem
+    $defRow = $c.DefList.SelectedItem
+    $polRow = $c.DefPolicyList.SelectedItem
+    $c.DefRefreshButton.IsEnabled = -not $busy
+    $c.DefApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$defRow -and [bool]$defRow.Setting.Editable
+    $c.DefRecommendButton.IsEnabled = [bool]$defRow -and [bool]$defRow.Setting.Editable -and [bool]$defRow.Setting.ProtectiveDisplay -and [string]$defRow.Setting.Status -ne 'On'
+    $c.DefPolicyApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$polRow -and [bool]$c.DefPolicyStateBox.SelectedItem
+    $c.DefDocButton.IsEnabled = [bool][string]$c.DefDocButton.Tag
     $powerRow = $c.InspectPowerList.SelectedItem
     $canPower = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$powerRow -and [bool]$powerRow.Setting.Editable
     $c.InspectRefreshButton.IsEnabled = -not $busy
@@ -1927,6 +1937,301 @@ function Invoke-IgwtGuiAsrChange {
 
 #endregion
 
+#region Defender settings
+
+function Select-IgwtGuiNavPage {
+    <# .SYNOPSIS Selects a navigation entry by its tag (the page then shows through the selection handler). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window navigation only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Tag)
+    $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq $Tag }) | Select-Object -First 1
+    if ($it) { $script:Gui.C.NavList.SelectedItem = $it }
+}
+
+function Set-IgwtGuiDefenderView {
+    <# .SYNOPSIS Switches the Defender page between the preference list and the Group Policy list (read the first time it is shown). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window layout only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Prefs', 'Policy')][string]$View)
+    $c = $script:Gui.C
+    $script:Gui.DefenderView = $View
+    $isPolicy = ($View -eq 'Policy')
+    $c.DefList.Visibility = $(if ($isPolicy) { 'Collapsed' } else { 'Visible' })
+    $c.DefPolicyList.Visibility = $(if ($isPolicy) { 'Visible' } else { 'Collapsed' })
+    $c.DefEditPanel.Visibility = $(if ($isPolicy) { 'Collapsed' } else { 'Visible' })
+    $c.DefPolicyPanel.Visibility = $(if ($isPolicy) { 'Visible' } else { 'Collapsed' })
+    $c.DefCategoryBox.IsEnabled = -not $isPolicy
+    $accent = $script:Gui.Window.FindResource('AccentButton')
+    if ($isPolicy) { $c.DefPrefsViewButton.ClearValue([System.Windows.FrameworkElement]::StyleProperty); $c.DefPolicyViewButton.Style = $accent }
+    else { $c.DefPolicyViewButton.ClearValue([System.Windows.FrameworkElement]::StyleProperty); $c.DefPrefsViewButton.Style = $accent }
+    $c.DefAttentionBox.Content = $(if ($isPolicy) { 'Configured' } else { 'Needs attention' })
+    Update-IgwtGuiDefenderLists
+    if ($isPolicy -and $null -eq $script:Gui.DefenderPolicies -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiDefenderRefresh -Policies }
+    elseif (-not $isPolicy -and ($null -eq $script:Gui.Defender -or $script:Gui.DefenderStale) -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiDefenderRefresh }
+}
+
+function Update-IgwtGuiDefenderLists {
+    <# .SYNOPSIS Rebuilds the Defender preference or Group Policy list from the last read with the search, category and filter boxes, keeping the selection. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $q = ([string]$c.DefSearchBox.Text).Trim()
+    $attention = [bool]$c.DefAttentionBox.IsChecked
+    $editable = [bool]$c.DefEditableBox.IsChecked
+    $match = { param($text) (-not $q) -or ([string]$text).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }
+    if ($script:Gui.DefenderView -eq 'Policy') {
+        $selected = $null; if ($c.DefPolicyList.SelectedItem) { $selected = $c.DefPolicyList.SelectedItem.Id }
+        $all = @($script:Gui.DefenderPolicies | Where-Object { $_ })
+        $rows = @($all | Where-Object { (& $match "$($_.Name) $($_.Id) $($_.Category) $($_.Preference)") -and (-not $attention -or [string]$_.State -ne 'NotConfigured') -and (-not $editable -or $_.Simple) } | ForEach-Object { New-IgwtGuiDefenderPolicyRow -Policy $_ })
+        $c.DefPolicyList.ItemsSource = $rows
+        if ($selected) { $again = $rows | Where-Object { $_.Id -eq $selected } | Select-Object -First 1; if ($again) { $c.DefPolicyList.SelectedItem = $again } }
+        if ($null -eq $script:Gui.DefenderPolicies) { $c.DefSummaryText.Text = 'Reading the Defender Group Policy settings (read-only)...' }
+        else {
+            $configured = @($all | Where-Object { [string]$_.State -ne 'NotConfigured' }).Count
+            $c.DefSummaryText.Text = ("{0} Defender Group Policy settings, {1} configured in the Local Group Policy; showing {2}. Policies with extra values (numbers, lists) are set with -PolicySet and -PolicyValue; states that turn a protection off are refused." -f $all.Count, $configured, $rows.Count)
+        }
+    } else {
+        $selected = $null; if ($c.DefList.SelectedItem) { $selected = $c.DefList.SelectedItem.Id }
+        $cat = $c.DefCategoryBox.SelectedItem
+        $catId = $(if ($cat) { [string]$cat.Id } else { '' })
+        $all = @($script:Gui.Defender | Where-Object { $_ })
+        $rows = @($all | Where-Object { (-not $catId -or [string]$_.Category -eq $catId) -and (& $match "$($_.Name) $($_.Hint) $($_.Property) $($_.Note)") -and (-not $attention -or [string]$_.Status -in 'Off', 'Below', 'Optional') -and (-not $editable -or $_.Editable) } | ForEach-Object { New-IgwtGuiDefenderRow -Setting $_ })
+        $c.DefList.ItemsSource = $rows
+        if ($selected) { $again = $rows | Where-Object { $_.Id -eq $selected } | Select-Object -First 1; if ($again) { $c.DefList.SelectedItem = $again } }
+        if ($null -eq $script:Gui.Defender) { $c.DefSummaryText.Text = 'Not read yet.' }
+        elseif (-not $all.Count) { $c.DefSummaryText.Text = 'The Defender settings could not be read (is Microsoft Defender Antivirus running?); see the log.' }
+        else {
+            $n = { param($s) @($all | Where-Object { [string]$_.Status -eq $s }).Count }
+            $text = ("{0} settings: {1} on, {2} off, {3} below the recommended level, {4} optional hardening off, {5} options; {6} changeable here. Showing {7}." -f $all.Count, (& $n 'On'), (& $n 'Off'), (& $n 'Below'), (& $n 'Optional'), (& $n 'Info'), @($all | Where-Object { $_.Editable }).Count, $rows.Count)
+            if (-not $script:Gui.IsAdmin) { $text += ' Read-only: restart as administrator to change settings.' }
+            $c.DefSummaryText.Text = $text
+        }
+    }
+    Update-IgwtGuiDefenderDetails
+}
+
+function Update-IgwtGuiDefenderDetails {
+    <# .SYNOPSIS Fills the details and editor panel for the selected Defender setting or Group Policy setting. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    if ($script:Gui.DefenderView -eq 'Policy') {
+        $row = $c.DefPolicyList.SelectedItem
+        $c.DefDocButton.Content = 'Defender policy documentation (Microsoft)'
+        $c.DefDocButton.Tag = 'https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-defender'
+        if (-not $row) {
+            $c.DefDetName.Text = 'Select a policy'; $c.DefDetMeta.Text = ''
+            $c.DefDetDescription.Text = 'Pick a Defender Group Policy setting to see its explanation, its Local Group Policy state and the states iG Windows Tuner refuses.'
+            $c.DefPolicyStateBox.ItemsSource = @(); $c.DefPolicyHelp.Text = ''
+            Update-IgwtGuiButtons
+            return
+        }
+        $p = $row.Policy
+        $c.DefDetName.Text = [string]$p.Name
+        $c.DefDetMeta.Text = "$($p.Id)  |  Local Group Policy: $($row.StateText)  |  Source: $($p.Source)"
+        $explain = [string]$p.Explain
+        if ($explain.Length -gt 1800) { $explain = $explain.Substring(0, 1800) + ' ...' }
+        $c.DefDetDescription.Text = $explain.Trim()
+        $refused = @(@($p.Refused) | ForEach-Object { ([string]$_ -split ':')[0] })
+        $items = @(foreach ($s in 'Enabled', 'Disabled', 'NotConfigured') {
+                $label = $(if ($s -eq 'NotConfigured') { 'Not configured' } else { $s })
+                $allowed = ($refused -notcontains $s) -and ($s -ne 'Enabled' -or $p.Simple)
+                if ($refused -contains $s) { $label += ' (refused)' } elseif (-not $allowed) { $label += ' (needs values: use -PolicySet)' }
+                [pscustomobject]@{ Value = $s; Label = $label; Allowed = $allowed }
+            })
+        $c.DefPolicyStateBox.ItemsSource = $items
+        $cur = @($items | Where-Object { $_.Value -eq [string]$p.State }) | Select-Object -First 1
+        if ($cur) { $c.DefPolicyStateBox.SelectedItem = $cur }
+        $help = New-Object System.Collections.Generic.List[string]
+        if ($p.Preference) { $help.Add("Sets the Defender preference $($p.Preference); a policy wins over the local value.") }
+        if (-not $p.Simple) { $help.Add("This policy has extra values. Enable it with iGWindowsTuner.ps1 -PolicySet $($p.Id) -PolicyState Enabled -PolicyValue ""..."" (-PolicyShow $($p.Id) lists them); Disabled and Not configured work here.") }
+        foreach ($r in @($p.Refused)) { $help.Add("Refused - $r") }
+        $help.Add('A Local Group Policy backup is taken before every change (-PolicyRestore <backup> restores it).')
+        $c.DefPolicyHelp.Text = ($help -join "`n")
+        Update-IgwtGuiButtons
+        return
+    }
+    $row = $c.DefList.SelectedItem
+    $c.DefDocButton.Content = 'Microsoft documentation'
+    if (-not $row) {
+        $c.DefDetName.Text = 'Select a setting'; $c.DefDetMeta.Text = ''
+        $c.DefDetDescription.Text = 'Pick a setting to see what it does, its current and recommended value and how it can be changed.'
+        $c.DefValueBox.ItemsSource = @(); $c.DefValueText.Text = ''; $c.DefValueHelp.Text = ''; $c.DefDocButton.Tag = ''
+        $c.DefValueBox.Visibility = 'Visible'; $c.DefValueText.Visibility = 'Collapsed'
+        Update-IgwtGuiButtons
+        return
+    }
+    $s = $row.Setting
+    $c.DefDetName.Text = [string]$s.Name
+    $meta = "$($s.Property)  |  $($s.CategoryName)  |  Source: $($s.Source)"
+    if ($s.Policy) { $meta += "  |  Policy: $($s.Policy)" }
+    $c.DefDetMeta.Text = $meta
+    $desc = "Current: $($s.Display)."
+    if ($s.ProtectiveDisplay) { $desc += " Recommended: $($s.ProtectiveDisplay)." }
+    $desc += "`n`n$($s.Hint)"
+    if ($s.Note) { $desc += "`n`n$($s.Note)" }
+    $how = [string]$s.Change
+    if ($s.Editable -and [string]$s.Edit -eq 'set') { $how = 'pick a value below and press Apply value (a snapshot is written first; revert in Backups & Logs).' }
+    elseif ($s.Editable) { $how = 'pick On below and press Apply value (parsers are only ever turned on).' }
+    elseif ([string]$s.Edit -eq 'policy') { $how = "through Group Policy: open Group Policy above and select $($s.Policy)." }
+    $desc += "`n`nHow to change: $how"
+    $c.DefDetDescription.Text = $desc
+    $def = Get-IgwtDefenderSettingDefinition -Name ([string]$s.Property)
+    $choices = @($s.Choices | Where-Object { $_ })
+    $typed = ([string]$s.Type -in 'uint', 'time', 'text')
+    $c.DefValueBox.Visibility = $(if ($choices.Count) { 'Visible' } else { 'Collapsed' })
+    $c.DefValueText.Visibility = $(if (-not $choices.Count -and $typed) { 'Visible' } else { 'Collapsed' })
+    if ($choices.Count) {
+        $items = @($choices | ForEach-Object { [pscustomobject]@{ Value = $_.Value; Label = $(if ($_.Allowed) { [string]$_.Label } else { "$($_.Label) (not allowed)" }); Allowed = [bool]$_.Allowed; Why = [string]$_.Why } })
+        $c.DefValueBox.ItemsSource = $items
+        $cur = @($items | Where-Object { Test-IgwtDefenderValueEqual -Definition $def -A $s.Current -B $_.Value }) | Select-Object -First 1
+        if ($cur) { $c.DefValueBox.SelectedItem = $cur }
+    } else {
+        $c.DefValueBox.ItemsSource = @()
+        $c.DefValueText.Text = $(if ([string]$s.Type -eq 'time' -and $null -ne $s.Current) { Format-IgwtDefenderSettingValue -Definition $def -Value $s.Current } elseif ($null -ne $s.Current) { [string](@($s.Current) -join '|') } else { '' })
+    }
+    $help = New-Object System.Collections.Generic.List[string]
+    switch ([string]$s.Type) {
+        'uint' { $help.Add(("A whole number from {0} to {1}{2}." -f $(if ($null -ne $s.Min) { $s.Min } else { 0 }), $(if ($null -ne $s.Max) { $s.Max } else { 4294967295 }), $(if ($s.Unit) { " ($($s.Unit))" } else { '' }))) }
+        'time' { $help.Add('A time of day as HH:mm (24-hour clock).') }
+        'text' { $help.Add('Text value; it is checked before anything changes.') }
+        default { if ($choices.Count) { $help.Add("Values marked 'not allowed' turn a protection off or lower it, or are refused for the reason shown when you pick them.") } }
+    }
+    if (-not $s.Editable) { $help.Add([string]$s.Change) }
+    elseif ([string]$s.Edit -eq 'parser') { $help.Add('Network Inspection parser: it is only ever turned on, so there is nothing to revert.') }
+    $c.DefValueHelp.Text = ($help -join "`n")
+    $c.DefDocButton.Tag = [string]$s.Doc
+    Update-IgwtGuiButtons
+}
+
+function Set-IgwtGuiDefenderData {
+    <# .SYNOPSIS Stores a Get-IgwtDefenderSettings result and rebuilds the list. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param($Settings)
+    $script:Gui.Defender = @($Settings | Where-Object { $_ })
+    $script:Gui.DefenderStale = $false
+    Update-IgwtGuiDefenderLists
+}
+
+function Start-IgwtGuiDefenderRefresh {
+    <# .SYNOPSIS Reads the Defender preferences, or with -Policies the Defender Group Policy settings, in the worker (read-only). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
+    [CmdletBinding()]
+    param([switch]$Policies)
+    if ($Policies) {
+        $null = Start-IgwtGuiJob -Command 'Get-IgwtDefenderPolicySettings' -BusyText 'Reading the Defender Group Policy settings (read-only)...' -OnComplete {
+            param($out, $errs)
+            $script:Gui.DefenderPolicies = @($out | Where-Object { $_ })
+            Update-IgwtGuiDefenderLists
+            if (@($errs).Count) { Set-IgwtGuiStatus "Defender Group Policy settings could not be read: $(@($errs)[0])" } else { Set-IgwtGuiStatus 'Defender Group Policy settings read.' }
+        }
+        return
+    }
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtDefenderSettings' -BusyText 'Reading the Defender settings (read-only)...' -OnComplete {
+        param($out, $errs)
+        Set-IgwtGuiDefenderData -Settings @($out)
+        if (@($out).Count) { Set-IgwtGuiStatus 'Defender settings read.' } else { Set-IgwtGuiStatus "Defender settings could not be read: $(@($errs)[0])" }
+    }
+}
+
+function Select-IgwtGuiDefenderRecommended {
+    <# .SYNOPSIS Picks the recommended value of the selected setting in the editor (nothing changes until Apply value). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the editor selection only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $row = $c.DefList.SelectedItem
+    if (-not $row -or $null -eq $row.Setting.Protective) { return }
+    $def = Get-IgwtDefenderSettingDefinition -Name ([string]$row.Setting.Property)
+    $on = ConvertTo-IgwtDefenderSettingValue -Definition $def -Value $row.Setting.Protective
+    if (@($c.DefValueBox.ItemsSource).Count) {
+        $hit = @($c.DefValueBox.ItemsSource | Where-Object { Test-IgwtDefenderValueEqual -Definition $def -A $_.Value -B $on }) | Select-Object -First 1
+        if ($hit) { $c.DefValueBox.SelectedItem = $hit }
+    } else { $c.DefValueText.Text = [string]$row.Setting.Protective }
+    Set-IgwtGuiStatus "Recommended value picked: $($row.Setting.ProtectiveDisplay). Press Apply value to change it."
+}
+
+function Invoke-IgwtGuiDefenderChange {
+    <# .SYNOPSIS Checks the new value of the selected Defender setting, confirms, then changes it in the worker (snapshot first) and reads the settings again. #>
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $row = $c.DefList.SelectedItem
+    if (-not $row) { Set-IgwtGuiStatus 'Select a setting first.'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Defender settings.'; return }
+    $s = $row.Setting
+    $def = Get-IgwtDefenderSettingDefinition -Name ([string]$s.Property)
+    $raw = $null
+    if ($c.DefValueBox.Visibility -eq 'Visible') {
+        $pick = $c.DefValueBox.SelectedItem
+        if (-not $pick) { Set-IgwtGuiStatus 'Pick a value first.'; return }
+        if (-not $pick.Allowed) { $null = Show-IgwtGuiMessage -Text "This value is refused:`n`n$($pick.Why)" -Icon 'Warning'; return }
+        $raw = $pick.Value
+    } else {
+        $raw = ([string]$c.DefValueText.Text).Trim()
+        if (-not $raw) { Set-IgwtGuiStatus 'Type a value first.'; return }
+    }
+    try { $value = ConvertTo-IgwtDefenderSettingValue -Definition $def -Value $raw } catch { $null = Show-IgwtGuiMessage -Text "The value is not valid:`n`n$($_.Exception.Message)" -Icon 'Warning'; return }
+    $why = Test-IgwtDefenderSettingValue -Definition $def -Value $value -Current $s.Current
+    if ($why) { $null = Show-IgwtGuiMessage -Text "This value is refused:`n`n$why" -Icon 'Warning'; return }
+    if (Test-IgwtDefenderValueEqual -Definition $def -A $s.Current -B $value) { Set-IgwtGuiStatus "'$($s.Name)' is already $($s.Display)."; return }
+    $newText = Format-IgwtDefenderSettingValue -Definition $def -Value $value
+    $text = "Change '$($s.Name)' from $($s.Display) to ${newText}?"
+    if ([string]$s.Edit -eq 'parser') { $text += "`n`nNetwork Inspection parsers are only ever turned on; there is nothing to revert." }
+    else { $text += "`n`nA snapshot is written first, so you can revert this in Backups & Logs." }
+    $params = @{ Setting = @{ ([string]$s.Property) = $value } }
+    $m = $null
+    try { $m = Get-IgwtManagementState } catch { $m = $null }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override the local value."; $params.AcknowledgeManaged = $true }
+    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender settings' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtDefenderSettingChange' -Parameters $params -Blocking -BusyText 'Changing the Defender setting (snapshot first)...' -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The setting was not changed: $(@($errs)[0])" -Icon 'Error' }
+        elseif ($res -and $res.Changes -gt 0) {
+            $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
+            $tail = $(if ($res.Snapshot) { "`n`nSnapshot: $($res.Snapshot)" } else { '' })
+            $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + $tail) -Icon $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 'Warning' } else { 'Information' })
+        } else { Set-IgwtGuiStatus 'Nothing to change.' }
+        Start-IgwtGuiDefenderRefresh
+    }
+}
+
+function Invoke-IgwtGuiDefenderPolicyChange {
+    <# .SYNOPSIS Confirms, then sets the selected Defender Group Policy setting in the worker (Local GPO backup first, denylist checked) and reads the policies again. #>
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $row = $c.DefPolicyList.SelectedItem
+    $pick = $c.DefPolicyStateBox.SelectedItem
+    if (-not $row -or -not $pick) { Set-IgwtGuiStatus 'Select a policy and a state first.'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Group Policy.'; return }
+    if (-not $pick.Allowed) { $null = Show-IgwtGuiMessage -Text "This state cannot be set here:`n`n$($pick.Label)`n`n$(([string]$c.DefPolicyHelp.Text))" -Icon 'Warning'; return }
+    if ([string]$row.Policy.State -eq [string]$pick.Value) { Set-IgwtGuiStatus "The policy is already $($pick.Label)."; return }
+    $text = "Set the Group Policy '$($row.Name)' to $($pick.Label)?`n`n$($row.Id)`n`nA backup of the Local Group Policy is taken first."
+    $params = @{ Id = [string]$row.Id; State = [string]$pick.Value }
+    $m = $null
+    try { $m = Get-IgwtManagementState } catch { $m = $null }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
+    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    $null = Start-IgwtGuiJob -Command 'Set-IgwtLocalPolicy' -Parameters $params -Blocking -BusyText 'Setting the Group Policy (backup first)...' -OnComplete {
+        param($out, $errs)
+        $res = @($out) | Select-Object -Last 1
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The policy was not changed: $(@($errs)[0])" -Icon 'Error' }
+        elseif ($res) {
+            $v = $(if ($res.Verified -eq $true) { 'The resulting registry values were verified.' } elseif ($res.Verified -eq $false) { "Not every value was found after the refresh: $(@($res.Mismatch) -join ', ')." } else { '' })
+            $null = Show-IgwtGuiMessage -Text "$($res.Id) -> $($res.State). $v`n`nBackup: $($res.Backup)" -Icon $(if ($res.Verified -eq $false) { 'Warning' } else { 'Information' })
+        }
+        $script:Gui.DefenderStale = $true
+        Start-IgwtGuiDefenderRefresh -Policies
+    }
+}
+
+#endregion
+
 #region Persona
 
 function Set-IgwtGuiPersona {
@@ -1946,12 +2251,18 @@ function Set-IgwtGuiPersona {
     $rank = @{}
     for ($i = 0; $i -lt $order.Count; $i++) { $rank[[string]$order[$i]] = $i }
     $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
-    # The ASR Center is part of Security: keep it directly under Security in every persona.
-    $asr = @($sorted | Where-Object { [string]$_.Tag -eq 'Asr' }) | Select-Object -First 1
-    if ($asr) {
+    # The ASR Center and the Defender settings are part of Security: keep them directly under
+    # Security in every persona.
+    $subs = @(foreach ($tag in 'Asr', 'Defender') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
+    $subs = @($subs | Where-Object { $_ })
+    if ($subs.Count) {
         $rest = New-Object System.Collections.Generic.List[object]
-        foreach ($it in $sorted) { if ($it -ne $asr) { $rest.Add($it); if ([string]$it.Tag -eq 'Security') { $rest.Add($asr) } } }
-        if (-not $rest.Contains($asr)) { $rest.Add($asr) }
+        foreach ($it in $sorted) {
+            if (@($subs | Where-Object { [object]::ReferenceEquals($_, $it) }).Count) { continue }
+            $rest.Add($it)
+            if ([string]$it.Tag -eq 'Security') { foreach ($s in $subs) { $rest.Add($s) } }
+        }
+        foreach ($s in $subs) { if (-not $rest.Contains($s)) { $rest.Add($s) } }
         $sorted = $rest.ToArray()
     }
     $nav.Items.Clear()
@@ -2187,7 +2498,7 @@ function Show-IgwtGuiPage {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Page)
     $c = $script:Gui.C
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -2203,6 +2514,7 @@ function Show-IgwtGuiPage {
         'Dashboard' { $c.PageDashboard.Visibility = 'Visible' }
         'Presets' { $c.PagePresets.Visibility = 'Visible'; Update-IgwtGuiPresetCards }
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiAsrRefresh } }
+        'Defender' { $c.PageDefender.Visibility = 'Visible'; Set-IgwtGuiDefenderView -View $(if ($script:Gui.DefenderView) { $script:Gui.DefenderView } else { 'Prefs' }) }
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiManageRefresh } }
         'Toolkit' { $c.PageToolkit.Visibility = 'Visible'; Update-IgwtGuiToolkitLists; if (-not $script:Gui.Toolkit -and $script:Gui.Runspace -and -not $script:Gui.Job) { Start-IgwtGuiToolkitRefresh } }
@@ -2254,6 +2566,11 @@ function Save-IgwtGuiScreenshots {
         Set-IgwtGuiAsrAudit -Audit (Get-IgwtAsrAudit -Days 14)
         if (@($script:Gui.C.AsrList.ItemsSource).Count) { $script:Gui.C.AsrList.SelectedIndex = 0 }
     } catch { Write-Verbose "ASR data unavailable for screenshots: $($_.Exception.Message)" }
+    # Read-only data for the Defender settings page.
+    try {
+        Set-IgwtGuiDefenderData -Settings @(Get-IgwtDefenderSettings)
+        if (@($script:Gui.C.DefList.ItemsSource).Count) { $script:Gui.C.DefList.SelectedIndex = 0 }
+    } catch { Write-Verbose "Defender settings unavailable for screenshots: $($_.Exception.Message)" }
     $root = $script:Gui.Window.Content
     # Copy the window resources (theme) onto the root so implicit styles still resolve after detaching.
     $rd = New-Object System.Windows.ResourceDictionary
@@ -2320,7 +2637,7 @@ function Show-IgwtGui {
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = (Test-IgwtIsAdmin)
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null
+        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -2355,6 +2672,10 @@ function Show-IgwtGui {
     $c.NavList.Add_SelectionChanged({ $item = $script:Gui.C.NavList.SelectedItem; if ($item) { Show-IgwtGuiPage -Page ([string]$item.Tag) } })
     $c.SecAsrButton.Add_Click({ $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Asr' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } })
     $c.AsrHardeningButton.Add_Click({ $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Security' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } })
+    $c.SecDefenderButton.Add_Click({ Select-IgwtGuiNavPage -Tag 'Defender' })
+    $c.AsrDefenderButton.Add_Click({ Select-IgwtGuiNavPage -Tag 'Defender' })
+    $c.DefHardeningButton.Add_Click({ Select-IgwtGuiNavPage -Tag 'Security' })
+    $c.DefAsrButton.Add_Click({ Select-IgwtGuiNavPage -Tag 'Asr' })
     $c.ManageTabs.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, [System.Windows.RoutedEventHandler] {
             param($source, $e)
             $null = $source
@@ -2536,6 +2857,27 @@ function Show-IgwtGui {
                 elseif (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The report was not written: $(@($errs)[0])" -Icon 'Error' }
             }
         })
+    # Security > Defender settings
+    $script:Gui.DefenderView = 'Prefs'
+    $c.DefCategoryBox.DisplayMemberPath = 'Name'
+    $c.DefCategoryBox.ItemsSource = @(@([pscustomobject]@{ Id = ''; Name = 'All categories' }) + @((Get-IgwtDefenderSettingCatalog).categories | ForEach-Object { [pscustomobject]@{ Id = [string]$_.id; Name = [string]$_.name } }))
+    $c.DefCategoryBox.SelectedIndex = 0
+    $c.DefPolicyStateBox.DisplayMemberPath = 'Label'
+    $c.DefSearchBox.Add_TextChanged({ Update-IgwtGuiDefenderLists })
+    $c.DefCategoryBox.Add_SelectionChanged({ Update-IgwtGuiDefenderLists })
+    $c.DefAttentionBox.Add_Click({ Update-IgwtGuiDefenderLists })
+    $c.DefEditableBox.Add_Click({ Update-IgwtGuiDefenderLists })
+    $c.DefList.Add_SelectionChanged({ Update-IgwtGuiDefenderDetails })
+    $c.DefPolicyList.Add_SelectionChanged({ Update-IgwtGuiDefenderDetails })
+    $c.DefValueBox.Add_SelectionChanged({ Update-IgwtGuiButtons })
+    $c.DefPolicyStateBox.Add_SelectionChanged({ Update-IgwtGuiButtons })
+    $c.DefPrefsViewButton.Add_Click({ Set-IgwtGuiDefenderView -View 'Prefs' })
+    $c.DefPolicyViewButton.Add_Click({ Set-IgwtGuiDefenderView -View 'Policy' })
+    $c.DefRefreshButton.Add_Click({ if ($script:Gui.DefenderView -eq 'Policy') { Start-IgwtGuiDefenderRefresh -Policies } else { Start-IgwtGuiDefenderRefresh } })
+    $c.DefApplyButton.Add_Click({ Invoke-IgwtGuiDefenderChange })
+    $c.DefRecommendButton.Add_Click({ Select-IgwtGuiDefenderRecommended })
+    $c.DefPolicyApplyButton.Add_Click({ Invoke-IgwtGuiDefenderPolicyChange })
+    $c.DefDocButton.Add_Click({ $u = [string]$script:Gui.C.DefDocButton.Tag; if ($u) { Open-IgwtGuiPath -Target $u } })
     # ASR Center
     $c.AsrRefreshButton.Add_Click({ Start-IgwtGuiAsrRefresh })
     $c.AsrAuditButton.Add_Click({ Start-IgwtGuiAsrAudit })

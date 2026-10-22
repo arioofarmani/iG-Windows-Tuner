@@ -675,4 +675,57 @@ function Get-IgwtAboutText {
         ) -join [Environment]::NewLine)
 }
 
+function New-IgwtGuiDefenderRow {
+    <# .SYNOPSIS Bindable row for one Defender setting (from Get-IgwtDefenderSettings). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Setting)
+    $statusBrush = switch ([string]$Setting.Status) { 'On' { $script:IgwtColor.Pass } 'Off' { $script:IgwtColor.Fail } 'Below' { $script:IgwtColor.Warn } 'Optional' { $script:IgwtColor.Accent } default { $script:IgwtColor.Text } }
+    $editText = switch ([string]$Setting.Edit) {
+        'set' { $(if ($Setting.Editable) { 'Changeable' } else { "Set by $($Setting.Source)" }) }
+        'parser' { $(if ($Setting.Editable) { 'Turn on only' } else { "Set by $($Setting.Source)" }) }
+        'policy' { 'Group Policy only' }
+        default { 'Shown only' }
+    }
+    $editBrush = $(if ($Setting.Editable) { $script:IgwtColor.Accent } elseif ([string]$Setting.Edit -in 'set', 'parser') { $script:IgwtColor.Warn } else { $script:IgwtColor.Muted })
+    $rec = ''
+    if ($Setting.ProtectiveDisplay) { $rec = $(if ([string]$Setting.Status -eq 'On') { 'Meets recommendation' } else { "Recommended: $($Setting.ProtectiveDisplay)" }) }
+    elseif ([string]$Setting.Status -eq 'Info') { $rec = 'Your choice' }
+    [pscustomobject]@{
+        Id               = [string]$Setting.Property
+        Name             = [string]$Setting.Name
+        Hint             = [string]$Setting.Hint
+        CategoryText     = [string]$Setting.CategoryName
+        EditText         = $editText
+        EditBrush        = $editBrush
+        SourceText       = "Source: $($Setting.Source)"
+        SourceVisibility = $(if ([string]$Setting.Source -ne 'Local') { 'Visible' } else { 'Collapsed' })
+        ValueText        = [string]$Setting.Display
+        StatusBrush      = $statusBrush
+        RecommendText    = $rec
+        Setting          = $Setting
+    }
+}
+
+function New-IgwtGuiDefenderPolicyRow {
+    <# .SYNOPSIS Bindable row for one Defender Group Policy setting (from Get-IgwtDefenderPolicySettings). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Policy)
+    $state = [string]$Policy.State
+    $refused = @(@($Policy.Refused) | ForEach-Object { ([string]$_ -split ':')[0] } | Where-Object { $_ })
+    [pscustomobject]@{
+        Id                   = [string]$Policy.Id
+        Name                 = [string]$Policy.Name
+        CategoryText         = ([string]$Policy.Category -replace '^Windows Components > ', '')
+        PreferenceText       = "Preference: $($Policy.Preference)"
+        PreferenceVisibility = $(if ($Policy.Preference) { 'Visible' } else { 'Collapsed' })
+        RefusedText          = "Refused: $($refused -join ', ')"
+        RefusedVisibility    = $(if ($refused.Count) { 'Visible' } else { 'Collapsed' })
+        StateText            = $(if ($state -eq 'NotConfigured') { 'Not configured' } else { $state })
+        StateBrush           = $(switch ($state) { 'NotConfigured' { $script:IgwtColor.Muted } 'Enabled' { $script:IgwtColor.Pass } 'Disabled' { $script:IgwtColor.Warn } default { $script:IgwtColor.Accent } })
+        SourceText           = $(if ([string]$Policy.Source -eq 'Not configured') { '' } else { [string]$Policy.Source })
+        Policy               = $Policy
+    }
+}
 #endregion

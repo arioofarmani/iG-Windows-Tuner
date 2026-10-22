@@ -1526,6 +1526,106 @@
       "actions": [
         { "type": "asrRule", "label": "Block rebooting machine in Safe Mode", "id": "33ddedf1-c6e0-47cb-833e-de6133960387", "on": "Block" }
       ]
+    },
+    {
+      "id": "sec.defender-sandbox",
+      "name": "Run Microsoft Defender Antivirus in a sandbox",
+      "category": "Security",
+      "group": "Microsoft Defender",
+      "order": 57,
+      "level": "Advanced",
+      "hint": "Runs Defender's file parsers in a low-privilege sandbox process (MsMpEngCP.exe), so a parser exploit stays contained. Needs a restart.",
+      "description": "Sets the machine environment variable MP_FORCE_USE_SANDBOX = 1, as Microsoft documents (setx /M). After a restart Defender scans untrusted content in a separate low-privilege content process with DEP, ASLR and CFG enforced, so an attacker who exploits a parser does not get SYSTEM rights. Microsoft designed it to keep scanning performance stable. Turning it off removes the variable (Defender then scans in-process again).",
+      "evidence": {
+        "tier": "A",
+        "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/sandbox-mdav" ],
+        "notes": "Windows 10 1703 and later; Defender must be the active antivirus."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
+      "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
+      "source": "microsoft",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+          "name": "MP_FORCE_USE_SANDBOX",
+          "valueType": "String",
+          "on": "1",
+          "default": "<absent>"
+        }
+      ]
+    },
+    {
+      "id": "sec.enhanced-phishing-protection",
+      "name": "Enhanced Phishing Protection (warn on phishing and password reuse)",
+      "category": "Security",
+      "group": "Devices",
+      "order": 61,
+      "level": "Standard",
+      "hint": "SmartScreen warns when your Windows sign-in password is typed into a phishing site or reused on other sites and apps.",
+      "description": "Sets the Enhanced Phishing Protection policies Service Enabled, Notify Malicious and Notify Password Reuse to on (the switches under Windows Security > App & browser control > Reputation-based protection > Phishing protection). Microsoft documents it for work or school passwords on Windows 11 22H2 and later; it does nothing when you sign in with a PIN or biometrics. The unsafe password storage warning (Notepad, Office) is left to you. Turning it off removes the policies.",
+      "evidence": {
+        "tier": "A",
+        "sources": [
+          "https://learn.microsoft.com/en-us/windows/security/operating-system-security/virus-and-threat-protection/microsoft-defender-smartscreen/enhanced-phishing-protection"
+        ],
+        "notes": "ADMX WebThreatDefense: ServiceEnabled, NotifyMalicious, NotifyPasswordReuse."
+      },
+      "impact": { "performance": "none", "latency": "none", "security": "+" },
+      "risk": "low",
+      "antiCheat": "safe",
+      "reversible": "full",
+      "sideEffects": "Windows Security shows these switches as managed by your organization while the policies are set.",
+      "requires": "reboot",
+      "appliesTo": { "minBuild": 26100 },
+      "editions": [],
+      "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
+      "source": "microsoft",
+      "actions": [
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WTDS\\Components",
+          "name": "ServiceEnabled",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WTDS\\Components",
+          "name": "NotifyMalicious",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        },
+        {
+          "type": "registry",
+          "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WTDS\\Components",
+          "name": "NotifyPasswordReuse",
+          "valueType": "DWord",
+          "on": 1,
+          "default": "<absent>"
+        }
+      ]
     }
   ]
 }

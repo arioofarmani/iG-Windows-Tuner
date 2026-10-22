@@ -124,6 +124,10 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-ScanPath` | Folder or file for -DefenderScan Custom. |
 | `-ConfirmRestart` | Confirms that -DefenderScan Offline restarts the PC immediately. |
 | `-DefenderParsersOn` | Turns on every Network Inspection parser, inbound connection filtering, datagram processing and the DNS sinkhole that is off. One-way: they are never turned off. Use -DryRun first. |
+| `-DefenderSettings` | Every Microsoft Defender Antivirus preference (123 settings, also the hidden ones Windows Security does not show): current value, recommended value, status, who sets it and how it can be changed. -DefenderCategory filters; -Json for scripts. Read-only. |
+| `-DefenderCategory` | Category for -DefenderSettings: realtime, cloud, scans, updates, threats, pua, network, netbehavior, ai, performance, reporting, server or advanced. |
+| `-DefenderSet` | Changes Defender preferences as "Name=Value;Name2=Value2" (property names from -DefenderSettings; values as numbers, labels, true/false, on/off or HH:mm). A snapshot is written first; values that turn a protection off, read-only settings and settings a policy controls are refused. Use -DryRun first. |
+| `-DefenderPolicies` | Every Defender Group Policy setting of the installed ADMX files (also those without a preference), with the Local GPO state and the states the denylist refuses; the value filters by name (use '' for all). Change one with -PolicySet. Read-only. |
 | `-QuarantineRestore` | Restores a quarantined threat by name; needs -IUnderstandTheRisk (the file can run again). |
 | `-IUnderstandTheRisk` | Confirms -QuarantineRestore. |
 | `-FirewallLog` | Analyzes the firewall log: top blocked sources, ports and processes and an hourly timeline. -FirewallLogPath picks a log; -ReportPath exports (.json analysis or .csv entries). Read-only. |

@@ -2,11 +2,19 @@
 
 ## Unreleased
 
+### Every Defender, ASR and security setting
+
+- **Security > Defender settings** (GUI page and `-DefenderSettings`, `-DefenderSet`): all 137 Microsoft Defender Antivirus preferences in 13 categories, including the hidden ones Windows Security does not show (update channels, scheduler randomization, catch-up and grace periods, UDP offloads for network protection, brute-force and remote encryption protection, AI agent protection, Intel TDT, Dev Drive performance mode, reporting and telemetry switches). Each shows its current and recommended value and who sets it; 87 can be changed with a snapshot and revert, protections only move toward on, values that turn a protection off are refused and levels are never lowered. A revert never turns a protection off. Preferences a newer Defender platform adds are listed read-only.
+- **Every Defender Group Policy** (`-DefenderPolicies`, Group Policy view of the page): about 140 Defender policies of the installed templates, including the ones without a preference (heuristics, packed executables, archive limits, scan after update, notifications), with their Local GPO state; set them from the page or with `-PolicySet`. The denylist now also refuses the hidden Defender switches that turn a protection off.
+- New Security items: **Run Microsoft Defender Antivirus in a sandbox** (`sec.defender-sandbox`) and **Enhanced Phishing Protection** (`sec.enhanced-phishing-protection`).
+- Coverage report: `docs\SECURITY_COVERAGE.md` (19 of 19 ASR rules, 137 of 137 Defender preferences, every Windows Security area and what is deliberately left out).
+- CLI help: the Policy and Defender parameter descriptions were listed three times; each is now listed once.
+
 ### Interface
 
 - New dark theme: calmer palette, softer amber warnings, rounded cards, dark check boxes, combo boxes and thin scroll bars.
 - Dashboard redesigned for quick scanning: four status tiles (anti-cheat, security, system health, your changes), one numbered *Do this next* list with at most five items, and every detail section folded into a collapsible panel (problems listed first).
-- The ASR Center is part of Security: it sits under Security in the menu for every persona, and both pages have a *Hardening items | ASR Center* switch.
+- The ASR Center and the Defender settings are part of Security: they sit under Security in the menu for every persona, and the pages have a *Hardening items | ASR Center | Defender settings* switch.
 - Manage: every tab has sortable column headers (click to sort, click again to reverse; sizes sort by value).
 
 ## 3.0.0 (2026-10-22)
