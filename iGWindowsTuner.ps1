@@ -71,6 +71,26 @@
     Resets Local Group Policy to default after a backup (-DryRun shows the files and steps).
 .PARAMETER PolicyTattoo
     Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only.
+.PARAMETER SecPolicy
+    Shows the local security policy: account policies, user rights assignment and security options
+    (secedit /export to a temporary file). Read-only; asks for administrator rights.
+.PARAMETER SecPolicySet
+    Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess,
+    PrivilegeRights (accounts separated by |, names or *SIDs) and RegistryValues (type,value).
+    Lockout safeguards refuse changes that would lock out you or the administrators. Use -DryRun first.
+.PARAMETER SecPolicyRestore
+    Restores the settings a -SecPolicySet backup folder changed.
+.PARAMETER AuditPolicy
+    Shows the advanced audit policy per subcategory (auditpol /get). Read-only; asks for administrator rights.
+.PARAMETER AuditSet
+    Changes audit subcategories, as "Subcategory name or {GUID}=None|Success|Failure|SuccessAndFailure;...".
+    A backup is taken first. Use -DryRun first.
+.PARAMETER AuditImport
+    Applies an audit.csv (Group Policy backup or security baseline format); -DryRun shows the differences.
+.PARAMETER AuditExport
+    Writes the current audit policy as audit.csv to this path.
+.PARAMETER AuditRestore
+    Restores the audit policy from an -AuditSet or -AuditImport backup folder.
 .PARAMETER AdmxFolder
     Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog.
 .PARAMETER Platform
@@ -327,6 +347,14 @@ param(
     [switch]$PolicyReset,
     [switch]$PolicyTattoo,
     [string[]]$AdmxFolder,
+    [switch]$SecPolicy,
+    [string]$SecPolicySet,
+    [string]$SecPolicyRestore,
+    [switch]$AuditPolicy,
+    [string]$AuditSet,
+    [string]$AuditImport,
+    [string]$AuditExport,
+    [string]$AuditRestore,
     [switch]$AcknowledgeManaged,
     [ValidateSet('Gamer', 'PowerUser', 'Sysadmin')]
     [string]$Persona,
@@ -639,6 +667,14 @@ if ($PolicyBackup) { $modes += 'PolicyBackup' }
 if ($PolicyRestore) { $modes += 'PolicyRestore' }
 if ($PolicyReset) { $modes += 'PolicyReset' }
 if ($PolicyTattoo) { $modes += 'PolicyTattoo' }
+if ($SecPolicy) { $modes += 'SecPolicy' }
+if ($SecPolicySet) { $modes += 'SecPolicySet' }
+if ($SecPolicyRestore) { $modes += 'SecPolicyRestore' }
+if ($AuditPolicy) { $modes += 'AuditPolicy' }
+if ($AuditSet) { $modes += 'AuditSet' }
+if ($AuditImport) { $modes += 'AuditImport' }
+if ($AuditExport) { $modes += 'AuditExport' }
+if ($AuditRestore) { $modes += 'AuditRestore' }
 if ($Persona) { $modes += 'Persona' }
 if ($Apply) { $modes += 'Apply' }
 if ($Revert) { $modes += 'Revert' }
@@ -1221,6 +1257,85 @@ try {
             Write-IgwtCliLine ''
             Write-IgwtCliLine "$($rows.Count) tattooed value(s): present under the Policies keys but in no Registry.pol or domain GPO. Items written by iG Windows Tuner move to the Local GPO in a later 3.0 phase." ([ConsoleColor]::White)
             exit 0
+        }
+        'SecPolicy' {
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $rows = @(Get-IgwtSecurityPolicy)
+            if ($Json) { $rows | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
+            foreach ($g in @($rows | Group-Object Group)) {
+                Write-IgwtCliLine ''
+                Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                foreach ($r in $g.Group) {
+                    $v = $(if ($r.Section -eq 'Privilege Rights') { @($r.Accounts) -join ', ' } else { $r.Value })
+                    Write-IgwtCliLine ("  {0,-58} {1}" -f $r.Name, $v) ([ConsoleColor]::Gray)
+                }
+            }
+            Complete-IgwtCli 0
+        }
+        'SecPolicySet' {
+            try { $changes = @(ConvertFrom-IgwtSecurityChangeText -Text $SecPolicySet) } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $plan = Get-IgwtSecurityChangePlan -Changes $changes } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if ($Json -and $DryRun) { $plan | Select-Object Rows, Refusals, Managed, Notes | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
+            foreach ($r in $plan.Rows) { Write-IgwtCliLine ("  {0}\{1}: {2} -> {3}" -f $r.Section, $r.Key, $(if ($null -eq $r.Current) { '<not defined>' } else { $r.Current }), $r.New) ([ConsoleColor]::Gray) }
+            foreach ($n in $plan.Notes) { Write-IgwtCliLine "  Note: $n" ([ConsoleColor]::Yellow) }
+            foreach ($r in $plan.Refusals) { Write-IgwtCliLine "  Refused: $r" ([ConsoleColor]::Red) }
+            if ($plan.Refusals.Count) { Complete-IgwtCli 2 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); Complete-IgwtCli 0 }
+            try { $res = Set-IgwtSecurityPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine ("Set. Verified: {0}. Backup: {1} (undo with -SecPolicyRestore)." -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
+            Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
+        }
+        'SecPolicyRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would restore the security settings changed by $SecPolicyRestore."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Restore-IgwtSecurityPolicy -BackupPath $SecPolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Restored $($r.Settings) setting(s)." ([ConsoleColor]::Green)
+            foreach ($u in @($r.NotRemovable)) { Write-IgwtCliLine "  $u was not defined before; secedit cannot remove it (set it to the Windows default if needed)." ([ConsoleColor]::Yellow) }
+            Complete-IgwtCli 0
+        }
+        'AuditPolicy' {
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            $a = Get-IgwtAuditPolicy
+            if ($Json) { $a | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
+            foreach ($r in @($a.Subcategories)) { Write-IgwtCliLine ("  {0,-48} {1,-18} {2}" -f $r.Subcategory, $r.Setting, $r.Guid) $(if ($r.Setting -eq 'None') { [ConsoleColor]::DarkGray } else { [ConsoleColor]::Gray }) }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine "Advanced audit policy overrides legacy categories: $(if ($a.AdvancedOverridesLegacy) { 'yes' } else { 'no (SCENoApplyLegacyAuditPolicy is not set)' })" ([ConsoleColor]::White)
+            Complete-IgwtCli 0
+        }
+        { $_ -in 'AuditSet', 'AuditImport' } {
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try {
+                $current = Get-IgwtAuditPolicy
+                if ($modes[0] -eq 'AuditImport') { $changes = Import-IgwtAuditCsv -Path $AuditImport -Current $current }
+                else {
+                    $changes = @{}
+                    foreach ($pair in @($AuditSet -split ';' | Where-Object { $_.Trim() })) { $kv = $pair.Split([char[]]@('='), 2); if ($kv.Count -ne 2) { throw "Invalid -AuditSet part '$pair'." }; $changes[$kv[0].Trim()] = $kv[1].Trim() }
+                }
+                $plan = Get-IgwtAuditChangePlan -Changes $changes -Current $current
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
+            foreach ($o in @($plan.Ops)) { Write-IgwtCliLine ("  {0,-48} {1} -> {2}" -f $o.Subcategory, $o.Current, $o.New) $(if ($o.Changes) { [ConsoleColor]::Gray } else { [ConsoleColor]::DarkGray }) }
+            foreach ($w in @($plan.Warnings)) { Write-IgwtCliLine "  Warning: $w" ([ConsoleColor]::Yellow) }
+            foreach ($n in @($plan.Notes)) { Write-IgwtCliLine "  Note: $n" ([ConsoleColor]::Yellow) }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); Complete-IgwtCli 0 }
+            if (-not @($plan.Ops | Where-Object { $_.Changes }).Count) { Write-IgwtCliLine 'Nothing to change.' ([ConsoleColor]::Green); Complete-IgwtCli 0 }
+            try { $res = Set-IgwtAuditPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine ("Set. Verified: {0}. Backup: {1} (undo with -AuditRestore)." -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
+            Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
+        }
+        'AuditExport' {
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            Export-IgwtAuditCsv -Path $AuditExport
+            Write-IgwtCliLine "Audit policy written to $AuditExport" ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'AuditRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would restore the audit policy from $AuditRestore."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $null = Restore-IgwtAuditPolicy -BackupPath $AuditRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine 'Audit policy restored.' ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
         }
         'Platform' {
             $st = Get-IgwtManagementState

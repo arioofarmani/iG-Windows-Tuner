@@ -264,6 +264,7 @@ function Get-IgwtLocalAccountAudit {
         if ($sid -match '-500$') { $role = 'BuiltinAdministrator' } elseif ($sid -match '-501$') { $role = 'Guest' } elseif ($sid -match '-503$') { $role = 'DefaultAccount' } elseif ($sid -match '-504$') { $role = 'WDAGUtilityAccount' }
         [pscustomobject]@{
             Name             = [string]$u.Name
+            Sid              = $sid
             Enabled          = [bool]$u.Enabled
             Role             = $role
             IsAdmin          = $(if ($null -eq $adminSids) { $null } else { $adminSids -contains $sid })

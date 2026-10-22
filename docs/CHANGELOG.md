@@ -2,6 +2,12 @@
 
 ## 3.0.0 (in progress)
 
+### Security policy and auditing (phase 4)
+
+- **Security templates** (`-SecPolicy`, `-SecPolicySet`, `-SecPolicyRestore`): account policies, user rights assignment and security options through secedit, with an export snapshot before and a verification after every change.
+- **Lockout safeguards**: logon rights for Administrators and you (Remote Desktop rights while connected remotely), deny rights, password expiry, lockout combinations, the last enabled administrator, and no weakening (Guest, reversible passwords, sensitive privileges for broad groups, denylisted security options).
+- **Advanced audit policy** (`-AuditPolicy`, `-AuditSet`, `-AuditImport`, `-AuditExport`, `-AuditRestore`): per-subcategory changes with backup and verification, audit.csv import and export.
+
 ### Group Policy engine (phase 3)
 
 - **ADMX catalog**: every installed policy (plus the Central Store and extra template folders) with category path, supported-on text, explain text, registry mapping and elements; cached per user. `-PolicySearch`, `-PolicyShow` (effective state and source: Local GPO, registry, domain GPO, MDM; conflicts; tattoo flag).

@@ -220,3 +220,13 @@ Every design choice that departs from common tuning advice, or where several opt
 | G5 | **Domain results come from `gpresult /x` only on domain-joined PCs**, to a temp file, cached for the session. MDM values are read from `PolicyManager\current\device` by policy or value name (a heuristic: area names do not always match ADMX files). | Read-only and allowed by SPEC-v3 section 11; avoids running gpresult where it adds nothing. |
 | G6 | **The GUI policy browser comes with phase 12**; phase 3 ships the engine and the CLI. | The GUI restructure happens once, in phase 12. |
 | G7 | **Large byte arrays are never passed to PowerShell functions inside the PReg reader loop.** Binding a `byte[]` to a typed parameter copies it, which made parsing quadratic (107 s for 3,000 entries; now 0.6 s). | Performance found by the large-file test. |
+## Security policy and auditing (phase 4)
+
+| # | Decision | Reason |
+|---|---|---|
+| S1 | **secedit configures from a template that holds only the changed settings**, after a full export snapshot; restore re-applies the snapshot's values for exactly those settings. | Re-applying a full export could rewrite unrelated settings; secedit cannot remove settings that were not defined, so they are reported. |
+| S2 | **Safeguards about grants check only changed settings**; pre-existing broad grants are reported by the view but never block an unrelated change. | Refusing every change on PCs with an odd existing policy would stop safe hardening. |
+| S3 | **Remote Desktop rights are protected only while the session is Remote Desktop**; local logon for Administrators and the current user is always protected. Network logon counts as a Remote Desktop need because Network Level Authentication uses it. | SPEC-v3 3.4: "including interactive and remote logon in use". |
+| S4 | **A lockout threshold of 1 or 2 is refused** (stricter than Windows). | A stale credential on a phone or mapped drive would lock the account at once; Microsoft's baselines use 10. |
+| S5 | **Audit settings are parsed by "Setting Value" when present and otherwise by the English inclusion text**; unparsed rows are counted (`Unparsed`) rather than guessed. | `auditpol /get /r` prints localized text on non-English Windows; GUIDs are used for every change. |
+| S6 | **Reading secedit and auditpol needs elevation**, so their read-only views request it; on the development PC they were not run (no elevation in the session), and the parsers are tested with fixtures written from the documented formats. | Verified: secedit /export exits 740 and auditpol /get returns 0x522 when not elevated. |

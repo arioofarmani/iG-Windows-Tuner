@@ -76,3 +76,58 @@ DECISIONS G4); it is reversible with `-PolicyRestore`.
 
 Sources: [MS-GPREG] https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpreg/ ,
 ADMX schema https://learn.microsoft.com/en-us/previous-versions/windows/desktop/policy/admx-schema .
+
+# Security policy and auditing (3.0 phase 4)
+
+## Security templates (secedit)
+
+`-SecPolicy` shows account policies, user rights assignment and security options from
+`secedit /export /areas SECURITYPOLICY USER_RIGHTS` (to a temporary file). `-SecPolicySet` changes them:
+
+```powershell
+.\iGWindowsTuner.ps1 -SecPolicySet "SystemAccess\MinimumPasswordLength=14;SystemAccess\LockoutBadCount=10" -DryRun
+.\iGWindowsTuner.ps1 -SecPolicySet "PrivilegeRights\SeShutdownPrivilege=Administrators" -DryRun
+```
+
+Write path: export snapshot (`Backups\secpol-<timestamp>\before.inf` with a SHA256 manifest), a
+template with only the changed settings, `secedit /configure /areas SECURITYPOLICY USER_RIGHTS`,
+then a fresh export to verify. `-SecPolicyRestore <folder>` puts the changed settings back. secedit
+cannot "undefine" a setting that was not defined before; those are listed after a restore.
+
+## Lockout safeguards
+
+Every change is checked before anything is written (`Test-IgwtSecurityPolicySafeguards`):
+
+1. **Logon rights**: Administrators and you keep *Allow log on locally*; in a Remote Desktop session
+   you also keep *Allow log on through Remote Desktop Services* and *Access this computer from the
+   network* (needed for Network Level Authentication). Deny rights never match you (directly or
+   through a group such as Users or Everyone), and *Deny log on locally* never contains Administrators.
+2. **Password and lockout**: a maximum password age at or below your password's age is refused (it
+   would expire now), as are a minimum age at or above the maximum, a lockout threshold of 1 or 2, a
+   lockout duration shorter than the reset counter (Windows requires duration >= reset), and lockout
+   until an administrator unlocks (duration 0) when only one administrator is enabled.
+3. **Last administrator**: the built-in Administrator is never disabled while it is the last enabled
+   administrator, while you are signed in with it, or when the Administrators group cannot be read.
+4. **No weakening**: reversible password encryption, the Guest account, anonymous SID/name lookup,
+   sensitive privileges (debug, drivers, take ownership, backup/restore, impersonate, ...) for broad
+   groups (Everyone, Users, Authenticated Users, Guests, Anonymous), and Registry Values on the policy
+   denylist (for example EnableLUA=0) are refused.
+
+## Advanced audit policy (auditpol)
+
+```powershell
+.\iGWindowsTuner.ps1 -AuditPolicy
+.\iGWindowsTuner.ps1 -AuditSet "Process Creation=SuccessAndFailure;Logon=SuccessAndFailure" -DryRun
+.\iGWindowsTuner.ps1 -AuditImport .\baseline\audit.csv -DryRun
+.\iGWindowsTuner.ps1 -AuditExport .\audit.csv
+```
+
+Changes take an `auditpol /backup` first, use `auditpol /set /subcategory:{GUID}`, and are verified
+with `auditpol /get`; `-AuditRestore <folder>` runs `auditpol /restore`. The dry run warns when a
+change stops auditing success or failure events, and notes when SCENoApplyLegacyAuditPolicy is not set
+(legacy category settings can then override subcategories). The CSV format is the `audit.csv` of
+Group Policy backups and security baselines (with "Setting Value" 0-3).
+
+Reading needs administrator rights (secedit exits with 740, auditpol with 0x522 otherwise), so the
+read-only views ask for elevation. Sources: secedit export/configure and auditpol get/set/backup/restore
+on Microsoft Learn (windows-commands), and the Windows security policy settings reference.

@@ -90,6 +90,19 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-PolicyTattoo` | Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only. |
 | `-AdmxFolder` | Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog. |
 
+## Security policy and auditing
+
+| Parameter | Description |
+|---|---|
+| `-SecPolicy` | Shows the local security policy: account policies, user rights assignment and security options (secedit /export to a temporary file). Read-only; asks for administrator rights. |
+| `-SecPolicySet` | Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess, PrivilegeRights (accounts separated by \|, names or *SIDs) and RegistryValues (type,value). Lockout safeguards refuse changes that would lock out you or the administrators. Use -DryRun first. |
+| `-SecPolicyRestore` | Restores the settings a -SecPolicySet backup folder changed. |
+| `-AuditPolicy` | Shows the advanced audit policy per subcategory (auditpol /get). Read-only; asks for administrator rights. |
+| `-AuditSet` | Changes audit subcategories, as "Subcategory name or {GUID}=None\|Success\|Failure\|SuccessAndFailure;...". A backup is taken first. Use -DryRun first. |
+| `-AuditImport` | Applies an audit.csv (Group Policy backup or security baseline format); -DryRun shows the differences. |
+| `-AuditExport` | Writes the current audit policy as audit.csv to this path. |
+| `-AuditRestore` | Restores the audit policy from an -AuditSet or -AuditImport backup folder. |
+
 ## Cleaner and disk
 
 | Parameter | Description |
