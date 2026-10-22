@@ -131,3 +131,36 @@ Group Policy backups and security baselines (with "Setting Value" 0-3).
 Reading needs administrator rights (secedit exits with 740, auditpol with 0x522 otherwise), so the
 read-only views ask for elevation. Sources: secedit export/configure and auditpol get/set/backup/restore
 on Microsoft Learn (windows-commands), and the Windows security policy settings reference.
+# Catalog policy items through the Local GPO (3.0 phase 5)
+
+Catalog items that write a machine Policies key (`HKLM\SOFTWARE\Policies\...` and
+`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\...`), including the parts of composite
+items such as Windows Update for Business deferrals, now also write the value to the Local GPO
+(`Machine\Registry.pol`, gpt.ini version bump). They show in gpedit and survive a policy refresh. The
+registry gets the same value immediately, so no gpupdate runs. Turning an item off (Windows default)
+makes its values "not configured" in the Local GPO.
+
+- **Snapshots** keep each value's exact Registry.pol entries; a revert restores them byte for byte. A
+  snapshot entry for any other key or value is refused.
+- **v1/v2 snapshots** have no Registry.pol data. Their revert restores the registry as before, and if the
+  Local GPO holds an entry for the value, that entry follows the restored value (or is removed), so the
+  next refresh does not undo the revert.
+- **HKCU items stay per-user registry writes**: the user part of the Local GPO applies to every account
+  on the PC.
+- The bridge is off on Windows Home (no Local Group Policy), and managed PCs keep policy items
+  report-only.
+
+## Tattooed values
+
+`-PolicyTattoo` lists them; under `CurrentVersion\Policies` only values written by catalog items count,
+because Windows itself keeps UAC and other security options there.
+
+```powershell
+.\iGWindowsTuner.ps1 -PolicyAdopt igwt -DryRun                 # every value an iG Windows Tuner item wrote
+.\iGWindowsTuner.ps1 -PolicyAdopt "SOFTWARE\Policies\Microsoft\Windows\DataCollection\AllowTelemetry" -DryRun
+.\iGWindowsTuner.ps1 -PolicyRemoveTattoo "SOFTWARE\Policies\Vendor\Old\Value" -DryRun
+```
+
+Adopting takes a GPO backup (undo with `-PolicyRestore`). Values on the denylist (for example
+Defender turned off by an old tool) cannot be adopted, only removed. Removing saves the values to a
+restore file (undo with `-TattooRestore`), which can only write back under the machine Policies keys.

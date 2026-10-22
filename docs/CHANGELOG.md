@@ -2,6 +2,11 @@
 
 ## 3.0.0 (in progress)
 
+### Policy items through the Local GPO (phase 5)
+
+- Catalog items that write machine Policies keys now also write the Local GPO (Registry.pol and gpt.ini), so they appear in gpedit and survive policy refresh; snapshots capture the exact Registry.pol entries and v1/v2 snapshots still revert correctly.
+- Tattooed values: `-PolicyAdopt` (into the Local GPO, with backup; denylisted values refused), `-PolicyRemoveTattoo` (with a restore file) and `-TattooRestore`. Windows-owned values under CurrentVersion\Policies are no longer reported as tattooed.
+
 ### Security policy and auditing (phase 4)
 
 - **Security templates** (`-SecPolicy`, `-SecPolicySet`, `-SecPolicyRestore`): account policies, user rights assignment and security options through secedit, with an export snapshot before and a verification after every change.

@@ -545,6 +545,10 @@ function Get-IgwtRegistryState {
             $note = "Current type is $($cur.Kind); Windows expects $($desired.Kind). It will be rewritten with the correct type."
         }
         if (-not $cur.Exists -and $null -ne $eff.absentValue) { $note = "Not set; Windows uses $($eff.absentValue) when absent." }
+        if ($isOn -and $cur.Exists) {
+            $bt = Get-IgwtRegistryBridgeTarget -Action $Action -Target $t
+            if ($bt -and -not (Test-IgwtBridgeInSync -Target $bt -Exists $true -Kind $cur.Kind -Value $cur.Value)) { $note = 'Set in the registry but not in the Local GPO (tattooed); adopt it with -PolicyAdopt so a policy refresh keeps it.' }
+        }
         $label = "$($t.Path)\$($t.Name)"
         if ($t.Label) { $label = "[$($t.Label)] $label" }
         [pscustomobject]@{
@@ -557,13 +561,23 @@ function Get-IgwtRegistryState {
     }
 }
 
+function Get-IgwtRegistryBridgeTarget {
+    <# .SYNOPSIS The Local GPO target of a plain registry action's value, or $null (other action types, HKCU, or no Local Group Policy). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Target)
+    if ([string]$Action.type -ne 'registry') { return $null }
+    $bt = Get-IgwtPolicyBridgeTarget -Path $Target.Path -Name $Target.Name
+    if (-not $bt -or -not (Test-IgwtPolicyBridgeEnabled)) { return $null }
+    return $bt
+}
+
 function Get-IgwtRegistrySnapshot {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Action, $Context)
     $targets = @(Get-IgwtRegistryTargets -Action $Action -Context $Context)
     $items = foreach ($t in $targets) {
         $cur = Get-IgwtRegistryValue -Path $t.Path -Name $t.Name
-        [ordered]@{
+        $item = [ordered]@{
             scope        = $t.Scope
             path         = $t.Path
             name         = $t.Name
@@ -572,6 +586,10 @@ function Get-IgwtRegistrySnapshot {
             value        = (ConvertTo-IgwtSerializableValue -Value $cur.Value -Kind $cur.Kind)
             missingDepth = (Get-IgwtRegistryMissingDepth -Path $t.Path)
         }
+        # 3.0: the value's exact Local GPO entries, so a revert restores Registry.pol too.
+        $bt = Get-IgwtRegistryBridgeTarget -Action $Action -Target $t
+        if ($bt) { $item.pol = Get-IgwtBridgeSnapshot -Target $bt }
+        $item
     }
     return @{ items = @($items) }
 }
@@ -583,14 +601,24 @@ function Invoke-IgwtRegistryApply {
     if ($Mode -eq 'default' -and $null -eq $eff.default) { throw "No documented Windows default for $($Action.path)\$($Action.name)." }
     foreach ($t in @(Get-IgwtRegistryTargets -Action $Action -Context $Context)) {
         $cur = Get-IgwtRegistryValue -Path $t.Path -Name $t.Name
-        if ($Mode -eq 'on' -and (Test-IgwtRegistryOn -Action $eff -Current $cur)) { continue }
-        $desired = Get-IgwtRegistryDesired -Action $eff -Current $cur -Mode $Mode
-        if ($desired.Absent) {
-            if ($PSCmdlet.ShouldProcess("$($t.Path)\$($t.Name)", 'Delete value')) { Remove-IgwtRegistryValue -Path $t.Path -Name $t.Name }
-        } else {
-            if ($PSCmdlet.ShouldProcess("$($t.Path)\$($t.Name)", "Set $($desired.Kind)")) {
-                Set-IgwtRegistryValue -Path $t.Path -Name $t.Name -Kind $desired.Kind -Value $desired.Value
+        $bt = Get-IgwtRegistryBridgeTarget -Action $Action -Target $t
+        if (-not ($Mode -eq 'on' -and (Test-IgwtRegistryOn -Action $eff -Current $cur))) {
+            $desired = Get-IgwtRegistryDesired -Action $eff -Current $cur -Mode $Mode
+            if ($desired.Absent) {
+                if ($PSCmdlet.ShouldProcess("$($t.Path)\$($t.Name)", 'Delete value')) { Remove-IgwtRegistryValue -Path $t.Path -Name $t.Name }
+            } else {
+                if ($PSCmdlet.ShouldProcess("$($t.Path)\$($t.Name)", "Set $($desired.Kind)")) {
+                    Set-IgwtRegistryValue -Path $t.Path -Name $t.Name -Kind $desired.Kind -Value $desired.Value
+                }
             }
+        }
+        # 3.0: a machine Policies value also goes into the Local GPO (Registry.pol), so it shows in
+        # gpedit and survives a policy refresh. The registry already holds the same value, so no
+        # gpupdate is needed. Turning an item off (Windows default) makes the value "not configured".
+        if ($bt -and $PSCmdlet.ShouldProcess("Local GPO $($bt.Key)\$($bt.ValueName)", 'Sync')) {
+            $now = Get-IgwtRegistryValue -Path $t.Path -Name $t.Name
+            $keep = ($Mode -eq 'on' -and $now.Exists)
+            if (-not (Test-IgwtBridgeInSync -Target $bt -Exists $keep -Kind $now.Kind -Value $now.Value)) { $null = Set-IgwtBridgeValue -Target $bt -Exists $keep -Kind $now.Kind -Value $now.Value }
         }
     }
 }
@@ -634,6 +662,16 @@ function Restore-IgwtRegistrySnapshot {
         }
         if ($PSCmdlet.ShouldProcess("$($target.Path)\$($target.Name)", 'Restore')) {
             Restore-IgwtRegistryItem -Path $target.Path -Name $target.Name -Item $item
+            $bt = Get-IgwtRegistryBridgeTarget -Action $Action -Target $target
+            if ($bt) {
+                if ($null -ne $item.pol) { $null = Restore-IgwtBridgeSnapshot -Target $bt -Pol $item.pol }
+                elseif (@(Get-IgwtBridgePolEntries -Target $bt).Count) {
+                    # A v1/v2 snapshot has no Registry.pol data: keep an existing Local GPO entry in step
+                    # with the restored value, so the next policy refresh does not undo the revert.
+                    $now = Get-IgwtRegistryValue -Path $target.Path -Name $target.Name
+                    $null = Set-IgwtBridgeValue -Target $bt -Exists ([bool]$now.Exists) -Kind $now.Kind -Value $now.Value
+                }
+            }
         }
     }
 }

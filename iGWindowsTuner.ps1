@@ -71,13 +71,40 @@
     Resets Local Group Policy to default after a backup (-DryRun shows the files and steps).
 .PARAMETER PolicyTattoo
     Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only.
+.PARAMETER PolicyAdopt
+    Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or
+    igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that
+    would keep a security protection off are refused. Use -DryRun first.
+.PARAMETER PolicyRemoveTattoo
+    Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them
+    to a restore file. Use -DryRun first.
+.PARAMETER TattooRestore
+    Writes back values removed by -PolicyRemoveTattoo from its restore file.
 .PARAMETER SecPolicy
     Shows the local security policy: account policies, user rights assignment and security options
     (secedit /export to a temporary file). Read-only; asks for administrator rights.
+.PARAMETER PolicyAdopt
+    Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or
+    igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that
+    would keep a security protection off are refused. Use -DryRun first.
+.PARAMETER PolicyRemoveTattoo
+    Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them
+    to a restore file. Use -DryRun first.
+.PARAMETER TattooRestore
+    Writes back values removed by -PolicyRemoveTattoo from its restore file.
 .PARAMETER SecPolicySet
     Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess,
     PrivilegeRights (accounts separated by |, names or *SIDs) and RegistryValues (type,value).
     Lockout safeguards refuse changes that would lock out you or the administrators. Use -DryRun first.
+.PARAMETER PolicyAdopt
+    Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or
+    igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that
+    would keep a security protection off are refused. Use -DryRun first.
+.PARAMETER PolicyRemoveTattoo
+    Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them
+    to a restore file. Use -DryRun first.
+.PARAMETER TattooRestore
+    Writes back values removed by -PolicyRemoveTattoo from its restore file.
 .PARAMETER SecPolicyRestore
     Restores the settings a -SecPolicySet backup folder changed.
 .PARAMETER AuditPolicy
@@ -347,6 +374,9 @@ param(
     [switch]$PolicyReset,
     [switch]$PolicyTattoo,
     [string[]]$AdmxFolder,
+    [string]$PolicyAdopt,
+    [string]$PolicyRemoveTattoo,
+    [string]$TattooRestore,
     [switch]$SecPolicy,
     [string]$SecPolicySet,
     [string]$SecPolicyRestore,
@@ -667,6 +697,9 @@ if ($PolicyBackup) { $modes += 'PolicyBackup' }
 if ($PolicyRestore) { $modes += 'PolicyRestore' }
 if ($PolicyReset) { $modes += 'PolicyReset' }
 if ($PolicyTattoo) { $modes += 'PolicyTattoo' }
+if ($PolicyAdopt) { $modes += 'PolicyAdopt' }
+if ($PolicyRemoveTattoo) { $modes += 'PolicyRemoveTattoo' }
+if ($TattooRestore) { $modes += 'TattooRestore' }
 if ($SecPolicy) { $modes += 'SecPolicy' }
 if ($SecPolicySet) { $modes += 'SecPolicySet' }
 if ($SecPolicyRestore) { $modes += 'SecPolicyRestore' }
@@ -1257,6 +1290,28 @@ try {
             Write-IgwtCliLine ''
             Write-IgwtCliLine "$($rows.Count) tattooed value(s): present under the Policies keys but in no Registry.pol or domain GPO. Items written by iG Windows Tuner move to the Local GPO in a later 3.0 phase." ([ConsoleColor]::White)
             exit 0
+        }
+        { $_ -in 'PolicyAdopt', 'PolicyRemoveTattoo' } {
+            $act = $(if ($modes[0] -eq 'PolicyAdopt') { 'Adopt' } else { 'Remove' })
+            $sel = @(([string]$(if ($act -eq 'Adopt') { $PolicyAdopt } else { $PolicyRemoveTattoo })) -split ';' | Where-Object { $_.Trim() })
+            $plan = Get-IgwtTattooAdoptionPlan -Action $act -Select $sel
+            if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 4; exit 0 }
+            foreach ($o in @($plan.Ops)) { Write-IgwtCliLine ("  {0} {1}\{2} = {3}{4}" -f $act, $o.Key, $o.ValueName, (@($o.Value) -join ','), $(if ($o.Refusal) { "  REFUSED: $($o.Refusal)" } else { '' })) $(if ($o.Refusal) { [ConsoleColor]::Red } else { [ConsoleColor]::Gray }) }
+            foreach ($n in @($plan.NotFound)) { Write-IgwtCliLine "  Not a tattooed machine value: $n" ([ConsoleColor]::Yellow) }
+            if (-not @($plan.Ops | Where-Object { -not $_.Refusal }).Count) { Write-IgwtCliLine 'Nothing to do.' ([ConsoleColor]::White); exit 2 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $res = Invoke-IgwtTattooAdoption -Action $act -Select $sel } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            $undo = $(if ($act -eq 'Adopt') { "-PolicyRestore `"$($res.Backup)`"" } else { "-TattooRestore `"$($res.Backup)`"" })
+            Write-IgwtCliLine "$act`: $($res.Count) value(s). Undo with $undo." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'TattooRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would write back the values saved in $TattooRestore."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Restore-IgwtTattooRemoval -Path $TattooRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Restored $($r.Restored) value(s)." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
         }
         'SecPolicy' {
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }

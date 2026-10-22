@@ -230,3 +230,11 @@ Every design choice that departs from common tuning advice, or where several opt
 | S4 | **A lockout threshold of 1 or 2 is refused** (stricter than Windows). | A stale credential on a phone or mapped drive would lock the account at once; Microsoft's baselines use 10. |
 | S5 | **Audit settings are parsed by "Setting Value" when present and otherwise by the English inclusion text**; unparsed rows are counted (`Unparsed`) rather than guessed. | `auditpol /get /r` prints localized text on non-English Windows; GUIDs are used for every change. |
 | S6 | **Reading secedit and auditpol needs elevation**, so their read-only views request it; on the development PC they were not run (no elevation in the session), and the parsers are tested with fixtures written from the documented formats. | Verified: secedit /export exits 740 and auditpol /get returns 0x522 when not elevated. |
+## Policy items through the Local GPO (phase 5)
+
+| # | Decision | Reason |
+|---|---|---|
+| M1 | **Only machine Policies values go through the Local GPO; HKCU Policies items stay direct per-user writes.** SPEC-v3 3.5 names HKCU too, but the user part of the Local GPO (`User\Registry.pol`) applies to every account on the PC, so routing a per-user item there would change other users. Listed under Needs Ario. | Safest reading; no other account changes behind the user's back. |
+| M2 | **No gpupdate per item**: the registry already gets the identical value, and gpt.ini's version is bumped so the next refresh is consistent. | A refresh per item would be slow and could re-apply unrelated policies mid-apply. |
+| M3 | **v1/v2 snapshots sync an existing Local GPO entry to the restored value** (or remove it) instead of ignoring Registry.pol. | Otherwise a value adopted after a 2.x apply would come back at the next policy refresh. |
+| M4 | **Tattoo detection under CurrentVersion\Policies counts only catalog-item values**; denylisted tattooed values can be removed but never adopted. | Windows writes UAC and other security options there by itself; adopting a disabled protection would cement it. |

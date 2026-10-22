@@ -308,6 +308,9 @@ function Get-IgwtTattooedPolicyValues {
                     $id = ("$rel|$n").ToLowerInvariant()
                     if ($known.ContainsKey($id)) { continue }
                     $item = $catalogMap[("$($root)$rel|$n").ToLowerInvariant()]
+                    # CurrentVersion\Policies also holds values Windows itself writes (UAC and other
+                    # security options from setup and secedit); only catalog-item values count there.
+                    if ($base -like '*CurrentVersion*' -and -not $item) { continue }
                     [pscustomobject]@{ Class = $class; Key = $rel; ValueName = $n; Value = $k.GetValue($n); WrittenBy = $(if ($item) { "iG Windows Tuner item $item (direct registry write)" } else { 'unknown (an earlier policy or tool)' }) }
                 }
             }

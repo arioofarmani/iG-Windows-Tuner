@@ -88,6 +88,9 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-PolicyRestore` | Restores the Local Group Policy folders from a backup folder and refreshes policy. |
 | `-PolicyReset` | Resets Local Group Policy to default after a backup (-DryRun shows the files and steps). |
 | `-PolicyTattoo` | Lists values under the Policies keys that no Registry.pol or domain GPO sets (tattooed values). Read-only. |
+| `-PolicyAdopt` | Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that would keep a security protection off are refused. Use -DryRun first. |
+| `-PolicyRemoveTattoo` | Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them to a restore file. Use -DryRun first. |
+| `-TattooRestore` | Writes back values removed by -PolicyRemoveTattoo from its restore file. |
 | `-AdmxFolder` | Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog. |
 
 ## Security policy and auditing
