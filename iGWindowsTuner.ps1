@@ -80,6 +80,23 @@
     to a restore file. Use -DryRun first.
 .PARAMETER TattooRestore
     Writes back values removed by -PolicyRemoveTattoo from its restore file.
+.PARAMETER PolicyPreset
+    A category policy preset (list shows them): ADMX policies, documented policy values, audit and
+    security settings applied as one batch with backups. Use -DryRun first.
+.PARAMETER PolicyPresetRestore
+    Reverts a policy preset or baseline apply from the record file it printed.
+.PARAMETER PolicyExport
+    Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath.
+.PARAMETER ExportFormat
+    GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport.
+.PARAMETER ExportPath
+    Folder for -PolicyExport.
+.PARAMETER Baseline
+    Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this
+    PC; -ReportPath writes the comparison as CSV. Read-only.
+.PARAMETER BaselineApply
+    Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
+    or Ref values from the comparison separated by ;. Use -DryRun first.
 .PARAMETER SecPolicy
     Shows the local security policy: account policies, user rights assignment and security options
     (secedit /export to a temporary file). Read-only; asks for administrator rights.
@@ -92,6 +109,23 @@
     to a restore file. Use -DryRun first.
 .PARAMETER TattooRestore
     Writes back values removed by -PolicyRemoveTattoo from its restore file.
+.PARAMETER PolicyPreset
+    A category policy preset (list shows them): ADMX policies, documented policy values, audit and
+    security settings applied as one batch with backups. Use -DryRun first.
+.PARAMETER PolicyPresetRestore
+    Reverts a policy preset or baseline apply from the record file it printed.
+.PARAMETER PolicyExport
+    Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath.
+.PARAMETER ExportFormat
+    GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport.
+.PARAMETER ExportPath
+    Folder for -PolicyExport.
+.PARAMETER Baseline
+    Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this
+    PC; -ReportPath writes the comparison as CSV. Read-only.
+.PARAMETER BaselineApply
+    Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
+    or Ref values from the comparison separated by ;. Use -DryRun first.
 .PARAMETER SecPolicySet
     Changes security policy settings, as "Section\Key=Value;..." with the sections SystemAccess,
     PrivilegeRights (accounts separated by |, names or *SIDs) and RegistryValues (type,value).
@@ -105,6 +139,23 @@
     to a restore file. Use -DryRun first.
 .PARAMETER TattooRestore
     Writes back values removed by -PolicyRemoveTattoo from its restore file.
+.PARAMETER PolicyPreset
+    A category policy preset (list shows them): ADMX policies, documented policy values, audit and
+    security settings applied as one batch with backups. Use -DryRun first.
+.PARAMETER PolicyPresetRestore
+    Reverts a policy preset or baseline apply from the record file it printed.
+.PARAMETER PolicyExport
+    Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath.
+.PARAMETER ExportFormat
+    GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport.
+.PARAMETER ExportPath
+    Folder for -PolicyExport.
+.PARAMETER Baseline
+    Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this
+    PC; -ReportPath writes the comparison as CSV. Read-only.
+.PARAMETER BaselineApply
+    Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set,
+    or Ref values from the comparison separated by ;. Use -DryRun first.
 .PARAMETER SecPolicyRestore
     Restores the settings a -SecPolicySet backup folder changed.
 .PARAMETER AuditPolicy
@@ -377,6 +428,14 @@ param(
     [string]$PolicyAdopt,
     [string]$PolicyRemoveTattoo,
     [string]$TattooRestore,
+    [string]$PolicyPreset,
+    [string]$PolicyPresetRestore,
+    [string]$PolicyExport,
+    [ValidateSet('GpoBackup', 'Reg', 'Script', 'Json')]
+    [string]$ExportFormat,
+    [string]$ExportPath,
+    [string]$Baseline,
+    [string]$BaselineApply,
     [switch]$SecPolicy,
     [string]$SecPolicySet,
     [string]$SecPolicyRestore,
@@ -700,6 +759,11 @@ if ($PolicyTattoo) { $modes += 'PolicyTattoo' }
 if ($PolicyAdopt) { $modes += 'PolicyAdopt' }
 if ($PolicyRemoveTattoo) { $modes += 'PolicyRemoveTattoo' }
 if ($TattooRestore) { $modes += 'TattooRestore' }
+if ($PolicyPreset) { $modes += 'PolicyPreset' }
+if ($PolicyPresetRestore) { $modes += 'PolicyPresetRestore' }
+if ($PolicyExport) { $modes += 'PolicyExport' }
+if ($Baseline -and -not $BaselineApply) { $modes += 'Baseline' }
+if ($BaselineApply) { $modes += 'BaselineApply' }
 if ($SecPolicy) { $modes += 'SecPolicy' }
 if ($SecPolicySet) { $modes += 'SecPolicySet' }
 if ($SecPolicyRestore) { $modes += 'SecPolicyRestore' }
@@ -1312,6 +1376,73 @@ try {
             try { $r = Restore-IgwtTattooRemoval -Path $TattooRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
             Write-IgwtCliLine "Restored $($r.Restored) value(s)." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
+        }
+        { $_ -in 'PolicyPreset', 'BaselineApply' } {
+            if ($modes[0] -eq 'PolicyPreset' -and $PolicyPreset -eq 'list') {
+                $all = @(Get-IgwtPolicyPresets)
+                if ($Json) { $all | Select-Object id, name, scope, hint, antiCheat | ConvertTo-Json -Depth 3; exit 0 }
+                foreach ($p in $all) { Write-IgwtCliLine ("  {0,-34} {1,-14} {2}" -f $p.id, $p.scope, $p.name) ([ConsoleColor]::Gray); Write-IgwtCliLine "      $($p.hint)" ([ConsoleColor]::DarkGray) }
+                exit 0
+            }
+            try {
+                if ($modes[0] -eq 'PolicyPreset') { $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ }); $plan = Get-IgwtPolicyPresetPlan -Id $PolicyPreset }
+                else {
+                    if (-not $Baseline) { Write-IgwtCliLine '-BaselineApply needs -Baseline <folder>.' ([ConsoleColor]::Red); exit 2 }
+                    $plan = Get-IgwtPolicyBaselinePlan -Baseline (Import-IgwtPolicyBaseline -Path $Baseline) -Select @($BaselineApply -split ';')
+                }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($Json -and $DryRun) { $plan | Select-Object @{ n = 'Id'; e = { $_.Preset.id } }, Changes, Unavailable, Refusals, Managed, @{ n = 'Rows'; e = { @($_.Rows | Select-Object Kind, Name, Class, Status, Reason, Note) } } | ConvertTo-Json -Depth 5; exit 0 }
+            Write-IgwtCliLine "$($plan.Preset.name)" ([ConsoleColor]::White)
+            if ($plan.Preset.description) { Write-IgwtCliLine "  $($plan.Preset.description)" ([ConsoleColor]::DarkGray) }
+            if ($plan.Preset.antiCheat) { Write-IgwtCliLine "  Anti-cheat: $($plan.Preset.antiCheat)" ([ConsoleColor]::DarkGray) }
+            foreach ($r in $plan.Rows) {
+                $tag = switch ($r.Status) { 'Change' { '[CHANGE] ' } 'InPlace' { '[OK]     ' } 'Unknown' { '[ADMIN]  ' } 'Refused' { '[REFUSED]' } default { '[N/A]    ' } }
+                $color = switch ($r.Status) { 'Change' { [ConsoleColor]::Yellow } 'InPlace' { [ConsoleColor]::Green } 'Refused' { [ConsoleColor]::Red } default { [ConsoleColor]::DarkGray } }
+                Write-IgwtCliLine "  $tag $($r.Name)$(if ($r.Reason) { "  ($($r.Reason))" })" $color
+                if ($r.Note) { Write-IgwtCliLine "            $($r.Note)" ([ConsoleColor]::DarkGray) }
+            }
+            foreach ($n in @($plan.NotFound | Where-Object { $_ })) { Write-IgwtCliLine "  Not in the comparison: $n" ([ConsoleColor]::Yellow) }
+            foreach ($r in @($plan.Refusals)) { Write-IgwtCliLine "  Refused: $r" ([ConsoleColor]::Red) }
+            if ($plan.Managed) { Write-IgwtCliLine "  This PC is managed ($($plan.Authorities -join ', ')): -AcknowledgeManaged is needed." ([ConsoleColor]::Yellow) }
+            Write-IgwtCliLine "$($plan.Changes) to change, $($plan.Unavailable) unavailable." ([ConsoleColor]::White)
+            if (@($plan.Refusals).Count -or @($plan.Rows | Where-Object Status -EQ 'Refused').Count) { exit 2 }
+            if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $res = Invoke-IgwtPolicyBatch -Plan $plan -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            if (-not $res.Record) { Write-IgwtCliLine 'Everything is already in place.' ([ConsoleColor]::Green); Complete-IgwtCli 0 }
+            Write-IgwtCliLine ("Applied {0} setting(s). Verified: {1}. Undo with -PolicyPresetRestore `"{2}`"." -f $res.Changed, $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Record) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
+            Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
+        }
+        'PolicyPresetRestore' {
+            if ($DryRun) { Write-IgwtCliLine "Would revert the policy changes recorded in $PolicyPresetRestore."; exit 0 }
+            if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            try { $r = Restore-IgwtPolicyPreset -Record $PolicyPresetRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            Write-IgwtCliLine "Reverted $($r.Preset): $($r.Restored -join ', ')." ([ConsoleColor]::Green)
+            Complete-IgwtCli 0
+        }
+        'PolicyExport' {
+            if (-not $ExportFormat -or -not $ExportPath) { Write-IgwtCliLine '-PolicyExport needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath <folder>.' ([ConsoleColor]::Red); exit 2 }
+            if ($DryRun) { Write-IgwtCliLine "Would export $PolicyExport as $ExportFormat to $ExportPath."; exit 0 }
+            try { $r = Export-IgwtPolicyPreset -Id $PolicyExport -Format $ExportFormat -Path $ExportPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            foreach ($f in $r.Files) { Write-IgwtCliLine "  $f" ([ConsoleColor]::Gray) }
+            foreach ($k in @($r.Skipped)) { Write-IgwtCliLine "  Not included: $k" ([ConsoleColor]::Yellow) }
+            Write-IgwtCliLine "Exported $(@($r.Files).Count) file(s)." ([ConsoleColor]::Green)
+            exit 0
+        }
+        'Baseline' {
+            try { $rows = @(Compare-IgwtPolicyBaseline -Baseline (Import-IgwtPolicyBaseline -Path $Baseline)) } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            if ($ReportPath) { Export-IgwtPolicyComparison -Rows $rows -Path $ReportPath; Write-IgwtCliLine "Comparison written to $ReportPath" ([ConsoleColor]::Green) }
+            if ($Json) { $rows | Select-Object Gpo, Area, Setting, Baseline, LocalGpo, Effective, Status, Ref | ConvertTo-Json -Depth 3; exit 0 }
+            foreach ($g in @($rows | Group-Object Gpo)) {
+                Write-IgwtCliLine ''; Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
+                foreach ($r in $g.Group) {
+                    $color = switch ($r.Status) { 'Match' { [ConsoleColor]::Green } 'Differs' { [ConsoleColor]::Yellow } 'NotSet' { [ConsoleColor]::Yellow } 'Blocked' { [ConsoleColor]::Red } default { [ConsoleColor]::DarkGray } }
+                    Write-IgwtCliLine ("  {0,-8} {1,-26} {2} = {3} (now: {4})" -f $r.Status, $r.Area, $r.Setting, $r.Baseline, $(if ($r.Effective) { $r.Effective } else { '-' })) $color
+                }
+            }
+            $c = @($rows | Group-Object Status | ForEach-Object { "$($_.Count) $($_.Name)" }) -join ', '
+            Write-IgwtCliLine ''; Write-IgwtCliLine "$($rows.Count) settings: $c. Apply with -Baseline <folder> -BaselineApply differs -DryRun." ([ConsoleColor]::White)
+            exit 0
         }
         'SecPolicy' {
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }

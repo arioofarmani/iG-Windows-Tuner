@@ -1,0 +1,273 @@
+{
+  "schemaVersion": 1,
+  "description": "Category-scoped policy presets (SPEC-v3 3.6). Setting kinds: admx (an installed ADMX policy by id; values by element id, enum options by display name), registry (a documented machine policy value written to Registry.pol; for products whose templates may not be installed), audit (an advanced audit subcategory by GUID) and secpol (a security template setting). Quality updates are never deferred.",
+  "presets": [
+    {
+      "id": "policy.privacy-telemetry",
+      "name": "Privacy & Telemetry",
+      "scope": "Privacy",
+      "hint": "Required diagnostic data only, no consumer content, ads, activity publishing, web search or Recall.",
+      "description": "Sets diagnostic data to the Required level (the lowest supported on Pro), turns off Microsoft consumer experiences, tips, feedback prompts, activity publishing, online speech recognition, Cortana, web results in Search, clipboard sync across devices and Recall. Windows Update and security intelligence keep working. Revert from the Local GPO backup.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services", "https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization" ],
+      "settings": [
+        { "kind": "admx", "policy": "DataCollection:AllowTelemetry", "class": "Machine", "state": "Enabled", "values": { "AllowTelemetry": "Send required diagnostic data" } },
+        { "kind": "admx", "policy": "CloudContent:DisableWindowsConsumerFeatures", "state": "Enabled", "note": "Windows enforces this on Enterprise and Education; on Pro it reduces suggestions only." },
+        { "kind": "admx", "policy": "CloudContent:DisableSoftLanding", "state": "Enabled" },
+        { "kind": "admx", "policy": "FeedbackNotifications:DoNotShowFeedbackNotifications", "state": "Enabled" },
+        { "kind": "admx", "policy": "OSPolicy:PublishUserActivities", "state": "Disabled" },
+        { "kind": "admx", "policy": "OSPolicy:AllowCrossDeviceClipboard", "state": "Disabled" },
+        { "kind": "admx", "policy": "Globalization:AllowInputPersonalization", "state": "Disabled" },
+        { "kind": "admx", "policy": "Search:AllowCortana", "state": "Disabled" },
+        { "kind": "admx", "policy": "Search:DisableWebSearch", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsCopilot:AllowRecallEnablement", "state": "Disabled" }
+      ]
+    },
+    {
+      "id": "policy.wufb-pilot",
+      "name": "Windows Update ring: Pilot",
+      "scope": "Updates",
+      "hint": "Feature updates as soon as they are offered, quality updates installed within 2 days.",
+      "description": "The first ring for test PCs: no feature update deferral and a 2-day deadline (1-day grace period) for quality updates, so problems show up here before the other rings. Quality updates are never deferred.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-client-policies", "https://learn.microsoft.com/en-us/windows/deployment/update/wufb-compliancedeadlines" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsUpdate:DeferFeatureUpdates", "state": "Enabled", "values": { "DeferFeatureUpdatesPeriodId": 0 } },
+        { "kind": "admx", "policy": "WindowsUpdate:ComplianceDeadline", "state": "Enabled", "values": { "ConfigureDeadlineForQualityUpdates": "2", "ConfigureDeadlineGracePeriod": "1" } }
+      ]
+    },
+    {
+      "id": "policy.wufb-broad",
+      "name": "Windows Update ring: Broad",
+      "scope": "Updates",
+      "hint": "Feature updates 60 days after release, quality updates installed within 5 days.",
+      "description": "The main ring: feature updates wait 60 days so issues found in the pilot ring are fixed, and quality updates have a 5-day deadline with a 2-day grace period. Quality updates are never deferred.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-client-policies", "https://learn.microsoft.com/en-us/windows/deployment/update/wufb-compliancedeadlines" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsUpdate:DeferFeatureUpdates", "state": "Enabled", "values": { "DeferFeatureUpdatesPeriodId": 60 } },
+        { "kind": "admx", "policy": "WindowsUpdate:ComplianceDeadline", "state": "Enabled", "values": { "ConfigureDeadlineForQualityUpdates": "5", "ConfigureDeadlineGracePeriod": "2" } }
+      ]
+    },
+    {
+      "id": "policy.wufb-gaming",
+      "name": "Windows Update ring: Gaming",
+      "scope": "Updates",
+      "hint": "Feature updates after 90 days, no restarts 10 AM-4 AM, 7-day quality deadline, drivers stay yours.",
+      "description": "For gaming PCs: feature updates wait 90 days, active hours 10 AM to 4 AM keep Windows from restarting during evening sessions, quality updates have a 7-day deadline with a 2-day grace period, and Windows Update stops replacing the GPU and other drivers you installed (you update drivers yourself). Quality updates are never deferred.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/update/windows-update-client-policies", "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-update#excludewudriversinqualityupdate" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsUpdate:DeferFeatureUpdates", "state": "Enabled", "values": { "DeferFeatureUpdatesPeriodId": 90 } },
+        { "kind": "admx", "policy": "WindowsUpdate:ActiveHours", "state": "Enabled", "values": { "ActiveHoursStartTime": "10 AM", "ActiveHoursEndTime": "4 AM" } },
+        { "kind": "admx", "policy": "WindowsUpdate:ComplianceDeadline", "state": "Enabled", "values": { "ConfigureDeadlineForQualityUpdates": "7", "ConfigureDeadlineGracePeriod": "2", "ConfigureDeadlineNoAutoRebootForQualityUpdates": true } },
+        { "kind": "admx", "policy": "WindowsUpdate:ExcludeWUDriversInQualityUpdate", "state": "Enabled", "note": "You install GPU, chipset and network driver updates yourself, including security fixes." }
+      ]
+    },
+    {
+      "id": "policy.defender-antivirus",
+      "name": "Defender Antivirus",
+      "scope": "Defender",
+      "hint": "Advanced cloud protection, Block at First Sight, high cloud block level, PUA blocking and network protection.",
+      "description": "Turns on the protections Microsoft recommends for Defender Antivirus: Advanced MAPS membership with safe sample submission, Block at First Sight with a 50-second extended cloud check and the High cloud block level, blocking of potentially unwanted apps, network protection in block mode, scanning of removable drives and e-mail, and a security intelligence check before scheduled scans. Nothing here turns a protection off.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/configure-block-at-first-sight-microsoft-defender-antivirus", "https://learn.microsoft.com/en-us/defender-endpoint/cloud-protection-configure", "https://learn.microsoft.com/en-us/defender-endpoint/detect-block-potentially-unwanted-apps-microsoft-defender-antivirus", "https://learn.microsoft.com/en-us/defender-endpoint/enable-network-protection" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsDefender:SpynetReporting", "state": "Enabled", "values": { "SpynetReporting": "Advanced MAPS" } },
+        { "kind": "admx", "policy": "WindowsDefender:SubmitSamplesConsent", "state": "Enabled", "values": { "SubmitSamplesConsent": "Send safe samples" } },
+        { "kind": "admx", "policy": "WindowsDefender:DisableBlockAtFirstSeen", "state": "Enabled", "note": "Enabled means Block at First Sight is on." },
+        { "kind": "admx", "policy": "WindowsDefender:MpEngine_MpCloudBlockLevel", "state": "Enabled", "values": { "MpCloudBlockLevel": "High blocking level" } },
+        { "kind": "admx", "policy": "WindowsDefender:MpEngine_MpBafsExtendedTimeout", "state": "Enabled", "values": { "MpBafsExtendedTimeout": 50 } },
+        { "kind": "admx", "policy": "WindowsDefender:Root_PUAProtection", "state": "Enabled", "values": { "Root_PUAProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:ExploitGuard_EnableNetworkProtection", "state": "Enabled", "values": { "ExploitGuard_EnableNetworkProtection": "Block" } },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableRemovableDriveScanning", "state": "Enabled", "note": "Enabled means removable drives are scanned." },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableEmailScanning", "state": "Enabled", "note": "Enabled means e-mail files are scanned." },
+        { "kind": "admx", "policy": "WindowsDefender:CheckForSignaturesBeforeRunningScan", "state": "Enabled" }
+      ]
+    },
+    {
+      "id": "policy.attack-surface",
+      "name": "Attack Surface",
+      "scope": "AttackSurface",
+      "hint": "No AutoRun, no multicast name resolution, no insecure guest SMB logons, no WinRM Basic authentication.",
+      "description": "Removes common entry points: AutoRun and AutoPlay on every drive, multicast name resolution (LLMNR, a credential-capture vector on local networks), insecure guest logons to SMB shares, and Basic authentication for the WinRM client and service. Old NAS boxes that only allow guest access stop working.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/storage/file-server/enable-insecure-guest-logons-smb2-and-smb3", "https://learn.microsoft.com/en-us/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines" ],
+      "settings": [
+        { "kind": "admx", "policy": "AutoPlay:Autorun", "class": "Machine", "state": "Enabled", "values": { "Autorun_Box": "All drives" } },
+        { "kind": "admx", "policy": "AutoPlay:NoAutorun", "class": "Machine", "state": "Enabled", "values": { "NoAutorun_Dropdown": "Do not execute any autorun commands" } },
+        { "kind": "admx", "policy": "DnsClient:Turn_Off_Multicast", "state": "Enabled" },
+        { "kind": "admx", "policy": "LanmanWorkstation:Pol_EnableInsecureGuestLogons", "state": "Disabled" },
+        { "kind": "admx", "policy": "WindowsRemoteManagement:AllowBasic_2", "state": "Disabled" },
+        { "kind": "admx", "policy": "WindowsRemoteManagement:AllowBasic_1", "state": "Disabled" }
+      ]
+    },
+    {
+      "id": "policy.edge-security",
+      "name": "Microsoft Edge Security",
+      "scope": "AttackSurface",
+      "hint": "SmartScreen and PUA blocking without bypass, typo protection, site isolation, no Basic auth over HTTP.",
+      "description": "Microsoft Edge policies: Defender SmartScreen and its potentially unwanted app blocking on, without the option to bypass warnings for sites and downloads, website typo protection, a process per site, blocking of dangerous downloads, and no Basic authentication over plain HTTP. Written as documented Edge policy values, so the Edge templates do not have to be installed.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/smartscreenenabled", "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/downloadrestrictions", "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/siteperprocess" ],
+      "settings": [
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "SmartScreenEnabled", "type": "DWord", "value": 1, "label": "SmartScreen on", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/smartscreenenabled" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "SmartScreenPuaEnabled", "type": "DWord", "value": 1, "label": "SmartScreen blocks potentially unwanted apps", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/smartscreenpuaenabled" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "PreventSmartScreenPromptOverride", "type": "DWord", "value": 1, "label": "No bypass of SmartScreen site warnings", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/preventsmartscreenpromptoverride" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "PreventSmartScreenPromptOverrideForFiles", "type": "DWord", "value": 1, "label": "No bypass of SmartScreen download warnings", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/preventsmartscreenpromptoverrideforfiles" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "TyposquattingCheckerEnabled", "type": "DWord", "value": 1, "label": "Website typo protection", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/typosquattingcheckerenabled" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "SitePerProcess", "type": "DWord", "value": 1, "label": "Every site in its own process", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/siteperprocess" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "DownloadRestrictions", "type": "DWord", "value": 1, "label": "Block malicious downloads and dangerous file types", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/downloadrestrictions" },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "BasicAuthOverHttpEnabled", "type": "DWord", "value": 0, "label": "No Basic authentication over HTTP", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/basicauthoverhttpenabled" }
+      ]
+    },
+    {
+      "id": "policy.credentials-hardening",
+      "name": "Credentials & Authentication Hardening",
+      "scope": "AttackSurface",
+      "hint": "LSA protection, NTLMv2 only, no LM hashes, no anonymous enumeration, lockout 10/10/10.",
+      "description": "Protects stored credentials: LSASS runs as a protected process, only NTLMv2 is sent and accepted, LM hashes are not stored, anonymous users cannot enumerate accounts and shares, elevation prompts do not list administrator accounts, and local accounts lock for 10 minutes after 10 failed sign-ins (Microsoft's baseline). Very old devices that need LM or NTLMv1 stop authenticating; some third-party plug-ins that inject into LSASS stop loading.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection", "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/network-security-lan-manager-authentication-level", "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/account-lockout-policy" ],
+      "settings": [
+        { "kind": "admx", "policy": "LocalSecurityAuthority:ConfigureLsaProtectedProcess", "state": "Enabled", "values": { "ConfigureLsaProtectedProcess": "Enabled without UEFI Lock" } },
+        { "kind": "admx", "policy": "CredUI:EnumerateAdministrators", "state": "Disabled" },
+        { "kind": "secpol", "key": "RegistryValues\\MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\LmCompatibilityLevel", "value": "4,5", "label": "Send NTLMv2 only; refuse LM and NTLM" },
+        { "kind": "secpol", "key": "RegistryValues\\MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\NoLMHash", "value": "4,1", "label": "Do not store LAN Manager hashes" },
+        { "kind": "secpol", "key": "RegistryValues\\MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\RestrictAnonymousSAM", "value": "4,1", "label": "No anonymous enumeration of SAM accounts" },
+        { "kind": "secpol", "key": "RegistryValues\\MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\RestrictAnonymous", "value": "4,1", "label": "No anonymous enumeration of SAM accounts and shares" },
+        { "kind": "secpol", "key": "SystemAccess\\LockoutBadCount", "value": "10", "label": "Account lockout threshold 10" },
+        { "kind": "secpol", "key": "SystemAccess\\LockoutDuration", "value": "10", "label": "Account lockout duration 10 minutes" },
+        { "kind": "secpol", "key": "SystemAccess\\ResetLockoutCount", "value": "10", "label": "Reset lockout counter after 10 minutes" }
+      ]
+    },
+    {
+      "id": "policy.remote-access-lockdown",
+      "name": "Remote Access Lockdown",
+      "scope": "AttackSurface",
+      "hint": "Remote Desktop only with NLA and high encryption, no drive redirection, no Remote Assistance or WinRS.",
+      "description": "Tightens remote access without turning Remote Desktop on or off: connections need Network Level Authentication and high encryption, client drives are not redirected into sessions, solicited Remote Assistance is off, and Windows Remote Shell (WinRS) is off. Use the firewall or Settings to decide whether Remote Desktop is reachable at all.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/remotepc/remote-desktop-allow-access", "https://learn.microsoft.com/en-us/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines" ],
+      "settings": [
+        { "kind": "admx", "policy": "TerminalServer:TS_USER_AUTHENTICATION_POLICY", "state": "Enabled" },
+        { "kind": "admx", "policy": "TerminalServer:TS_ENCRYPTION_POLICY", "state": "Enabled", "values": { "TS_ENCRYPTION_LEVEL": "High Level" } },
+        { "kind": "admx", "policy": "TerminalServer:TS_CLIENT_DRIVE_M", "state": "Enabled" },
+        { "kind": "admx", "policy": "RemoteAssistance:RA_Solicit", "state": "Disabled" },
+        { "kind": "admx", "policy": "WindowsRemoteShell:AllowRemoteShellAccess", "state": "Disabled" }
+      ]
+    },
+    {
+      "id": "policy.removable-media",
+      "name": "Removable Media & Device Installation",
+      "scope": "AttackSurface",
+      "hint": "No access to USB storage and other removable storage, no AutoRun, removable drives scanned.",
+      "description": "For PCs where data must not leave or enter on removable storage: all removable storage classes (USB drives, memory cards, phones as storage, CD and DVD) are denied, AutoRun is off on every drive, and Defender scans removable drives. Keyboards, mice, controllers and headsets are not storage and keep working. Revert from the Local GPO backup.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/client-management/client-tools/manage-device-installation-with-group-policy" ],
+      "settings": [
+        { "kind": "admx", "policy": "RemovableStorage:RemovableStorageClasses_DenyAll_Access_2", "state": "Enabled", "note": "USB sticks, memory cards and phones as storage stop working on this PC." },
+        { "kind": "admx", "policy": "AutoPlay:Autorun", "class": "Machine", "state": "Enabled", "values": { "Autorun_Box": "All drives" } },
+        { "kind": "admx", "policy": "WindowsDefender:Scan_DisableRemovableDriveScanning", "state": "Enabled" }
+      ]
+    },
+    {
+      "id": "policy.audit-logging",
+      "name": "Audit & Logging (SOC visibility)",
+      "scope": "AuditLogging",
+      "hint": "Process creation with command lines, PowerShell logging, sign-in and account auditing, larger event logs.",
+      "description": "Gives a SOC or incident responder the events they need: process creation with command lines, PowerShell script block and module logging, auditing of sign-ins, lockouts, account and group changes, policy changes, privilege use and system integrity, advanced audit policy enforced over legacy categories, and larger Security (192 MB), Application and System (32 MB) logs. Event volume rises; command lines and scripts in the logs can contain secrets, so protect the logs.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/component-updates/command-line-process-auditing", "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_logging_windows", "https://learn.microsoft.com/en-us/windows/win32/secauthz/auditing-constants", "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/advanced-security-audit-policy-settings" ],
+      "settings": [
+        { "kind": "admx", "policy": "AuditSettings:IncludeCmdLine", "state": "Enabled" },
+        { "kind": "admx", "policy": "PowerShellExecutionPolicy:EnableScriptBlockLogging", "class": "Machine", "state": "Enabled", "values": { "EnableScriptBlockInvocationLogging": false } },
+        { "kind": "admx", "policy": "PowerShellExecutionPolicy:EnableModuleLogging", "class": "Machine", "state": "Enabled", "values": { "Listbox_ModuleNames": [ "*" ] } },
+        { "kind": "admx", "policy": "EventLog:Channel_LogMaxSize_2", "state": "Enabled", "values": { "Channel_LogMaxSize": 196608 }, "label": "Security log 192 MB" },
+        { "kind": "admx", "policy": "EventLog:Channel_LogMaxSize_1", "state": "Enabled", "values": { "Channel_LogMaxSize": 32768 }, "label": "Application log 32 MB" },
+        { "kind": "admx", "policy": "EventLog:Channel_LogMaxSize_4", "state": "Enabled", "values": { "Channel_LogMaxSize": 32768 }, "label": "System log 32 MB" },
+        { "kind": "secpol", "key": "RegistryValues\\MACHINE\\System\\CurrentControlSet\\Control\\Lsa\\SCENoApplyLegacyAuditPolicy", "value": "4,1", "label": "Advanced audit policy overrides legacy categories" },
+        { "kind": "audit", "guid": "0CCE922B-69AE-11D9-BED3-505054503030", "name": "Process Creation", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE9215-69AE-11D9-BED3-505054503030", "name": "Logon", "setting": "SuccessAndFailure" },
+        { "kind": "audit", "guid": "0CCE9216-69AE-11D9-BED3-505054503030", "name": "Logoff", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE9217-69AE-11D9-BED3-505054503030", "name": "Account Lockout", "setting": "Failure" },
+        { "kind": "audit", "guid": "0CCE921B-69AE-11D9-BED3-505054503030", "name": "Special Logon", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE923F-69AE-11D9-BED3-505054503030", "name": "Credential Validation", "setting": "SuccessAndFailure" },
+        { "kind": "audit", "guid": "0CCE9235-69AE-11D9-BED3-505054503030", "name": "User Account Management", "setting": "SuccessAndFailure" },
+        { "kind": "audit", "guid": "0CCE9237-69AE-11D9-BED3-505054503030", "name": "Security Group Management", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE922F-69AE-11D9-BED3-505054503030", "name": "Audit Policy Change", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE9230-69AE-11D9-BED3-505054503030", "name": "Authentication Policy Change", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE9228-69AE-11D9-BED3-505054503030", "name": "Sensitive Privilege Use", "setting": "SuccessAndFailure" },
+        { "kind": "audit", "guid": "0CCE9211-69AE-11D9-BED3-505054503030", "name": "Security System Extension", "setting": "Success" },
+        { "kind": "audit", "guid": "0CCE9212-69AE-11D9-BED3-505054503030", "name": "System Integrity", "setting": "SuccessAndFailure" },
+        { "kind": "audit", "guid": "0CCE9210-69AE-11D9-BED3-505054503030", "name": "Security State Change", "setting": "Success" }
+      ]
+    },
+    {
+      "id": "policy.kiosk-shared",
+      "name": "Kiosk / Shared Device",
+      "scope": "System",
+      "hint": "No lock-screen camera or notifications, no clipboard history, no consumer content; Store off on Enterprise/Education.",
+      "description": "For a PC several people use: the lock screen shows no camera and no app notifications, clipboard history and cross-device clipboard are off, consumer content and tips are off, and the Microsoft Store app is turned off where Windows supports it (Enterprise and Education). For a true single-app kiosk use Windows Assigned Access.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/configuration/assigned-access/" ],
+      "settings": [
+        { "kind": "admx", "policy": "ControlPanelDisplay:CPL_Personalization_NoLockScreenCamera", "state": "Enabled" },
+        { "kind": "admx", "policy": "Logon:DisableLockScreenAppNotifications", "state": "Enabled" },
+        { "kind": "admx", "policy": "OSPolicy:AllowClipboardHistory", "state": "Disabled" },
+        { "kind": "admx", "policy": "OSPolicy:AllowCrossDeviceClipboard", "state": "Disabled" },
+        { "kind": "admx", "policy": "CloudContent:DisableWindowsConsumerFeatures", "state": "Enabled" },
+        { "kind": "admx", "policy": "CloudContent:DisableSoftLanding", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsStore:RemoveWindowsStore_2", "state": "Enabled", "editions": [ "Enterprise", "Education" ] }
+      ]
+    },
+    {
+      "id": "policy.developer-workstation",
+      "name": "Developer Workstation",
+      "scope": "System",
+      "hint": "Long paths, Developer Mode sideloading and PowerShell script block logging.",
+      "description": "For development PCs: Win32 long paths (beyond 260 characters) for tools that support them, installing packaged apps from any trusted source and Developer Mode (needed for local app development and symbolic links without elevation), and PowerShell script block logging to keep a record of what scripts did. Developer Mode lowers protection against untrusted packaged apps; use it on development PCs only.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation", "https://learn.microsoft.com/en-us/windows/advanced-settings/developer-mode" ],
+      "settings": [
+        { "kind": "admx", "policy": "FileSys:LongPathsEnabled", "state": "Enabled" },
+        { "kind": "admx", "policy": "AppxPackageManager:AppxDeploymentAllowAllTrustedApps", "state": "Enabled" },
+        { "kind": "admx", "policy": "AppxPackageManager:AllowDevelopmentWithoutDevLicense", "state": "Enabled" },
+        { "kind": "admx", "policy": "PowerShellExecutionPolicy:EnableScriptBlockLogging", "class": "Machine", "state": "Enabled", "values": { "EnableScriptBlockInvocationLogging": false } }
+      ]
+    },
+    {
+      "id": "policy.secure-gaming",
+      "name": "Secure Gaming PC",
+      "scope": "AttackSurface",
+      "hint": "Defender cloud protection and PUA blocking, no AutoRun or LLMNR, Edge SmartScreen PUA, no evening restarts.",
+      "description": "Security that does not cost frame rate or break anti-cheat: Advanced MAPS cloud protection with Block at First Sight, blocking of potentially unwanted apps (bundled toolbars and miners in game mods), AutoRun off, multicast name resolution off, no insecure guest SMB logons, Edge SmartScreen PUA blocking, and active hours 10 AM to 4 AM so updates do not restart the PC during play. Memory integrity, VBS and other protections stay as they are.",
+      "antiCheat": "safe",
+      "editions": [],
+      "sources": [ "https://learn.microsoft.com/en-us/defender-endpoint/configure-block-at-first-sight-microsoft-defender-antivirus", "https://learn.microsoft.com/en-us/defender-endpoint/detect-block-potentially-unwanted-apps-microsoft-defender-antivirus", "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/smartscreenpuaenabled" ],
+      "settings": [
+        { "kind": "admx", "policy": "WindowsDefender:SpynetReporting", "state": "Enabled", "values": { "SpynetReporting": "Advanced MAPS" } },
+        { "kind": "admx", "policy": "WindowsDefender:DisableBlockAtFirstSeen", "state": "Enabled" },
+        { "kind": "admx", "policy": "WindowsDefender:Root_PUAProtection", "state": "Enabled", "values": { "Root_PUAProtection": "Block" } },
+        { "kind": "admx", "policy": "AutoPlay:Autorun", "class": "Machine", "state": "Enabled", "values": { "Autorun_Box": "All drives" } },
+        { "kind": "admx", "policy": "DnsClient:Turn_Off_Multicast", "state": "Enabled" },
+        { "kind": "admx", "policy": "LanmanWorkstation:Pol_EnableInsecureGuestLogons", "state": "Disabled" },
+        { "kind": "admx", "policy": "WindowsUpdate:ActiveHours", "state": "Enabled", "values": { "ActiveHoursStartTime": "10 AM", "ActiveHoursEndTime": "4 AM" } },
+        { "kind": "registry", "key": "SOFTWARE\\Policies\\Microsoft\\Edge", "valueName": "SmartScreenPuaEnabled", "type": "DWord", "value": 1, "label": "Edge SmartScreen blocks potentially unwanted apps", "source": "https://learn.microsoft.com/en-us/deployedge/microsoft-edge-browser-policies/smartscreenpuaenabled" }
+      ]
+    }
+  ]
+}

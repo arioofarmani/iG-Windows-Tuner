@@ -238,3 +238,13 @@ Every design choice that departs from common tuning advice, or where several opt
 | M2 | **No gpupdate per item**: the registry already gets the identical value, and gpt.ini's version is bumped so the next refresh is consistent. | A refresh per item would be slow and could re-apply unrelated policies mid-apply. |
 | M3 | **v1/v2 snapshots sync an existing Local GPO entry to the restored value** (or remove it) instead of ignoring Registry.pol. | Otherwise a value adopted after a 2.x apply would come back at the next policy refresh. |
 | M4 | **Tattoo detection under CurrentVersion\Policies counts only catalog-item values**; denylisted tattooed values can be removed but never adopted. | Windows writes UAC and other security options there by itself; adopting a disabled protection would cement it. |
+## Policy presets, baselines and exports (phase 6)
+
+| # | Decision | Reason |
+|---|---|---|
+| B1 | **Edge settings are `registry` preset entries** (documented Edge policy values written to Registry.pol) instead of ADMX references. | The Edge templates are not installed on most PCs (not on the development PC); the values and types are verified on the Edge policy reference. SSLVersionMin was left out: it only applies to Edge 77-90. |
+| B2 | **Update rings never defer quality updates**; they use feature-update deferral (0/60/90 days), quality-update deadlines and active hours. | Same rule as the catalog (security fixes are not delayed). |
+| B3 | **The GPO export is an LGPO-style folder with per-file LGPO commands, not a GPMC backup.** A GPMC backup needs Backup.xml/bkupInfo.xml with GPO metadata that cannot be generated reliably. The README uses LGPO's per-file switches (/m, /u, /s, /a) and asks to check `LGPO.exe /?`; `/a` is used instead of `/ac`, which clears existing audit policy. The LGPO syntax comes from the LGPO documentation as quoted by secondary sources; it could not be checked on this PC (LGPO is not installed). | SPEC-v3 3.8: document the LGPO path when a full GPMC backup cannot be generated reliably. |
+| B4 | **An element that shares the policy's value name replaces the implicit Enabled value**, and in Disabled the policy's value is kept instead of deleting it (for example Join Microsoft MAPS). | Found when verification compared both values; Registry.pol keeps only the last write. |
+| B5 | **The Intune settings-catalog mapping report (stretch goal) is not implemented** in 3.0. | Needs a maintained mapping table; out of scope for this release. |
+| B6 | **A preset is all or nothing on refusals**: a denylist hit or a lockout safeguard stops the whole batch before anything is written; unavailable settings (missing template) are skipped and listed. | Partially applied hardening is hard to reason about. |

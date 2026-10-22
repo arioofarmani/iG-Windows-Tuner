@@ -164,3 +164,57 @@ because Windows itself keeps UAC and other security options there.
 Adopting takes a GPO backup (undo with `-PolicyRestore`). Values on the denylist (for example
 Defender turned off by an old tool) cannot be adopted, only removed. Removing saves the values to a
 restore file (undo with `-TattooRestore`), which can only write back under the machine Policies keys.
+# Policy presets, baselines and exports (3.0 phase 6)
+
+`-PolicyPreset list` shows the category presets (data\policy\presets.json). Each one is applied as a single batch: one Local GPO backup, one Registry.pol write per class, gpt.ini, audit and security settings through their engines (with the lockout safeguards), one targeted gpupdate and a verification. A record file lists every backup; `-PolicyPresetRestore <record>` reverts all of it.
+
+```powershell
+.\iGWindowsTuner.ps1 -PolicyPreset secure-gaming -DryRun
+.\iGWindowsTuner.ps1 -PolicyExport audit-logging -ExportFormat GpoBackup -ExportPath .\export
+.\iGWindowsTuner.ps1 -Baseline .\Windows-11-v24H2-Security-Baseline -ReportPath .\compare.csv
+.\iGWindowsTuner.ps1 -Baseline .\Windows-11-v24H2-Security-Baseline -BaselineApply differs -DryRun
+```
+
+| Preset | Scope | What it does |
+|---|---|---|
+| `policy.privacy-telemetry` Privacy & Telemetry | Privacy | Required diagnostic data only, no consumer content, ads, activity publishing, web search or Recall. (10 settings) |
+| `policy.wufb-pilot` Windows Update ring: Pilot | Updates | Feature updates as soon as they are offered, quality updates installed within 2 days. (2 settings) |
+| `policy.wufb-broad` Windows Update ring: Broad | Updates | Feature updates 60 days after release, quality updates installed within 5 days. (2 settings) |
+| `policy.wufb-gaming` Windows Update ring: Gaming | Updates | Feature updates after 90 days, no restarts 10 AM-4 AM, 7-day quality deadline, drivers stay yours. (4 settings) |
+| `policy.defender-antivirus` Defender Antivirus | Defender | Advanced cloud protection, Block at First Sight, high cloud block level, PUA blocking and network protection. (10 settings) |
+| `policy.attack-surface` Attack Surface | AttackSurface | No AutoRun, no multicast name resolution, no insecure guest SMB logons, no WinRM Basic authentication. (6 settings) |
+| `policy.edge-security` Microsoft Edge Security | AttackSurface | SmartScreen and PUA blocking without bypass, typo protection, site isolation, no Basic auth over HTTP. (8 settings) |
+| `policy.credentials-hardening` Credentials & Authentication Hardening | AttackSurface | LSA protection, NTLMv2 only, no LM hashes, no anonymous enumeration, lockout 10/10/10. (9 settings) |
+| `policy.remote-access-lockdown` Remote Access Lockdown | AttackSurface | Remote Desktop only with NLA and high encryption, no drive redirection, no Remote Assistance or WinRS. (5 settings) |
+| `policy.removable-media` Removable Media & Device Installation | AttackSurface | No access to USB storage and other removable storage, no AutoRun, removable drives scanned. (3 settings) |
+| `policy.audit-logging` Audit & Logging (SOC visibility) | AuditLogging | Process creation with command lines, PowerShell logging, sign-in and account auditing, larger event logs. (21 settings) |
+| `policy.kiosk-shared` Kiosk / Shared Device | System | No lock-screen camera or notifications, no clipboard history, no consumer content; Store off on Enterprise/Education. (7 settings) |
+| `policy.developer-workstation` Developer Workstation | System | Long paths, Developer Mode sideloading and PowerShell script block logging. (4 settings) |
+| `policy.secure-gaming` Secure Gaming PC | AttackSurface | Defender cloud protection and PUA blocking, no AutoRun or LLMNR, Edge SmartScreen PUA, no evening restarts. (8 settings) |
+
+Setting kinds: `admx` (an installed ADMX policy; a missing template shows the setting as unavailable,
+add it with `-AdmxFolder`), `registry` (a documented policy value written to Registry.pol, used for
+Microsoft Edge so its templates need not be installed), `audit` (subcategory by GUID, from the Win32
+auditing constants) and `secpol` (a security template setting). Settings that an edition does not
+enforce are applied and marked "Not effective on <edition>". Quality updates are never deferred: the
+update rings use feature-update deferrals and deadlines.
+
+## Exports
+
+- **GpoBackup**: `{GUID}\DomainSysvol\GPO\Machine|User\registry.pol`, `...\SecEdit\GptTmpl.inf` and
+  `...\Audit\audit.csv`, plus a README with the `LGPO.exe /m`, `/u`, `/s` and `/a` commands. It has no
+  Backup.xml or bkupInfo.xml, so it is not a GPMC backup (DECISIONS B3).
+- **Reg**: a `.reg` file with the registry policy values (non-additive list clearing is noted as a comment).
+- **Script**: a standalone PowerShell script (`-WhatIf` supported) with an INF for security settings.
+  Its registry writes do not appear in gpedit; the GPO backup export is preferred.
+- **Json**: the preset with its resolved Registry.pol operations.
+
+## Baselines
+
+`-Baseline <folder>` reads a downloaded Security Compliance Toolkit baseline or any GPO backup:
+registry.pol (Machine and User), GptTmpl.inf and audit.csv per GPO, named from bkupInfo.xml. The
+comparison lists baseline, Local GPO and effective values with a status (Match, Differs, NotSet,
+Blocked for values on the denylist, Unsupported for template sections iG Windows Tuner does not apply,
+Unknown when reading needs administrator rights) and exports to CSV. `-BaselineApply differs` (or
+Ref values) applies through the same batch engine; Blocked values are never selected. Baselines are
+never bundled or downloaded.

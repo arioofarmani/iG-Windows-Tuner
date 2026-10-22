@@ -42,6 +42,8 @@
         'Get-IgwtManagementState', 'Format-IgwtManagementState', 'Get-IgwtItemAuthority', 'Get-IgwtPersona', 'Set-IgwtPersona', 'Get-IgwtPersonaProfile',
         'Get-IgwtAdmxCatalog', 'Find-IgwtPolicy', 'Get-IgwtPolicyDefinition', 'Get-IgwtPolicyState', 'Get-IgwtPolicyChangePlan', 'Set-IgwtLocalPolicy', 'Get-IgwtTattooedPolicyValues', 'Read-IgwtRegistryPol', 'Write-IgwtRegistryPol',
         'Backup-IgwtLocalGpo', 'Restore-IgwtLocalGpo', 'Reset-IgwtLocalGpo', 'Get-IgwtLocalGpoResetPlan', 'Get-IgwtPolicyRegistryOps',
+        'Import-IgwtPolicyBaseline', 'Compare-IgwtPolicyBaseline', 'Export-IgwtPolicyComparison', 'Get-IgwtPolicyBaselinePlan', 'Invoke-IgwtPolicyBatch',
+        'Get-IgwtPolicyPresets', 'Test-IgwtPolicyPresetCatalog', 'Get-IgwtPolicyPresetPlan', 'Invoke-IgwtPolicyPreset', 'Restore-IgwtPolicyPreset', 'Export-IgwtPolicyPreset',
         'Get-IgwtTattooAdoptionPlan', 'Invoke-IgwtTattooAdoption', 'Restore-IgwtTattooRemoval', 'Test-IgwtPolicyBridgeEnabled',
         'Get-IgwtSecurityPolicy', 'Export-IgwtSecurityPolicy', 'Get-IgwtSecurityChangePlan', 'Set-IgwtSecurityPolicy', 'Restore-IgwtSecurityPolicy', 'ConvertFrom-IgwtSecurityChangeText', 'Get-IgwtAuditPolicy', 'Get-IgwtAuditChangePlan', 'Set-IgwtAuditPolicy', 'Restore-IgwtAuditPolicy', 'Import-IgwtAuditCsv', 'Export-IgwtAuditCsv',
         'Show-IgwtGui', 'Get-IgwtGuiData', 'Get-IgwtGuiPreview', 'Invoke-IgwtGuiBatch', 'Export-IgwtGuiReport', 'Get-IgwtGuiManageData', 'Get-IgwtGuiToolkitData', 'Get-IgwtGuiDiagnosticsData', 'Export-IgwtGuiSystemReport'

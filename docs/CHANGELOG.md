@@ -2,6 +2,13 @@
 
 ## 3.0.0 (in progress)
 
+### Policy presets, baselines and exports (phase 6)
+
+- **14 category policy presets** (`-PolicyPreset`): Privacy & Telemetry, three Windows Update rings (Pilot, Broad, Gaming), Defender Antivirus, Attack Surface, Microsoft Edge Security, Credentials & Authentication Hardening, Remote Access Lockdown, Removable Media, Audit & Logging, Kiosk / Shared Device, Developer Workstation and Secure Gaming PC. Applied as one batch with backups and verification; `-PolicyPresetRestore` reverts.
+- **Exports** (`-PolicyExport -ExportFormat GpoBackup|Reg|Script|Json`).
+- **Baseline import and compare** (`-Baseline`, `-BaselineApply`): Security Compliance Toolkit baselines and GPO backups, Policy Analyzer-style comparison with CSV export.
+- Fix: policies whose element shares the policy value name (such as Join Microsoft MAPS) no longer plan two values.
+
 ### Policy items through the Local GPO (phase 5)
 
 - Catalog items that write machine Policies keys now also write the Local GPO (Registry.pol and gpt.ini), so they appear in gpedit and survive policy refresh; snapshots capture the exact Registry.pol entries and v1/v2 snapshots still revert correctly.

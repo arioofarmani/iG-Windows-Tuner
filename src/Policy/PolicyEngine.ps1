@@ -42,7 +42,11 @@ function Get-IgwtPolicyRegistryOps {
         & $addList $Policy.DisabledList
         foreach ($e in @($Policy.Elements)) {
             if ($e.Type -eq 'list') { & $add 'DeleteValues' $e.Key '' '' $null }
-            elseif ($e.ValueName) { & $add 'Delete' $e.Key $e.ValueName '' $null }
+            elseif ($e.ValueName) {
+                # An element that shares the policy's own value keeps the policy's disabled value.
+                if ([string]::Equals([string]$e.Key, [string]$Policy.Key, [System.StringComparison]::OrdinalIgnoreCase) -and [string]::Equals([string]$e.ValueName, [string]$Policy.ValueName, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+                & $add 'Delete' $e.Key $e.ValueName '' $null
+            }
         }
         return $ops.ToArray()
     }
@@ -98,7 +102,19 @@ function Get-IgwtPolicyRegistryOps {
             }
         }
     }
-    return $ops.ToArray()
+    # A later Set of the same value (an element that shares the policy's value name) replaces the
+    # earlier one, as in Registry.pol; keep only the last so the plan and the verification agree.
+    $final = New-Object System.Collections.Generic.List[object]
+    for ($i = 0; $i -lt $ops.Count; $i++) {
+        $o = $ops[$i]
+        if ($o.Op -eq 'Set') {
+            $later = $false
+            for ($j = $i + 1; $j -lt $ops.Count; $j++) { if ($ops[$j].Op -eq 'Set' -and [string]::Equals($ops[$j].Key, $o.Key, [System.StringComparison]::OrdinalIgnoreCase) -and [string]::Equals($ops[$j].ValueName, $o.ValueName, [System.StringComparison]::OrdinalIgnoreCase)) { $later = $true; break } }
+            if ($later) { continue }
+        }
+        $final.Add($o)
+    }
+    return $final.ToArray()
 }
 
 function Get-IgwtPolicyDenylist {

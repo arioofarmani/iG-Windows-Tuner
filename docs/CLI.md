@@ -91,6 +91,13 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-PolicyAdopt` | Adds tattooed machine values (from -PolicyTattoo) to the Local GPO, as "Key\ValueName;..." or igwt for every value an iG Windows Tuner item wrote. A GPO backup is taken first; values that would keep a security protection off are refused. Use -DryRun first. |
 | `-PolicyRemoveTattoo` | Deletes tattooed machine values from the registry ("Key\ValueName;..." or igwt), after saving them to a restore file. Use -DryRun first. |
 | `-TattooRestore` | Writes back values removed by -PolicyRemoveTattoo from its restore file. |
+| `-PolicyPreset` | A category policy preset (list shows them): ADMX policies, documented policy values, audit and security settings applied as one batch with backups. Use -DryRun first. |
+| `-PolicyPresetRestore` | Reverts a policy preset or baseline apply from the record file it printed. |
+| `-PolicyExport` | Exports a policy preset for deployment; needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath. |
+| `-ExportFormat` | GpoBackup (LGPO-style folder), Reg, Script or Json, with -PolicyExport. |
+| `-ExportPath` | Folder for -PolicyExport. |
+| `-Baseline` | Compares a security baseline or GPO backup folder (registry.pol, GptTmpl.inf, audit.csv) with this PC; -ReportPath writes the comparison as CSV. Read-only. |
+| `-BaselineApply` | Applies baseline settings from -Baseline: "differs" for every setting that differs or is not set, or Ref values from the comparison separated by ;. Use -DryRun first. |
 | `-AdmxFolder` | Extra ADMX folders (for example Edge, Chrome or Office templates) for the policy catalog. |
 
 ## Security policy and auditing
