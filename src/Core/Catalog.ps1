@@ -54,11 +54,18 @@ function ConvertTo-IgwtNormalizedTweak {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Tweak, [string]$SourceFile, [int]$SourceSchema = 2)
     $legacy = @($script:IgwtLegacyTweakFields | Where-Object { $null -ne $Tweak.PSObject.Properties[$_] })
-    if ($null -eq $Tweak.PSObject.Properties['level'] -or $null -eq $Tweak.PSObject.Properties['antiCheat']) {
-        $Tweak = ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV2Tweak -Tweak $Tweak)
+    if ($null -eq $Tweak.PSObject.Properties['level'] -or $null -eq $Tweak.PSObject.Properties['antiCheat'] -or $null -eq $Tweak.PSObject.Properties['scope']) {
+        # v1 and v2 entries are upgraded to schema v3 in memory (actions unchanged).
+        $Tweak = ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV3Tweak -Tweak $Tweak)
     } else {
         foreach ($f in $legacy) { $Tweak.PSObject.Properties.Remove($f) }
     }
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'editions' -Value @() -WhatIf:$false
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'managedBy' -Value @('local') -WhatIf:$false
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'gpoPath' -Value '' -WhatIf:$false
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'admxRef' -Value $null -WhatIf:$false
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'requiresDomain' -Value $false -WhatIf:$false
+    Set-IgwtDefaultProperty -Object $Tweak -Name 'requiresMdm' -Value $false -WhatIf:$false
     Set-IgwtDefaultProperty -Object $Tweak -Name 'order' -Value 50 -WhatIf:$false
     Set-IgwtDefaultProperty -Object $Tweak -Name 'group' -Value '' -WhatIf:$false
     Set-IgwtDefaultProperty -Object $Tweak -Name 'expert' -Value $false -WhatIf:$false
@@ -358,14 +365,15 @@ function Test-IgwtCatalog {
         }
         Test-IgwtItemText -Item $t -Label $tid -Errors $errors
         Test-IgwtItemMetadata -Item $t -Label $tid -Errors $errors
-        if ([int]$t.sourceSchema -lt $script:IgwtSchemaVersion -and -not $files.ContainsKey([string]$t.sourceFile)) {
+        if ([int]$t.sourceSchema -lt $script:IgwtTweakSchemaVersion -and -not $files.ContainsKey([string]$t.sourceFile)) {
             $files[[string]$t.sourceFile] = $true
-            $errors.Add("tweaks\$($t.sourceFile): schemaVersion $($t.sourceSchema); run tools\Convert-IgwtV1Data.ps1 to migrate it to schema v$($script:IgwtSchemaVersion).")
+            $errors.Add("tweaks\$($t.sourceFile): schemaVersion $($t.sourceSchema); run tools\Convert-IgwtV1Data.ps1 to migrate it to schema v$($script:IgwtTweakSchemaVersion).")
         }
         foreach ($lf in @($t.legacyFields)) { $errors.Add("${tid}: v1 field '$lf' is not used in schema v2 (use level and antiCheat).") }
         foreach ($cond in @($t.appliesTo.conditions | Where-Object { $_ })) { if ($script:IgwtConditions -notcontains [string]$cond) { $errors.Add("${tid}: unknown appliesTo condition '$cond'.") } }
         if ($tid -notmatch '^[a-z]+\.[a-z0-9\-]+$') { $errors.Add("${tid}: id must look like 'category.name' in lower case.") }
         if ($ids.ContainsKey($tid)) { $errors.Add("${tid}: duplicate id.") } else { $ids[$tid] = $t }
+        Test-IgwtV3Fields -Tweak $t -Errors $errors
         if ($script:IgwtCategories -notcontains [string]$t.category) { $errors.Add("${tid}: unknown category '$($t.category)'.") }
         if ($t.evidence) {
             $sources = @($t.evidence.sources | Where-Object { $_ })

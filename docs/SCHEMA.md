@@ -66,6 +66,19 @@ action; add a new action or a new tweak instead.
 | `cleanerRule` | `rule` (cleaner rule id); reversible none |
 | `check` + `checker: DefaultApp` | `extension` or `protocol`, `progId` (read-only) |
 
+## Schema v3 fields (3.0)
+
+Tweak files are schema v3. The loaders still accept v1 and v2 entries and upgrade them in memory; `tools\Convert-IgwtV1Data.ps1` rewrites old files. Actions never change, so every snapshot keeps matching its item.
+
+| Field | Values | Meaning |
+|---|---|---|
+| `scope` | `Performance`, `Network`, `Privacy`, `Updates`, `Defender`, `AttackSurface`, `AuditLogging`, `System` | Which scoped (category) preset an item belongs to. The migration derives it from the category, group and action types. |
+| `editions` | `Home`, `Professional`, `Enterprise`, `Education`, `Server` | Edition families on which Windows honors the item; empty means all. On other editions the item is "not effective on this edition" (an existing value can still be removed). Replaces `appliesTo.editions`. |
+| `managedBy` | `local`, `gpo`, `mdm` | Where the setting can be controlled from. Items that write a Group Policy location list all three. |
+| `gpoPath` | `machine`, `user`, empty | Group Policy side of a policy item (registry actions under `SOFTWARE\Policies` or `CurrentVersion\Policies`). Required for such items; on domain-joined or MDM-enrolled PCs these items are report-only unless the user acknowledges local changes. |
+| `admxRef` | `{ file, policy, class }` or `null` | The ADMX policy behind the item (filled in by the Group Policy engine work). |
+| `requiresDomain`, `requiresMdm` | boolean | The item only makes sense on a domain-joined or MDM-enrolled PC. |
+
 ## Presets (intent presets)
 
 | Field | Meaning |

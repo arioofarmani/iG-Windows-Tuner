@@ -190,7 +190,7 @@ function Invoke-IgwtGuiBatch {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [string[]]$ApplyIds = @(), [string[]]$OffIds = @(), [string[]]$ResetIds = @(),
-        [string]$Operation = 'Apply', [switch]$SkipRestorePoint, [switch]$EnableSystemProtection, [switch]$AcknowledgeRisk
+        [string]$Operation = 'Apply', [switch]$SkipRestorePoint, [switch]$EnableSystemProtection, [switch]$AcknowledgeRisk, [switch]$AcknowledgeManaged
     )
     if (-not $PSCmdlet.ShouldProcess('staged changes', 'Apply')) { return $null }
     $results = New-Object System.Collections.Generic.List[object]
@@ -211,7 +211,7 @@ function Invoke-IgwtGuiBatch {
     }
     try {
         if ($ApplyIds.Count -gt 0) {
-            $r = Invoke-IgwtApply -Id $ApplyIds -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk
+            $r = Invoke-IgwtApply -Id $ApplyIds -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
             $rp = $r.RestorePoint
             & $merge $r
             $skip = $true

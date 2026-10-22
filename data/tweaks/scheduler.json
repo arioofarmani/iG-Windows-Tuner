@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "category": "Power & CPU",
   "tweaks": [
     {
@@ -23,7 +23,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -61,7 +68,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -100,7 +114,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {

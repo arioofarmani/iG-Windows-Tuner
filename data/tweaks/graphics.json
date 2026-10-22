@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "category": "Graphics & Display",
   "tweaks": [
     {
@@ -26,7 +26,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -61,7 +68,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR", "name": "AllowGameDVR" }
@@ -117,7 +131,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -148,7 +169,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -183,7 +211,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -217,7 +252,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "multipleGpus" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "custom", "handler": "GameGpuPreference" }
@@ -248,7 +290,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "deviceInterrupt", "deviceClass": "Display", "msiSupported": 1 }

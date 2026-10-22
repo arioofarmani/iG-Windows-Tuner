@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "category": "Security",
   "tweaks": [
     {
@@ -23,7 +23,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "sec.vbs-hvci-off-expert" ],
       "policyKeys": [
@@ -80,9 +87,18 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "sec.hvci-on" ],
+      "status": "NotApplicable",
+      "statusReason": "Retired: iG Windows Tuner never turns VBS or HVCI off (security boundary). If you applied it with an earlier version, revert it to turn VBS and HVCI back on.",
       "actions": [
         {
           "type": "registry",
@@ -101,9 +117,7 @@
           "default": 1
         },
         { "type": "check", "checker": "HvciNotRunning" }
-      ],
-      "status": "NotApplicable",
-      "statusReason": "Retired: iG Windows Tuner never turns VBS or HVCI off (security boundary). If you applied it with an earlier version, revert it to turn VBS and HVCI back on."
+      ]
     },
     {
       "id": "sec.vulnerable-driver-blocklist",
@@ -128,7 +142,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -163,7 +184,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -202,7 +230,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender", "name": "PUAProtection" },
@@ -236,7 +271,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         {
@@ -272,7 +314,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Scan", "name": "AvgCPULoadFactor" }
@@ -303,7 +352,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }
@@ -344,7 +400,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "sec.asr-office-block" ],
       "policyKeys": [
@@ -394,7 +457,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "sec.asr-office-audit" ],
       "policyKeys": [
@@ -440,7 +510,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         {
@@ -469,7 +546,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Defender",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "custom", "handler": "CfaAllowGames" }
@@ -496,7 +580,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -540,7 +631,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -575,7 +673,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -619,7 +724,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -653,7 +765,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100, "conditions": [ "wiredAdapter" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -691,7 +810,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "notRdp" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -731,7 +857,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -776,7 +909,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -820,7 +960,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\WindowsFirewall\\DomainProfile", "name": "EnableFirewall" },
@@ -854,7 +1001,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -908,7 +1062,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AuditLogging",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -945,7 +1106,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "exploitSystem", "mitigation": "DEP", "on": "ON", "equivalentOn": [ "NOTSET" ] },
@@ -976,7 +1144,14 @@
       "sideEffects": "",
       "requires": "logoff",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1013,7 +1188,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1051,7 +1233,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1088,7 +1277,14 @@
       "sideEffects": "Programs that rely on .vbs or .js scripts (some old installers, vendor utilities, logon scripts) stop working until the item is turned off.",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1127,7 +1323,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1233,7 +1436,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local", "gpo", "mdm" ],
+      "gpoPath": "machine",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -1267,7 +1477,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "service", "name": "Spooler", "startupType": "Disabled", "default": "Automatic", "stop": true }
@@ -1294,7 +1511,14 @@
       "sideEffects": "Tools that schedule a reboot into Safe Mode, such as the Safe boot option in System Configuration, are blocked.",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "AttackSurface",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "policyKeys": [
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Windows Defender Exploit Guard\\ASR", "name": "ExploitGuard_ASR_Rules" }

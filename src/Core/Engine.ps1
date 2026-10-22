@@ -236,6 +236,7 @@ function Get-IgwtPlan {
             'NotApplicable' { $plan = 'NotApplicable' }
             'ManagedByPolicy' { $plan = 'Policy' }
         }
+        if ($plan -eq 'Change' -and $null -ne $s.PSObject.Properties['Authority'] -and $s.Authority) { $plan = 'ReportOnly' }
         [pscustomobject]@{
             Id       = $t.id
             Name     = $t.name
@@ -246,7 +247,7 @@ function Get-IgwtPlan {
             Requires = $t.requires
             Plan     = $plan
             State    = $s.State
-            Reason   = $s.Reason
+            Reason   = $(if ($plan -eq 'ReportOnly') { [string]$s.Authority } else { $s.Reason })
             Items    = @($s.Items | Where-Object { $_.State -ne 'On' -or $Mode -eq 'default' })
             AllItems = $s.Items
         }
@@ -270,6 +271,9 @@ function Invoke-IgwtApply {
         Consent to turn on System Protection for the system drive if it is off.
     .PARAMETER AcknowledgeRisk
         Required for expert toggles.
+    .PARAMETER AcknowledgeManaged
+        On a domain-joined or MDM-enrolled PC, policy items are report-only; this switch confirms a
+        local change that a domain or MDM policy may override.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -279,6 +283,7 @@ function Invoke-IgwtApply {
         [switch]$SkipRestorePoint,
         [switch]$EnableSystemProtection,
         [switch]$AcknowledgeRisk,
+        [switch]$AcknowledgeManaged,
         $Context,
         [scriptblock]$OnProgress
     )
@@ -299,6 +304,7 @@ function Invoke-IgwtApply {
         if ($s.State -eq 'NotApplicable') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'NotApplicable'; Message = $s.Reason }); continue }
         if ($Mode -eq 'on' -and $null -ne $s.PSObject.Properties['Blocked'] -and $s.Blocked -and $s.State -ne 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'NotApplicable'; Message = $s.Reason }); continue }
         if ($s.State -eq 'ManagedByPolicy') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'ManagedByPolicy'; Message = $s.Reason }); continue }
+        if (-not $AcknowledgeManaged -and $null -ne $s.PSObject.Properties['Authority'] -and $s.Authority) { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'ReportOnly'; Message = [string]$s.Authority }); continue }
         if ($Mode -eq 'on' -and $s.State -eq 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'Unchanged'; Message = 'Already in target state.' }); continue }
         if ($Mode -eq 'default' -and @($t.actions | Where-Object { $_.type -ne 'check' }).Count -eq 0) { continue }
         $todo.Add($t)

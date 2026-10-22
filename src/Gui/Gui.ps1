@@ -7,7 +7,7 @@
 $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
-    'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
+    'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
     'Banner', 'BannerText', 'NavList', 'DetailsColumn', 'DetailsPane',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
@@ -413,7 +413,9 @@ function Update-IgwtGuiTweakList {
     $search = [string]$c.SearchBox.Text
     $rows = foreach ($t in $script:Gui.Catalog) {
         $row = New-IgwtGuiTweakRow -Tweak $t -State $script:Gui.Data.States[$t.id] -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin
-        if (Test-IgwtGuiRowVisible -Row $row -Category $script:Gui.Category -Search $search -Filter $filter) { $row }
+        $st = $script:Gui.Data.States[$t.id]
+        $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
+        if ($personaOk -and (Test-IgwtGuiRowVisible -Row $row -Category $script:Gui.Category -Search $search -Filter $filter)) { $row }
     }
     $rows = @($rows)
     $c.TweakList.ItemsSource = $rows
@@ -898,8 +900,15 @@ function Invoke-IgwtGuiApply {
     }
     $operation = 'Apply'
     if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and $sets.Reset.Count -eq 0) { $operation = $script:Gui.PresetOperation }
+    $ackManaged = $false
+    $authority = @($sets.Apply | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.PSObject.Properties['Authority'] -and $s.Authority })
+    if ($authority.Count) {
+        $a = Show-IgwtGuiMessage -Text "This PC is managed by a domain or MDM. These policy items can be overridden by your organization: $($authority -join ', ').`n`nYes: change them locally anyway.`nNo: apply everything else and leave them (report-only)." -Buttons 'YesNoCancel' -Icon 'Warning'
+        if ($a -eq 'Cancel') { return }
+        $ackManaged = ($a -eq 'Yes')
+    }
     $params = @{ ApplyIds = $sets.Apply; OffIds = $sets.Off; ResetIds = $sets.Reset; Operation = $operation
-        SkipRestorePoint = $skipRp; EnableSystemProtection = $enableSp; AcknowledgeRisk = ($expert.Count -gt 0) }
+        SkipRestorePoint = $skipRp; EnableSystemProtection = $enableSp; AcknowledgeRisk = ($expert.Count -gt 0); AcknowledgeManaged = $ackManaged }
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtGuiBatch' -Parameters $params -Blocking -BusyText 'Creating restore point and snapshot, then applying...' -OnComplete {
         param($out, $errs)
         $r = @($out) | Select-Object -Last 1
@@ -1767,6 +1776,37 @@ function Invoke-IgwtGuiAsrChange {
 
 #endregion
 
+#region Persona
+
+function Set-IgwtGuiPersona {
+    <# .SYNOPSIS Applies a persona to the window: navigation order, Risk Zone visibility and visible item levels. Display only. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window layout only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $c = $script:Gui.C
+    $p = Get-IgwtPersonaProfile -Name $Name
+    $script:Gui.Persona = $p
+    $nav = $c.NavList
+    $selected = $nav.SelectedItem
+    $items = @($nav.Items)
+    if (-not $script:Gui.NavDefault) { $script:Gui.NavDefault = @($items | ForEach-Object { [string]$_.Tag }) }
+    $order = @($p.NavOrder)
+    if ($order.Count -eq 0) { $order = @($script:Gui.NavDefault) }
+    $rank = @{}
+    for ($i = 0; $i -lt $order.Count; $i++) { $rank[[string]$order[$i]] = $i }
+    $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
+    $nav.Items.Clear()
+    foreach ($it in $sorted) {
+        $it.Visibility = $(if ([string]$it.Tag -eq 'Risk Zone' -and -not $p.ShowRiskZone) { 'Collapsed' } else { 'Visible' })
+        $null = $nav.Items.Add($it)
+    }
+    if ($selected -and $selected.Visibility -eq 'Visible') { $nav.SelectedItem = $selected } else { $nav.SelectedIndex = 0 }
+    if ($script:Gui.Data) { Update-IgwtGuiTweakList }
+    Set-IgwtGuiStatus "Persona: $($p.Name). $($p.Hint)"
+}
+
+#endregion
+
 #region Toolkit
 
 function Update-IgwtGuiToolkitLists {
@@ -2120,7 +2160,7 @@ function Show-IgwtGui {
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = (Test-IgwtIsAdmin)
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Diag = $null; NetResult = $null
+        AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -2139,6 +2179,17 @@ function Show-IgwtGui {
     $c.AdminText.Text = $(if ($script:Gui.IsAdmin) { 'Administrator' } else { 'Read-only (not elevated)' })
     $c.ElevateButton.Visibility = $(if ($script:Gui.IsAdmin) { 'Collapsed' } else { 'Visible' })
     Update-IgwtGuiPresetCards
+
+    # Persona
+    $c.PersonaBox.ItemsSource = @('Gamer', 'PowerUser', 'Sysadmin')
+    $c.PersonaBox.SelectedItem = (Get-IgwtPersona)
+    Set-IgwtGuiPersona -Name ([string]$c.PersonaBox.SelectedItem)
+    $c.PersonaBox.Add_SelectionChanged({
+            $n = [string]$script:Gui.C.PersonaBox.SelectedItem
+            if (-not $n -or ($script:Gui.Persona -and $script:Gui.Persona.Name -eq $n)) { return }
+            try { Set-IgwtPersona -Name $n } catch { Write-Verbose "Persona not saved: $($_.Exception.Message)" }
+            Set-IgwtGuiPersona -Name $n
+        })
 
     # Navigation and page wiring
     $c.NavList.Add_SelectionChanged({ $item = $script:Gui.C.NavList.SelectedItem; if ($item) { Show-IgwtGuiPage -Page ([string]$item.Tag) } })

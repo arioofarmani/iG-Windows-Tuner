@@ -5,11 +5,12 @@
 # never changed, so snapshot fingerprints (and therefore every v1 snapshot) stay valid.
 
 $script:IgwtTweakKeyOrder = @('id', 'name', 'category', 'group', 'order', 'level', 'hint', 'description', 'warning', 'evidence', 'impact', 'risk',
-    'antiCheat', 'reversible', 'sideEffects', 'requires', 'appliesTo', 'hardware', 'source', 'attribution', 'conflictsWith', 'status', 'statusReason',
+    'antiCheat', 'reversible', 'sideEffects', 'requires', 'appliesTo', 'editions', 'hardware', 'scope', 'managedBy', 'gpoPath', 'admxRef', 'requiresDomain', 'requiresMdm',
+    'source', 'attribution', 'conflictsWith', 'status', 'statusReason',
     'policyKeys', 'postApply', 'revertNote')
 $script:IgwtCleanerKeyOrder = @('id', 'name', 'category', 'level', 'tier', 'method', 'default', 'hint', 'description', 'sideEffects', 'antiCheat',
     'reversible', 'source', 'attribution', 'hardware', 'requiresAdmin')
-$script:IgwtPresetKeyOrder = @('id', 'name', 'order', 'tagline', 'hint', 'description', 'gaming', 'levelCeiling', 'antiCheatPolicy', 'include', 'exclude')
+$script:IgwtPresetKeyOrder = @('id', 'name', 'order', 'code', 'tagline', 'hint', 'description', 'gaming', 'levelCeiling', 'antiCheatPolicy', 'include', 'exclude', 'session', 'sessionPowerPlan', 'closeApps', 'guidance')
 $script:IgwtV1ConditionMap = [ordered]@{ wiredAdapter = 'wiredAdapter'; multipleGpus = 'multipleGpus'; nvidiaGpu = 'nvidiaGpu'; defender = 'defenderActive'; notRdp = 'notRdp' }
 
 #region Helpers
@@ -368,8 +369,8 @@ function ConvertTo-IgwtV2DataDocument {
     switch (Get-IgwtDataFileKind -Document $Document) {
         'tweaks' {
             $o = ConvertTo-IgwtOrderedCopy -Object $Document -Order @('schemaVersion', 'category') -Last @('tweaks')
-            $o['schemaVersion'] = $script:IgwtSchemaVersion
-            $o['tweaks'] = @(@($Document.tweaks) | Where-Object { $_ } | ForEach-Object { ConvertTo-IgwtV2Tweak -Tweak $_ })
+            $o['schemaVersion'] = $script:IgwtTweakSchemaVersion
+            $o['tweaks'] = @(@($Document.tweaks) | Where-Object { $_ } | ForEach-Object { ConvertTo-IgwtV3Tweak -Tweak $_ })
             return (ConvertTo-IgwtOrderedCopy -Object $o -Order @('schemaVersion', 'category') -Last @('tweaks'))
         }
         'cleaner' {
@@ -410,13 +411,14 @@ function Convert-IgwtDataToV2 {
             $doc = Read-IgwtJsonFile -Path $f.FullName
             $from = 1
             if (Test-IgwtHasProperty -Object $doc -Name 'schemaVersion') { $from = [int]$doc.schemaVersion }
-            if ($from -gt $script:IgwtSchemaVersion) { throw "$($f.Name): schemaVersion $from is newer than this version of iG Windows Tuner supports." }
+            $max = $(if ($sub -eq 'tweaks') { $script:IgwtTweakSchemaVersion } else { $script:IgwtSchemaVersion })
+            if ($from -gt $max) { throw "$($f.Name): schemaVersion $from is newer than this version of iG Windows Tuner supports." }
             $v2 = ConvertTo-IgwtV2DataDocument -Document $doc -IdMap $idMap
             $text = ConvertTo-IgwtJson -InputObject $v2
             $changed = ($text -ne $raw)
             $count = 1
             if ($v2.Contains('tweaks')) { $count = @($v2['tweaks']).Count } elseif ($v2.Contains('rules')) { $count = @($v2['rules']).Count }
-            if ($changed -and $PSCmdlet.ShouldProcess($f.FullName, "Write schema v$($script:IgwtSchemaVersion)")) {
+            if ($changed -and $PSCmdlet.ShouldProcess($f.FullName, "Write schema v$max")) {
                 [System.IO.File]::WriteAllText($f.FullName, $text, (New-Object System.Text.UTF8Encoding($false)))
             }
             [pscustomobject]@{ File = "$sub\$($f.Name)"; Kind = (Get-IgwtDataFileKind -Document $doc); Items = $count; FromSchema = $from; Changed = $changed }

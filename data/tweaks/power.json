@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "category": "Power & CPU",
   "tweaks": [
     {
@@ -23,7 +23,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "power.high-performance-plan" ],
       "revertNote": "Revert re-activates your previous plan and deletes the Ultimate copy only if iG Windows Tuner created it.",
@@ -52,7 +59,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "conflictsWith": [ "power.ultimate-plan" ],
       "actions": [
@@ -83,7 +97,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -121,7 +142,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -156,7 +184,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -194,7 +229,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         { "type": "custom", "handler": "Hibernate" }
@@ -224,7 +266,14 @@
       "sideEffects": "",
       "requires": "reboot",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {
@@ -262,7 +311,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "actions": [
         {

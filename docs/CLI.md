@@ -66,6 +66,14 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-Session` | Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot, Stop restores them, Status shows the session. -DryRun with Start shows the plan. |
 | `-CloseApps` | With -Session Start: also close the running apps from the Session Mode list. |
 
+## Platform, management and personas
+
+| Parameter | Description |
+|---|---|
+| `-Platform` | Read-only platform and management report: edition family, Local Group Policy support, domain and Entra ID join, MDM enrollment, Defender for Endpoint, other antivirus and whether policy items are report-only on this PC. |
+| `-AcknowledgeManaged` | On a domain-joined or MDM-enrolled PC, policy items are report-only. This switch confirms local changes that a domain or MDM policy may override (with -Apply or -Preset). |
+| `-Persona` | Sets your persona for the GUI (Gamer, PowerUser or Sysadmin): it changes the navigation order and which item levels are shown, never a safety rule. |
+
 ## Cleaner and disk
 
 | Parameter | Description |

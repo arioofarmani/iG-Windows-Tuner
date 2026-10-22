@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.0 (in progress)
+
+### Platform (phase 2)
+
+- **Schema v3** for tweak files: `scope`, `editions`, `managedBy`, `gpoPath`, `admxRef`, `requiresDomain`, `requiresMdm`, with an in-memory and on-disk migration from v1/v2 (actions unchanged, snapshots stay valid). 26 items are marked as Group Policy items.
+- **Management awareness** (`-Platform`): edition family and Local Group Policy support, domain and Entra ID join, MDM enrollment, Defender for Endpoint, Defender mode and other antivirus. On domain-joined or MDM-enrolled PCs, policy items are report-only unless the local change is acknowledged (`-AcknowledgeManaged`, or Yes in the GUI).
+- **Personas** (Gamer, Power User, Sysadmin; header selector in the GUI, `-Persona`): navigation order and visible levels change; safety rules never do.
+- Hardware detection failures now block overlay-guarded items (review L3).
+
+
 ## 2.3.0 (v2 final)
 
 Completes the 2.x scope before 3.0 (audit: `docs\V3_STARTING_AUDIT.md`).

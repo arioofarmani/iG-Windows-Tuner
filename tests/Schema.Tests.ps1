@@ -37,10 +37,10 @@ Describe 'Schema v2: every shipped item' {
         $script:Presets = @(Get-IgwtPreset)
         $script:Tags = @(Get-IgwtHardwareTagDefinitions -Force)
     }
-    It 'declares schemaVersion 2 in every data file' {
+    It 'declares schemaVersion 3 in tweak files and 2 in the other data files' {
         $files = @(Get-ChildItem -LiteralPath $script:RepoData -Recurse -Filter *.json | Where-Object { $_.Directory.Name -in 'tweaks', 'presets', 'cleaner', 'hardware', 'migration' })
         $files.Count | Should -BeGreaterThan 15
-        foreach ($f in $files) { (Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json).schemaVersion | Should -Be 2 -Because $f.Name }
+        foreach ($f in $files) { (Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json).schemaVersion | Should -Be $(if ($f.Directory.Name -eq 'tweaks') { 3 } else { 2 }) -Because $f.Name }
     }
     It 'contains no v1 fields in the data files' {
         foreach ($t in (Get-RawTweaks $script:RepoData)) {
@@ -155,7 +155,7 @@ Describe 'v1 to v2 data migration' {
     It 'is idempotent' {
         $again = @(Convert-IgwtDataToV2 -DataFolder $script:V1)
         @($again | Where-Object { $_.Changed }) | Should -BeNullOrEmpty
-        foreach ($r in $again) { $r.FromSchema | Should -Be 2 }
+        foreach ($r in $again) { $r.FromSchema | Should -Be $(if ($r.Kind -eq 'tweaks') { 3 } else { 2 }) }
     }
     It 'keeps every id and every action unchanged, so snapshot fingerprints stay valid' {
         $script:RawV2.Count | Should -Be $script:RawV1.Count

@@ -47,6 +47,16 @@
 .PARAMETER Session
     Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot,
     Stop restores them, Status shows the session. -DryRun with Start shows the plan.
+.PARAMETER Platform
+    Read-only platform and management report: edition family, Local Group Policy support, domain
+    and Entra ID join, MDM enrollment, Defender for Endpoint, other antivirus and whether policy
+    items are report-only on this PC.
+.PARAMETER AcknowledgeManaged
+    On a domain-joined or MDM-enrolled PC, policy items are report-only. This switch confirms local
+    changes that a domain or MDM policy may override (with -Apply or -Preset).
+.PARAMETER Persona
+    Sets your persona for the GUI (Gamer, PowerUser or Sysadmin): it changes the navigation order and
+    which item levels are shown, never a safety rule.
 .PARAMETER CloseApps
     With -Session Start: also close the running apps from the Session Mode list.
 .PARAMETER Apply
@@ -277,6 +287,10 @@ param(
     [ValidateSet('Start', 'Stop', 'Status')]
     [string]$Session,
     [switch]$CloseApps,
+    [switch]$Platform,
+    [switch]$AcknowledgeManaged,
+    [ValidateSet('Gamer', 'PowerUser', 'Sysadmin')]
+    [string]$Persona,
     [string[]]$Apply,
     [string[]]$Revert,
     [switch]$RevertAll,
@@ -401,7 +415,7 @@ function Write-IgwtPlan {
         Write-IgwtCliLine ''
     }
     foreach ($p in $Plan) {
-        $tag = switch ($p.Plan) { 'Change' { '[CHANGE]' } 'Skip' { '[OK]    ' } 'NotApplicable' { '[N/A]   ' } 'Policy' { '[POLICY]' } default { "[$($p.Plan)]" } }
+        $tag = switch ($p.Plan) { 'Change' { '[CHANGE]' } 'Skip' { '[OK]    ' } 'NotApplicable' { '[N/A]   ' } 'Policy' { '[POLICY]' } 'ReportOnly' { '[REPORT]' } default { "[$($p.Plan)]" } }
         $color = switch ($p.Plan) { 'Change' { [ConsoleColor]::Yellow } 'Skip' { [ConsoleColor]::Green } 'Policy' { [ConsoleColor]::Cyan } default { [ConsoleColor]::DarkGray } }
         $origin = ''
         if ($p.PSObject.Properties['Origin'] -and $p.Origin -and $p.Origin -ne 'preset') { $origin = "  [from $($p.Origin)]" }
@@ -578,6 +592,8 @@ if ($RemovePreset) { $modes += 'RemovePreset' }
 if ($Drift) { $modes += 'Drift' }
 if ($AdoptDrift) { $modes += 'AdoptDrift' }
 if ($Session) { $modes += 'Session' }
+if ($Platform) { $modes += 'Platform' }
+if ($Persona) { $modes += 'Persona' }
 if ($Apply) { $modes += 'Apply' }
 if ($Revert) { $modes += 'Revert' }
 if ($RevertAll) { $modes += 'RevertAll' }
@@ -1060,6 +1076,20 @@ try {
             if (@($c.Rules | Where-Object { $_.Status -eq 'Error' }).Count -gt 0) { Complete-IgwtCli 5 }
             Complete-IgwtCli 0
         }
+        'Platform' {
+            $st = Get-IgwtManagementState
+            if ($Json) { $st | ConvertTo-Json -Depth 4; exit 0 }
+            Format-IgwtManagementState -State $st | ForEach-Object { Write-IgwtCliLine $_ ([ConsoleColor]::Gray) }
+            $pp = Get-IgwtPersonaProfile
+            Write-IgwtCliLine ("  Persona:              {0} ({1})" -f $pp.Name, $pp.Hint) ([ConsoleColor]::Gray)
+            exit 0
+        }
+        'Persona' {
+            if ($DryRun) { Write-IgwtCliLine "Would set the persona to $Persona." ([ConsoleColor]::White); exit 0 }
+            Set-IgwtPersona -Name $Persona
+            Write-IgwtCliLine "Persona set to $Persona. $((Get-IgwtPersonaProfile -Name $Persona).Hint)" ([ConsoleColor]::Green)
+            exit 0
+        }
         'ListPresets' {
             $rows = @(Get-IgwtPreset | ForEach-Object {
                     $sel = Resolve-IgwtPresetSelection -Preset $_
@@ -1381,7 +1411,7 @@ try {
             else { $result = Invoke-IgwtRevert -Last }
         }
         default {
-            $result = Invoke-IgwtApply -Id $ids -Operation $operation -Mode $mode -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk
+            $result = Invoke-IgwtApply -Id $ids -Operation $operation -Mode $mode -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
         }
     }
     if ($modes[0] -in 'Revert', 'RevertAll' -and @($result.Results).Count -eq 0) {

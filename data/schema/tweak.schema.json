@@ -5,7 +5,7 @@
   "type": "object",
   "required": [ "schemaVersion", "tweaks" ],
   "properties": {
-    "schemaVersion": { "const": 2 },
+    "schemaVersion": { "const": 3 },
     "category": { "type": "string" },
     "tweaks": { "type": "array", "items": { "$ref": "#/definitions/tweak" } }
   },
@@ -28,7 +28,7 @@
     },
     "tweak": {
       "type": "object",
-      "required": [ "id", "name", "category", "level", "hint", "description", "evidence", "impact", "risk", "antiCheat", "reversible", "sideEffects", "requires", "appliesTo", "hardware", "source", "actions" ],
+      "required": [ "id", "name", "category", "level", "hint", "description", "evidence", "impact", "risk", "antiCheat", "reversible", "sideEffects", "requires", "appliesTo", "editions", "hardware", "scope", "managedBy", "gpoPath", "source", "actions" ],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z]+\\.[a-z0-9\\-]+$" },
         "name": { "type": "string" },
@@ -77,6 +77,13 @@
         "status": { "enum": [ "Active", "NotApplicable" ] },
         "statusReason": { "type": "string" },
         "conflictsWith": { "type": "array", "items": { "type": "string" } },
+        "editions": { "type": "array", "items": { "enum": [ "Home", "Professional", "Enterprise", "Education", "Server" ] }, "description": "Edition families where Windows honors the item (schema v3); empty = all." },
+        "scope": { "enum": [ "Performance", "Network", "Privacy", "Updates", "Defender", "AttackSurface", "AuditLogging", "System" ], "description": "Scope used by the category presets (schema v3)." },
+        "managedBy": { "type": "array", "items": { "enum": [ "local", "gpo", "mdm" ] }, "minItems": 1, "description": "Where the setting can be controlled from; policy items list gpo and mdm." },
+        "gpoPath": { "enum": [ "", "machine", "user" ], "description": "Group Policy side of a policy item; empty for non-policy items." },
+        "admxRef": { "type": [ "object", "null" ], "properties": { "file": { "type": "string" }, "policy": { "type": "string" }, "class": { "enum": [ "Machine", "User", "Both" ] } }, "description": "The ADMX policy behind the item, when there is one." },
+        "requiresDomain": { "type": "boolean" },
+        "requiresMdm": { "type": "boolean" },
         "policyKeys": { "type": "array", "items": { "type": "object", "required": [ "path", "name" ], "properties": { "path": { "type": "string" }, "name": { "type": "string" } } } },
         "postApply": { "enum": [ "MouseParameters", "KeyboardRepeat", "AccessibilityFlags" ] },
         "revertNote": { "type": "string" },

@@ -26,6 +26,8 @@ function New-IgwtContext {
         DefenderActive = $false
         HardwareTags   = @()
         HardwareProfile = $null
+        HardwareUnknown = $false
+        Management     = $null
     }
     if ($Override) {
         foreach ($k in $Override.Keys) { $ctx[$k] = $Override[$k] }
@@ -35,7 +37,7 @@ function New-IgwtContext {
         $hp = Get-IgwtHardwareProfile
         $ctx.HardwareProfile = $hp
         $ctx.HardwareTags = @($hp.Tags)
-    } catch { Write-Verbose "Hardware profile unavailable: $($_.Exception.Message)" }
+    } catch { $ctx.HardwareUnknown = $true; Write-Verbose "Hardware profile unavailable: $($_.Exception.Message)" }
     $ctx.IsAdmin = Test-IgwtIsAdmin
     $os = Get-IgwtOsInfo
     $ctx.Build = $os.Build
@@ -53,6 +55,7 @@ function New-IgwtContext {
         $ctx.HybridCpu = ($cpu.Name -match '1[2-9]th Gen Intel|Core\(TM\) Ultra') -and ([int]$cpu.NumberOfLogicalProcessors -lt (2 * [int]$cpu.NumberOfCores))
     } catch { Write-Verbose 'CPU detection failed.' }
     try { $ctx.DefenderActive = Test-IgwtDefenderActive } catch { $ctx.DefenderActive = $false }
+    try { $ctx.Management = Get-IgwtManagementState } catch { Write-Verbose "Management state unavailable: $($_.Exception.Message)" }
     return [pscustomobject]$ctx
 }
 
@@ -68,7 +71,7 @@ function Test-IgwtTweakApplicable {
     if ($null -ne $a.PSObject.Properties['maxBuild'] -and $a.maxBuild -and [int]$Context.Build -gt [int]$a.maxBuild) {
         return [pscustomobject]@{ Applicable = $false; Reason = "Not honored on builds newer than $($a.maxBuild)." }
     }
-    $editions = @($a.editions | Where-Object { $_ })
+    $editions = @(@($Tweak.editions) + @($a.editions) | Where-Object { $_ } | Select-Object -Unique)
     if ($editions.Count -gt 0 -and -not (Test-IgwtEditionSupported -Editions $editions -EditionId ([string]$Context.EditionId))) {
         # Blocked: an already written value still shows its state so it can be removed.
         return [pscustomobject]@{ Applicable = $false; Reason = "Not effective on this edition ($(Get-IgwtEditionFamily -EditionId ([string]$Context.EditionId))): Windows honors it only on $($editions -join ', ')."; Blocked = $true }
@@ -83,6 +86,13 @@ function Test-IgwtTweakApplicable {
     $tags = @()
     if ($null -ne $Context.PSObject.Properties['HardwareTags']) { $tags = @($Context.HardwareTags | Where-Object { $_ }) }
     $block = Get-IgwtHardwareBlock -Tweak $Tweak -Tags $tags
+    if (-not $block -and $null -ne $Context.PSObject.Properties['HardwareUnknown'] -and $Context.HardwareUnknown) {
+        # Fail closed: when hardware detection failed, an item that any hardware overlay can block
+        # is treated as blocked (for example processor settings guarded on some CPU families).
+        $all = @(Get-IgwtHardwareOverlays | ForEach-Object { @($_.tags) } | Where-Object { $_ } | Select-Object -Unique)
+        $guard = Get-IgwtHardwareBlock -Tweak $Tweak -Tags $all
+        if ($guard -and $guard.Kind -eq 'overlay') { $block = [pscustomobject]@{ Kind = 'overlay'; OverlayId = $guard.OverlayId; Reason = 'Hardware detection failed, so items that a hardware overlay can block are not applied (run -Hardware to see why detection failed).' } }
+    }
     if ($block) { return [pscustomobject]@{ Applicable = $false; Reason = [string]$block.Reason; Blocked = $true } }
     return [pscustomobject]@{ Applicable = $true; Reason = '' }
 }
@@ -192,7 +202,9 @@ function Get-IgwtTweakState {
         if ($state -in 'On', 'Partial') { return [pscustomobject]@{ Id = $Tweak.id; State = $state; Items = $items.ToArray(); Applicable = $false; Reason = "$($app.Reason) It is currently applied; turning it off is recommended."; Policy = $policy; Blocked = $true } }
         return [pscustomobject]@{ Id = $Tweak.id; State = 'NotApplicable'; Items = @(); Applicable = $false; Reason = $app.Reason; Policy = $null; Blocked = $true }
     }
-    return [pscustomobject]@{ Id = $Tweak.id; State = $state; Items = $items.ToArray(); Applicable = $true; Reason = $reason; Policy = $policy; Blocked = $false }
+    $authority = $null
+    if ($null -ne $Context.PSObject.Properties['Management']) { $authority = Get-IgwtItemAuthority -Tweak $Tweak -Management $Context.Management }
+    return [pscustomobject]@{ Id = $Tweak.id; State = $state; Items = $items.ToArray(); Applicable = $true; Reason = $reason; Policy = $policy; Blocked = $false; Authority = $authority }
 }
 
 function Get-IgwtAllTweakStates {

@@ -29,6 +29,7 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox x:Name="PersonaBox" Width="150" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Persona: changes the navigation order and which item levels are shown. Safety rules are the same for every persona."/>
                     <Border x:Name="AcPill" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{StaticResource BrushSurfaceAlt}" ToolTip="Anti-cheat readiness (TPM, Secure Boot, VBS, HVCI, IOMMU). Open the Dashboard for details.">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="AcPillDot" Width="9" Height="9" Fill="{StaticResource BrushTextMuted}" Margin="0,0,6,0" VerticalAlignment="Center"/>

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "category": "Input",
   "tweaks": [
     {
@@ -23,7 +23,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "postApply": "MouseParameters",
       "actions": [
@@ -81,7 +88,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "postApply": "AccessibilityFlags",
       "actions": [
@@ -138,7 +152,14 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100 },
+      "editions": [],
       "hardware": { "tags": [], "excludeTags": [] },
+      "scope": "Performance",
+      "managedBy": [ "local" ],
+      "gpoPath": "",
+      "admxRef": null,
+      "requiresDomain": false,
+      "requiresMdm": false,
       "source": "igwt",
       "postApply": "KeyboardRepeat",
       "actions": [
