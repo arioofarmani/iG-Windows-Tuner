@@ -191,6 +191,7 @@ function Invoke-IgwtPolicyPreset {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Id, [switch]$AcknowledgeManaged, [switch]$NoRefresh)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtPolicyPreset'
     $plan = Get-IgwtPolicyPresetPlan -Id $Id
     return (Invoke-IgwtPolicyBatch -Plan $plan -AcknowledgeManaged:$AcknowledgeManaged -NoRefresh:$NoRefresh)
 }
@@ -204,6 +205,7 @@ function Invoke-IgwtPolicyBatch {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Plan, [switch]$AcknowledgeManaged, [switch]$NoRefresh)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtPolicyBatch'
     $plan = $Plan
     $refused = @($plan.Rows | Where-Object { $_.Status -eq 'Refused' })
     if ($plan.Refusals.Count -or $refused.Count) { throw "Refused: $(@($plan.Refusals) + @($refused | ForEach-Object { "$($_.Name): $($_.Reason)" }) -join ' ')" }
@@ -261,6 +263,7 @@ function Restore-IgwtPolicyPreset {
     <# .SYNOPSIS Reverts a policy preset from its record: Local GPO, audit and security backups, in reverse order. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Record, [switch]$NoRefresh)
+    Assert-IgwtWritable -Operation 'Restore-IgwtPolicyPreset'
     $r = Read-IgwtJsonFile -Path $Record
     if ([string]$r.kind -ne 'igwt-policy-preset') { throw "'$Record' is not a policy preset record." }
     if (-not $PSCmdlet.ShouldProcess([string]$r.preset, 'Revert policy preset')) { return $null }

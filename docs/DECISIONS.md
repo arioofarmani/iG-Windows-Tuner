@@ -270,3 +270,11 @@ Every design choice that departs from common tuning advice, or where several opt
 |---|---|---|
 | R1 | **3.0.0 is released after phase 8, re-scoped to a gaming network optimizer** (measure, plan, apply, verify with automatic revert, re-measure). Packet capture (pktmon), the full network analyzer, the network optimization engine with modes, category preset framework, sysadmin automation, the GUI integration and the final review (phases 9-14 of SPEC-v3) are not part of 3.0. | Ario's request on 2026-10-22. |
 | R2 | **The new 3.0 features are command-line only**; the GUI is unchanged from 2.3. | The GUI integration was phase 12. |
+## 3.3 quality release
+
+| # | Decision | Reason |
+|---|---|---|
+| U1 | **Read-only mode is enforced by the engine**: `Assert-IgwtWritable` is the first statement of all 47 state-changing exports and of the write primitives (action apply/restore, snapshot save, Defender and policy writers, data root setup); `Set-IgwtEnvironment -ReadOnly` also sets `IGWT_READONLY=1`, so the GUI's background runspaces and relaunched processes stay read-only and a module import cannot turn it off. The CLI stops with exit code 7 before asking for elevation. Report and export files the user asks for stay allowed. A test fails when a new state-changing export has no guard. | SPEC-v3.3 section 1: disable every change path at the engine level, not only in the UI. |
+| U2 | **Mocked data providers** (`tests\gui\GuiMocks.ps1`) replace the GUI's data functions in module scope during offscreen renders: a synthetic demo PC built from the real catalogs, documentation IP ranges and generic names. Screenshots in `docs\` are rendered from the mocks only. | Deterministic renders, no personal data from this PC in the repository. |
+| U3 | **The UI Automation suite starts its own GUI with `-ReadOnly`**, refuses to continue unless the "Read-only mode:" banner text is on screen, toggles only allow-listed filter controls and never invokes action buttons. | SPEC-v3.3 section 2: automation never targets a non-read-only instance. |
+| U4 | **150 % and 200 % renders keep the logical window size** (LayoutTransform), like a real high-DPI display; small windows are checked separately at the 1100 x 720 minimum. | Matches how WPF scales on high-DPI displays. |

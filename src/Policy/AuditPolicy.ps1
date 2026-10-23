@@ -149,6 +149,7 @@ function Set-IgwtAuditPolicy {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][hashtable]$Changes, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Set-IgwtAuditPolicy'
     $current = Get-IgwtAuditPolicy
     $plan = Get-IgwtAuditChangePlan -Changes $Changes -Current $current
     $m = Get-IgwtManagementState
@@ -181,6 +182,7 @@ function Restore-IgwtAuditPolicy {
     <# .SYNOPSIS Restores the audit policy from a Set-IgwtAuditPolicy backup (`auditpol /restore`), after checking its hash. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath)
+    Assert-IgwtWritable -Operation 'Restore-IgwtAuditPolicy'
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not an audit policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf

@@ -77,6 +77,7 @@ Rejected tweaks that turn off security protections, edit the boot configuration 
 | 4 | Preflight refused (build older than 26100, or System Protection off without consent) |
 | 5 | One or more tweaks failed and were rolled back |
 | 6 | Nothing to revert |
+| 7 | Read-only mode (`-ReadOnly`): the command would change the PC and was not run |
 | 3010 | Success; a reboot is required |
 
 ## Presets

@@ -24,7 +24,7 @@ Export-ModuleMember -Function (
     'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',
     'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled',
     'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Set-IgwtLogSink',
-    'Set-IgwtEnvironment', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
+    'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
     'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
     'Get-IgwtDiskUsage', 'Format-IgwtBytes',
     'Convert-IgwtDataToV2', 'Convert-IgwtSnapshotToV2', 'Get-IgwtHardwareTagDefinitions',

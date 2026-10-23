@@ -12,7 +12,11 @@ $script:IgwtSettings = @{
     TestMode         = $false     # when true, every registry path must resolve into TestRegistry:
     UserHiveSid      = $null      # when set, HKCU:\ resolves to HKEY_USERS\<sid>\
     DataFolder       = $null      # catalog data folder override (tests and the migration tool); default <project>\data
+    ReadOnly         = $false     # when true, every apply, revert, clean, install, delete and change path throws
 }
+# Read-only mode is inherited through the process environment, so the GUI's background runspaces
+# and any relaunched process (elevation) stay read-only too; a module import cannot turn it off.
+if ($env:IGWT_READONLY -eq '1') { $script:IgwtSettings.ReadOnly = $true }
 
 function Set-IgwtEnvironment {
     <#
@@ -34,8 +38,13 @@ function Set-IgwtEnvironment {
     .PARAMETER DataFolder
         Read the catalog (tweaks, presets, cleaner rules, hardware tags) from this folder instead of
         the project's data folder. An empty string restores the default.
+    .PARAMETER ReadOnly
+        Read-only mode (-ReadOnly, for audits and the GUI test harness): every apply, revert, clean,
+        install, delete and change path throws. Also sets IGWT_READONLY=1 for this process, so
+        background runspaces and relaunched processes stay read-only. -ReadOnly:$false turns it off
+        (tests only; the CLI and GUI never do).
     .PARAMETER Reset
-        Restore all defaults.
+        Restore all defaults (read-only mode is kept when the process environment requests it).
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -45,6 +54,7 @@ function Set-IgwtEnvironment {
         [switch]$TestMode,
         [string]$UserHiveSid,
         [AllowEmptyString()][string]$DataFolder,
+        [switch]$ReadOnly,
         [switch]$Reset
     )
     if (-not $PSCmdlet.ShouldProcess('iG Windows Tuner module settings', 'Update')) { return }
@@ -56,8 +66,13 @@ function Set-IgwtEnvironment {
         $script:IgwtSettings.TestMode = $false
         $script:IgwtSettings.UserHiveSid = $null
         $script:IgwtSettings.DataFolder = $null
+        $script:IgwtSettings.ReadOnly = ($env:IGWT_READONLY -eq '1')
         Clear-IgwtCatalogCaches
         return
+    }
+    if ($PSBoundParameters.ContainsKey('ReadOnly')) {
+        $script:IgwtSettings.ReadOnly = [bool]$ReadOnly
+        if ($ReadOnly) { $env:IGWT_READONLY = '1' } else { Remove-Item -Path 'Env:\IGWT_READONLY' -ErrorAction SilentlyContinue }
     }
     if ($PSBoundParameters.ContainsKey('DataFolder')) {
         if ($DataFolder) { $script:IgwtSettings.DataFolder = $DataFolder } else { $script:IgwtSettings.DataFolder = $null }
@@ -71,6 +86,28 @@ function Set-IgwtEnvironment {
     if ($PSBoundParameters.ContainsKey('RegistryRedirect')) { $script:IgwtSettings.RegistryRedirect = $RegistryRedirect }
     if ($PSBoundParameters.ContainsKey('TestMode')) { $script:IgwtSettings.TestMode = [bool]$TestMode }
     if ($PSBoundParameters.ContainsKey('UserHiveSid')) { $script:IgwtSettings.UserHiveSid = $UserHiveSid }
+}
+
+function Test-IgwtReadOnly {
+    <# .SYNOPSIS True in read-only mode (-ReadOnly): nothing on the PC may be changed. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    return [bool]$script:IgwtSettings.ReadOnly
+}
+
+function Assert-IgwtWritable {
+    <#
+    .SYNOPSIS
+        Throws in read-only mode. The first statement of every function that changes the PC (apply,
+        revert, clean, install, delete, change), so read-only mode is enforced by the engine and not
+        only by the user interface.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Operation)
+    if ($script:IgwtSettings.ReadOnly) {
+        throw (New-Object System.InvalidOperationException("Read-only mode: $Operation is disabled. Start iG Windows Tuner without -ReadOnly to change this PC."))
+    }
 }
 
 function Clear-IgwtCatalogCaches {
@@ -145,6 +182,7 @@ function Initialize-IgwtDataRoot {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param()
+    Assert-IgwtWritable -Operation 'Initialize-IgwtDataRoot'
     $isAdmin = Test-IgwtIsAdmin
     $root = $script:IgwtSettings.DataRoot
     if ($isAdmin -or $script:IgwtSettings.TestMode) {

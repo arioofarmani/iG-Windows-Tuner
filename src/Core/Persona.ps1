@@ -46,6 +46,7 @@ function Set-IgwtPersona {
     <# .SYNOPSIS Saves the persona for the current user (a display preference; safety rules are unchanged). #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][ValidateSet('Gamer', 'PowerUser', 'Sysadmin')][string]$Name)
+    Assert-IgwtWritable -Operation 'Set-IgwtPersona'
     if ($script:IgwtSettings.TestMode) { $script:IgwtSettings.Persona = $Name; return }
     if (-not $PSCmdlet.ShouldProcess('persona', "Set $Name")) { return }
     $file = Get-IgwtUserSettingsPath

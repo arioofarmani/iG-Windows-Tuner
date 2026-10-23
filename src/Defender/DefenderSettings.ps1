@@ -288,6 +288,7 @@ function Invoke-IgwtDefenderSettingChange {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Setting, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtDefenderSettingChange'
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Changing Defender settings needs administrator rights.' }
         Initialize-IgwtDataRoot
@@ -350,6 +351,7 @@ function Restore-IgwtDefenderSettingSnapshot {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
+    Assert-IgwtWritable -Operation 'Restore-IgwtDefenderSettingSnapshot'
     $doc = Read-IgwtSnapshot -Path $SnapshotPath
     if ([string]$doc.operation -ne 'Defender') { throw 'This is not a Defender settings snapshot.' }
     $seen = @{}

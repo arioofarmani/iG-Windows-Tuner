@@ -58,6 +58,7 @@ function New-IgwtSnapshot {
 function Save-IgwtSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Snapshot)
+    Assert-IgwtWritable -Operation 'Save-IgwtSnapshot'
     if (-not $PSCmdlet.ShouldProcess($Snapshot.Path, 'Write snapshot')) { return }
     $json = ConvertTo-Json -InputObject $Snapshot.Document -Depth 25
     $tmp = "$($Snapshot.Path).tmp"

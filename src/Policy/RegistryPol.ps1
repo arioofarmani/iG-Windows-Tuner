@@ -157,6 +157,7 @@ function Write-IgwtRegistryPol {
     <# .SYNOPSIS Writes entries to a Registry.pol file (atomically: temp file, then replace). #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Entries)
+    Assert-IgwtWritable -Operation 'Write-IgwtRegistryPol'
     Assert-IgwtGpoPathAllowed -Path $Path
     if (-not $PSCmdlet.ShouldProcess($Path, 'Write Registry.pol')) { return }
     $bytes = ConvertTo-IgwtRegistryPolBytes -Entries $Entries

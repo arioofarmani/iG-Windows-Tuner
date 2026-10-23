@@ -80,6 +80,7 @@ function Get-IgwtMpPreferenceSnapshot {
 function Set-IgwtMpPreferenceValue {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Setting, [Parameter(Mandatory = $true)]$Value)
+    Assert-IgwtWritable -Operation 'Set-IgwtMpPreferenceValue'
     $v = ConvertTo-IgwtMpValue -Setting $Setting -Value $Value
     if (-not $PSCmdlet.ShouldProcess("Defender $Setting", "Set to $v")) { return }
     $params = @{ ErrorAction = 'Stop' }

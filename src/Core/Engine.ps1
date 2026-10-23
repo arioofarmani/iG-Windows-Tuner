@@ -44,6 +44,7 @@ function Invoke-IgwtActionApply {
     <# .SYNOPSIS Applies one action ('on' target or Windows 'default'). Custom handlers may return data for the snapshot. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, $Context, [ValidateSet('on', 'default')][string]$Mode = 'on')
+    Assert-IgwtWritable -Operation 'Invoke-IgwtActionApply'
     if (-not $PSCmdlet.ShouldProcess("$($Action.type) $(Get-IgwtActionFingerprint $Action)", "Apply ($Mode)")) { return $null }
     switch ([string]$Action.type) {
         'registry'           { Invoke-IgwtRegistryApply -Action $Action -Context $Context -Mode $Mode; return $null }
@@ -78,6 +79,7 @@ function Invoke-IgwtActionApply {
 function Restore-IgwtActionSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
+    Assert-IgwtWritable -Operation 'Restore-IgwtActionSnapshot'
     if (-not $PSCmdlet.ShouldProcess("$($Action.type) $(Get-IgwtActionFingerprint $Action)", 'Restore snapshot')) { return }
     switch ([string]$Action.type) {
         'registry'           { Restore-IgwtRegistrySnapshot -Action $Action -Snapshot $Snapshot -Context $Context }
@@ -287,6 +289,7 @@ function Invoke-IgwtApply {
         $Context,
         [scriptblock]$OnProgress
     )
+    Assert-IgwtWritable -Operation 'Invoke-IgwtApply'
     $tweaks = Resolve-IgwtTweakSelection -Id $Id -AcknowledgeRisk:$AcknowledgeRisk
     if (-not $script:IgwtSettings.TestMode) {
         $pre = Get-IgwtPreflight -ForApply
@@ -371,6 +374,7 @@ function Invoke-IgwtRevert {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string[]]$Id, [string]$SnapshotPath, [switch]$Last, $Context, [scriptblock]$OnProgress)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtRevert'
     if (-not $script:IgwtSettings.TestMode) {
         $pre = Get-IgwtPreflight -ForApply
         if (-not $pre.CanApply) { throw ($pre.Errors -join ' ') }

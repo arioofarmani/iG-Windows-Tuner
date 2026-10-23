@@ -48,13 +48,33 @@
             </DockPanel>
         </Border>
 
-        <!-- Persistent restart / information banner -->
-        <Border Grid.Row="1" x:Name="Banner" Visibility="Collapsed" Background="{StaticResource BrushWarningSoft}" BorderBrush="{StaticResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{StaticResource BrushWarning}" Margin="0,0,10,0"/>
-                <TextBlock x:Name="BannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
-            </DockPanel>
-        </Border>
+        <StackPanel Grid.Row="1">
+            <!-- Read-only mode (started with -ReadOnly, or not elevated) -->
+            <Border x:Name="ReadOnlyBanner" AutomationProperties.AutomationId="ReadOnlyBanner" AutomationProperties.Name="Read-only mode" Visibility="Collapsed" Background="{StaticResource BrushAccentSoft}" BorderBrush="{StaticResource BrushAccent}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE72E;" Foreground="{StaticResource BrushAccent}" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="ReadOnlyBannerText" Text="Read-only mode" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+            <!-- Persistent restart / information banner -->
+            <Border x:Name="Banner" Visibility="Collapsed" Background="{StaticResource BrushWarningSoft}" BorderBrush="{StaticResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{StaticResource BrushWarning}" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="BannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+            <!-- Error boundary: an error inside the window shows here instead of closing it -->
+            <Border x:Name="ErrorBar" AutomationProperties.AutomationId="ErrorBar" Visibility="Collapsed" Background="{StaticResource BrushDangerSoft}" BorderBrush="{StaticResource BrushDanger}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA39;" Foreground="{StaticResource BrushDanger}" Margin="0,0,10,0"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ErrorCopyButton" Content="Copy details" ToolTip="Copy the full error to the clipboard."/>
+                        <Button x:Name="ErrorDismissButton" Content="Dismiss" Margin="0" ToolTip="Hide this message (it is kept in the log)."/>
+                    </StackPanel>
+                    <TextBlock x:Name="ErrorText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+        </StackPanel>
 
         <!-- Body -->
         <Grid Grid.Row="2">
@@ -66,77 +86,77 @@
 
             <!-- Left navigation -->
             <Border Grid.Column="0" Background="{StaticResource BrushSidebar}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,1,0" Padding="0,10">
-                <ListBox x:Name="NavList" ItemContainerStyle="{StaticResource NavItem}" KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBoxItem Tag="Dashboard" ToolTip="Health checks and anti-cheat readiness (read-only)">
+                <ListBox x:Name="NavList" ItemContainerStyle="{StaticResource NavItem}" KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="False" AutomationProperties.Name="Navigation">
+                    <ListBoxItem Tag="Dashboard" AutomationProperties.Name="Dashboard" ToolTip="Health checks and anti-cheat readiness (read-only)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE80F;" Margin="0,0,12,0"/><TextBlock Text="Dashboard"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Presets" ToolTip="Competitive, Balanced and Hardened presets">
+                    <ListBoxItem Tag="Presets" AutomationProperties.Name="Presets" ToolTip="Competitive, Balanced and Hardened presets">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8FD;" Margin="0,0,12,0"/><TextBlock Text="Presets"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Power &amp; CPU" ToolTip="Power plans, USB/PCIe power, scheduler">
+                    <ListBoxItem Tag="Power &amp; CPU" AutomationProperties.Name="Power &amp; CPU" ToolTip="Power plans, USB/PCIe power, scheduler">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7E8;" Margin="0,0,12,0"/><TextBlock Text="Power &amp; CPU"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Graphics &amp; Display" ToolTip="Game Mode, capture, presentation, HAGS">
+                    <ListBoxItem Tag="Graphics &amp; Display" AutomationProperties.Name="Graphics &amp; Display" ToolTip="Game Mode, capture, presentation, HAGS">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7F4;" Margin="0,0,12,0"/><TextBlock Text="Graphics &amp; Display"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Input" ToolTip="Mouse acceleration, accessibility hotkeys, key repeat">
+                    <ListBoxItem Tag="Input" AutomationProperties.Name="Input" ToolTip="Mouse acceleration, accessibility hotkeys, key repeat">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE765;" Margin="0,0,12,0"/><TextBlock Text="Input"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Network" ToolTip="Wired adapter, TCP/IP, QoS, DNS">
+                    <ListBoxItem Tag="Network" AutomationProperties.Name="Network" ToolTip="Wired adapter, TCP/IP, QoS, DNS">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE839;" Margin="0,0,12,0"/><TextBlock Text="Network"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Background &amp; Privacy" ToolTip="Telemetry, suggestions, Windows Update behavior, services">
+                    <ListBoxItem Tag="Background &amp; Privacy" AutomationProperties.Name="Background &amp; Privacy" ToolTip="Telemetry, suggestions, Windows Update behavior, services">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72E;" Margin="0,0,12,0"/><TextBlock Text="Background &amp; Privacy"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Security" ToolTip="VBS/HVCI, Defender, firewall and hardening items; the ASR Center and the Defender settings are part of Security">
+                    <ListBoxItem Tag="Security" AutomationProperties.Name="Security" ToolTip="VBS/HVCI, Defender, firewall and hardening items; the ASR Center and the Defender settings are part of Security">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Margin="0,0,12,0"/><TextBlock Text="Security"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Asr" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
+                    <ListBoxItem Tag="Asr" AutomationProperties.Name="Asr" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="ASR Center" FontSize="12.5"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
+                    <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="12.5"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="System" ToolTip="Page file, crash dumps and boot diagnostics">
+                    <ListBoxItem Tag="System" AutomationProperties.Name="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
+                    <ListBoxItem Tag="Risk Zone" AutomationProperties.Name="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{StaticResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{StaticResource BrushDanger}"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
+                    <ListBoxItem Tag="Inspect" AutomationProperties.Name="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,12,0"/><TextBlock Text="Expert Inspectors"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Manage" ToolTip="Services, scheduled tasks, apps, the persistence inspector and the firewall rule browser">
+                    <ListBoxItem Tag="Manage" AutomationProperties.Name="Manage" ToolTip="Services, scheduled tasks, apps, the persistence inspector and the firewall rule browser">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE912;" Margin="0,0,12,0"/><TextBlock Text="Manage"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Toolkit" ToolTip="Install apps with winget, Windows features, previewed repair fixes, classic panels and Windows Update options (inspired by WinUtil)">
+                    <ListBoxItem Tag="Toolkit" AutomationProperties.Name="Toolkit" ToolTip="Install apps with winget, Windows features, previewed repair fixes, classic panels and Windows Update options (inspired by WinUtil)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE90F;" Margin="0,0,12,0"/><TextBlock Text="Toolkit"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Diagnostics" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
+                    <ListBoxItem Tag="Diagnostics" AutomationProperties.Name="Diagnostics" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D2;" Margin="0,0,12,0"/><TextBlock Text="Diagnostics &amp; Network"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="NetTest" ToolTip="Measure latency, jitter, packet loss and stability, detect your connection type and get the best network adjustments">
+                    <ListBoxItem Tag="NetTest" AutomationProperties.Name="NetTest" ToolTip="Measure latency, jitter, packet loss and stability, detect your connection type and get the best network adjustments">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE701;" Margin="0,0,12,0"/><TextBlock Text="Network Test"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Cleaner" ToolTip="Scan, then clean temp files, caches and logs with allow-list rules">
+                    <ListBoxItem Tag="Cleaner" AutomationProperties.Name="Cleaner" ToolTip="Scan, then clean temp files, caches and logs with allow-list rules">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" Margin="0,0,12,0"/><TextBlock Text="Cleaner"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Storage" ToolTip="Windows Storage Sense policies (automatic cleanup by Windows itself)">
+                    <ListBoxItem Tag="Storage" AutomationProperties.Name="Storage" ToolTip="Windows Storage Sense policies (automatic cleanup by Windows itself)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEDA2;" Margin="0,0,12,0"/><TextBlock Text="Storage Sense"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Disk" ToolTip="Largest folders and files on a drive (read-only)">
+                    <ListBoxItem Tag="Disk" AutomationProperties.Name="Disk" ToolTip="Largest folders and files on a drive (read-only)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" Margin="0,0,12,0"/><TextBlock Text="Disk Analyzer"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Startup" ToolTip="Programs that start with Windows (StartupApproved, never deleted)">
+                    <ListBoxItem Tag="Startup" AutomationProperties.Name="Startup" ToolTip="Programs that start with Windows (StartupApproved, never deleted)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" Margin="0,0,12,0"/><TextBlock Text="Startup Apps"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Backups" ToolTip="Snapshots, revert and logs">
+                    <ListBoxItem Tag="Backups" AutomationProperties.Name="Backups" ToolTip="Snapshots, revert and logs">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE81C;" Margin="0,0,12,0"/><TextBlock Text="Backups &amp; Logs"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Rejected" ToolTip="Popular tweaks iG Windows Tuner deliberately does not implement, and why">
+                    <ListBoxItem Tag="Rejected" AutomationProperties.Name="Rejected" ToolTip="Popular tweaks iG Windows Tuner deliberately does not implement, and why">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE711;" Margin="0,0,12,0"/><TextBlock Text="Rejected Tweaks"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="About" ToolTip="What iG Windows Tuner does and does not do">
+                    <ListBoxItem Tag="About" AutomationProperties.Name="About" ToolTip="What iG Windows Tuner does and does not do">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,0,12,0"/><TextBlock Text="About"/></StackPanel>
                     </ListBoxItem>
                 </ListBox>

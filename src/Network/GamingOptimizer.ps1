@@ -117,6 +117,7 @@ function Invoke-IgwtGamingNetworkOptimization {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([ValidateSet('Quick', 'Standard', 'Extended')][string]$Duration = 'Standard', [string[]]$Target, [switch]$RouterHonorsDscp, [switch]$PlanOnly,
         [switch]$SkipRestorePoint, [switch]$AcknowledgeManaged, [ValidateRange(5, 120)][int]$ConnectivityTimeoutSec = 60, $Context)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtGamingNetworkOptimization'
     if (-not $Context) { $Context = New-IgwtContext }
     Send-IgwtProgress -Text 'Measuring the connection before changes...' -Percent 0
     $before = Invoke-IgwtNetworkQualityTest -Duration $Duration -Target $Target

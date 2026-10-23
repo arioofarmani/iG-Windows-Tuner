@@ -134,6 +134,7 @@ function Backup-IgwtLocalGpo {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string]$Reason = 'before a Group Policy change')
+    Assert-IgwtWritable -Operation 'Backup-IgwtLocalGpo'
     $dest = Join-Path (Get-IgwtDataPath -Kind Backups) ("gpo-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
     if (-not $PSCmdlet.ShouldProcess($dest, 'Back up the Local Group Policy')) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
@@ -165,6 +166,7 @@ function Restore-IgwtLocalGpo {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath, [switch]$NoRefresh)
+    Assert-IgwtWritable -Operation 'Restore-IgwtLocalGpo'
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not a Group Policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf
@@ -210,6 +212,7 @@ function Reset-IgwtLocalGpo {
     <# .SYNOPSIS Resets Local Group Policy to its default (no local policies), after a backup; revert with Restore-IgwtLocalGpo. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([switch]$NoRefresh)
+    Assert-IgwtWritable -Operation 'Reset-IgwtLocalGpo'
     if (-not $PSCmdlet.ShouldProcess('Local Group Policy', 'Reset to default (backup first)')) { return $null }
     $backup = Backup-IgwtLocalGpo -Reason 'before a reset of the Local Group Policy'
     foreach ($r in @((Get-IgwtGpoRoot), (Get-IgwtGpoRoot -Users))) {
@@ -225,6 +228,7 @@ function Invoke-IgwtGpUpdate {
     <# .SYNOPSIS Targeted policy refresh (gpupdate /target:computer|user /force). Refuses to run in TestMode (tests mock it). #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][ValidateSet('Machine', 'User', 'Both')][string]$Target)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtGpUpdate'
     if ($script:IgwtSettings.TestMode) { throw 'TestMode safety: gpupdate must be mocked in tests.' }
     $exe = Join-Path $env:SystemRoot 'System32\gpupdate.exe'
     $targets = $(if ($Target -eq 'Both') { @('Computer', 'User') } elseif ($Target -eq 'Machine') { @('Computer') } else { @('User') })

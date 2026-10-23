@@ -401,6 +401,7 @@ function Convert-IgwtDataToV2 {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string]$DataFolder)
+    Assert-IgwtWritable -Operation 'Convert-IgwtDataToV2'
     if (-not $DataFolder) { $DataFolder = Get-IgwtDataFolder }
     $idMap = Get-IgwtIdMap -DataFolder $DataFolder
     foreach ($sub in 'tweaks', 'presets', 'cleaner') {
@@ -436,6 +437,7 @@ function Convert-IgwtSnapshotToV2 {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Destination)
+    Assert-IgwtWritable -Operation 'Convert-IgwtSnapshotToV2'
     $src = (Resolve-Path -LiteralPath $Path).ProviderPath
     if (-not (Test-Path -LiteralPath $Destination)) { if ($PSCmdlet.ShouldProcess($Destination, 'Create folder')) { $null = New-Item -ItemType Directory -Path $Destination -Force } }
     $dest = Join-Path (Resolve-Path -LiteralPath $Destination).ProviderPath (Split-Path $src -Leaf)

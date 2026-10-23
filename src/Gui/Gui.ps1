@@ -8,7 +8,7 @@ $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
     'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
-    'Banner', 'BannerText', 'NavList', 'DetailsColumn', 'DetailsPane',
+    'Banner', 'BannerText', 'NavList', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
@@ -224,6 +224,75 @@ function Open-IgwtGuiPath {
     }
 }
 
+function Show-IgwtGuiError {
+    <# .SYNOPSIS Error boundary: shows an error inline (with Copy details) instead of closing the window, and logs it. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Message, [string]$Details = '', [string]$Context = 'GUI')
+    $script:Gui.LastErrorDetails = "$Context`r`n$Message`r`n$Details"
+    try {
+        $c = $script:Gui.C
+        $c.ErrorText.Text = "Something went wrong ($Context): $Message The window stays open; copy the details if it happens again."
+        $c.ErrorBar.Visibility = 'Visible'
+    } catch { Write-Verbose "Error bar unavailable: $($_.Exception.Message)" }
+    try { Write-IgwtLog -Level Error -Message "GUI error ($Context): $Message" } catch { Write-Verbose 'Logging failed.' }
+    Write-IgwtGuiDiagnostic -Kind 'exception' -Text "$Context | $Message | $Details"
+}
+
+function Write-IgwtGuiDiagnostic {
+    <# .SYNOPSIS Appends a line to the diagnostics folder (-DiagnosticsPath; the UI test harness reads it). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes the diagnostics log the user asked for only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Kind, [string]$Text)
+    if (-not $script:Gui -or -not $script:Gui.DiagnosticsPath) { return }
+    try { [System.IO.File]::AppendAllText((Join-Path $script:Gui.DiagnosticsPath "$Kind.log"), ("{0:o}`t{1}`r`n" -f (Get-Date), $Text)) } catch { Write-Verbose "Diagnostics write failed: $($_.Exception.Message)" }
+}
+
+function Initialize-IgwtGuiDiagnostics {
+    <#
+    .SYNOPSIS
+        Error boundary for the whole window, plus the diagnostics the UI test harness reads with
+        -DiagnosticsPath: WPF binding errors, exceptions and UI-thread stalls longer than 200 ms.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Hooks window events and writes the diagnostics log the user asked for only.')]
+    [CmdletBinding()]
+    param([string]$Path)
+    $script:Gui.Window.Dispatcher.Add_UnhandledException({
+            param($eventSource, $e)
+            $null = $eventSource
+            $e.Handled = $true
+            $ex = $e.Exception
+            while ($ex.InnerException -and $ex -is [System.Management.Automation.MethodInvocationException]) { $ex = $ex.InnerException }
+            Show-IgwtGuiError -Message $ex.Message -Details ([string]$e.Exception) -Context 'window'
+        })
+    [System.AppDomain]::CurrentDomain.Add_UnhandledException({
+            param($eventSource, $e)
+            $null = $eventSource
+            Write-IgwtGuiDiagnostic -Kind 'exception' -Text "AppDomain | $([string]$e.ExceptionObject)"
+        })
+    if (-not $Path) { return }
+    if (-not (Test-Path -LiteralPath $Path)) { $null = New-Item -ItemType Directory -Path $Path -Force }
+    $script:Gui.DiagnosticsPath = (Resolve-Path -LiteralPath $Path).ProviderPath
+    [System.Diagnostics.Trace]::AutoFlush = $true
+    [System.Diagnostics.PresentationTraceSources]::Refresh()
+    $listener = New-Object System.Diagnostics.TextWriterTraceListener((Join-Path $script:Gui.DiagnosticsPath 'binding.log'))
+    $null = [System.Diagnostics.PresentationTraceSources]::DataBindingSource.Listeners.Add($listener)
+    [System.Diagnostics.PresentationTraceSources]::DataBindingSource.Switch.Level = [System.Diagnostics.SourceLevels]::Warning
+    $script:Gui.BindingListener = $listener
+    # Stall monitor: a 100 ms timer on the UI thread; a late tick means the thread was blocked.
+    $script:Gui.StallWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $stall = New-Object System.Windows.Threading.DispatcherTimer
+    $stall.Interval = [TimeSpan]::FromMilliseconds(100)
+    $stall.Add_Tick({
+            $ms = $script:Gui.StallWatch.Elapsed.TotalMilliseconds
+            $script:Gui.StallWatch.Restart()
+            if ($ms -gt 300) { Write-IgwtGuiDiagnostic -Kind 'stall' -Text ("{0:n0} ms blocked (page {1})" -f ($ms - 100), [string]$script:Gui.CurrentPage) }
+        })
+    $stall.Start()
+    $script:Gui.StallTimer = $stall
+    $script:Gui.Window.Add_ContentRendered({ Write-IgwtGuiDiagnostic -Kind 'ready' -Text "pid $PID read-only $([bool]$script:Gui.ReadOnly)" })
+}
+
 #endregion
 
 #region Background worker
@@ -323,7 +392,7 @@ function Update-IgwtGuiFromData {
     param([Parameter(Mandatory = $true)]$Data)
     $c = $script:Gui.C
     $script:Gui.Data = $Data
-    $script:Gui.IsAdmin = [bool]$Data.IsAdmin
+    $script:Gui.IsAdmin = ([bool]$Data.IsAdmin -and -not $script:Gui.ReadOnly)
     if ($Data.Summary) { $c.HeaderSummary.Text = [string]$Data.Summary.Text }
     $os = $Data.Preflight.Os
     $dg = $Data.AntiCheat.Requirements
@@ -2498,6 +2567,15 @@ function Show-IgwtGuiPage {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Page)
     $c = $script:Gui.C
+    $script:Gui.CurrentPage = $Page
+    if ($script:Gui.DiagnosticsPath -and $script:Gui.Window) {
+        # Page switch time: from the click to the next idle UI thread (the page is laid out and painted).
+        $script:Gui.PageWatch = @{ Page = $Page; Watch = [System.Diagnostics.Stopwatch]::StartNew() }
+        $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::ApplicationIdle, [Action] {
+                $pw = $script:Gui.PageWatch
+                if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
+            })
+    }
     foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
@@ -2546,7 +2624,7 @@ function Save-IgwtGuiScreenshots {
     Update-IgwtGuiDiskLists -Usage (Get-IgwtDiskUsage -Path $script:IgwtProjectRoot -Top 12)
     # Read-only data for the expert inspectors.
     try { Set-IgwtGuiInspection -Inspection (Get-IgwtInspection); if (@($script:Gui.C.InspectPowerList.ItemsSource).Count) { $script:Gui.C.InspectPowerList.SelectedIndex = 0 } }
-    catch { Write-Verbose "Inspector data unavailable for screenshots: $($_.Exception.Message)" }
+    catch { Write-Warning "Inspector data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Read-only data for the Manage and Diagnostics pages (no network tests).
     try {
         $script:Gui.Manage = Get-IgwtGuiManageData; Update-IgwtGuiManageLists
@@ -2557,20 +2635,20 @@ function Save-IgwtGuiScreenshots {
         $script:Gui.Toolkit = Get-IgwtGuiToolkitData; Update-IgwtGuiToolkitLists
         if (@($script:Gui.C.ToolkitAppList.ItemsSource).Count) { $script:Gui.C.ToolkitAppList.SelectedIndex = 0 }
         Update-IgwtGuiToolkitDetail
-    } catch { Write-Verbose "Manage/diagnostics data unavailable for screenshots: $($_.Exception.Message)" }
+    } catch { Write-Warning "Manage/diagnostics data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Optional: a quick network test (pings and DNS queries only) so the Network Test page shows data.
-    if ($WithNetworkTest) { try { Set-IgwtGuiNetResult -Result (Invoke-IgwtNetworkQualityTest -Duration Quick) } catch { Write-Verbose "Network test unavailable for screenshots: $($_.Exception.Message)" } }
+    if ($WithNetworkTest) { try { Set-IgwtGuiNetResult -Result (Invoke-IgwtNetworkQualityTest -Duration Quick) } catch { Write-Warning "Network test unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" } }
     # Read-only data for the ASR Center (status and the Defender event log).
     try {
         Set-IgwtGuiAsrStatus -Status (Get-IgwtAsrStatus)
         Set-IgwtGuiAsrAudit -Audit (Get-IgwtAsrAudit -Days 14)
         if (@($script:Gui.C.AsrList.ItemsSource).Count) { $script:Gui.C.AsrList.SelectedIndex = 0 }
-    } catch { Write-Verbose "ASR data unavailable for screenshots: $($_.Exception.Message)" }
+    } catch { Write-Warning "ASR data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Read-only data for the Defender settings page.
     try {
         Set-IgwtGuiDefenderData -Settings @(Get-IgwtDefenderSettings)
         if (@($script:Gui.C.DefList.ItemsSource).Count) { $script:Gui.C.DefList.SelectedIndex = 0 }
-    } catch { Write-Verbose "Defender settings unavailable for screenshots: $($_.Exception.Message)" }
+    } catch { Write-Warning "Defender settings unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     $root = $script:Gui.Window.Content
     # Copy the window resources (theme) onto the root so implicit styles still resolve after detaching.
     $rd = New-Object System.Windows.ResourceDictionary
@@ -2622,19 +2700,29 @@ function Show-IgwtGui {
         With -RenderTo: layout scale factor to emulate 125% / 150% display scaling.
     .PARAMETER WithNetworkTest
         With -RenderTo: run a quick network test (pings and DNS queries only) so the Network Test page shows data.
+    .PARAMETER ReadOnly
+        Read-only mode: every apply, revert, clean, install, delete and change path is disabled in
+        the engine (including the background worker) and a "Read-only mode" banner is shown.
+    .PARAMETER DiagnosticsPath
+        Folder for the UI test harness: binding errors, exceptions, UI-thread stalls and a ready marker.
     #>
     [CmdletBinding()]
-    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0, [switch]$WithNetworkTest)
+    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0, [switch]$WithNetworkTest, [switch]$ReadOnly, [string]$DiagnosticsPath)
+    if ($ReadOnly) { Set-IgwtEnvironment -ReadOnly }
     if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
         if (-not $ScriptPath) { throw 'WPF requires an STA thread. Start PowerShell with -STA.' }
-        Start-Process -FilePath (Get-IgwtHostExecutable) -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"{0}"' -f $ScriptPath))
+        $relaunch = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"{0}"' -f $ScriptPath))
+        if (Test-IgwtReadOnly) { $relaunch += '-ReadOnly' }
+        Start-Process -FilePath (Get-IgwtHostExecutable) -ArgumentList $relaunch
         return
     }
+    $readOnlyMode = Test-IgwtReadOnly
     Import-IgwtWpf
     $window = New-IgwtMainWindow
     $script:Gui = @{
         Window = $window; C = @{}; Data = $null; Staged = @{}; Category = $null; Job = $null; PresetOperation = $null
-        Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = (Test-IgwtIsAdmin)
+        Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = ((Test-IgwtIsAdmin) -and -not $readOnlyMode); ReadOnly = $readOnlyMode
+        DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
         Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null
@@ -2653,8 +2741,18 @@ function Show-IgwtGui {
                 Availability = $(if ($_.riskItem) { "Available in the Risk Zone at your own risk: $($_.riskItem)" } else { [string]$_.unavailable })
                 AvailabilityBrush = $(if ($_.riskItem) { $script:IgwtColor.Warn } else { $script:IgwtColor.Muted }) }
         })
-    $c.AdminText.Text = $(if ($script:Gui.IsAdmin) { 'Administrator' } else { 'Read-only (not elevated)' })
-    $c.ElevateButton.Visibility = $(if ($script:Gui.IsAdmin) { 'Collapsed' } else { 'Visible' })
+    $c.AdminText.Text = $(if ($script:Gui.ReadOnly) { 'Read-only mode' } elseif ($script:Gui.IsAdmin) { 'Administrator' } else { 'Read-only (not elevated)' })
+    $c.ElevateButton.Visibility = $(if ($script:Gui.IsAdmin -or $script:Gui.ReadOnly) { 'Collapsed' } else { 'Visible' })
+    if ($script:Gui.ReadOnly) {
+        $c.ReadOnlyBannerText.Text = 'Read-only mode: you can browse, sort, filter, preview and export. Apply, revert, clean, install, delete and every other change are turned off (started with -ReadOnly).'
+        $c.ReadOnlyBanner.Visibility = 'Visible'
+    } elseif (-not $script:Gui.IsAdmin) {
+        $c.ReadOnlyBannerText.Text = 'Not running as administrator: you can browse, preview and export, and clean your own temp files. Use "Restart as administrator" to apply, revert or change settings.'
+        $c.ReadOnlyBanner.Visibility = 'Visible'
+    }
+    $c.ErrorDismissButton.Add_Click({ $script:Gui.C.ErrorBar.Visibility = 'Collapsed' })
+    $c.ErrorCopyButton.Add_Click({ try { [System.Windows.Clipboard]::SetText([string]$script:Gui.LastErrorDetails); Set-IgwtGuiStatus 'Error details copied.' } catch { Set-IgwtGuiStatus 'The clipboard is not available.' } })
+    Initialize-IgwtGuiDiagnostics -Path $DiagnosticsPath
     Update-IgwtGuiPresetCards
 
     # Persona

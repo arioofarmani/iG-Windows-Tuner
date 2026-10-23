@@ -368,6 +368,7 @@ function Set-IgwtSecurityPolicy {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][object[]]$Changes, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Set-IgwtSecurityPolicy'
     $before = Export-IgwtSecurityPolicy
     $plan = Get-IgwtSecurityChangePlan -Changes $Changes -Current $before
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
@@ -408,6 +409,7 @@ function Restore-IgwtSecurityPolicy {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath)
+    Assert-IgwtWritable -Operation 'Restore-IgwtSecurityPolicy'
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not a security policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf

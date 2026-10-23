@@ -192,6 +192,7 @@ function Invoke-IgwtGuiBatch {
         [string[]]$ApplyIds = @(), [string[]]$OffIds = @(), [string[]]$ResetIds = @(),
         [string]$Operation = 'Apply', [switch]$SkipRestorePoint, [switch]$EnableSystemProtection, [switch]$AcknowledgeRisk, [switch]$AcknowledgeManaged
     )
+    Assert-IgwtWritable -Operation 'Invoke-IgwtGuiBatch'
     if (-not $PSCmdlet.ShouldProcess('staged changes', 'Apply')) { return $null }
     $results = New-Object System.Collections.Generic.List[object]
     $snapshots = New-Object System.Collections.Generic.List[string]

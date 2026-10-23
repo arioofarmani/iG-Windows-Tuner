@@ -173,6 +173,7 @@ function Save-IgwtCustomPreset {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Name, [string]$BasedOn = 'balanced', [string[]]$AddIds = @(), [string[]]$RemoveIds = @(), [string]$Description, [switch]$Force)
+    Assert-IgwtWritable -Operation 'Save-IgwtCustomPreset'
     $base = Get-IgwtPreset -Name $BasedOn
     if ($base.PSObject.Properties['session'] -and $base.session) { throw 'Session Mode is temporary and cannot be the base of a custom preset.' }
     $add = @($AddIds | Where-Object { $_ } | ForEach-Object { [string]$_ })
@@ -187,6 +188,7 @@ function Copy-IgwtPreset {
     <# .SYNOPSIS Duplicates a preset (built-in or custom) as a new custom preset. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)][string]$NewName)
+    Assert-IgwtWritable -Operation 'Copy-IgwtPreset'
     return (Save-IgwtCustomPreset -Name $NewName -BasedOn $Name -WhatIf:$WhatIfPreference)
 }
 
@@ -194,6 +196,7 @@ function Remove-IgwtCustomPreset {
     <# .SYNOPSIS Deletes a custom preset file (built-in presets cannot be removed). #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Name)
+    Assert-IgwtWritable -Operation 'Remove-IgwtCustomPreset'
     $p = Get-IgwtPreset -Name $Name
     if (-not ($p.PSObject.Properties['custom'] -and $p.custom)) { throw "'$($p.name)' is a built-in preset and cannot be removed." }
     if ($PSCmdlet.ShouldProcess([string]$p.sourceFile, 'Delete custom preset')) {
@@ -229,6 +232,7 @@ function Import-IgwtPreset {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Path, [string]$Name, [switch]$Force)
+    Assert-IgwtWritable -Operation 'Import-IgwtPreset'
     $doc = Read-IgwtJsonFile -Path $Path
     if (-not $doc.PSObject.Properties['sha256'] -or -not $doc.sha256) { throw "'$Path' has no SHA256 integrity field; only presets exported by iG Windows Tuner can be imported." }
     if ((Get-IgwtPresetHash -Preset $doc) -ne [string]$doc.sha256) { throw "The preset in '$Path' does not match its SHA256 field; the file was changed or damaged." }
@@ -308,6 +312,7 @@ function Save-IgwtDriftAsPreset {
     <# .SYNOPSIS "Adopt as custom": saves the preset minus its drifted items as a custom preset. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Name, [string]$Preset, [switch]$Force)
+    Assert-IgwtWritable -Operation 'Save-IgwtDriftAsPreset'
     $d = Get-IgwtPresetDrift -Preset $Preset
     if (-not $d.HasPreset) { throw $d.Message }
     return (Save-IgwtCustomPreset -Name $Name -BasedOn $d.Preset -RemoveIds @($d.Drifted | ForEach-Object { $_.Id }) -Description "Adopted from $($d.Name) on $((Get-Date).ToString('yyyy-MM-dd')): the $($d.Drifted.Count) item(s) you changed afterwards are left out." -Force:$Force -WhatIf:$WhatIfPreference)
@@ -399,6 +404,7 @@ function Close-IgwtSessionApps {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string[]]$Name)
+    Assert-IgwtWritable -Operation 'Close-IgwtSessionApps'
     $p = @(Get-IgwtPreset -Builtin | Where-Object { $_.PSObject.Properties['session'] -and $_.session }) | Select-Object -First 1
     $allowed = @($p.closeApps)
     $results = New-Object System.Collections.Generic.List[object]
@@ -429,6 +435,7 @@ function Start-IgwtSession {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string[]]$CloseApps = @(), [ValidateSet('gui', 'cli')][string]$Owner = 'cli', $Context, [scriptblock]$OnProgress)
+    Assert-IgwtWritable -Operation 'Start-IgwtSession'
     $st = Get-IgwtSessionState
     if ($st.Active) { throw "A session is already active (started $($st.Started.ToLocalTime().ToString('g'))). End it first$(if ($st.Stale) { "; $($st.Reason)" })." }
     if (-not $Context) { $Context = New-IgwtContext }
@@ -453,6 +460,7 @@ function Stop-IgwtSession {
     <# .SYNOPSIS Ends Session Mode: restores every setting from the session snapshot and removes the session record. #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([scriptblock]$OnProgress)
+    Assert-IgwtWritable -Operation 'Stop-IgwtSession'
     $st = Get-IgwtSessionState
     if (-not $st.Active) { return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none'; Message = 'No session is active.' } }
     if (-not $PSCmdlet.ShouldProcess('Session Mode', 'End and restore settings')) { return $null }

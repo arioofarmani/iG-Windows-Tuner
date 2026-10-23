@@ -489,6 +489,7 @@ function Invoke-IgwtAsrChange {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([hashtable]$RuleMode, [switch]$Recommended, [string[]]$AddExclusion, [string[]]$RemoveExclusion, [string]$ExclusionRule)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtAsrChange'
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'ASR changes need administrator rights.' }
         Initialize-IgwtDataRoot

@@ -189,6 +189,10 @@
     Show exactly what would change and change nothing.
 .PARAMETER NoGui
     Never start the GUI (prints help when no mode is given).
+.PARAMETER ReadOnly
+    Read-only mode for audits: every apply, revert, clean, install, delete and change path is
+    disabled in the engine (not only in the GUI), and the GUI shows a "Read-only mode" banner.
+    Commands that would change the PC stop with exit code 7. -DryRun plans still work.
 .PARAMETER SkipRestorePoint
     Do not create a System Restore point (the JSON snapshot is always written).
 .PARAMETER EnableSystemProtection
@@ -473,6 +477,7 @@ param(
     [string[]]$ResetDefault,
     [switch]$DryRun,
     [switch]$NoGui,
+    [switch]$ReadOnly,
     [switch]$SkipRestorePoint,
     [switch]$EnableSystemProtection,
     [switch]$AcknowledgeRisk,
@@ -552,6 +557,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Off
 Import-Module (Join-Path $PSScriptRoot 'src\iGWindowsTuner.psd1') -Force
+if ($ReadOnly) { Set-IgwtEnvironment -ReadOnly }
 
 function Write-IgwtCliLine {
     param([string]$Text, [ConsoleColor]$Color = [ConsoleColor]::Gray)
@@ -655,6 +661,10 @@ function Complete-IgwtCli {
 function Request-IgwtCliElevation {
     <# Relaunches this script elevated (normal UAC prompt) with the same parameters and exits with its code. #>
     param([System.Collections.IDictionary]$Bound)
+    if (Test-IgwtReadOnly) {
+        Write-IgwtCliLine 'Read-only mode: this command changes the PC and is disabled. Run it without -ReadOnly (use -DryRun to see the plan).' ([ConsoleColor]::Yellow)
+        exit 7
+    }
     Write-IgwtCliLine 'Administrator rights are required. Requesting elevation (UAC prompt)...' ([ConsoleColor]::Yellow)
     $pass = New-Object System.Collections.Generic.List[string]
     foreach ($k in $Bound.Keys) {
@@ -879,7 +889,7 @@ try {
     }
     if ($modes.Count -eq 0) {
         if ($NoGui) { Get-Help $PSCommandPath -Detailed | Out-String | Write-Output; exit 0 }
-        Show-IgwtGui -ScriptPath $PSCommandPath
+        Show-IgwtGui -ScriptPath $PSCommandPath -ReadOnly:$ReadOnly
         exit 0
     }
 
@@ -2087,6 +2097,7 @@ try {
     Complete-IgwtCli (Get-IgwtExitCode -Result $result)
 } catch {
     $msg = $_.Exception.Message
+    if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); exit 7 }
     Write-IgwtCliLine "Error: $msg" ([ConsoleColor]::Red)
     try { Write-IgwtLog -Level Error -Message "CLI error: $msg" } catch { Write-Verbose 'Logging failed.' }
     if ($msg -match 'System Protection is off|older than') { Complete-IgwtCli 4 }

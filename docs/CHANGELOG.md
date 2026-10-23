@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 3.3.0 (unreleased)
+
+Quality release: a rebuilt, calmer interface, a professional Firewall Manager, sorting and filtering everywhere, and a read-only mode for audits.
+
+### Added
+
+- **Read-only mode** (`-ReadOnly`, GUI and CLI): every apply, revert, clean, install, delete and change path is turned off in the engine itself (also in the GUI's background worker), and the window shows a "Read-only mode" banner. Commands that would change the PC stop with exit code 7.
+- **Error boundary**: an error inside the window now shows an inline message with "Copy details" instead of closing the app.
+- **UI test suites**: an offscreen render suite with mocked data (every page, every theme, 100/150/200 %) and a UI Automation suite that drives the real GUI in read-only mode (exceptions, binding errors, UI-thread stalls, memory), plus `tools\Test-All.ps1`.
+- **UI audit** of every page: `docs\UI_AUDIT_3.3.md`.
 
 ### Every Defender, ASR and security setting
 
