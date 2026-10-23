@@ -10,6 +10,10 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Error boundary**: an error inside the window now shows an inline message with "Copy details" instead of closing the app.
 - **UI test suites**: an offscreen render suite with mocked data (every page, every theme, 100/150/200 %) and a UI Automation suite that drives the real GUI in read-only mode (exceptions, binding errors, UI-thread stalls, memory), plus `tools\Test-All.ps1`.
 - **UI audit** of every page: `docs\UI_AUDIT_3.3.md`.
+- **Design system and themes**: Dark, Light and High Contrast themes (System follows the Windows app mode and switches to High Contrast when Windows does, while the app runs). One set of colour, type, spacing and density tokens; text contrast is 4.5:1 or more in every theme and checked by tests. Body text is 14 px; text size can be set from 100 to 150 % and density to Comfortable or Compact (header > Display). The choices are remembered per Windows user (`%LOCALAPPDATA%\iGWindowsTuner\gui-state.json`).
+- **Title bar in the app theme** with its own minimize, maximize and close buttons (no more white title bar in the dark theme).
+- **Themed dialogs and toasts**: confirmations use the app theme instead of the Windows message box; results can appear as a toast with an Undo button.
+- New controls for every page: segmented control, filter chips, search boxes with a placeholder, a sortable data grid style with sort arrows, visible keyboard focus everywhere, and buttons that look disabled when they cannot be used.
 
 ### Every Defender, ASR and security setting
 

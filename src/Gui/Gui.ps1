@@ -8,7 +8,7 @@ $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
     'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
-    'Banner', 'BannerText', 'NavList', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
+    'Banner', 'BannerText', 'NavList', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
@@ -116,7 +116,8 @@ function Add-IgwtGuiLogLine {
 function Show-IgwtGuiMessage {
     [CmdletBinding()]
     param([string]$Text, [string]$Title = 'iG Windows Tuner', [string]$Buttons = 'OK', [string]$Icon = 'Information')
-    return [System.Windows.MessageBox]::Show($script:Gui.Window, $Text, $Title, [System.Windows.MessageBoxButton]$Buttons, [System.Windows.MessageBoxImage]$Icon)
+    if ($script:Gui -and $script:Gui.Window -and $script:Gui.Window.IsLoaded) { return (Show-IgwtGuiDialog -Text $Text -Title $Title -Buttons $Buttons -Icon $Icon) }
+    return [string][System.Windows.MessageBox]::Show($Text, $Title, [System.Windows.MessageBoxButton]$Buttons, [System.Windows.MessageBoxImage]$Icon)
 }
 
 function Show-IgwtGuiTextDialog {
@@ -291,6 +292,8 @@ function Initialize-IgwtGuiDiagnostics {
     $stall.Start()
     $script:Gui.StallTimer = $stall
     $script:Gui.Window.Add_ContentRendered({ Write-IgwtGuiDiagnostic -Kind 'ready' -Text "pid $PID read-only $([bool]$script:Gui.ReadOnly)" })
+    # Who closed the window (the harness expects it to stay open until it closes it itself).
+    $script:Gui.Window.Add_Closing({ Write-IgwtGuiDiagnostic -Kind 'close' -Text ("page '$($script:Gui.CurrentPage)'`n" + (Get-PSCallStack | Out-String) + [Environment]::StackTrace) })
 }
 
 #endregion
@@ -460,14 +463,13 @@ function Set-IgwtGuiTile {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Name, [string]$Value, [string]$Note, [ValidateSet('Pass', 'Warn', 'Fail', 'Info')][string]$Tone = 'Info')
     $c = $script:Gui.C
-    $soft = @{ Pass = '#FF173726'; Warn = '#FF3A3016'; Fail = '#FF3D1C21'; Info = '#FF16324A' }
-    $conv = New-Object System.Windows.Media.BrushConverter
+    $token = @{ Pass = 'Success'; Warn = 'Warning'; Fail = 'Danger'; Info = 'Info' }[$Tone]
     $c["Dash${Name}Value"].Text = $Value
     $c["Dash${Name}Note"].Text = $Note
-    $c["Dash${Name}Disc"].Background = $conv.ConvertFromString($soft[$Tone])
-    $c["Dash${Name}Icon"].Foreground = $conv.ConvertFromString($script:IgwtColor[$Tone])
+    $c["Dash${Name}Disc"].Background = Get-IgwtGuiBrush -Token "${token}Soft"
+    $c["Dash${Name}Icon"].Foreground = Get-IgwtGuiBrush -Token $token
     $tile = $c["DashTile$Name"]
-    $tile.BorderBrush = $(if ($Tone -in 'Warn', 'Fail') { $conv.ConvertFromString($script:IgwtColor[$Tone]) } else { $script:Gui.Window.FindResource('BrushBorder') })
+    $tile.BorderBrush = $(if ($Tone -in 'Warn', 'Fail') { Get-IgwtGuiBrush -Token $token } else { Get-IgwtGuiBrush -Token 'Border' })
 }
 
 function Update-IgwtGuiDashboard {
@@ -543,7 +545,7 @@ function Update-IgwtGuiDashboard {
             $i++
             $tone = $(if ($a.Level -eq 'Important') { 'Fail' } else { 'Warn' })
             [pscustomobject]@{ Number = $i; Title = $a.Title; Action = $a.Action; Level = $a.Level; Tip = $(if ($a.Tip) { $a.Tip } else { $a.Action })
-                Brush = $script:IgwtColor[$tone]; DiscBrush = $(if ($tone -eq 'Fail') { '#FF3D1C21' } else { '#FF3A3016' }); RowBrush = 'Transparent' }
+                Brush = $script:IgwtColor[$tone]; DiscBrush = $(if ($tone -eq 'Fail') { Get-IgwtGuiBrush -Token 'DangerSoft' } else { Get-IgwtGuiBrush -Token 'WarningSoft' }); RowBrush = 'Transparent' }
         })
     $c.DashAllClear.Visibility = $(if ($top.Count) { 'Collapsed' } else { 'Visible' })
     $more = $ordered.Count - $top.Count
@@ -2705,9 +2707,12 @@ function Show-IgwtGui {
         the engine (including the background worker) and a "Read-only mode" banner is shown.
     .PARAMETER DiagnosticsPath
         Folder for the UI test harness: binding errors, exceptions, UI-thread stalls and a ready marker.
+    .PARAMETER Theme
+        Dark, Light, HighContrast or System (follow Windows). Without it the saved choice is used.
     #>
     [CmdletBinding()]
-    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0, [switch]$WithNetworkTest, [switch]$ReadOnly, [string]$DiagnosticsPath)
+    param([string]$ScriptPath, [string]$RenderTo, [double]$Scale = 1.0, [switch]$WithNetworkTest, [switch]$ReadOnly, [string]$DiagnosticsPath,
+        [ValidateSet('System', 'Dark', 'Light', 'HighContrast')][string]$Theme)
     if ($ReadOnly) { Set-IgwtEnvironment -ReadOnly }
     if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
         if (-not $ScriptPath) { throw 'WPF requires an STA thread. Start PowerShell with -STA.' }
@@ -2722,7 +2727,7 @@ function Show-IgwtGui {
     $script:Gui = @{
         Window = $window; C = @{}; Data = $null; Staged = @{}; Category = $null; Job = $null; PresetOperation = $null
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = ((Test-IgwtIsAdmin) -and -not $readOnlyMode); ReadOnly = $readOnlyMode
-        DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''
+        DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''; NoStateSave = [bool]$RenderTo; ViewState = $(if ($RenderTo) { @{} } else { Read-IgwtGuiState }); ThemeChoice = 'System'; ReduceMotion = $false; HcHandler = $null
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
         Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null
@@ -2733,6 +2738,8 @@ function Show-IgwtGui {
         $script:Gui.C[$n] = $ctl
     }
     $c = $script:Gui.C
+    Initialize-IgwtGuiDisplay -Theme $Theme
+    Initialize-IgwtGuiChrome
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.RejectedList.ItemsSource = @(Get-IgwtRejectedTweaks | ForEach-Object {
@@ -3083,7 +3090,8 @@ function Show-IgwtGui {
         })
 
     if ($RenderTo) {
-        Save-IgwtGuiScreenshots -Folder $RenderTo -Scale $Scale -WithNetworkTest:$WithNetworkTest
+        try { Save-IgwtGuiScreenshots -Folder $RenderTo -Scale $Scale -WithNetworkTest:$WithNetworkTest }
+        finally { if ($script:Gui.HcHandler) { [System.Windows.SystemParameters]::remove_StaticPropertyChanged($script:Gui.HcHandler) } }
         return
     }
 
@@ -3107,10 +3115,13 @@ function Show-IgwtGui {
         })
     Update-IgwtGuiButtons
 
+    # Test harness: open without taking the keyboard focus from whoever uses the PC.
+    if ($env:IGWT_GUI_NOACTIVATE -eq '1') { $window.ShowActivated = $false }
     try {
         $null = $window.ShowDialog()
     } finally {
         $timer.Stop()
+        if ($script:Gui.HcHandler) { [System.Windows.SystemParameters]::remove_StaticPropertyChanged($script:Gui.HcHandler) }
         if ($script:Gui.Runspace) { try { $script:Gui.Runspace.Close(); $script:Gui.Runspace.Dispose() } catch { Write-Verbose 'Worker runspace already closed.' } }
     }
 }

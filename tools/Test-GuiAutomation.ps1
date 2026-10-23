@@ -15,12 +15,15 @@
     Navigation cycles for the memory check (default 20).
 .PARAMETER StartTimeoutSec
     Seconds to wait for the window (default 90).
+.PARAMETER Attempts
+    Runs again (up to this many runs in all) when someone using the PC closes the test window.
 #>
 [CmdletBinding()]
 param(
     [string]$OutDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\gui-automation'),
     [int]$Cycles = 20,
-    [int]$StartTimeoutSec = 90
+    [int]$StartTimeoutSec = 90,
+    [int]$Attempts = 3
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, WindowsBase
@@ -53,7 +56,8 @@ function Note([string]$Text) { $log.Add(("{0:HH:mm:ss.fff} {1}" -f (Get-Date), $
 $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $stateDir = Join-Path $OutDir 'state'
 $null = New-Item -ItemType Directory -Path $stateDir -Force
-$cmd = "`$env:IGWT_GUI_STATE_DIR = '$stateDir'; Import-Module '$root\src\iGWindowsTuner.psd1' -Force; Show-IgwtGui -ReadOnly -DiagnosticsPath '$diag' -ScriptPath '$root\iGWindowsTuner.ps1'"
+# IGWT_GUI_NOACTIVATE: the test window opens without taking the keyboard focus from whoever uses the PC.
+$cmd = "`$env:IGWT_GUI_NOACTIVATE = '1'; `$env:IGWT_GUI_STATE_DIR = '$stateDir'; Import-Module '$root\src\iGWindowsTuner.psd1' -Force; Show-IgwtGui -ReadOnly -DiagnosticsPath '$diag' -ScriptPath '$root\iGWindowsTuner.ps1'"
 $proc = Start-Process -FilePath $psExe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-Command', $cmd) -PassThru
 $report = [ordered]@{ Started = (Get-Date).ToString('o'); Pid = $proc.Id; ReadOnlyVerified = $false; Pages = @(); Tabs = 0; HeadersInvoked = 0; SearchBoxes = 0; Filters = 0; RowsSelected = 0; Resized = $false; Themes = @(); Errors = @() }
 $win = $null
@@ -173,6 +177,15 @@ $report.StallsOver200 = @($stalls | Where-Object { $_.Ms -gt 200 }).Count
 $report.PageSwitch = @($switches | Group-Object Page | ForEach-Object { [pscustomobject]@{ Page = $_.Name; Count = $_.Count; MaxMs = ($_.Group | Measure-Object Ms -Maximum).Maximum; MedianMs = @($_.Group | Sort-Object Ms)[[int][math]::Floor($_.Count / 2)].Ms } })
 $report.Log = $log.ToArray()
 $report.Finished = (Get-Date).ToString('o')
+# Someone using the PC closed the test window (a real mouse click on a button, logged by the
+# app in close.log): that is not an app failure, so run again.
+$closeLog = Join-Path $diag 'close.log'
+$report.ClosedByUser = (-not $report.StillRunning) -and (Test-Path -LiteralPath $closeLog) -and ((Get-Content -LiteralPath $closeLog -Raw) -match 'OnMouseLeftButtonUp')
+if ($report.ClosedByUser -and $Attempts -gt 1) {
+    Write-Output 'The test window was closed by a mouse click (someone is using this PC); running the suite again.'
+    & $PSCommandPath -OutDir $OutDir -Cycles $Cycles -StartTimeoutSec $StartTimeoutSec -Attempts ($Attempts - 1)
+    exit $LASTEXITCODE
+}
 $out = Join-Path $OutDir 'automation-report.json'
 [pscustomobject]$report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $out -Encoding UTF8
 Write-Output ("Read-only verified: {0}; pages {1}; tabs {2}; headers {3}; rows {4}; search {5}; filters {6}; resized {7}; themes {8}" -f $report.ReadOnlyVerified, @($report.Pages).Count, $report.Tabs, $report.HeadersInvoked, $report.RowsSelected, $report.SearchBoxes, $report.Filters, $report.Resized, (@($report.Themes) -join ','))

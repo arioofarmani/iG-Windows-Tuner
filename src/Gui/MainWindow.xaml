@@ -3,13 +3,18 @@
         Title="iG Windows Tuner" Width="1280" Height="820" MinWidth="1100" MinHeight="720"
         WindowStartupLocation="CenterScreen" Background="{DynamicResource BrushBackground}"
         UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display"
-        FontFamily="{DynamicResource FontUi}" FontSize="13">
+        FontFamily="{DynamicResource FontUi}" FontSize="{DynamicResource FontSizeBody}"
+        BorderBrush="{DynamicResource BrushBorderStrong}" BorderThickness="1">
+    <!-- Custom title bar in the app theme (the header is the caption area; no P/Invoke) -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="56" GlassFrameThickness="0" UseAeroCaptionButtons="False" ResizeBorderThickness="6" CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
     <Window.Resources>
         <ResourceDictionary>
             <!-- Theme.xaml is merged here by Gui.ps1 before the window is parsed. -->
         </ResourceDictionary>
     </Window.Resources>
-    <Grid TextElement.Foreground="{StaticResource BrushText}">
+    <Grid x:Name="RootGrid" TextElement.Foreground="{DynamicResource BrushText}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -19,24 +24,50 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="{StaticResource BrushSidebar}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Padding="18,12">
+        <Border Grid.Row="0" Background="{DynamicResource BrushSidebar}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,0,0,1" Padding="18,12">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource BrushAccentSoft}" Margin="0,0,12,0"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" FontSize="20" Foreground="{StaticResource BrushAccent}" HorizontalAlignment="Center"/></Border>
+                    <Border Width="38" Height="38" CornerRadius="10" Background="{DynamicResource BrushAccentSoft}" Margin="0,0,12,0"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" FontSize="20" Foreground="{DynamicResource BrushAccent}" HorizontalAlignment="Center"/></Border>
                     <StackPanel>
-                        <TextBlock Text="iG Windows Tuner" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="iG Windows Tuner" FontSize="{DynamicResource FontSizeTitleSmall}" FontWeight="SemiBold"/>
                         <TextBlock x:Name="HeaderVersion" Style="{StaticResource TextMuted}" Text="Gaming performance and security toolbox"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="10,-12,-18,0" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="CaptionMinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize"/>
+                    <Button x:Name="CaptionMaxButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximize" AutomationProperties.Name="Maximize"/>
+                    <Button x:Name="CaptionCloseButton" Style="{StaticResource CaptionCloseButton}" Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close"/>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="DisplayButton" Style="{StaticResource GhostButton}" ToolTip="Display: theme, text size, density and motion" AutomationProperties.Name="Display settings" Padding="8,6">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE790;"/>
+                    </Button>
+                    <Popup x:Name="DisplayPopup" PlacementTarget="{Binding ElementName=DisplayButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Style="{StaticResource PopupPanel}" Width="300">
+                            <StackPanel>
+                                <TextBlock Text="Display" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Theme" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="ThemeBox" Margin="0,0,0,10" AutomationProperties.Name="Theme" ToolTip="System follows the Windows app mode and high contrast."/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Text size" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="FontScaleBox" Margin="0,0,0,10" AutomationProperties.Name="Text size" ToolTip="Size of all text in the window (100 to 150 %)."/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Density" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="DensityBox" Margin="0,0,0,10" AutomationProperties.Name="Density" ToolTip="Compact shows more rows; Comfortable is easier to read."/>
+                                <DockPanel Margin="0,4,0,0">
+                                    <CheckBox x:Name="ReduceMotionBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Reduce motion" ToolTip="No transitions or moving elements. On automatically when Windows animation effects are off." VerticalAlignment="Center"/>
+                                    <TextBlock Text="Reduce motion" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Saved for this Windows user. Nothing on the PC changes." TextWrapping="Wrap" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                     <ComboBox x:Name="PersonaBox" Width="150" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Persona: changes the navigation order and which item levels are shown. Safety rules are the same for every persona."/>
-                    <Border x:Name="AcPill" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{StaticResource BrushSurfaceAlt}" ToolTip="Anti-cheat readiness (TPM, Secure Boot, VBS, HVCI, IOMMU). Open the Dashboard for details.">
+                    <Border x:Name="AcPill" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{DynamicResource BrushSurfaceAlt}" ToolTip="Anti-cheat readiness (TPM, Secure Boot, VBS, HVCI, IOMMU). Open the Dashboard for details.">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse x:Name="AcPillDot" Width="9" Height="9" Fill="{StaticResource BrushTextMuted}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <Ellipse x:Name="AcPillDot" Width="9" Height="9" Fill="{DynamicResource BrushTextMuted}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock x:Name="AcPillText" Text="Anti-cheat: checking..." VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
-                    <Border x:Name="AdminBadge" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{StaticResource BrushSurfaceAlt}">
+                    <Border x:Name="AdminBadge" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{DynamicResource BrushSurfaceAlt}">
                         <TextBlock x:Name="AdminText" Text="Read-only" VerticalAlignment="Center"/>
                     </Border>
                     <Button x:Name="ElevateButton" Content="Restart as administrator" ToolTip="Relaunch iG Windows Tuner elevated through the normal UAC prompt so changes can be applied." Margin="0"/>
@@ -50,23 +81,23 @@
 
         <StackPanel Grid.Row="1">
             <!-- Read-only mode (started with -ReadOnly, or not elevated) -->
-            <Border x:Name="ReadOnlyBanner" AutomationProperties.AutomationId="ReadOnlyBanner" AutomationProperties.Name="Read-only mode" Visibility="Collapsed" Background="{StaticResource BrushAccentSoft}" BorderBrush="{StaticResource BrushAccent}" BorderThickness="0,0,0,1" Padding="18,8">
+            <Border x:Name="ReadOnlyBanner" AutomationProperties.AutomationId="ReadOnlyBanner" AutomationProperties.Name="Read-only mode" Visibility="Collapsed" Background="{DynamicResource BrushAccentSoft}" BorderBrush="{DynamicResource BrushAccent}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE72E;" Foreground="{StaticResource BrushAccent}" Margin="0,0,10,0"/>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE72E;" Foreground="{DynamicResource BrushAccent}" Margin="0,0,10,0"/>
                     <TextBlock x:Name="ReadOnlyBannerText" Text="Read-only mode" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
             <!-- Persistent restart / information banner -->
-            <Border x:Name="Banner" Visibility="Collapsed" Background="{StaticResource BrushWarningSoft}" BorderBrush="{StaticResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
+            <Border x:Name="Banner" Visibility="Collapsed" Background="{DynamicResource BrushWarningSoft}" BorderBrush="{DynamicResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{StaticResource BrushWarning}" Margin="0,0,10,0"/>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{DynamicResource BrushWarning}" Margin="0,0,10,0"/>
                     <TextBlock x:Name="BannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
             <!-- Error boundary: an error inside the window shows here instead of closing it -->
-            <Border x:Name="ErrorBar" AutomationProperties.AutomationId="ErrorBar" Visibility="Collapsed" Background="{StaticResource BrushDangerSoft}" BorderBrush="{StaticResource BrushDanger}" BorderThickness="0,0,0,1" Padding="18,8">
+            <Border x:Name="ErrorBar" AutomationProperties.AutomationId="ErrorBar" Visibility="Collapsed" Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDanger}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA39;" Foreground="{StaticResource BrushDanger}" Margin="0,0,10,0"/>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA39;" Foreground="{DynamicResource BrushDanger}" Margin="0,0,10,0"/>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button x:Name="ErrorCopyButton" Content="Copy details" ToolTip="Copy the full error to the clipboard."/>
                         <Button x:Name="ErrorDismissButton" Content="Dismiss" Margin="0" ToolTip="Hide this message (it is kept in the log)."/>
@@ -85,7 +116,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left navigation -->
-            <Border Grid.Column="0" Background="{StaticResource BrushSidebar}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,1,0" Padding="0,10">
+            <Border Grid.Column="0" Background="{DynamicResource BrushSidebar}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,0,1,0" Padding="0,10">
                 <ListBox x:Name="NavList" ItemContainerStyle="{StaticResource NavItem}" KeyboardNavigation.TabNavigation="Once" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="False" AutomationProperties.Name="Navigation">
                     <ListBoxItem Tag="Dashboard" AutomationProperties.Name="Dashboard" ToolTip="Health checks and anti-cheat readiness (read-only)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE80F;" Margin="0,0,12,0"/><TextBlock Text="Dashboard"/></StackPanel>
@@ -112,16 +143,16 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Margin="0,0,12,0"/><TextBlock Text="Security"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Asr" AutomationProperties.Name="Asr" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
-                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="ASR Center" FontSize="12.5"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="ASR Center" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
-                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="12.5"/></StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="System" AutomationProperties.Name="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Risk Zone" AutomationProperties.Name="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{StaticResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{StaticResource BrushDanger}"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{DynamicResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{DynamicResource BrushDanger}"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Inspect" AutomationProperties.Name="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,12,0"/><TextBlock Text="Expert Inspectors"/></StackPanel>
@@ -175,7 +206,7 @@
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Style="{StaticResource TextTitle}" Text="Your PC at a glance"/>
-                                <TextBlock x:Name="DashSubtitle" Style="{StaticResource TextMuted}" FontSize="13" Text="Read-only. Press Refresh to read the live system."/>
+                                <TextBlock x:Name="DashSubtitle" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeBody}" Text="Read-only. Press Refresh to read the live system."/>
                             </StackPanel>
                         </DockPanel>
 
@@ -226,9 +257,9 @@
                         <Border Style="{StaticResource Card}" Padding="6,6">
                             <StackPanel>
                                 <StackPanel x:Name="DashAllClear" Orientation="Horizontal" Margin="12,10" Visibility="Collapsed">
-                                    <Border Style="{StaticResource IconDisc}" Background="{StaticResource BrushSuccessSoft}" Margin="0,0,12,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" Foreground="{StaticResource BrushSuccess}" HorizontalAlignment="Center"/></Border>
+                                    <Border Style="{StaticResource IconDisc}" Background="{DynamicResource BrushSuccessSoft}" Margin="0,0,12,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" Foreground="{DynamicResource BrushSuccess}" HorizontalAlignment="Center"/></Border>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Nothing needs your attention" FontSize="15" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Nothing needs your attention" FontSize="{DynamicResource FontSizeBodyLarge}" FontWeight="SemiBold"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="Every check passed. Open Presets to tune further."/>
                                     </StackPanel>
                                 </StackPanel>
@@ -246,11 +277,11 @@
                                                         <TextBlock Text="{Binding Number}" FontWeight="SemiBold" Foreground="{Binding Brush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                        <TextBlock Text="{Binding Action}" Foreground="{StaticResource BrushAccent}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource FontSizeBody}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Action}" Foreground="{DynamicResource BrushAccent}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                                     </StackPanel>
                                                     <Border Grid.Column="2" Style="{StaticResource Badge}" BorderBrush="{Binding Brush}" Margin="10,0,0,0" VerticalAlignment="Top">
-                                                        <TextBlock Text="{Binding Level}" FontSize="11" Foreground="{Binding Brush}"/>
+                                                        <TextBlock Text="{Binding Level}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding Brush}"/>
                                                     </Border>
                                                 </Grid>
                                             </Border>
@@ -302,14 +333,14 @@
                                 <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Margin="0,0,10,0"/><TextBlock Text="Security score" FontWeight="SemiBold"/><TextBlock x:Name="DashSecSummary" Style="{StaticResource TextMuted}" Margin="12,0,0,0" VerticalAlignment="Center"/></StackPanel>
                             </Expander.Header>
                             <StackPanel>
-                                <TextBlock x:Name="SecurityScoreText" FontSize="18" FontWeight="SemiBold" Text="Not read yet (press Refresh)."/>
+                                <TextBlock x:Name="SecurityScoreText" FontSize="{DynamicResource FontSizeTitleSmall}" FontWeight="SemiBold" Text="Not read yet (press Refresh)."/>
                                 <TextBlock Style="{StaticResource TextMuted}" Text="Weighted checklist of protections that matter on a gaming PC. Each open item names its fix: a catalog item, the ASR Center, Windows Security or the firmware setup." Margin="0,2,0,8"/>
                                 <ItemsControl x:Name="SecurityFixList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" Margin="0,3" ToolTip="{Binding Hint}">
                                                 <TextBlock Text="{Binding Status}" Foreground="{Binding Brush}" FontWeight="SemiBold" Width="56"/>
-                                                <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Value, Mode=OneWay}"/><Run Text="   "/><Run Text="{Binding Route, Mode=OneWay}" Foreground="{StaticResource BrushAccent}"/></TextBlock>
+                                                <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Value, Mode=OneWay}"/><Run Text="   "/><Run Text="{Binding Route, Mode=OneWay}" Foreground="{DynamicResource BrushAccent}"/></TextBlock>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -324,19 +355,19 @@
                             <ItemsControl x:Name="HealthList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <Border BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,0,0,1" Padding="0,8">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="70"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Style="{StaticResource Badge}" BorderBrush="{Binding Brush}" HorizontalAlignment="Left" VerticalAlignment="Top">
-                                                    <TextBlock Text="{Binding Status}" Foreground="{Binding Brush}" FontSize="11" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding Status}" Foreground="{Binding Brush}" FontSize="{DynamicResource FontSizeCaption}" FontWeight="SemiBold"/>
                                                 </Border>
                                                 <StackPanel Grid.Column="1">
-                                                    <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Value, Mode=OneWay}"/><Run Text="   "/><Run Text="{Binding Section, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/></TextBlock>
+                                                    <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Value, Mode=OneWay}"/><Run Text="   "/><Run Text="{Binding Section, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/></TextBlock>
                                                     <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}"/>
-                                                    <TextBlock Text="{Binding Advice}" Foreground="{StaticResource BrushAccent}" TextWrapping="Wrap" FontSize="12" Visibility="{Binding AdviceVisibility}"/>
+                                                    <TextBlock Text="{Binding Advice}" Foreground="{DynamicResource BrushAccent}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Visibility="{Binding AdviceVisibility}"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
@@ -356,8 +387,8 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{StaticResource BrushAccent}" Margin="0,0,6,6" ToolTip="{Binding Hint}">
-                                                <TextBlock FontSize="12"><Run Text="{Binding Name, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Id, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/></TextBlock>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{DynamicResource BrushAccent}" Margin="0,0,6,6" ToolTip="{Binding Hint}">
+                                                <TextBlock FontSize="{DynamicResource FontSizeCaption}"><Run Text="{Binding Name, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Id, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/></TextBlock>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -367,9 +398,9 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="0,4">
-                                                <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  ("/><Run Text="{Binding Tags, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/><Run Text=")"/></TextBlock>
+                                                <TextBlock TextWrapping="Wrap"><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  ("/><Run Text="{Binding Tags, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/><Run Text=")"/></TextBlock>
                                                 <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}"/>
-                                                <TextBlock Text="{Binding Guidance}" Foreground="{StaticResource BrushAccent}" TextWrapping="Wrap" FontSize="12"/>
+                                                <TextBlock Text="{Binding Guidance}" Foreground="{DynamicResource BrushAccent}" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -384,7 +415,7 @@
                             <ItemsControl x:Name="NvidiaList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock TextWrapping="Wrap" Margin="0,3"><Run Text="{Binding Item, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Advice, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/></TextBlock>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,3"><Run Text="{Binding Item, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Advice, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/></TextBlock>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -397,7 +428,7 @@
                             <ItemsControl x:Name="RecommendList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock TextWrapping="Wrap" Margin="0,3"><Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Text, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/></TextBlock>
+                                        <TextBlock TextWrapping="Wrap" Margin="0,3"><Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=": "/><Run Text="{Binding Text, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/></TextBlock>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -427,7 +458,7 @@
                                     <Button x:Name="SessionStopButton" Content="End session" Margin="0" ToolTip="Restore every setting from the session snapshot."/>
                                 </WrapPanel>
                                 <StackPanel>
-                                    <TextBlock Text="Session Mode (Tournament / LAN)" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Session Mode (Tournament / LAN)" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="SessionStatusText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,12,0"/>
                                 </StackPanel>
                             </DockPanel>
@@ -445,8 +476,8 @@
                                             <Button DockPanel.Dock="Bottom" Style="{StaticResource AccentButton}" Content="{Binding ButtonText}" Tag="{Binding Id}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Stage this preset's differences from your current state."/>
                                             <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource TextMuted}" Text="{Binding Summary}" Margin="0,8,0,0"/>
                                             <StackPanel>
-                                                <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Tagline}" Foreground="{StaticResource BrushAccent}" Margin="0,2,0,8"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource FontSizeTitleSmall}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Tagline}" Foreground="{DynamicResource BrushAccent}" Margin="0,2,0,8"/>
                                                 <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Description}"/>
                                             </StackPanel>
                                         </DockPanel>
@@ -490,8 +521,7 @@
                         <TextBlock x:Name="TweakPageSubtitle" Style="{StaticResource TextMuted}" Text="Toggles show the real current state. Toggling stages a change; nothing happens until you press Apply."/>
                     </StackPanel>
                     <WrapPanel Grid.Row="1" Margin="0,10,0,8" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" Margin="0,0,6,0"/>
-                        <TextBox x:Name="SearchBox" Width="220" Margin="0,0,14,0" ToolTip="Search names, hints and ids across all categories"/>
+                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search tweaks" AutomationProperties.Name="Search tweaks" Width="240" Margin="0,0,14,0" ToolTip="Search names, hints and ids across all categories"/>
                         <CheckBox x:Name="FilterTierA" Style="{StaticResource FilterCheck}" Content="Tier A" IsChecked="True" ToolTip="Documented by Microsoft/vendor"/>
                         <CheckBox x:Name="FilterTierB" Style="{StaticResource FilterCheck}" Content="Tier B" IsChecked="True" ToolTip="Situational: measure before/after"/>
                         <CheckBox x:Name="FilterRiskLow" Style="{StaticResource FilterCheck}" Content="Low risk" IsChecked="True" ToolTip="Show low-risk tweaks"/>
@@ -514,12 +544,12 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding TierBrush}"><TextBlock Text="{Binding TierText}" FontSize="11" Foreground="{Binding TierBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}" Visibility="{Binding LevelVisibility}" ToolTip="Experience level: Advanced items are for power users; Expert and Lab items need an explicit confirmation."><TextBlock Text="{Binding LevelText}" FontSize="11" Foreground="{Binding LevelBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding RiskBrush}"><TextBlock Text="{Binding RiskText}" FontSize="11" Foreground="{Binding RiskBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RestartVisibility}"><TextBlock Text="{Binding RestartText}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding AcBrush}"><TextBlock Text="{Binding AcText}" FontSize="11" Foreground="{Binding AcBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PendingVisibility}" Background="{StaticResource BrushAccentDark}"><TextBlock Text="{Binding PendingText}" FontSize="11"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding TierBrush}"><TextBlock Text="{Binding TierText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding TierBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}" Visibility="{Binding LevelVisibility}" ToolTip="Experience level: Advanced items are for power users; Expert and Lab items need an explicit confirmation."><TextBlock Text="{Binding LevelText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding LevelBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding RiskBrush}"><TextBlock Text="{Binding RiskText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding RiskBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RestartVisibility}"><TextBlock Text="{Binding RestartText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding AcBrush}"><TextBlock Text="{Binding AcText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding AcBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PendingVisibility}" Background="{DynamicResource BrushAccentDark}"><TextBlock Text="{Binding PendingText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
                                         </WrapPanel>
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding StateText}" Foreground="{Binding StateBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap" FontWeight="SemiBold" ToolTip="{Binding StateTip}"/>
@@ -570,7 +600,7 @@
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="1" Text="{Binding AcText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Grid.Column="2" Text="{Binding DcText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding StateText}" Foreground="{Binding StateBrush}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding StateText}" Foreground="{Binding StateBrush}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -609,9 +639,9 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding ModeText}" Foreground="{Binding ModeBrush}"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding SupportsText}" FontSize="11"/>
+                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding SupportsText}" FontSize="{DynamicResource FontSizeCaption}"/>
                                                 </StackPanel>
-                                                <TextBlock Grid.Column="2" Text="{Binding PolicyText}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding PolicyText}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -628,7 +658,7 @@
                                                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
                                                     <TextBlock Text="{Binding Rss}" Margin="0,4,0,0"/>
                                                     <TextBlock Text="{Binding Buffers}" Style="{StaticResource TextMuted}"/>
-                                                    <TextBlock Text="{Binding Advice}" Foreground="{StaticResource BrushAccent}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                    <TextBlock Text="{Binding Advice}" Foreground="{DynamicResource BrushAccent}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
@@ -652,13 +682,13 @@
                                                     <ColumnDefinition Width="110"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"><Run Text="{Binding Name, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Key, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}" FontWeight="Normal"/></TextBlock>
+                                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"><Run Text="{Binding Name, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Key, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}" FontWeight="Normal"/></TextBlock>
                                                     <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Meaning}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                                    <TextBlock Text="{Binding Link}" Foreground="{StaticResource BrushAccent}" FontSize="11"/>
+                                                    <TextBlock Text="{Binding Link}" Foreground="{DynamicResource BrushAccent}" FontSize="{DynamicResource FontSizeCaption}"/>
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding Current}" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding DefaultText}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding DefaultText}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="2" Text="{Binding Status}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                             </Grid>
@@ -669,7 +699,7 @@
                         </TabItem>
                         <TabItem Header="Timer &amp; crash" ToolTip="Timer resolution behaviour, crash dumps and page file">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="InspectCrashText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" ToolTip="Read-only summary of the timer, crash dump and page file configuration."/>
+                                <TextBox x:Name="InspectCrashText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" ToolTip="Read-only summary of the timer, crash dump and page file configuration."/>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
@@ -684,7 +714,7 @@
                     <StackPanel Grid.Row="0">
                         <DockPanel>
                             <Button x:Name="ManageRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read services, tasks, apps, persistence entries and firewall rules again (read-only)."/>
-                            <TextBox x:Name="ManageSearchBox" DockPanel.Dock="Right" Width="220" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab by name, path or program."/>
+                            <TextBox x:Name="ManageSearchBox" Style="{StaticResource SearchBox}" Tag="Filter this list" AutomationProperties.Name="Filter this list" DockPanel.Dock="Right" Width="240" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab by name, path or program."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Manage"/>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Every change here writes a snapshot first and can be reverted in Backups &amp; Logs. Protected services, tasks and apps (core Windows, security, update, audio, network, GPU drivers, anti-cheat) are refused. Nothing is ever deleted except inbox apps you remove on purpose."/>
@@ -826,7 +856,7 @@
                     <StackPanel Grid.Row="0">
                         <DockPanel>
                             <Button x:Name="ToolkitRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read the Toolkit lists and states again (read-only)."/>
-                            <TextBox x:Name="ToolkitSearchBox" DockPanel.Dock="Right" Width="220" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab."/>
+                            <TextBox x:Name="ToolkitSearchBox" Style="{StaticResource SearchBox}" Tag="Filter this list" AutomationProperties.Name="Filter this list" DockPanel.Dock="Right" Width="240" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Toolkit"/>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Inspired by Chris Titus Tech's WinUtil (MIT), re-implemented with documented sources: install apps with winget, turn Windows features on or off, run repair fixes after a preview, and open classic panels. Nothing is downloaded except the packages you pick. Feature changes write a snapshot first."/>
@@ -937,7 +967,7 @@
                     <TabControl x:Name="DiagTabs" Grid.Row="1" Margin="0,10,0,0" Background="Transparent" BorderThickness="0">
                         <TabItem Header="Overview" ToolTip="DPC and ISR time, reliability history, crashes and boot performance">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagOverviewText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" Text="Not read yet." ToolTip="DPC/ISR percentages, stability index, crash events, minidumps and boot times."/>
+                                <TextBox x:Name="DiagOverviewText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="DPC/ISR percentages, stability index, crash events, minidumps and boot times."/>
                             </ScrollViewer>
                         </TabItem>
                         <TabItem Header="Drivers" ToolTip="Non-Microsoft drivers with version, date and signer">
@@ -948,7 +978,7 @@
                         </TabItem>
                         <TabItem Header="Windows Update" ToolTip="Update services, pending restart, policies and history (read-only)">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagUpdateText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
+                                <TextBox x:Name="DiagUpdateText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
                             </ScrollViewer>
                         </TabItem>
                         <TabItem Header="Network tools" ToolTip="Adapter properties, DNS benchmark and latency/jitter/loss test">
@@ -960,7 +990,7 @@
                                             <TextBox x:Name="DiagLatencyBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" Text="1.1.1.1, 9.9.9.9" ToolTip="Host names or IP addresses, separated by commas (for example a game server you know)."/>
                                             <Button x:Name="DiagLatencyButton" Content="Measure latency" Margin="0" ToolTip="Send 20 echo requests to each target and show latency, jitter and loss. Changes nothing."/>
                                         </WrapPanel>
-                                        <TextBox x:Name="DiagNetText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,8,0,0" MaxHeight="160" VerticalScrollBarVisibility="Auto" ToolTip="Results of the DNS benchmark and latency test."/>
+                                        <TextBox x:Name="DiagNetText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,8,0,0" MaxHeight="160" VerticalScrollBarVisibility="Auto" ToolTip="Results of the DNS benchmark and latency test."/>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock x:Name="DiagAdapterSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Adapter properties: not read yet."/>
@@ -986,22 +1016,22 @@
                         <TextBlock x:Name="NetStatusText" Style="{StaticResource TextMuted}" Margin="0,8,0,0" Text="Not run yet."/>
                         <UniformGrid Columns="6" Margin="0,8,0,0">
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Overall grade: the weakest of latency, jitter, packet loss and stability.">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Grade"/><TextBlock x:Name="NetGradeText" FontSize="28" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Grade"/><TextBlock x:Name="NetGradeText" FontSize="{DynamicResource FontSizeTitleLarge}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Score from 0 to 100 and the estimated call quality (MOS, 1 to 4.5).">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Score / MOS"/><TextBlock x:Name="NetScoreText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Score / MOS"/><TextBlock x:Name="NetScoreText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Median round-trip time to the best internet anchor.">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Ping"/><TextBlock x:Name="NetLatencyText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Ping"/><TextBlock x:Name="NetLatencyText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Average difference between consecutive pings; high jitter causes rubber-banding.">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Jitter"/><TextBlock x:Name="NetJitterText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Jitter"/><TextBlock x:Name="NetJitterText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Share of pings without a reply.">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Packet loss"/><TextBlock x:Name="NetLossText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Packet loss"/><TextBlock x:Name="NetLossText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Margin="0" ToolTip="Stability grade from latency spikes and loss bursts, and the bufferbloat grade under load.">
-                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Stability / load"/><TextBlock x:Name="NetStabilityText" FontSize="20" FontWeight="SemiBold" Text="-"/></StackPanel>
+                                <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Stability / load"/><TextBlock x:Name="NetStabilityText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" Text="-"/></StackPanel>
                             </Border>
                         </UniformGrid>
                         <Border Style="{StaticResource Card}" Margin="0,8,0,0">
@@ -1021,7 +1051,7 @@
                         <TextBlock Style="{StaticResource TextSection}" Text="Router, Wi-Fi and ISP" Margin="0,12,0,4"/>
                         <ItemsControl x:Name="NetGuidanceList" ItemTemplate="{StaticResource ManageRowTemplate}"/>
                         <TextBlock Style="{StaticResource TextSection}" Text="Path to the internet" Margin="0,12,0,4"/>
-                        <TextBox x:Name="NetPathText" IsReadOnly="True" TextWrapping="NoWrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="12" HorizontalScrollBarVisibility="Auto" ToolTip="Each router (hop) between this PC and 1.1.1.1 with its response time and name."/>
+                        <TextBox x:Name="NetPathText" IsReadOnly="True" TextWrapping="NoWrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" HorizontalScrollBarVisibility="Auto" ToolTip="Each router (hop) between this PC and 1.1.1.1 with its response time and name."/>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -1050,7 +1080,7 @@
                                 <Button x:Name="AsrAuditButton" Content="Audit view" ToolTip="Read ASR, controlled folder access and network protection events from the last 14 days (read-only)."/>
                                 <Button x:Name="AsrRecommendButton" Style="{StaticResource AccentButton}" Content="Apply recommendations" Margin="0" ToolTip="Raise every rule that is below its recommended mode after a confirmation. Never lowers a rule. Needs administrator rights."/>
                             </StackPanel>
-                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{StaticResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{StaticResource BrushTextMuted}"/><Run Text="ASR Center"/></TextBlock>
+                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{DynamicResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{DynamicResource BrushTextMuted}"/><Run Text="ASR Center"/></TextBlock>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Attack surface reduction rules block behaviors malware relies on. Each rule shows what it means for games, launchers and mods. Rules with gamer impact start in Audit: check the audit view, exclude trusted programs (the exact file), then promote. Every change writes a snapshot you can revert in Backups &amp; Logs."/>
                     </StackPanel>
@@ -1067,15 +1097,15 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding ImpactBrush}"><TextBlock Text="{Binding ImpactText}" FontSize="11" Foreground="{Binding ImpactBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding FlagVisibility}"><TextBlock Text="{Binding FlagText}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding ExclusionVisibility}" BorderBrush="{StaticResource BrushAccent}"><TextBlock Text="{Binding ExclusionText}" FontSize="11"/></Border>
+                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding ImpactBrush}"><TextBlock Text="{Binding ImpactText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding ImpactBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding FlagVisibility}"><TextBlock Text="{Binding FlagText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding ExclusionVisibility}" BorderBrush="{DynamicResource BrushAccent}"><TextBlock Text="{Binding ExclusionText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding ModeText}" Foreground="{Binding ModeBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
+                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -1083,11 +1113,11 @@
                     </ListView>
                     <ScrollViewer Grid.Row="2" Grid.Column="1" Grid.RowSpan="3" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock x:Name="AsrDetName" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
+                            <TextBlock x:Name="AsrDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
                             <TextBlock x:Name="AsrDetMeta" Style="{StaticResource TextMuted}" Margin="0,2,0,6"/>
                             <TextBlock x:Name="AsrDetDescription" TextWrapping="Wrap" Margin="0,0,0,8"/>
                             <TextBlock Text="Gamer impact" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="AsrDetImpact" TextWrapping="Wrap" Foreground="{StaticResource BrushAccent}" Margin="0,0,0,10"/>
+                            <TextBlock x:Name="AsrDetImpact" TextWrapping="Wrap" Foreground="{DynamicResource BrushAccent}" Margin="0,0,0,10"/>
                             <TextBlock Text="Mode" FontWeight="SemiBold"/>
                             <StackPanel Orientation="Horizontal" Margin="0,4,0,10">
                                 <ComboBox x:Name="AsrModeBox" Width="150" ToolTip="Not configured is the Windows default. Audit only logs; Warn blocks but lets an administrator unblock for 24 hours; Block blocks."/>
@@ -1126,7 +1156,7 @@
                                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
                                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <TextBlock Text="{Binding Advice}" Foreground="{StaticResource BrushAccent}" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                        <TextBlock Text="{Binding Advice}" Foreground="{DynamicResource BrushAccent}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="{Binding CountText}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" TextAlignment="Right" TextWrapping="Wrap"/>
                                 </Grid>
@@ -1158,12 +1188,11 @@
                                 <Button x:Name="DefPolicyViewButton" Content="Group Policy" ToolTip="Every Defender Group Policy setting of the installed ADMX files, also those without a preference (heuristics, packed executables, notifications, ...)."/>
                                 <Button x:Name="DefRefreshButton" Content="Refresh" Margin="0" ToolTip="Read the settings again (read-only)."/>
                             </StackPanel>
-                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{StaticResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{StaticResource BrushTextMuted}"/><Run Text="Defender settings"/></TextBlock>
+                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{DynamicResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{DynamicResource BrushTextMuted}"/><Run Text="Defender settings"/></TextBlock>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every Microsoft Defender Antivirus setting with its current and recommended value, including the hidden ones. Protection settings only move toward on, values that turn a protection off are refused, and settings a policy controls are changed through that policy. Every change writes a snapshot you can revert in Backups &amp; Logs (a protection that is on stays on)."/>
                         <WrapPanel Margin="0,10,0,6" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBox x:Name="DefSearchBox" Width="220" Margin="0,0,12,0" ToolTip="Search names, descriptions and property names"/>
+                            <TextBox x:Name="DefSearchBox" Style="{StaticResource SearchBox}" Tag="Search settings" AutomationProperties.Name="Search settings" Width="240" Margin="0,0,12,0" ToolTip="Search names, descriptions and property names"/>
                             <ComboBox x:Name="DefCategoryBox" MinWidth="250" ToolTip="Show one category"/>
                             <CheckBox x:Name="DefAttentionBox" Style="{StaticResource FilterCheck}" Content="Needs attention" VerticalAlignment="Center" ToolTip="Only settings that are Off, below the recommended level or optional hardening that is off"/>
                             <CheckBox x:Name="DefEditableBox" Style="{StaticResource FilterCheck}" Content="Changeable here" VerticalAlignment="Center" ToolTip="Only settings this page can change"/>
@@ -1182,14 +1211,14 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding EditBrush}"><TextBlock Text="{Binding EditText}" FontSize="11" Foreground="{Binding EditBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding SourceVisibility}"><TextBlock Text="{Binding SourceText}" FontSize="11"/></Border>
+                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding EditBrush}"><TextBlock Text="{Binding EditText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding EditBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding SourceVisibility}"><TextBlock Text="{Binding SourceText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding ValueText}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
+                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -1207,13 +1236,13 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding CategoryText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PreferenceVisibility}"><TextBlock Text="{Binding PreferenceText}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RefusedVisibility}" BorderBrush="{StaticResource BrushWarning}"><TextBlock Text="{Binding RefusedText}" FontSize="11" Foreground="{StaticResource BrushWarning}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PreferenceVisibility}"><TextBlock Text="{Binding PreferenceText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RefusedVisibility}" BorderBrush="{DynamicResource BrushWarning}"><TextBlock Text="{Binding RefusedText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushWarning}"/></Border>
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding SourceText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
+                                        <TextBlock Text="{Binding SourceText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -1221,7 +1250,7 @@
                     </ListView>
                     <ScrollViewer Grid.Row="2" Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock x:Name="DefDetName" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a setting"/>
+                            <TextBlock x:Name="DefDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a setting"/>
                             <TextBlock x:Name="DefDetMeta" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,6"/>
                             <TextBlock x:Name="DefDetDescription" TextWrapping="Wrap" Margin="0,0,0,10"/>
                             <StackPanel x:Name="DefEditPanel">
@@ -1287,16 +1316,16 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding Category}" FontSize="11"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}"><TextBlock Text="{Binding Level}" FontSize="11" Foreground="{Binding LevelBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding OptInVisibility}"><TextBlock Text="Opt-in" FontSize="11"/></Border>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Reason}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding Category}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}"><TextBlock Text="{Binding Level}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding LevelBrush}"/></Border>
+                                            <Border Style="{StaticResource Badge}" Visibility="{Binding OptInVisibility}"><TextBlock Text="Opt-in" FontSize="{DynamicResource FontSizeCaption}"/></Border>
+                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Reason}" FontSize="{DynamicResource FontSizeCaption}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding SizeText}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding CountText}" Style="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CountText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right"/>
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -1341,7 +1370,7 @@
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0"/>
                                                 <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
                                             </DockPanel>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             <ProgressBar Value="{Binding Share, Mode=OneWay}" Maximum="100" Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -1358,7 +1387,7 @@
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0"/>
                                                 <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
                                             </DockPanel>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             <ProgressBar Value="{Binding Share, Mode=OneWay}" Maximum="100" Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -1395,7 +1424,7 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
                                         <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Command}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                     </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource Badge}"><TextBlock Text="{Binding Scope}" FontSize="11"/></Border>
+                                    <Border Grid.Column="2" Style="{StaticResource Badge}"><TextBlock Text="{Binding Scope}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -1422,9 +1451,9 @@
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel>
-                                    <TextBlock FontWeight="SemiBold"><Run Text="{Binding When, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Operation, Mode=OneWay}" Foreground="{StaticResource BrushAccent}"/></TextBlock>
+                                    <TextBlock FontWeight="SemiBold"><Run Text="{Binding When, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Operation, Mode=OneWay}" Foreground="{DynamicResource BrushAccent}"/></TextBlock>
                                     <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Summary}"/>
-                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding File}" FontFamily="{StaticResource FontMono}" FontSize="11"/>
+                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding File}" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -1442,7 +1471,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <DockPanel>
-                                                <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" BorderBrush="{StaticResource BrushDanger}"><TextBlock Text="{Binding Category}" Foreground="{StaticResource BrushDanger}" FontSize="11"/></Border>
+                                                <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" BorderBrush="{DynamicResource BrushDanger}"><TextBlock Text="{Binding Category}" Foreground="{DynamicResource BrushDanger}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                             </DockPanel>
                                             <TextBlock Style="{StaticResource TextMuted}" Margin="0,4,0,0"><Run Text="Claim: "/><Run Text="{Binding Claim, Mode=OneWay}"/></TextBlock>
@@ -1467,24 +1496,24 @@
             </Grid>
 
             <!-- Details pane -->
-            <Border x:Name="DetailsPane" Grid.Column="2" Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1,0,0,0">
+            <Border x:Name="DetailsPane" Grid.Column="2" Background="{DynamicResource BrushSurface}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,14">
                     <StackPanel>
-                        <TextBlock x:Name="DetName" Text="Select a tweak" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DetName" Text="Select a tweak" FontSize="{DynamicResource FontSizeTitleSmall}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock x:Name="DetMeta" Style="{StaticResource TextMuted}" Text="" Margin="0,2,0,8"/>
-                        <Border x:Name="DetWarning" Visibility="Collapsed" Background="#FF4A1F1F" BorderBrush="{StaticResource BrushDangerStrong}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10">
-                            <TextBlock x:Name="DetWarningText" TextWrapping="Wrap" Foreground="{StaticResource BrushDanger}"/>
+                        <Border x:Name="DetWarning" Visibility="Collapsed" Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDangerStrong}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10">
+                            <TextBlock x:Name="DetWarningText" TextWrapping="Wrap" Foreground="{DynamicResource BrushDanger}"/>
                         </Border>
                         <TextBlock x:Name="DetDescription" TextWrapping="Wrap" Text="Details, exact changes, sources and how to revert appear here."/>
                         <TextBlock Style="{StaticResource TextSection}" Text="Exact changes (current -> target)"/>
                         <ItemsControl x:Name="DetChanges">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource BrushSurfaceAlt}" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                    <Border Background="{DynamicResource BrushSurfaceAlt}" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Target}" FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="Wrap"/>
-                                            <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,3,0,0"><Run Text="{Binding Current, Mode=OneWay}" Foreground="{StaticResource BrushTextMuted}"/><Run Text="  ->  "/><Run Text="{Binding Desired, Mode=OneWay}" Foreground="{StaticResource BrushAccent}"/></TextBlock>
-                                            <TextBlock Text="{Binding Note}" Style="{StaticResource TextMuted}" FontSize="11"/>
+                                            <TextBlock Text="{Binding Target}" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" TextWrapping="Wrap"/>
+                                            <TextBlock TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}" Margin="0,3,0,0"><Run Text="{Binding Current, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}"/><Run Text="  ->  "/><Run Text="{Binding Desired, Mode=OneWay}" Foreground="{DynamicResource BrushAccent}"/></TextBlock>
+                                            <TextBlock Text="{Binding Note}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}"/>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -1507,8 +1536,11 @@
             </Border>
         </Grid>
 
+        <!-- Toasts (bottom right): results of actions, with Undo where possible -->
+        <StackPanel x:Name="ToastHost" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,12" Panel.ZIndex="50" AutomationProperties.AutomationId="ToastHost"/>
+
         <!-- Staged changes bar -->
-        <Border Grid.Row="3" Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Padding="16,10">
+        <Border Grid.Row="3" Background="{DynamicResource BrushSurface}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0" Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -1532,8 +1564,8 @@
         </Border>
 
         <!-- Log console -->
-        <Expander Grid.Row="4" x:Name="LogExpander" Header="Log" IsExpanded="False" Padding="16,0,16,8" Background="{StaticResource BrushBackground}" Foreground="{StaticResource BrushText}">
-            <TextBox x:Name="LogBox" Height="140" ToolTip="Log of this session. The full logs are in the logs folder." IsReadOnly="True" FontFamily="{StaticResource FontMono}" FontSize="11" TextWrapping="NoWrap"
+        <Expander Grid.Row="4" x:Name="LogExpander" Header="Log" IsExpanded="False" Padding="16,0,16,8" Background="{DynamicResource BrushBackground}" Foreground="{DynamicResource BrushText}">
+            <TextBox x:Name="LogBox" Height="140" ToolTip="Log of this session. The full logs are in the logs folder." IsReadOnly="True" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" TextWrapping="NoWrap"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         </Expander>
     </Grid>
