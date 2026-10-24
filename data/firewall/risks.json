@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "kind": "firewallRisks",
   "verified": "2026-10-24",
-  "comment": "Security-risk rules. 'when' is a list of named checks that must all hold (closed set, evaluated by Get-IgwtFirewallFindings; see docs\\FIREWALL_CATEGORIES.md): enabled, inbound, outbound, allow, block, programAny, serviceAny, packageAny, portAny, remoteAny, profilePublic, ports (localPorts any of portSets), userWritablePath, unsigned, orphaned, nonWindows, scriptHost, edgeTraversal, localServiceRemoteAny, disabledSecurityRelevant, duplicate, broadPortRange, noDescription. Severity: Critical, High, Medium, Low. 'Exposed now' (a live listener matches) raises a finding one level. actions: RestrictPrivate, RestrictLocalSubnet, Disable, Delete, Keep, Ignore.",
+  "comment": "Security-risk rules. 'when' is a list of named checks that must all hold (closed set, evaluated by Get-IgwtFirewallRowFacts; see docs\\FIREWALL_CATEGORIES.md): enabled, inbound, outbound, allow, block, programAny, serviceAny, packageAny, portAny, remoteAny, profilePublic, ports (localPorts any of portSets), userWritablePath, unsigned, orphaned, nonWindows, scriptHost, edgeTraversal, localServiceRemoteAny, disabledSecurityRelevant, duplicate, broadPortRange, noDescription. Severity: Critical, High, Medium, Low. 'Exposed now' (a live listener matches) raises a finding one level. actions: RestrictPrivate, RestrictLocalSubnet, Disable, Delete, Keep, Ignore.",
   "portSets": {
-    "adminFile": { "name": "admin and file protocols", "tcp": [ "3389", "445", "139", "5985", "5986", "22", "5900", "1433" ], "udp": [ "3389", "137", "138" ] },
+    "adminFile": { "name": "admin and file protocols", "tcp": [ "3389", "445", "139", "5985", "5986", "22", "5900", "1433" ], "udp": [ "3389" ] },
     "localDiscovery": { "name": "local discovery protocols", "tcp": [ "139", "2869", "5357", "5358" ], "udp": [ "137", "138", "5355", "5353", "1900", "3702" ] }
   },
   "risks": [
@@ -59,8 +59,8 @@
     {
       "id": "edge-traversal", "severity": "Medium", "title": "Edge traversal allowed",
       "hint": "Lets traffic reach this PC through NAT and Teredo from the internet, not only from the local network.",
-      "explanation": "Edge traversal lets unsolicited traffic arrive through a NAT router (for example over Teredo IPv6). Games and voice apps sometimes need it for peer connections; other apps rarely do.",
-      "when": [ "enabled", "inbound", "allow", "edgeTraversal" ],
+      "explanation": "Edge traversal lets unsolicited traffic arrive through a NAT router (for example over Teredo IPv6). Games and voice apps sometimes need it for peer connections; other apps rarely do. Windows' own rules (Teredo, casting) use it by design and are not flagged.",
+      "when": [ "enabled", "inbound", "allow", "edgeTraversal", "nonWindows" ],
       "recommended": "Keep", "alternatives": [ "Disable", "Ignore" ],
       "sources": [ "https://learn.microsoft.com/en-us/windows/win32/teredo/implementing-firewall-filters-for-teredo" ]
     },

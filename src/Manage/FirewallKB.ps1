@@ -8,7 +8,7 @@ $script:IgwtFirewallOrigins = @('CoreServices', 'WindowsConnections', 'UserInsta
 $script:IgwtFirewallRoleIds = @('Gamer', 'PowerUser', 'Sysadmin', 'Workstation')
 $script:IgwtFirewallSeverities = @('Critical', 'High', 'Medium', 'Low')
 $script:IgwtFirewallActions = @('RestrictPrivate', 'RestrictLocalSubnet', 'Disable', 'Delete', 'Keep', 'Ignore')
-# The closed set of checks a risk rule may use (evaluated by Test-IgwtFirewallRiskCheck).
+# The closed set of checks a risk rule may use (evaluated by Get-IgwtFirewallRowFacts).
 $script:IgwtFirewallRiskChecks = @('enabled', 'inbound', 'outbound', 'allow', 'block', 'programAny', 'serviceAny', 'packageAny', 'portAny', 'remoteAny', 'profilePublic',
     'userWritablePath', 'unsigned', 'orphaned', 'nonWindows', 'scriptHost', 'edgeTraversal', 'localServiceRemoteAny', 'disabledSecurityRelevant', 'duplicate', 'broadPortRange', 'noDescription')
 
