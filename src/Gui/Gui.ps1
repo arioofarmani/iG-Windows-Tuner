@@ -37,7 +37,7 @@ $script:IgwtGuiControlNames = @(
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakListHost', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
     'ToolkitFeatureSummary', 'ToolkitFeatureListHost', 'ToolkitFeatureDetail', 'ToolkitFeatureEnableButton', 'ToolkitFeatureDisableButton', 'ToolkitFixSummary', 'ToolkitFixListHost', 'ToolkitFixDetail', 'ToolkitFixRunButton',
     'ToolkitPanelListHost', 'ToolkitPanelDetail', 'ToolkitPanelOpenButton', 'ToolkitUpdateSummary', 'ToolkitUpdateListHost', 'ToolkitUpdateDetail', 'ToolkitUpdateGoButton', 'ToolkitUpdatePauseButton',
-    'PageDiagnostics', 'DiagRefreshButton', 'DiagReportButton', 'DiagTabs', 'DiagOverviewText', 'DiagDriverSummary', 'DiagDriverListHost', 'DiagUpdateText',
+    'PageDiagnostics', 'DiagRefreshButton', 'DiagReportButton', 'DiagTabs', 'DiagEventListHost', 'DiagDpcCard', 'DiagDpcValue', 'DiagDpcNote', 'DiagStabilityCard', 'DiagStabilityValue', 'DiagStabilityNote', 'DiagCrashCard', 'DiagCrashValue', 'DiagCrashNote', 'DiagBootCard', 'DiagBootValue', 'DiagBootNote', 'DiagDriverSummary', 'DiagDriverListHost', 'DiagUpdateText', 'DiagUpdateListHost',
     'DiagDnsButton', 'DiagLatencyBox', 'DiagLatencyButton', 'DiagNetText', 'DiagAdapterSummary', 'DiagAdapterListHost',
     'PageNetTest', 'NetDurationBox', 'NetTargetsBox', 'NetRunButton', 'NetLoadButton', 'NetExportButton', 'NetStatusText', 'NetGradeText', 'NetScoreText', 'NetLatencyText',
     'NetJitterText', 'NetLossText', 'NetStabilityText', 'NetConnectionText', 'NetEvidenceText', 'NetTargetList', 'NetApplyButton', 'NetRecoTitle', 'NetRecoList', 'NetGuidanceList', 'NetPathText',
@@ -1783,7 +1783,8 @@ function Set-IgwtGuiDiagData {
     $nl = [Environment]::NewLine
     $d = $Data.Diagnostics
     if ($d -and -not ($d.PSObject.Properties['Error'] -and $d.PSObject.Properties.Name.Count -eq 1)) {
-        $c.DiagOverviewText.Text = Format-IgwtDiagnostics -Diagnostics ([pscustomobject]@{ DpcIsr = $d.DpcIsr; Reliability = $d.Reliability; Crashes = $d.Crashes; Boot = $d.Boot })
+        Set-IgwtGuiDiagCards -Diagnostics $d
+        Set-IgwtGuiGridRows -Name 'DiagEventList' -Rows (Get-IgwtGuiDiagEventRows -Diagnostics $d)
         $dr = $d.Drivers
         if ($dr -and $dr.PSObject.Properties['Drivers']) {
             Set-IgwtGuiGridRows -Name 'DiagDriverList' -Rows @($dr.Drivers | ForEach-Object {
@@ -1792,21 +1793,23 @@ function Set-IgwtGuiDiagData {
                 })
             $c.DiagDriverSummary.Text = "$($dr.Counts.Total) non-Microsoft drivers, $($dr.Counts.Unsigned) unsigned, $($dr.Counts.Old) older than three years. $($dr.Note)"
         } elseif ($dr) { $c.DiagDriverSummary.Text = "Not readable: $($dr.Error)"; Set-IgwtGuiGridRows -Name 'DiagDriverList' -ErrorText "Not readable: $($dr.Error)" }
-    } elseif ($d) { $c.DiagOverviewText.Text = "Not readable: $($d.Error)"; Set-IgwtGuiGridRows -Name 'DiagDriverList' -ErrorText "Not readable: $($d.Error)" }
+    } elseif ($d) {
+        Set-IgwtGuiDiagCards -Diagnostics $d
+        foreach ($n in 'DiagEventList', 'DiagDriverList') { Set-IgwtGuiGridRows -Name $n -ErrorText "Not readable: $($d.Error)" }
+    }
     $u = $Data.Updates
     if ($u -and $u.PSObject.Properties['Services']) {
         $lines = New-Object System.Collections.Generic.List[string]
         foreach ($s in $u.Services) { $lines.Add(('{0,-13} {1,-8} {2}' -f $s.Name, $s.Status, $s.StartType)) }
         $lines.Add("Pending restart: $(if (@($u.PendingRestart).Count) { $u.PendingRestart -join ', ' } else { 'no' })")
         $lines.Add("Policies: $(if (@($u.Policies).Count) { (@($u.Policies | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ', ') } else { 'none (Windows defaults)' })")
-        $lines.Add("Last successful update (not counting Defender definitions): $(if ($u.LastSuccess) { $u.LastSuccess } else { 'unknown' })")
+        $lines.Add("Last successful update (not counting Defender definitions): $(if ($u.LastSuccess) { Format-IgwtGuiTime -Value $u.LastSuccess } else { 'unknown' })")
         if ($u.Error) { $lines.Add($u.Error) }
         foreach ($a in $u.Advice) { $lines.Add("-> $a") }
-        $lines.Add('')
-        foreach ($h in @($u.History | Select-Object -First 30)) { $lines.Add(('{0:yyyy-MM-dd} {1,-22} {2} {3}' -f $h.Date, $h.Result, $h.Title, $h.HResult)) }
-        $lines.Add(''); $lines.Add($u.Note)
+        $lines.Add($u.Note)
+        Set-IgwtGuiGridRows -Name 'DiagUpdateList' -Rows @($u.History | Where-Object { $_ } | ForEach-Object { New-IgwtGuiUpdateHistoryRow -Entry $_ })
         $c.DiagUpdateText.Text = $lines.ToArray() -join $nl
-    } elseif ($u) { $c.DiagUpdateText.Text = "Not readable: $($u.Error)" }
+    } elseif ($u) { $c.DiagUpdateText.Text = "Not readable: $($u.Error)"; Set-IgwtGuiGridRows -Name 'DiagUpdateList' -ErrorText "Not readable: $($u.Error)" }
     $ad = $Data.Adapters
     if ($ad -and $ad.PSObject.Properties['Adapters']) {
         Set-IgwtGuiGridRows -Name 'DiagAdapterList' -Rows @(foreach ($a in $ad.Adapters) { foreach ($p in @($a.Properties)) {
@@ -2743,6 +2746,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiChrome
     Initialize-IgwtGuiManageGrids
     Initialize-IgwtGuiListGrids
+    Initialize-IgwtGuiDiagGrids
     Initialize-IgwtGuiFirewallPage
     Initialize-IgwtGuiAsrPage
     Initialize-IgwtGuiPolicyPage

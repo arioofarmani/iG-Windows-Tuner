@@ -998,9 +998,55 @@
                     </StackPanel>
                     <TabControl x:Name="DiagTabs" Grid.Row="1" Margin="0,10,0,0" Background="Transparent" BorderThickness="0">
                         <TabItem Header="Overview" ToolTip="DPC and ISR time, reliability history, crashes and boot performance">
-                            <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagOverviewText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="DPC/ISR percentages, stability index, crash events, minidumps and boot times."/>
-                            </ScrollViewer>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <UniformGrid Grid.Row="0" Columns="4" Margin="0,0,-8,8">
+                                    <Border x:Name="DiagDpcCard" Style="{StaticResource Card}" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource TextMuted}" Text="Interrupt time (DPC / ISR)"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="DiagDpcValue" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,4,0,2" TextTrimming="CharacterEllipsis" Text="-"/>
+                                            <TextBlock x:Name="DiagDpcNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Text="Not read yet."/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="DiagStabilityCard" Style="{StaticResource Card}" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE9D2;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource TextMuted}" Text="Stability index"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="DiagStabilityValue" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,4,0,2" TextTrimming="CharacterEllipsis" Text="-"/>
+                                            <TextBlock x:Name="DiagStabilityNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Text="Not read yet."/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="DiagCrashCard" Style="{StaticResource Card}" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource TextMuted}" Text="Crashes (30 days)"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="DiagCrashValue" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,4,0,2" TextTrimming="CharacterEllipsis" Text="-"/>
+                                            <TextBlock x:Name="DiagCrashNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Text="Not read yet."/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="DiagBootCard" Style="{StaticResource Card}" Margin="0,0,8,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7E8;" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Style="{StaticResource TextMuted}" Text="Boot time"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="DiagBootValue" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,4,0,2" TextTrimming="CharacterEllipsis" Text="-"/>
+                                            <TextBlock x:Name="DiagBootNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis" Text="Not read yet."/>
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
+                                <ContentControl x:Name="DiagEventListHost" Grid.Row="1" Focusable="False"/>
+                            </Grid>
                         </TabItem>
                         <TabItem Header="Drivers" ToolTip="Non-Microsoft drivers with version, date and signer">
                             <DockPanel Margin="0,8,0,0">
@@ -1009,9 +1055,10 @@
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Windows Update" ToolTip="Update services, pending restart, policies and history (read-only)">
-                            <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagUpdateText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
-                            </ScrollViewer>
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBox x:Name="DiagUpdateText" DockPanel.Dock="Top" MaxHeight="190" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" VerticalContentAlignment="Top" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
+                                <ContentControl x:Name="DiagUpdateListHost" Focusable="False"/>
+                            </DockPanel>
                         </TabItem>
                         <TabItem Header="Network tools" ToolTip="Adapter properties, DNS benchmark and latency/jitter/loss test">
                             <DockPanel Margin="0,8,0,0">
