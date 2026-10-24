@@ -176,6 +176,40 @@ Describe 'SmartGrid control (WPF)' {
         }
     }
 
+    It 'restores the scroll position from a dispatcher callback without throwing' {
+        # A scrolled list that refreshed threw "cannot call a method on a null-valued expression":
+        # the callback read a local variable of the function that queued it.
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF requires an STA thread.'; return }
+        InModuleScope iGWindowsTuner {
+            $sv = New-Object System.Windows.Controls.ScrollViewer
+            Restore-IgwtGridScroll -Viewer $sv -Offset 120
+            # Run the queued callback now (an exception in it surfaces here).
+            { [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke([Action] { }, [System.Windows.Threading.DispatcherPriority]::ContextIdle) } | Should -Not -Throw
+        }
+    }
+
+    It 'never lets a dispatcher callback read a local variable of the code that queued it' {
+        $found = New-Object System.Collections.Generic.List[string]
+        foreach ($f in Get-ChildItem (Join-Path $script:IgwtProjectRoot 'src\Gui') -Filter *.ps1) {
+            $tk = $null; $er = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tk, [ref]$er)
+            $calls = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and [string]$n.Member.Value -eq 'BeginInvoke' }, $true)
+            foreach ($call in $calls) {
+                foreach ($sb in @($call.Arguments | Where-Object { $_ } | ForEach-Object { $_.FindAll({ param($n) $n -is [System.Management.Automation.Language.ScriptBlockExpressionAst] }, $true) })) {
+                    $own = @{}
+                    foreach ($p in @($sb.ScriptBlock.FindAll({ param($n) $n -is [System.Management.Automation.Language.ParameterAst] }, $true))) { $own[$p.Name.VariablePath.UserPath] = $true }
+                    foreach ($a in @($sb.ScriptBlock.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left -is [System.Management.Automation.Language.VariableExpressionAst] }, $true))) { $own[$a.Left.VariablePath.UserPath] = $true }
+                    foreach ($v in @($sb.ScriptBlock.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true))) {
+                        $name = $v.VariablePath.UserPath
+                        if ($v.VariablePath.IsScript -or $v.VariablePath.IsGlobal -or $own.ContainsKey($name) -or $name -in 'null', 'true', 'false', '_', 'PSItem', 'args', 'this') { continue }
+                        $found.Add("$($f.Name):$($v.Extent.StartLineNumber) `$$name")
+                    }
+                }
+            }
+        }
+        $found | Should -BeNullOrEmpty -Because 'pass values to the callback as arguments or use $script: state'
+    }
+
     It 'keeps the selected row of a single-select grid when its rows reload' {
         # Single-select grids (tweaks, Defender, power plan) used SelectedItems.Add, which throws.
         if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF requires an STA thread.'; return }

@@ -47,6 +47,7 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - Refusals (a Defender value or policy option that would turn protection off) are shown inline under the control and keep Apply off, instead of opening a dialog.
 - Defender settings that a policy sets now look locked: the value box is off, Apply is hidden and the help names the source.
 - An unexpected value in a Manage row (for example a new service rating) no longer blanks the whole page; rows fall back to neutral text.
+- A list that refreshed while scrolled down (for example after a filter chip on Defender settings) showed "Something went wrong (window): Exception has been thrown by the target of an invocation"; the scroll position is now restored without the error.
 - Lists that select one row at a time (tweaks, Defender settings, power plan) no longer fail when they refresh while a row is selected; the selection is kept.
 - The read-only text views of Diagnostics and Inspect start at the top instead of floating in the middle of the box.
 - Event handlers are registered through one guard that refuses a second registration from the same code on the same control, so an action can never fire twice.

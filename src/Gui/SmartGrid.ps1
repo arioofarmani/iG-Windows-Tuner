@@ -685,7 +685,7 @@ function Update-IgwtGridView {
             }
         }
     } finally { $Grid.Updating = $false }
-    if ($Grid.ScrollViewer -and $offset -gt 0) { $sv = $Grid.ScrollViewer; $null = $c.Grid.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded, [Action[double]] { param($o) $sv.ScrollToVerticalOffset($o) }, $offset) }
+    if ($Grid.ScrollViewer -and $offset -gt 0) { Restore-IgwtGridScroll -Viewer $Grid.ScrollViewer -Offset $offset }
     $total = $(if (@($Grid.Scope.Keys).Count) { (Invoke-IgwtGridQuery -Index $ix -ColumnFilters $Grid.Scope).Count } else { $ix.Count }); $shown = $items.Count
     $filtered = [bool]($Grid.Search -or $Grid.ActiveChips.Count -or @($Grid.ColumnFilters.Keys).Count)
     $c.CountText.Text = $(if ($filtered) { '{0:N0} of {1:N0} shown' -f $shown, $total } else { '{0:N0} {1}' -f $total, $Grid.Noun })
@@ -699,6 +699,21 @@ function Update-IgwtGridView {
     Update-IgwtGridSelection -Grid $Grid
     $Grid.LastQueryMs = $sw.ElapsedMilliseconds
     if ($script:Gui -and $script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'grid' -Text ("{0}`t{1}`t{2}`t{3}" -f $Grid.Id, $shown, $total, $Grid.LastQueryMs) }
+}
+
+function Restore-IgwtGridScroll {
+    <#
+    .SYNOPSIS
+        Scrolls back to an offset once the new rows are laid out. The viewer and offset go to the
+        callback as arguments: a script block run later by the dispatcher cannot see the caller's
+        local variables (they were $null there, which threw "cannot call a method on a null-valued
+        expression" when a scrolled list refreshed).
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the view only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Windows.Controls.ScrollViewer]$Viewer, [double]$Offset)
+    $null = $Viewer.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded,
+        [Action[System.Windows.Controls.ScrollViewer, double]] { param($v, $o) if ($v) { $v.ScrollToVerticalOffset($o) } }, $Viewer, $Offset)
 }
 
 function Find-IgwtGridScrollViewer {
