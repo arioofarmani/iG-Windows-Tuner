@@ -138,6 +138,48 @@ function Test-IgwtPolicyOpAllowed {
     return $null
 }
 
+function Get-IgwtPolicyChoices {
+    <#
+    .SYNOPSIS
+        The states a policy can be set to from the GUI, each with its element values and whether the
+        denylist allows it: Not configured, Disabled, and Enabled (one choice per option when the
+        policy has a single option or on/off element, for example "Enabled: Block" and "Enabled:
+        Audit mode"). Each option is checked with its own values, so a policy is never refused
+        because of its first or default option. Policies with other elements are Enabled through
+        -PolicySet with explicit values (the denylist checks those values). Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Policy)
+    $check = {
+        param([string]$State, [hashtable]$Values)
+        try {
+            foreach ($o in @(Get-IgwtPolicyRegistryOps -Policy $Policy -State $State -Values $Values)) { $why = Test-IgwtPolicyOpAllowed -Op $o; if ($why) { return [string]$why } }
+            return ''
+        } catch { return "Not available: $($_.Exception.Message)" }
+    }
+    $out = New-Object System.Collections.Generic.List[object]
+    $out.Add([pscustomobject]@{ State = 'NotConfigured'; Label = 'Not configured'; Values = @{}; Allowed = $true; Reason = '' })
+    $dWhy = & $check 'Disabled' @{}
+    $out.Add([pscustomobject]@{ State = 'Disabled'; Label = 'Disabled'; Values = @{}; Allowed = (-not $dWhy); Reason = $dWhy })
+    $els = @($Policy.Elements | Where-Object { $_ })
+    if ($els.Count -eq 0) {
+        $eWhy = & $check 'Enabled' @{}
+        $out.Add([pscustomobject]@{ State = 'Enabled'; Label = 'Enabled'; Values = @{}; Allowed = (-not $eWhy); Reason = $eWhy })
+    } elseif ($els.Count -eq 1 -and $els[0].Type -in 'enum', 'boolean') {
+        $el = $els[0]
+        $options = $(if ($el.Type -eq 'enum') { @($el.Items | ForEach-Object { [pscustomobject]@{ Label = [string]$_.DisplayName; Value = [string]$_.DisplayName } }) }
+            else { @([pscustomobject]@{ Label = "$($el.Label): on"; Value = $true }, [pscustomobject]@{ Label = "$($el.Label): off"; Value = $false }) })
+        foreach ($opt in $options) {
+            $vals = @{ ([string]$el.Id) = $opt.Value }
+            $why = & $check 'Enabled' $vals
+            $out.Add([pscustomobject]@{ State = 'Enabled'; Label = "Enabled: $($opt.Label)"; Values = $vals; Allowed = (-not $why); Reason = $why })
+        }
+    } else {
+        $out.Add([pscustomobject]@{ State = 'Enabled'; Label = 'Enabled (needs values)'; Values = @{}; Allowed = $false; Reason = "This policy has several values; set them with iGWindowsTuner.ps1 -PolicySet $($Policy.Id) -PolicyState Enabled -PolicyValue ""..."" (-PolicyShow $($Policy.Id) lists them). The denylist checks the values you give." })
+    }
+    return $out.ToArray()
+}
+
 function ConvertTo-IgwtPolTypeNumber {
     [CmdletBinding()]
     [OutputType([int])]

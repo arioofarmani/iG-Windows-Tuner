@@ -30,8 +30,19 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Profiles and networks**: per profile on/off, default actions, notifications, unicast response and logging, and Private/Public per connected network. Changes only move toward protection: the firewall is never turned off and inbound traffic stays blocked by default. A firewall log analysis is one click away.
 - The Manage page's old firewall tab now points to the Firewall Manager and keeps the hosts-file viewer.
 
+### ASR Center and Exploit protection
+
+- **ASR rules in a sortable, filterable list**: rule, category, mode, supported modes, gamer impact, events and last event of the last 7 days, managed by and recommendation; quick filters for below recommendation, mode, has events, impact, standard protection and managed rules.
+- **Segmented mode control** (Off, Audit, Warn, Block) in the details pane: modes a rule does not support are disabled and say why; rules managed by Group Policy or MDM are locked. **Bulk set mode** for a selection, skipping (and listing) rules that cannot take the mode. After every change the list shows the mode Defender reports, with Undo.
+- **Audit to Block** review: every rule in Audit with its events, a suggestion (block when quiet, review the programs first, or keep) and a preview; only the quiet rules move to Block, and only after confirmation.
+- The events view and the rules sit on their own tabs: no more empty reserved area under the rules, and "Use as exclusion" no longer overlaps the summary.
+- **Exploit protection** tab (read-only): the system-wide settings in a card and every program with its own settings (mitigations turned on and off), sortable and filterable; anti-cheat programs are marked and locked.
+
 ### Fixed
 
+- **Defender Group Policy view: "Configure detection for potentially unwanted applications" no longer lists Enabled as refused.** Each option of a policy is now checked with its own value: Enabled: Block and Enabled: Audit Mode can be set from the page; only the options that turn protection off are refused. Policies with one option or on/off element can be enabled from the page with the chosen option.
+- Refusals (a Defender value or policy option that would turn protection off) are shown inline under the control and keep Apply off, instead of opening a dialog.
+- Defender settings that a policy sets now look locked: the value box is off, Apply is hidden and the help names the source.
 - An unexpected value in a Manage row (for example a new service rating) no longer blanks the whole page; rows fall back to neutral text.
 - Event handlers are registered through one guard that refuses a second registration from the same code on the same control, so an action can never fire twice.
 

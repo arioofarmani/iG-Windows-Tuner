@@ -413,14 +413,19 @@ function Get-IgwtDefenderPolicySettings {
         try { $state = Get-IgwtPolicyState -Policy $p } catch { Write-Verbose "Policy state of $($p.Id): $($_.Exception.Message)" }
         $refused = New-Object System.Collections.Generic.List[string]
         $simple = (@($p.Elements).Count -eq 0)
-        foreach ($st in 'Enabled', 'Disabled') {
-            try { foreach ($o in @(Get-IgwtPolicyRegistryOps -Policy $p -State $st)) { $why = Test-IgwtPolicyOpAllowed -Op $o; if ($why) { $refused.Add("${st}: $why"); break } } }
-            catch { Write-Verbose "Policy ops of $($p.Id) ($st): $($_.Exception.Message)" }
-        }
+        # Each option is checked with its own values (audit S1: the PUA policy was refused because
+        # its first option, Off, was used for the whole Enabled state).
+        $choices = @(Get-IgwtPolicyChoices -Policy $p)
+        $dis = @($choices | Where-Object { $_.State -eq 'Disabled' })[0]
+        if ($dis -and -not $dis.Allowed) { $refused.Add("Disabled: $($dis.Reason)") }
+        $en = @($choices | Where-Object { $_.State -eq 'Enabled' })
+        $enDenied = @($en | Where-Object { -not $_.Allowed -and $_.Label -ne 'Enabled (needs values)' })
+        if ($en.Count -and $enDenied.Count -eq $en.Count) { $refused.Add("Enabled: $($enDenied[0].Reason)") }
+        elseif ($enDenied.Count) { foreach ($c in $enDenied) { $refused.Add("Enabled ($($c.Label -replace '^Enabled: ', '')): $($c.Reason)") } }
         [pscustomobject]@{
             Id = [string]$p.Id; Name = [string]$p.DisplayName; Category = [string]$p.CategoryPath
             State = $(if ($state) { [string]$state.LocalGpo } else { 'Unknown' }); Source = $(if ($state) { [string]$state.Source } else { '' })
-            Preference = (@($linked[[string]$p.Id]) -join ', '); Simple = $simple; Refused = $refused.ToArray()
+            Preference = (@($linked[[string]$p.Id]) -join ', '); Simple = $simple; Refused = $refused.ToArray(); Choices = $choices
             Explain = [string]$p.Explain
         }
     }

@@ -19,9 +19,9 @@ $script:IgwtGuiControlNames = @(
     'RejectedList', 'AboutText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerList',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderList', 'DiskFileList',
-    'PageAsr', 'AsrRefreshButton', 'AsrAuditButton', 'AsrRecommendButton', 'AsrSummaryText', 'AsrList', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetImpact',
-    'AsrModeBox', 'AsrSetModeButton', 'AsrExclusionList', 'AsrExclusionBox', 'AsrGlobalBox', 'AsrAddExclusionButton', 'AsrRemoveExclusionButton', 'AsrDetSources',
-    'AsrAuditExcludeButton', 'AsrAuditSummaryText', 'AsrAuditList', 'SecurityScoreText', 'SecurityFixList',
+    'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
+    'AsrDetImpactIcon', 'AsrDetImpactLevel', 'AsrDetImpact', 'AsrModeNotConfigured', 'AsrModeAudit', 'AsrModeWarn', 'AsrModeBlock', 'AsrModeHelp', 'AsrSetModeButton', 'AsrExclusionList', 'AsrExclusionBox', 'AsrGlobalBox',
+    'AsrAddExclusionButton', 'AsrRemoveExclusionButton', 'AsrDetSources', 'AsrAuditExcludeButton', 'AsrAuditSummaryText', 'AsrAuditGridHost', 'ExpSystemText', 'ExpSummaryText', 'ExpGridHost', 'SecurityScoreText', 'SecurityFixList',
     'PageInspect', 'InspectRefreshButton', 'InspectTabs', 'InspectPowerAllBox', 'InspectPowerSummary', 'InspectPowerList', 'InspectPowerDetailName', 'InspectPowerDetailText',
     'InspectPowerAcBox', 'InspectPowerDcBox', 'InspectPowerApplyButton', 'InspectPowerDefaultButton', 'InspectIrqSummary', 'InspectIrqList', 'InspectNicList',
     'InspectKernelChangedBox', 'InspectKernelSummary', 'InspectKernelList', 'InspectCrashText',
@@ -698,21 +698,8 @@ function Update-IgwtGuiButtons {
     $c.CleanCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -like 'Invoke-IgwtCleaner*'
     $c.DiskAnalyzeButton.IsEnabled = -not $busy
     $c.DiskCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -eq 'Get-IgwtDiskUsage'
-    $asrRow = $c.AsrList.SelectedItem
-    $canChange = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$script:Gui.AsrStatus -and [bool]$script:Gui.AsrStatus.DefenderActive
-    $c.AsrRefreshButton.IsEnabled = -not $busy
-    $c.AsrAuditButton.IsEnabled = -not $busy
-    $c.AsrRecommendButton.IsEnabled = $canChange
-    $c.AsrSetModeButton.IsEnabled = $canChange -and [bool]$asrRow -and -not $asrRow.Rule.ManagedByPolicy -and @($asrRow.Rule.AllowedModes).Count -gt 0
-    $c.AsrAddExclusionButton.IsEnabled = $canChange -and ([bool]$asrRow -or [bool]$c.AsrGlobalBox.IsChecked)
-    $c.AsrRemoveExclusionButton.IsEnabled = $canChange -and [bool]$c.AsrExclusionList.SelectedItem
-    $c.AsrAuditExcludeButton.IsEnabled = [bool]$c.AsrAuditList.SelectedItem
-    $defRow = $c.DefList.SelectedItem
-    $polRow = $c.DefPolicyList.SelectedItem
-    $c.DefRefreshButton.IsEnabled = -not $busy
-    $c.DefApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$defRow -and [bool]$defRow.Setting.Editable
-    $c.DefRecommendButton.IsEnabled = [bool]$defRow -and [bool]$defRow.Setting.Editable -and [bool]$defRow.Setting.ProtectiveDisplay -and [string]$defRow.Setting.Status -ne 'On'
-    $c.DefPolicyApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$polRow -and [bool]$c.DefPolicyStateBox.SelectedItem
+    Update-IgwtGuiAsrButtons
+    $c.DefPolicyApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$polRow -and [bool]$c.DefPolicyStateBox.SelectedItem -and [bool]$c.DefPolicyStateBox.SelectedItem.Allowed
     $c.DefDocButton.IsEnabled = [bool][string]$c.DefDocButton.Tag
     $powerRow = $c.InspectPowerList.SelectedItem
     $canPower = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$powerRow -and [bool]$powerRow.Setting.Editable
@@ -1954,143 +1941,6 @@ function Export-IgwtGuiNetReport {
 
 #endregion
 
-#region ASR Center
-
-function Set-IgwtGuiAsrStatus {
-    <# .SYNOPSIS Stores an ASR status result and rebuilds the rule list, keeping the selection. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
-    [CmdletBinding()]
-    param($Status)
-    $c = $script:Gui.C
-    $script:Gui.AsrStatus = $Status
-    $selected = $null
-    if ($c.AsrList.SelectedItem) { $selected = $c.AsrList.SelectedItem.Id }
-    if (-not $Status) { $c.AsrList.ItemsSource = @(); $c.AsrSummaryText.Text = 'The ASR status could not be read; see the log.'; Update-IgwtGuiAsrDetails; return }
-    $rows = @($Status.Rules | ForEach-Object { New-IgwtGuiAsrRow -Rule $_ })
-    $c.AsrList.ItemsSource = $rows
-    if ($selected) {
-        $again = $rows | Where-Object { $_.Id -eq $selected } | Select-Object -First 1
-        if ($again) { $c.AsrList.SelectedItem = $again }
-    }
-    $s = $Status.Summary
-    $text = "{0} Block, {1} Warn, {2} Audit, {3} not configured; {4} below the recommendation." -f $s.Block, $s.Warn, $s.Audit, ($s.NotConfigured + $s.Off), $s.BelowRecommendation
-    if (-not $Status.DefenderActive) { $text = "Microsoft Defender Antivirus is not the active antivirus, so ASR rules do not apply on this PC. $text" }
-    if ($Status.CloudProtection -eq $false) { $text += ' Cloud-delivered protection is off; three rules depend on it.' }
-    if ($s.PolicyManaged) { $text += " $($s.PolicyManaged) rule(s) are managed by Group Policy or MDM and cannot be changed here." }
-    if (-not $script:Gui.IsAdmin) { $text += ' Read-only: restart as administrator to change rules or exclusions.' }
-    $c.AsrSummaryText.Text = $text
-    Update-IgwtGuiAsrDetails
-}
-
-function Update-IgwtGuiAsrExclusionList {
-    <# .SYNOPSIS Shows the selected rule's per-rule exclusions, or the global ASR exclusions when 'global' is ticked. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
-    [CmdletBinding()]
-    param()
-    $c = $script:Gui.C
-    $items = @()
-    if ([bool]$c.AsrGlobalBox.IsChecked) {
-        if ($script:Gui.AsrStatus) {
-            $g = $script:Gui.AsrStatus.GlobalExclusions
-            if ($g.Readable) { $items = @($g.Paths) } else { $items = @(); $c.AsrExclusionList.ToolTip = [string]$g.Note }
-        }
-    } elseif ($c.AsrList.SelectedItem) { $items = @($c.AsrList.SelectedItem.Rule.Exclusions) }
-    $c.AsrExclusionList.ItemsSource = $items
-    Update-IgwtGuiButtons
-}
-
-function Update-IgwtGuiAsrDetails {
-    <# .SYNOPSIS Fills the ASR details panel for the selected rule. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
-    [CmdletBinding()]
-    param()
-    $c = $script:Gui.C
-    $row = $c.AsrList.SelectedItem
-    if (-not $row) {
-        $c.AsrDetName.Text = 'Select a rule'
-        $c.AsrDetMeta.Text = ''; $c.AsrDetDescription.Text = 'Pick a rule on the left to see what it blocks, what it means for games and its exclusions.'; $c.AsrDetImpact.Text = ''
-        $c.AsrModeBox.ItemsSource = @(); $c.AsrDetSources.ItemsSource = @()
-        Update-IgwtGuiAsrExclusionList
-        return
-    }
-    $r = $row.Rule
-    $c.AsrDetName.Text = [string]$r.Name
-    $c.AsrDetMeta.Text = ("Current: {0} ({1})  |  Recommended: {2}  |  {3}" -f $row.ModeText, $(if ($r.Source -eq 'NotSet') { 'Windows default' } else { $r.Source }), $r.Recommended, $r.Id)
-    $desc = [string]$r.Description
-    if ($r.Notes) { $desc += "  Note: $($r.Notes)" }
-    if ($r.ManagedByPolicy) { $desc += "  This rule is managed by $($r.Source); change it there." }
-    $c.AsrDetDescription.Text = $desc
-    $c.AsrDetImpact.Text = [string]$r.GamerImpact
-    $modes = @($r.AllowedModes)
-    $c.AsrModeBox.ItemsSource = $modes
-    if ($modes -contains [string]$r.Mode) { $c.AsrModeBox.SelectedItem = [string]$r.Mode }
-    elseif ($modes -contains [string]$r.Recommended) { $c.AsrModeBox.SelectedItem = [string]$r.Recommended }
-    $c.AsrDetSources.ItemsSource = @($r.Sources)
-    Update-IgwtGuiAsrExclusionList
-}
-
-function Start-IgwtGuiAsrRefresh {
-    <# .SYNOPSIS Reads the ASR status in the worker (read-only). #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
-    [CmdletBinding()]
-    param()
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtAsrStatus' -Channel 'asr' -BusyText 'Reading ASR rules (read-only)...' -OnComplete {
-        param($out, $errs)
-        $st = @($out) | Select-Object -Last 1
-        Set-IgwtGuiAsrStatus -Status $st
-        if ($st) { Set-IgwtGuiStatus 'ASR rules read.' } else { Set-IgwtGuiStatus 'The ASR status could not be read; see the log.' }
-    }
-}
-
-function Set-IgwtGuiAsrAudit {
-    <# .SYNOPSIS Shows an ASR audit view result. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
-    [CmdletBinding()]
-    param($Audit)
-    $c = $script:Gui.C
-    $script:Gui.AsrAudit = $Audit
-    if (-not $Audit) { $c.AsrAuditList.ItemsSource = @(); $c.AsrAuditSummaryText.Text = 'The audit view could not be read; see the log.'; return }
-    if (-not $Audit.Readable) { $c.AsrAuditList.ItemsSource = @(); $c.AsrAuditSummaryText.Text = [string]$Audit.Error; return }
-    $c.AsrAuditList.ItemsSource = @(New-IgwtGuiAsrAuditRow -Audit $Audit)
-    $t = $Audit.Totals
-    $c.AsrAuditSummaryText.Text = ("Last {0} day(s), log covers {1}: {2} blocked, {3} audited, {4} controlled folder access, {5} network protection. {6} to review, {7} ready to promote." -f `
-            $Audit.Days, $Audit.CoverageDays, $t.AsrBlocked, $t.AsrAudited, $t.Cfa, $t.Network, $t.ToReview, $t.ToPromote)
-    Update-IgwtGuiButtons
-}
-
-function Start-IgwtGuiAsrAudit {
-    <# .SYNOPSIS Reads the ASR audit view in the worker (read-only). #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
-    [CmdletBinding()]
-    param()
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtAsrAudit' -Channel 'asr-audit' -Parameters @{ Days = 14 } -BusyText 'Reading the Defender log (read-only)...' -OnComplete {
-        param($out, $errs)
-        Set-IgwtGuiAsrAudit -Audit (@($out) | Select-Object -Last 1)
-        Set-IgwtGuiStatus 'ASR audit view updated.'
-    }
-}
-
-function Invoke-IgwtGuiAsrChange {
-    <# .SYNOPSIS Confirms, then runs one ASR Center change in the worker (snapshot first) and refreshes. #>
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][hashtable]$Parameters, [Parameter(Mandatory = $true)][string]$Description)
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change ASR rules or exclusions.'; return }
-    $text = "$Description`n`nA snapshot is written first, so you can revert this in Backups & Logs."
-    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - ASR Center' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtAsrChange' -Parameters $Parameters -Blocking -BusyText 'Changing ASR settings (snapshot first)...' -OnComplete {
-        param($out, $errs)
-        $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The change was not made: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and $res.Changes -gt 0) {
-            $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
-            $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + "`n`nSnapshot: $($res.Snapshot)") -Icon $(if (@($res.Results | Where-Object { $_.Result -eq 'Failed' }).Count) { 'Warning' } else { 'Information' })
-        } else { Set-IgwtGuiStatus 'Nothing to change.' }
-        Start-IgwtGuiAsrRefresh
-    }
-}
-
-#endregion
-
 #region Defender settings
 
 function Select-IgwtGuiNavPage {
@@ -2188,23 +2038,16 @@ function Update-IgwtGuiDefenderDetails {
         $explain = [string]$p.Explain
         if ($explain.Length -gt 1800) { $explain = $explain.Substring(0, 1800) + ' ...' }
         $c.DefDetDescription.Text = $explain.Trim()
-        $refused = @(@($p.Refused) | ForEach-Object { ([string]$_ -split ':')[0] })
-        $items = @(foreach ($s in 'Enabled', 'Disabled', 'NotConfigured') {
-                $label = $(if ($s -eq 'NotConfigured') { 'Not configured' } else { $s })
-                $allowed = ($refused -notcontains $s) -and ($s -ne 'Enabled' -or $p.Simple)
-                if ($refused -contains $s) { $label += ' (refused)' } elseif (-not $allowed) { $label += ' (needs values: use -PolicySet)' }
-                [pscustomobject]@{ Value = $s; Label = $label; Allowed = $allowed }
+        # One entry per state, and per option for single-option policies (for example "Enabled: Block").
+        $items = @(foreach ($ch in @($p.Choices)) {
+                [pscustomobject]@{ Value = [string]$ch.State; Values = $ch.Values; Label = $(if ($ch.Allowed) { [string]$ch.Label } elseif ($ch.Label -like '*needs values*') { [string]$ch.Label } else { "$($ch.Label) (not allowed)" }); Allowed = [bool]$ch.Allowed; Reason = [string]$ch.Reason }
             })
         $c.DefPolicyStateBox.ItemsSource = $items
-        $cur = @($items | Where-Object { $_.Value -eq [string]$p.State }) | Select-Object -First 1
-        if ($cur) { $c.DefPolicyStateBox.SelectedItem = $cur }
-        $help = New-Object System.Collections.Generic.List[string]
-        if ($p.Preference) { $help.Add("Sets the Defender preference $($p.Preference); a policy wins over the local value.") }
-        if (-not $p.Simple) { $help.Add("This policy has extra values. Enable it with iGWindowsTuner.ps1 -PolicySet $($p.Id) -PolicyState Enabled -PolicyValue ""..."" (-PolicyShow $($p.Id) lists them); Disabled and Not configured work here.") }
-        foreach ($r in @($p.Refused)) { $help.Add("Refused - $r") }
-        $help.Add('A Local Group Policy backup is taken before every change (-PolicyRestore <backup> restores it).')
-        $c.DefPolicyHelp.Text = ($help -join "`n")
-        Update-IgwtGuiButtons
+        # Select the current state; for an Enabled policy with options the current option is not
+        # known from the state alone, so nothing is preselected (the details line shows the state).
+        $cur = @($items | Where-Object { $_.Value -eq [string]$p.State })
+        if ($cur.Count -eq 1) { $c.DefPolicyStateBox.SelectedItem = $cur[0] }
+        Update-IgwtGuiDefenderPolicyHelp
         return
     }
     $row = $c.DefList.SelectedItem
@@ -2253,9 +2096,14 @@ function Update-IgwtGuiDefenderDetails {
         'text' { $help.Add('Text value; it is checked before anything changes.') }
         default { if ($choices.Count) { $help.Add("Values marked 'not allowed' turn a protection off or lower it, or are refused for the reason shown when you pick them.") } }
     }
-    if (-not $s.Editable) { $help.Add([string]$s.Change) }
+    if (-not $s.Editable) { $help.Insert(0, "Locked: $(if ([string]$s.Source -match '(?i)policy|gpo|mdm') { "set by $($s.Source); change it there." } else { [string]$s.Change })") }
     elseif ([string]$s.Edit -eq 'parser') { $help.Add('Network Inspection parser: it is only ever turned on, so there is nothing to revert.') }
-    $c.DefValueHelp.Text = ($help -join "`n")
+    $c.DefValueBox.IsEnabled = [bool]$s.Editable
+    $c.DefValueText.IsReadOnly = -not [bool]$s.Editable
+    $c.DefApplyButton.Visibility = $(if ($s.Editable) { 'Visible' } else { 'Collapsed' })
+    $c.DefRecommendButton.Visibility = $(if ($s.Editable) { 'Visible' } else { 'Collapsed' })
+    $script:Gui.DefValueBaseHelp = ($help -join "`n")
+    $c.DefValueHelp.Text = $script:Gui.DefValueBaseHelp
     $c.DefDocButton.Tag = [string]$s.Doc
     Update-IgwtGuiButtons
 }
@@ -2322,7 +2170,7 @@ function Invoke-IgwtGuiDefenderChange {
     if ($c.DefValueBox.Visibility -eq 'Visible') {
         $pick = $c.DefValueBox.SelectedItem
         if (-not $pick) { Set-IgwtGuiStatus 'Pick a value first.'; return }
-        if (-not $pick.Allowed) { $null = Show-IgwtGuiMessage -Text "This value is refused:`n`n$($pick.Why)" -Icon 'Warning'; return }
+        if (-not $pick.Allowed) { Set-IgwtGuiStatus "Not allowed: $($pick.Why)"; return }
         $raw = $pick.Value
     } else {
         $raw = ([string]$c.DefValueText.Text).Trim()
@@ -2330,7 +2178,7 @@ function Invoke-IgwtGuiDefenderChange {
     }
     try { $value = ConvertTo-IgwtDefenderSettingValue -Definition $def -Value $raw } catch { $null = Show-IgwtGuiMessage -Text "The value is not valid:`n`n$($_.Exception.Message)" -Icon 'Warning'; return }
     $why = Test-IgwtDefenderSettingValue -Definition $def -Value $value -Current $s.Current
-    if ($why) { $null = Show-IgwtGuiMessage -Text "This value is refused:`n`n$why" -Icon 'Warning'; return }
+    if ($why) { $script:Gui.C.DefValueHelp.Text = "Not allowed: $why"; Set-IgwtGuiStatus "Not allowed: $why"; return }
     if (Test-IgwtDefenderValueEqual -Definition $def -A $s.Current -B $value) { Set-IgwtGuiStatus "'$($s.Name)' is already $($s.Display)."; return }
     $newText = Format-IgwtDefenderSettingValue -Definition $def -Value $value
     $text = "Change '$($s.Name)' from $($s.Display) to ${newText}?"
@@ -2354,6 +2202,24 @@ function Invoke-IgwtGuiDefenderChange {
     }
 }
 
+function Update-IgwtGuiDefenderPolicyHelp {
+    <# .SYNOPSIS The help under the policy state box: what the policy sets, and why the chosen option is not allowed (inline, no dialog). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $row = $c.DefPolicyList.SelectedItem
+    if (-not $row) { return }
+    $p = $row.Policy
+    $pick = $c.DefPolicyStateBox.SelectedItem
+    $help = New-Object System.Collections.Generic.List[string]
+    if ($pick -and -not $pick.Allowed) { $help.Add("Not allowed: $($pick.Reason)") }
+    if ($p.Preference) { $help.Add("Sets the Defender preference $($p.Preference); a policy wins over the local value.") }
+    $help.Add('A Local Group Policy backup is taken before every change (-PolicyRestore <backup> restores it).')
+    $c.DefPolicyHelp.Text = ($help -join "`n")
+    Update-IgwtGuiButtons
+}
+
 function Invoke-IgwtGuiDefenderPolicyChange {
     <# .SYNOPSIS Confirms, then sets the selected Defender Group Policy setting in the worker (Local GPO backup first, denylist checked) and reads the policies again. #>
     [CmdletBinding()]
@@ -2363,10 +2229,11 @@ function Invoke-IgwtGuiDefenderPolicyChange {
     $pick = $c.DefPolicyStateBox.SelectedItem
     if (-not $row -or -not $pick) { Set-IgwtGuiStatus 'Select a policy and a state first.'; return }
     if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Group Policy.'; return }
-    if (-not $pick.Allowed) { $null = Show-IgwtGuiMessage -Text "This state cannot be set here:`n`n$($pick.Label)`n`n$(([string]$c.DefPolicyHelp.Text))" -Icon 'Warning'; return }
-    if ([string]$row.Policy.State -eq [string]$pick.Value) { Set-IgwtGuiStatus "The policy is already $($pick.Label)."; return }
+    if (-not $pick.Allowed) { Set-IgwtGuiStatus "Not allowed: $($pick.Reason)"; return }
+    if ([string]$row.Policy.State -eq [string]$pick.Value -and -not @($pick.Values.Keys).Count) { Set-IgwtGuiStatus "The policy is already $($pick.Label)."; return }
     $text = "Set the Group Policy '$($row.Name)' to $($pick.Label)?`n`n$($row.Id)`n`nA backup of the Local Group Policy is taken first."
     $params = @{ Id = [string]$row.Id; State = [string]$pick.Value }
+    if (@($pick.Values.Keys).Count) { $params.Values = $pick.Values }
     $m = $null
     try { $m = Get-IgwtManagementState } catch { $m = $null }
     if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
@@ -2726,9 +2593,10 @@ function Save-IgwtGuiScreenshots {
     if ($WithNetworkTest) { try { Set-IgwtGuiNetResult -Result (Invoke-IgwtNetworkQualityTest -Duration Quick) } catch { Write-Warning "Network test unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" } }
     # Read-only data for the ASR Center (status and the Defender event log).
     try {
+        Set-IgwtGuiAsrAudit -Audit (Get-IgwtAsrAudit -Days 7)
         Set-IgwtGuiAsrStatus -Status (Get-IgwtAsrStatus)
-        Set-IgwtGuiAsrAudit -Audit (Get-IgwtAsrAudit -Days 14)
-        if (@($script:Gui.C.AsrList.ItemsSource).Count) { $script:Gui.C.AsrList.SelectedIndex = 0 }
+        Set-IgwtGuiExploitProtection -Inventory (Get-IgwtExploitProtectionInventory)
+        if ($script:Gui.Grids.Asr.Index.Count) { $script:Gui.Grids.Asr.C.Grid.SelectedIndex = 0 }
     } catch { Write-Warning "ASR data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Read-only data for the Defender settings page.
     try {
@@ -2820,7 +2688,7 @@ function Show-IgwtGui {
         DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''; NoStateSave = [bool]$RenderTo; ViewState = $(if ($RenderTo) { @{} } else { Read-IgwtGuiState }); ThemeChoice = 'System'; ReduceMotion = $false; HcHandler = $null
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null
+        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null; Exploit = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -2832,6 +2700,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiChrome
     Initialize-IgwtGuiManageGrids
     Initialize-IgwtGuiFirewallPage
+    Initialize-IgwtGuiAsrPage
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.RejectedList.ItemsSource = @(Get-IgwtRejectedTweaks | ForEach-Object {
@@ -3057,8 +2926,13 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.DefEditableBox -Event 'Click' -Handler { Update-IgwtGuiDefenderLists }
     Register-IgwtGuiHandler -Control $c.DefList -Event 'SelectionChanged' -Handler { Update-IgwtGuiDefenderDetails }
     Register-IgwtGuiHandler -Control $c.DefPolicyList -Event 'SelectionChanged' -Handler { Update-IgwtGuiDefenderDetails }
-    Register-IgwtGuiHandler -Control $c.DefValueBox -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
-    Register-IgwtGuiHandler -Control $c.DefPolicyStateBox -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
+    Register-IgwtGuiHandler -Control $c.DefValueBox -Event 'SelectionChanged' -Handler {
+        # A value that is not allowed shows its reason under the box (no dialog) and keeps Apply off.
+        $pick = $script:Gui.C.DefValueBox.SelectedItem
+        $script:Gui.C.DefValueHelp.Text = $(if ($pick -and -not $pick.Allowed) { "Not allowed: $($pick.Why)`n$($script:Gui.DefValueBaseHelp)" } else { [string]$script:Gui.DefValueBaseHelp })
+        Update-IgwtGuiButtons
+    }
+    Register-IgwtGuiHandler -Control $c.DefPolicyStateBox -Event 'SelectionChanged' -Handler { Update-IgwtGuiDefenderPolicyHelp }
     Register-IgwtGuiHandler -Control $c.DefPrefsViewButton -Event 'Click' -Handler { Set-IgwtGuiDefenderView -View 'Prefs' }
     Register-IgwtGuiHandler -Control $c.DefPolicyViewButton -Event 'Click' -Handler { Set-IgwtGuiDefenderView -View 'Policy' }
     Register-IgwtGuiHandler -Control $c.DefRefreshButton -Event 'Click' -Handler { if ($script:Gui.DefenderView -eq 'Policy') { Start-IgwtGuiDefenderRefresh -Policies } else { Start-IgwtGuiDefenderRefresh } }
@@ -3066,74 +2940,6 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.DefRecommendButton -Event 'Click' -Handler { Select-IgwtGuiDefenderRecommended }
     Register-IgwtGuiHandler -Control $c.DefPolicyApplyButton -Event 'Click' -Handler { Invoke-IgwtGuiDefenderPolicyChange }
     Register-IgwtGuiHandler -Control $c.DefDocButton -Event 'Click' -Handler { $u = [string]$script:Gui.C.DefDocButton.Tag; if ($u) { Open-IgwtGuiPath -Target $u } }
-    # ASR Center
-    Register-IgwtGuiHandler -Control $c.AsrRefreshButton -Event 'Click' -Handler { Start-IgwtGuiAsrRefresh }
-    Register-IgwtGuiHandler -Control $c.AsrAuditButton -Event 'Click' -Handler { Start-IgwtGuiAsrAudit }
-    Register-IgwtGuiHandler -Control $c.AsrList -Event 'SelectionChanged' -Handler { Update-IgwtGuiAsrDetails }
-    Register-IgwtGuiHandler -Control $c.AsrGlobalBox -Event 'Click' -Handler { Update-IgwtGuiAsrExclusionList }
-    Register-IgwtGuiHandler -Control $c.AsrExclusionList -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
-    Register-IgwtGuiHandler -Control $c.AsrAuditList -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
-    Register-IgwtGuiHandler -Control $c.AsrDetSources -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
-            param($eventSource, $e)
-            if ($e.OriginalSource -is [System.Windows.Controls.Button]) { Open-IgwtGuiPath -Target ([string]$e.OriginalSource.Tag) }
-        }
-    Register-IgwtGuiHandler -Control $c.AsrSetModeButton -Event 'Click' -Handler {
-            $row = $script:Gui.C.AsrList.SelectedItem
-            $mode = [string]$script:Gui.C.AsrModeBox.SelectedItem
-            if (-not $row -or -not $mode) { Set-IgwtGuiStatus 'Select a rule and a mode first.'; return }
-            if ($mode -eq [string]$row.Rule.Mode) { Set-IgwtGuiStatus "The rule is already in $mode."; return }
-            $extra = ''
-            if ($mode -in 'Block', 'Warn' -and [string]$row.Rule.GamerImpactLevel -in 'medium', 'high') { $extra = "`n`nGamer impact is $($row.Rule.GamerImpactLevel): $($row.Rule.GamerImpact) Check the audit view before blocking." }
-            if ($mode -eq 'NotConfigured' -and [string]$row.Rule.Category -eq 'standard') { $extra = "`n`nThis is a standard protection rule that Microsoft recommends keeping in Block." }
-            Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = @{ ([string]$row.Id) = $mode } } -Description "Set '$($row.Name)' from $($row.ModeText) to ${mode}?$extra"
-        }
-    Register-IgwtGuiHandler -Control $c.AsrRecommendButton -Event 'Click' -Handler {
-            if (-not $script:Gui.AsrStatus) { return }
-            $plan = @(Get-IgwtAsrRecommendationPlan -Status $script:Gui.AsrStatus)
-            if ($plan.Count -eq 0) { Set-IgwtGuiStatus 'Every rule already meets its recommendation.'; return }
-            $lines = @($plan | ForEach-Object { "- $($_.Name): $($_.From) -> $($_.To)" })
-            Invoke-IgwtGuiAsrChange -Parameters @{ Recommended = $true } -Description ("Apply the recommended modes to $($plan.Count) rule(s)? No rule is lowered.`n`n" + ($lines -join "`n"))
-        }
-    Register-IgwtGuiHandler -Control $c.AsrAddExclusionButton -Event 'Click' -Handler {
-            $path = ([string]$script:Gui.C.AsrExclusionBox.Text).Trim()
-            if (-not $path) { Set-IgwtGuiStatus 'Type the full path of the program to exclude first.'; return }
-            $check = Test-IgwtAsrExclusion -Path $path
-            if (-not $check.Valid) { $null = Show-IgwtGuiMessage -Text "This exclusion is refused:`n`n$($check.Reason)" -Icon 'Warning'; return }
-            $global = [bool]$script:Gui.C.AsrGlobalBox.IsChecked
-            $row = $script:Gui.C.AsrList.SelectedItem
-            if (-not $global -and -not $row) { Set-IgwtGuiStatus 'Select a rule (or tick global) first.'; return }
-            $params = @{ AddExclusion = @($path) }
-            $scope = 'every ASR rule (global exclusion)'
-            if (-not $global) { $params.ExclusionRule = [string]$row.Id; $scope = "'$($row.Name)' only" }
-            $notes = ''
-            if (@($check.Warnings).Count) { $notes = "`n`n" + (@($check.Warnings) -join "`n") }
-            Invoke-IgwtGuiAsrChange -Parameters $params -Description "Exclude`n$path`nfrom ${scope}?$notes`n`nDefender applies exclusions when the program next starts."
-        }
-    Register-IgwtGuiHandler -Control $c.AsrRemoveExclusionButton -Event 'Click' -Handler {
-            $path = [string]$script:Gui.C.AsrExclusionList.SelectedItem
-            if (-not $path) { return }
-            $global = [bool]$script:Gui.C.AsrGlobalBox.IsChecked
-            $row = $script:Gui.C.AsrList.SelectedItem
-            $params = @{ RemoveExclusion = @($path) }
-            $scope = 'the global ASR exclusions'
-            if (-not $global) { if (-not $row) { return }; $params.ExclusionRule = [string]$row.Id; $scope = "the exclusions of '$($row.Name)'" }
-            Invoke-IgwtGuiAsrChange -Parameters $params -Description "Remove`n$path`nfrom ${scope}?"
-        }
-    Register-IgwtGuiHandler -Control $c.AsrAuditExcludeButton -Event 'Click' -Handler {
-            $sel = $script:Gui.C.AsrAuditList.SelectedItem
-            if (-not $sel) { return }
-            if ($sel.RuleId) {
-                $match = @($script:Gui.C.AsrList.ItemsSource | Where-Object { $_.Id -eq $sel.RuleId }) | Select-Object -First 1
-                if ($match) { $script:Gui.C.AsrList.SelectedItem = $match; $script:Gui.C.AsrList.ScrollIntoView($match) }
-            }
-            if ($sel.Exclusion) {
-                $script:Gui.C.AsrGlobalBox.IsChecked = $false
-                $script:Gui.C.AsrExclusionBox.Text = [string]$sel.Exclusion
-                Update-IgwtGuiAsrExclusionList
-                Set-IgwtGuiStatus 'Suggested file copied. Review it, then press Add exclusion (only if you trust the program).'
-            } else { Set-IgwtGuiStatus 'No exclusion is suggested for this entry; see its advice.' }
-        }
-
     Register-IgwtGuiHandler -Control $c.StartupRefreshButton -Event 'Click' -Handler { Start-IgwtGuiRefresh }
     Register-IgwtGuiHandler -Control $c.StartupList -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
             param($eventSource, $e)

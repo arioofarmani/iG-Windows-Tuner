@@ -363,3 +363,15 @@ function script:Get-IgwtFirewallProfileStatus {
         Networks = @([pscustomobject]@{ InterfaceAlias = 'Ethernet'; InterfaceIndex = 12; Network = 'Demo Network'; Category = 'Private'; IPv4 = 'Internet' })
     }
 }
+
+function script:Get-IgwtExploitProtectionInventory {
+    [pscustomobject]@{
+        System = @([pscustomobject]@{ Name = 'Data Execution Prevention (DEP)'; Value = 'Default (on)' }, [pscustomobject]@{ Name = 'Mandatory ASLR'; Value = 'Default (on)' }, [pscustomobject]@{ Name = 'Control flow guard (CFG)'; Value = 'Default (on)' }, [pscustomobject]@{ Name = 'SEH overwrite protection (SEHOP)'; Value = 'Default (on)' })
+        Programs = @(
+            [pscustomobject]@{ Program = 'DemoShooter.exe'; Source = 'Registry'; AntiCheat = $false; Locked = $false; On = 'Data Execution Prevention (DEP), Control flow guard (CFG)'; Off = ''; OnCount = 2; OffCount = 0; Note = '' }
+            [pscustomobject]@{ Program = 'EasyAntiCheat_EOS.exe'; Source = 'Registry'; AntiCheat = $true; Locked = $true; On = 'Data Execution Prevention (DEP), Mandatory ASLR'; Off = ''; OnCount = 2; OffCount = 0; Note = 'Anti-cheat: its mitigations are set by the anti-cheat; never change them.' }
+            [pscustomobject]@{ Program = 'OldTool.exe'; Source = 'Registry'; AntiCheat = $false; Locked = $false; On = ''; Off = 'Control flow guard (CFG)'; OnCount = 0; OffCount = 1; Note = 'Some mitigations are turned off for this program; that weakens it unless the program needs it.' }
+        )
+        Notes = @(); WeakSystem = 0
+    }
+}

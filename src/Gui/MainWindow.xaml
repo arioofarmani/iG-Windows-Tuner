@@ -1144,15 +1144,9 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="3*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="340"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
+                    <StackPanel Grid.Row="0">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                             <Button x:Name="AsrHardeningButton" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
                             <Button x:Name="AsrSelfButton" Style="{StaticResource AccentButton}" Content="ASR Center" ToolTip="You are here: Security > ASR Center."/>
@@ -1160,93 +1154,94 @@
                         </StackPanel>
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                                <Button x:Name="AsrRefreshButton" Content="Refresh" ToolTip="Re-read every rule's mode and exclusions from Defender (read-only)."/>
-                                <Button x:Name="AsrAuditButton" Content="Audit view" ToolTip="Read ASR, controlled folder access and network protection events from the last 14 days (read-only)."/>
-                                <Button x:Name="AsrRecommendButton" Style="{StaticResource AccentButton}" Content="Apply recommendations" Margin="0" ToolTip="Raise every rule that is below its recommended mode after a confirmation. Never lowers a rule. Needs administrator rights."/>
+                                <Button x:Name="AsrPromoteButton" Content="Audit to Block..." ToolTip="Review the rules in Audit with their events of the last 7 days and move the quiet ones to Block, with a preview first."/>
+                                <Button x:Name="AsrRecommendButton" Style="{StaticResource AccentButton}" Content="Apply recommendations" ToolTip="Raise every rule that is below its recommended mode (never lowers a rule). Confirmation and snapshot first."/>
+                                <Button x:Name="AsrRefreshButton" Content="Refresh" Margin="0" ToolTip="Read every rule's mode, exclusions and events again (read-only)."/>
                             </StackPanel>
                             <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{DynamicResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{DynamicResource BrushTextMuted}"/><Run Text="ASR Center"/></TextBlock>
                         </DockPanel>
-                        <TextBlock Style="{StaticResource TextMuted}" Text="Attack surface reduction rules block behaviors malware relies on. Each rule shows what it means for games, launchers and mods. Rules with gamer impact start in Audit: check the audit view, exclude trusted programs (the exact file), then promote. Every change writes a snapshot you can revert in Backups &amp; Logs."/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Attack surface reduction rules block behaviors malware relies on. Each rule shows what it means for games, launchers and mods. Audit first, then move quiet rules to Block. Rules managed by Group Policy or MDM are locked."/>
                     </StackPanel>
-                    <TextBlock x:Name="AsrSummaryText" Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource TextMuted}" Margin="0,8,0,6" Text="Not read yet."/>
-                    <ListView x:Name="AsrList" Grid.Row="2" Grid.Column="0" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Hint}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="120"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding ImpactBrush}"><TextBlock Text="{Binding ImpactText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding ImpactBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding FlagVisibility}"><TextBlock Text="{Binding FlagText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding ExclusionVisibility}" BorderBrush="{DynamicResource BrushAccent}"><TextBlock Text="{Binding ExclusionText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                        </WrapPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock x:Name="AsrSummaryIcon" Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="AsrSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet."/>
+                    </StackPanel>
+                    <TabControl x:Name="AsrTabs" Grid.Row="2" Margin="0,10,0,0">
+                        <TabItem Header="Rules" ToolTip="Every ASR rule with its mode, gamer impact and events">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="340"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentControl x:Name="AsrGridHost" Grid.Column="0" Margin="0,0,12,0" Focusable="False"/>
+                                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock x:Name="AsrDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
+                                            <TextBlock x:Name="AsrDetMeta" Style="{StaticResource TextMuted}" Margin="0,2,0,6"/>
+                                            <TextBlock x:Name="AsrDetDescription" TextWrapping="Wrap" Margin="0,0,0,8" Text="Pick a rule to see what it blocks, what it means for games, its events and its exclusions."/>
+                                            <StackPanel x:Name="AsrDetPanel" Visibility="Collapsed">
+                                                <TextBlock Style="{StaticResource TextSection}" Text="Gamer impact" Margin="0,4,0,4"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <TextBlock x:Name="AsrDetImpactIcon" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,6,0"/>
+                                                    <TextBlock x:Name="AsrDetImpactLevel" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <TextBlock x:Name="AsrDetImpact" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                                <TextBlock Style="{StaticResource TextSection}" Text="Mode" Margin="0,8,0,6"/>
+                                                <Border Style="{StaticResource SegmentHost}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="AsrModeNotConfigured" Style="{StaticResource Segment}" GroupName="asrmode" Content="Off" Tag="NotConfigured" AutomationProperties.Name="Mode: not configured (off)"/>
+                                                        <RadioButton x:Name="AsrModeAudit" Style="{StaticResource Segment}" GroupName="asrmode" Content="Audit" Tag="Audit" AutomationProperties.Name="Mode: audit"/>
+                                                        <RadioButton x:Name="AsrModeWarn" Style="{StaticResource Segment}" GroupName="asrmode" Content="Warn" Tag="Warn" AutomationProperties.Name="Mode: warn"/>
+                                                        <RadioButton x:Name="AsrModeBlock" Style="{StaticResource Segment}" GroupName="asrmode" Content="Block" Tag="Block" AutomationProperties.Name="Mode: block"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <TextBlock x:Name="AsrModeHelp" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                                                <Button x:Name="AsrSetModeButton" Content="Set mode" HorizontalAlignment="Left" Margin="0,0,0,6" ToolTip="Change this rule to the selected mode after a confirmation (snapshot first). Needs administrator rights."/>
+                                                <TextBlock Style="{StaticResource TextSection}" Text="Exclusions" Margin="0,8,0,4"/>
+                                                <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Prefer the exact program file. Windows folders, whole drives, Downloads, Desktop, temp folders and user-profile folders are refused."/>
+                                                <ListBox x:Name="AsrExclusionList" MinHeight="54" MaxHeight="120" Margin="0,6,0,0" AutomationProperties.Name="Exclusions" ToolTip="Exclusions that apply to the selected rule (per-rule) or to every rule (global)."/>
+                                                <TextBox x:Name="AsrExclusionBox" Margin="0,6,0,4" Tag="D:\Games\MyGame\MyGame.exe" AutomationProperties.Name="Program to exclude" ToolTip="Full path of the program to exclude, for example D:\Games\MyGame\MyGame.exe or %ProgramFiles%\Vendor\Tool.exe."/>
+                                                <CheckBox x:Name="AsrGlobalBox" Style="{StaticResource FilterCheck}" Content="Apply to all ASR rules (global)" ToolTip="Unticked: the exclusion applies to the selected rule only (recommended). Ticked: it applies to every ASR rule."/>
+                                                <WrapPanel Margin="0,4,0,0">
+                                                    <Button x:Name="AsrAddExclusionButton" Content="Add exclusion" ToolTip="Validate the path and add it after a confirmation (snapshot first). Needs administrator rights."/>
+                                                    <Button x:Name="AsrRemoveExclusionButton" Content="Remove selected" Margin="0" ToolTip="Remove the exclusion selected in the list after a confirmation (snapshot first). Needs administrator rights."/>
+                                                </WrapPanel>
+                                                <ItemsControl x:Name="AsrDetSources" Margin="0,10,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Style="{StaticResource LinkButton}" Content="{Binding}" Tag="{Binding}" ToolTip="Open the Microsoft documentation in your browser."/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Events (7 days)" ToolTip="What the rules, controlled folder access and network protection reported in the last 7 days">
+                            <DockPanel Margin="0,8,0,0">
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <Button x:Name="AsrAuditExcludeButton" DockPanel.Dock="Right" Content="Use as exclusion" Margin="12,0,0,0" ToolTip="Open the rule of this event and copy the suggested file into the exclusion box (nothing is added until you press Add exclusion)."/>
+                                    <TextBlock x:Name="AsrAuditSummaryText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Text="Reading the Defender log..."/>
+                                </DockPanel>
+                                <ContentControl x:Name="AsrAuditGridHost" Focusable="False"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="Exploit protection" ToolTip="System-wide exploit protection and the per-program settings (read-only)">
+                            <DockPanel Margin="0,8,0,0">
+                                <Border DockPanel.Dock="Top" Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="System-wide settings" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ExpSystemText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" Text="Not read yet."/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <TextBlock Text="{Binding ModeText}" Foreground="{Binding ModeBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                    <ScrollViewer Grid.Row="2" Grid.Column="1" Grid.RowSpan="3" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <TextBlock x:Name="AsrDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
-                            <TextBlock x:Name="AsrDetMeta" Style="{StaticResource TextMuted}" Margin="0,2,0,6"/>
-                            <TextBlock x:Name="AsrDetDescription" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                            <TextBlock Text="Gamer impact" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="AsrDetImpact" TextWrapping="Wrap" Foreground="{DynamicResource BrushAccent}" Margin="0,0,0,10"/>
-                            <TextBlock Text="Mode" FontWeight="SemiBold"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,10">
-                                <ComboBox x:Name="AsrModeBox" Width="150" ToolTip="Not configured is the Windows default. Audit only logs; Warn blocks but lets an administrator unblock for 24 hours; Block blocks."/>
-                                <Button x:Name="AsrSetModeButton" Content="Set mode" Margin="8,0,0,0" ToolTip="Change this rule to the selected mode after a confirmation (snapshot first). Needs administrator rights."/>
-                            </StackPanel>
-                            <TextBlock Text="Exclusions" FontWeight="SemiBold"/>
-                            <TextBlock Style="{StaticResource TextMuted}" Text="Prefer the exact program file. Windows folders, whole drives, Downloads, Desktop, temp folders and user-profile folders are refused." Margin="0,0,0,4"/>
-                            <ListBox x:Name="AsrExclusionList" MinHeight="54" MaxHeight="120" ToolTip="Exclusions that apply to the selected rule (per-rule) or to every rule (global)."/>
-                            <TextBox x:Name="AsrExclusionBox" Margin="0,6,0,4" ToolTip="Full path of the program to exclude, for example D:\Games\MyGame\MyGame.exe or %ProgramFiles%\Vendor\Tool.exe."/>
-                            <CheckBox x:Name="AsrGlobalBox" Style="{StaticResource FilterCheck}" Content="Apply to all ASR rules (global)" ToolTip="Unticked: the exclusion applies to the selected rule only (recommended). Ticked: it applies to every ASR rule."/>
-                            <WrapPanel Margin="0,4,0,0">
-                                <Button x:Name="AsrAddExclusionButton" Content="Add exclusion" ToolTip="Validate the path and add it after a confirmation (snapshot first). Needs administrator rights."/>
-                                <Button x:Name="AsrRemoveExclusionButton" Content="Remove selected" Margin="0" ToolTip="Remove the exclusion selected in the list after a confirmation (snapshot first). Needs administrator rights."/>
-                            </WrapPanel>
-                            <ItemsControl x:Name="AsrDetSources" Margin="0,10,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button Style="{StaticResource LinkButton}" Content="{Binding}" Tag="{Binding}" ToolTip="Open the Microsoft documentation in your browser."/>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <DockPanel Grid.Row="3" Grid.Column="0" Margin="0,10,0,4">
-                        <Button x:Name="AsrAuditExcludeButton" DockPanel.Dock="Right" Content="Use as exclusion" Margin="0" ToolTip="Select the rule of this event and copy the suggested file into the exclusion box (you still confirm before anything changes)."/>
-                        <TextBlock x:Name="AsrAuditSummaryText" Style="{StaticResource TextMuted}" VerticalAlignment="Center" Text="Audit view: press 'Audit view' to read the Defender log (read-only)."/>
-                    </DockPanel>
-                    <ListView x:Name="AsrAuditList" Grid.Row="4" Grid.Column="0" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Tip}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="110"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <TextBlock Text="{Binding Advice}" Foreground="{DynamicResource BrushAccent}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding CountText}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" TextAlignment="Right" TextWrapping="Wrap"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                                </Border>
+                                <TextBlock DockPanel.Dock="Top" x:Name="ExpSummaryText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Programs with their own exploit protection settings. Games and anti-cheat programs are marked and locked: their settings come from the game or the anti-cheat. Change mitigations through the Security items, which keep a snapshot."/>
+                                <ContentControl x:Name="ExpGridHost" Focusable="False"/>
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
                 </Grid>
 
                 <!-- Security > Defender settings -->
