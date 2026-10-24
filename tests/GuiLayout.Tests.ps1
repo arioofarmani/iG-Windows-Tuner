@@ -81,4 +81,11 @@ Describe 'GUI layout' {
         $list = InModuleScope iGWindowsTuner { $script:IgwtGuiControlNames }
         foreach ($n in @($list | Where-Object { $_ -like 'Dash*' -or $_ -in 'SecuritySwitch', 'SecAsrButton', 'AsrHardeningButton' })) { $names | Should -Contain $n }
     }
+    It 'shows change targets in plain words instead of engine fingerprints (audit O5)' {
+        InModuleScope iGWindowsTuner {
+            Format-IgwtGuiChangeTarget -Target 'registry|path=HKLM:\SOFTWARE\X|name=Y' | Should -Be 'Registry: HKLM:\SOFTWARE\X > Y'
+            Format-IgwtGuiChangeTarget -Target 'service|name=SysMain' | Should -Be 'Service: SysMain'
+            Format-IgwtGuiChangeTarget -Target 'Plain text' | Should -Be 'Plain text'
+        }
+    }
 }

@@ -526,45 +526,8 @@
                         <TextBlock x:Name="TweakPageTitle" Style="{StaticResource TextTitle}" Text="Tweaks"/>
                         <TextBlock x:Name="TweakPageSubtitle" Style="{StaticResource TextMuted}" Text="Toggles show the real current state. Toggling stages a change; nothing happens until you press Apply."/>
                     </StackPanel>
-                    <WrapPanel Grid.Row="1" Margin="0,10,0,8" VerticalAlignment="Center">
-                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search tweaks" AutomationProperties.Name="Search tweaks" Width="240" Margin="0,0,14,0" ToolTip="Search names, hints and ids across all categories"/>
-                        <CheckBox x:Name="FilterTierA" Style="{StaticResource FilterCheck}" Content="Tier A" IsChecked="True" ToolTip="Documented by Microsoft/vendor"/>
-                        <CheckBox x:Name="FilterTierB" Style="{StaticResource FilterCheck}" Content="Tier B" IsChecked="True" ToolTip="Situational: measure before/after"/>
-                        <CheckBox x:Name="FilterRiskLow" Style="{StaticResource FilterCheck}" Content="Low risk" IsChecked="True" ToolTip="Show low-risk tweaks"/>
-                        <CheckBox x:Name="FilterRiskMedium" Style="{StaticResource FilterCheck}" Content="Medium" IsChecked="True" ToolTip="Show medium-risk tweaks"/>
-                        <CheckBox x:Name="FilterRiskHigh" Style="{StaticResource FilterCheck}" Content="High" IsChecked="True" ToolTip="Show high-risk tweaks"/>
-                        <CheckBox x:Name="FilterRestart" Style="{StaticResource FilterCheck}" Content="Needs restart" ToolTip="Only tweaks that need a sign-out or reboot"/>
-                        <CheckBox x:Name="FilterChanged" Style="{StaticResource FilterCheck}" Content="Changed from default" ToolTip="Only tweaks whose current values differ from the Windows default"/>
-                    </WrapPanel>
-                    <ListView x:Name="TweakList" Grid.Row="2" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Hint}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="56"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="110"/>
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Grid.Column="0" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding Desired, Mode=OneWay}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" Tag="{Binding Id}" ToolTip="{Binding ToggleTip}"/>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding TierBrush}"><TextBlock Text="{Binding TierText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding TierBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}" Visibility="{Binding LevelVisibility}" ToolTip="Experience level: Advanced items are for power users; Expert and Lab items need an explicit confirmation."><TextBlock Text="{Binding LevelText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding LevelBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding RiskBrush}"><TextBlock Text="{Binding RiskText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding RiskBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RestartVisibility}"><TextBlock Text="{Binding RestartText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding AcBrush}"><TextBlock Text="{Binding AcText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding AcBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PendingVisibility}" Background="{DynamicResource BrushAccentDark}"><TextBlock Text="{Binding PendingText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding StateText}" Foreground="{Binding StateBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap" FontWeight="SemiBold" ToolTip="{Binding StateTip}"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ContentControl x:Name="TweakGridHost" Grid.Row="1" Grid.RowSpan="2" Margin="0,10,0,0" Focusable="False"/>
                 </Grid>
-
                 <!-- Expert inspectors -->
                 <Grid x:Name="PageInspect" Visibility="Collapsed">
                     <Grid.RowDefinitions>

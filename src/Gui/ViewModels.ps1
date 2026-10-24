@@ -452,7 +452,8 @@ function New-IgwtGuiTweakRow {
     $restart = ''
     if ($Tweak.requires -eq 'reboot') { $restart = 'Reboot' } elseif ($Tweak.requires -eq 'logoff') { $restart = 'Sign out' }
     $tier = [string]$Tweak.evidence.tier
-    [pscustomobject]@{
+    $r = [ordered]@{
+        Key               = [string]$Tweak.id
         Id                = [string]$Tweak.id
         Name              = $(if ($Tweak.expert) { "$($Tweak.name)" } else { [string]$Tweak.name })
         Category          = [string]$Tweak.category
@@ -486,6 +487,41 @@ function New-IgwtGuiTweakRow {
         PendingVisibility = $(if ($pending) { 'Visible' } else { 'Collapsed' })
         Changed           = $Changed
     }
+    # SmartGrid fields: the switch, and status columns that always show an icon and a word.
+    $r.On = $desired; $r.OnEnabled = $canToggle; $r.OnTip = $toggleTip; $r.OnName = "$($Tweak.name): $(if ($desired) { 'on' } else { 'off' })"
+    Add-IgwtGuiStatusField -Row $r -Name 'StateCol' -Text $stateText -Tone $(switch ($stateName) { 'On' { 'Pass' } 'Partial' { 'Warn' } 'ManagedByPolicy' { 'Info' } 'Off' { 'Muted' } 'NotApplicable' { 'Muted' } default { 'Warn' } }) -Locked:($stateName -eq 'ManagedByPolicy')
+    Add-IgwtGuiStatusField -Row $r -Name 'RiskCol' -Text $(if ($Tweak.risk) { (Get-Culture).TextInfo.ToTitleCase([string]$Tweak.risk) } else { 'Unknown' }) -Tone $(switch ([string]$Tweak.risk) { 'low' { 'Pass' } 'medium' { 'Warn' } default { 'Fail' } })
+    Add-IgwtGuiStatusField -Row $r -Name 'AcCol' -Text $r.AcText -Tone $(if ($Tweak.antiCheatSafe) { 'Pass' } else { 'Fail' })
+    Add-IgwtGuiStatusField -Row $r -Name 'PendingCol' -Text $(switch ($Staged) { 'on' { 'Apply' } 'off' { 'Turn off' } 'reset' { 'Reset' } default { '' } }) -Tone 'Info'
+    if (-not $Staged) { $r.PendingColGlyph = '' }
+    $r.RiskRank = @{ low = 1; medium = 2; high = 3 }[[string]$Tweak.risk]
+    $r.LevelRank = @{ Standard = 1; Advanced = 2; Expert = 3; Lab = 4 }[[string]$Tweak.level]
+    $r.ChangedText = $(if ($Changed) { 'Changed' } else { 'Default' })
+    $r.RestartKey = $(if ($Tweak.requires -in 'reboot', 'logoff') { 'Yes' } else { 'No' })
+    $r.StagedKey = $(if ($Staged) { 'Yes' } else { 'No' })
+    return [pscustomobject]$r
+}
+
+function Format-IgwtGuiChangeTarget {
+    <#
+    .SYNOPSIS
+        A change target in plain words instead of the engine fingerprint (audit O5), for example
+        "registry|path=HKLM:\...\Power|name=HiberbootEnabled" -> "Registry: HKLM:\...\Power > HiberbootEnabled".
+        Unknown shapes are shown without the field names.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Target)
+    if (-not $Target -or $Target -notmatch '\|') { return $Target }
+    $parts = @($Target -split '\|')
+    $type = $parts[0]
+    $f = [ordered]@{}
+    foreach ($p in $parts[1..($parts.Count - 1)]) { $kv = $p -split '=', 2; if ($kv.Count -eq 2) { $f[$kv[0]] = $kv[1] } }
+    $label = @{ registry = 'Registry'; service = 'Service'; scheduledTask = 'Scheduled task'; powercfg = 'Power setting'; powercfgScheme = 'Power plan'; netAdapterAdvanced = 'Network adapter'; firewallRule = 'Firewall rule'; optionalFeature = 'Windows feature'; mitigation = 'Exploit protection'; defender = 'Defender'; bcd = 'Boot setting' }[$type]
+    if (-not $label) { $label = $type }
+    if ($type -eq 'registry' -and $f.Contains('path')) { return "${label}: $($f.path)$(if ($f.Contains('name')) { " > $($f.name)" })" }
+    $rest = @($f.Keys | ForEach-Object { [string]$f[$_] } | Where-Object { $_ })
+    return "${label}: $($rest -join ', ')"
 }
 
 function Test-IgwtGuiRowVisible {

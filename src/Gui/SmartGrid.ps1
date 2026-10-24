@@ -29,7 +29,7 @@ function ConvertTo-IgwtGridColumn {
     $kind = [string](& $get 'Kind' 'Text')
     if ($kind -notin 'Text', 'Number', 'Date') { $kind = 'Text' }
     $template = [string](& $get 'Template' 'Text')
-    if ($template -notin 'Text', 'Mono', 'Status', 'Badge') { $template = 'Text' }
+    if ($template -notin 'Text', 'Mono', 'Status', 'Badge', 'Toggle') { $template = 'Text' }
     return [pscustomobject]@{
         Key = $key; Header = [string](& $get 'Header' $key); Kind = $kind; SortKey = [string](& $get 'SortKey' $key); Template = $template
         Width = [double](& $get 'Width' 0); MinWidth = [double](& $get 'MinWidth' 60); Visible = [bool](& $get 'Visible' $true)
@@ -325,6 +325,10 @@ function Get-IgwtGridCellTemplateXaml {
                 "<TextBlock Style=`"{DynamicResource GridCellText}`" Text=`"{Binding $k, Mode=OneWay}`" Foreground=`"{Binding ${k}Brush, Mode=OneWay}`" FontWeight=`"SemiBold`"/>" +
                 '</StackPanel></DataTemplate>')
         }
+        'Toggle' {
+            # A switch bound to <Key> (bool), enabled by <Key>Enabled, with the row id in its Tag; the page handles the click.
+            return "<DataTemplate $ns><CheckBox Style=`"{DynamicResource ToggleSwitch}`" IsChecked=`"{Binding $k, Mode=OneWay}`" IsEnabled=`"{Binding ${k}Enabled, Mode=OneWay}`" Tag=`"{Binding Key, Mode=OneWay}`" ToolTip=`"{Binding ${k}Tip, Mode=OneWay}`" AutomationProperties.Name=`"{Binding ${k}Name, Mode=OneWay}`" HorizontalAlignment=`"Left`"/></DataTemplate>"
+        }
         'Badge' { return "<DataTemplate $ns><Border Style=`"{DynamicResource Badge}`" HorizontalAlignment=`"Left`" $tip><TextBlock Text=`"{Binding $k, Mode=OneWay}`" FontSize=`"{DynamicResource FontSizeCaption}`" TextTrimming=`"CharacterEllipsis`"/></Border></DataTemplate>" }
         default { return "<DataTemplate $ns><TextBlock Style=`"{DynamicResource GridCellText}`" Text=`"{Binding $k, Mode=OneWay}`" $tip/></DataTemplate>" }
     }
@@ -345,19 +349,22 @@ function New-IgwtSmartGrid {
         Changes = $true marks actions that change the PC: they are disabled in read-only mode.
     .PARAMETER RowKey
         Row property that identifies a row (keeps the selection across refreshes).
+    .PARAMETER OnBeforeQuery
+        Runs before every query with the grid: a page can adjust ColumnFilters (for example a
+        category that a search lifts).
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds window objects only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][object[]]$Columns, [object[]]$Chips = @(), [object[]]$Actions = @(),
         [string]$RowKey, [string]$SearchPlaceholder = 'Search', [string]$Noun = 'items', [string]$EmptyTitle = 'Nothing to show yet', [string]$EmptyText = '',
-        [scriptblock]$OnSelectionChanged, [scriptblock]$OnRefresh, [scriptblock]$OnActivate, [System.Windows.Controls.DataGridSelectionMode]$SelectionMode = 'Extended')
+        [scriptblock]$OnSelectionChanged, [scriptblock]$OnRefresh, [scriptblock]$OnActivate, [scriptblock]$OnBeforeQuery, [System.Windows.Controls.DataGridSelectionMode]$SelectionMode = 'Extended')
     $root = [Windows.Markup.XamlReader]::Parse((Get-IgwtGridShellXaml))
     $cols = @($Columns | ForEach-Object { ConvertTo-IgwtGridColumn -Definition $_ })
     $g = @{
         Id = $Id; Root = $root; Columns = $cols; Chips = @($Chips); Actions = @($Actions); RowKey = $RowKey; Noun = $Noun; EmptyTitle = $EmptyTitle; EmptyText = $EmptyText
         EmptyActionText = ''; EmptyAction = $null; StateAction = ''
         Index = (New-IgwtGridIndex -Rows @() -Columns $cols); Order = [int[]]@(); Search = ''; ActiveChips = (New-Object 'System.Collections.Generic.HashSet[string]'); ColumnFilters = @{}; Sort = @()
-        State = 'Loading'; StateMessage = ''; LastRefreshed = $null; OnSelectionChanged = $OnSelectionChanged; OnRefresh = $OnRefresh; OnActivate = $OnActivate; OnRetry = $OnRefresh
+        State = 'Loading'; StateMessage = ''; LastRefreshed = $null; OnSelectionChanged = $OnSelectionChanged; OnRefresh = $OnRefresh; OnActivate = $OnActivate; OnRetry = $OnRefresh; OnBeforeQuery = $OnBeforeQuery; ScrollViewer = $null; Scope = @{}
         C = @{}; ChipButtons = @{}; MoreButton = $null; DataColumns = @{}; Restoring = $false; Updating = $false; SearchTimer = $null; SaveTimer = $null; LastQueryMs = 0; Default = $null
     }
     foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton', 'SearchBox', 'ChipPanel', 'MoreChipPanel', 'BulkBar', 'BulkText', 'BulkClearButton', 'BulkActions', 'Grid', 'StatePanel', 'SkeletonPanel', 'StateIcon', 'StateTitle', 'StateText', 'StateButton') {
@@ -643,8 +650,14 @@ function Update-IgwtGridView {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Grid)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    if ($Grid.OnBeforeQuery) { & $Grid.OnBeforeQuery $Grid }
     $active = @($Grid.Chips | Where-Object { $Grid.ActiveChips.Contains([string]$_.Id) })
-    $Grid.Order = Invoke-IgwtGridQuery -Index $Grid.Index -Search $Grid.Search -Chips $active -ColumnFilters $Grid.ColumnFilters -Sort $Grid.Sort
+    # Scope (set by the page, for example the category of a tweak page) narrows the rows without
+    # counting as a filter the user set: the counter and Clear filters ignore it.
+    $filters = @{}
+    foreach ($k in @($Grid.ColumnFilters.Keys)) { $filters[$k] = $Grid.ColumnFilters[$k] }
+    foreach ($k in @($Grid.Scope.Keys)) { $filters[$k] = $Grid.Scope[$k] }
+    $Grid.Order = Invoke-IgwtGridQuery -Index $Grid.Index -Search $Grid.Search -Chips $active -ColumnFilters $filters -Sort $Grid.Sort
     $c = $Grid.C
     $selectedKeys = $null
     if ($Grid.RowKey -and $c.Grid.SelectedItems.Count) {
@@ -654,6 +667,9 @@ function Update-IgwtGridView {
     $ix = $Grid.Index
     $items = New-Object 'object[]' $Grid.Order.Count
     for ($j = 0; $j -lt $Grid.Order.Count; $j++) { $items[$j] = $ix.Rows[$Grid.Order[$j]] }
+    # Keep the scroll position: a refresh after a change must not jump back to the top.
+    if (-not $Grid.ScrollViewer -and [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($c.Grid) -gt 0) { $Grid.ScrollViewer = Find-IgwtGridScrollViewer -Node $c.Grid }
+    $offset = $(if ($Grid.ScrollViewer) { $Grid.ScrollViewer.VerticalOffset } else { 0 })
     $Grid.Updating = $true
     try {
         $c.Grid.ItemsSource = $items
@@ -663,7 +679,8 @@ function Update-IgwtGridView {
             foreach ($r in $items) { if ($selectedKeys.Contains([string]$r.($Grid.RowKey))) { $null = $c.Grid.SelectedItems.Add($r) } }
         }
     } finally { $Grid.Updating = $false }
-    $total = $ix.Count; $shown = $items.Count
+    if ($Grid.ScrollViewer -and $offset -gt 0) { $sv = $Grid.ScrollViewer; $null = $c.Grid.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded, [Action[double]] { param($o) $sv.ScrollToVerticalOffset($o) }, $offset) }
+    $total = $(if (@($Grid.Scope.Keys).Count) { (Invoke-IgwtGridQuery -Index $ix -ColumnFilters $Grid.Scope).Count } else { $ix.Count }); $shown = $items.Count
     $filtered = [bool]($Grid.Search -or $Grid.ActiveChips.Count -or @($Grid.ColumnFilters.Keys).Count)
     $c.CountText.Text = $(if ($filtered) { '{0:N0} of {1:N0} shown' -f $shown, $total } else { '{0:N0} {1}' -f $total, $Grid.Noun })
     $c.ClearButton.IsEnabled = $filtered
@@ -676,6 +693,17 @@ function Update-IgwtGridView {
     Update-IgwtGridSelection -Grid $Grid
     $Grid.LastQueryMs = $sw.ElapsedMilliseconds
     if ($script:Gui -and $script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'grid' -Text ("{0}`t{1}`t{2}`t{3}" -f $Grid.Id, $shown, $total, $Grid.LastQueryMs) }
+}
+
+function Find-IgwtGridScrollViewer {
+    <# .SYNOPSIS The ScrollViewer inside a DataGrid's template. #>
+    [CmdletBinding()]
+    param($Node)
+    if ($null -eq $Node) { return $null }
+    if ($Node -is [System.Windows.Controls.ScrollViewer]) { return $Node }
+    $n = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($Node)
+    for ($i = 0; $i -lt $n; $i++) { $r = Find-IgwtGridScrollViewer -Node ([System.Windows.Media.VisualTreeHelper]::GetChild($Node, $i)); if ($r) { return $r } }
+    return $null
 }
 
 function Update-IgwtGridUpdatedText {

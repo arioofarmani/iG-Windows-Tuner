@@ -13,8 +13,7 @@ $script:IgwtGuiControlNames = @(
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
-    'TweakPageTitle', 'TweakPageSubtitle', 'SearchBox', 'FilterTierA', 'FilterTierB', 'FilterRiskLow', 'FilterRiskMedium', 'FilterRiskHigh',
-    'FilterRestart', 'FilterChanged', 'TweakList',
+    'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
     'StartupRefreshButton', 'StartupList', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotList',
     'RejectedList', 'AboutText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerList',
@@ -632,17 +631,6 @@ function Update-IgwtGuiSnapshots {
         })
 }
 
-function Get-IgwtGuiFilter {
-    [CmdletBinding()]
-    param()
-    $c = $script:Gui.C
-    return @{
-        TierA = [bool]$c.FilterTierA.IsChecked; TierB = [bool]$c.FilterTierB.IsChecked
-        RiskLow = [bool]$c.FilterRiskLow.IsChecked; RiskMedium = [bool]$c.FilterRiskMedium.IsChecked; RiskHigh = [bool]$c.FilterRiskHigh.IsChecked
-        Restart = [bool]$c.FilterRestart.IsChecked; Changed = [bool]$c.FilterChanged.IsChecked
-    }
-}
-
 function Update-IgwtGuiTweakList {
     <# .SYNOPSIS Rebuilds rows (state + staging) and applies page/search/filters. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
@@ -650,29 +638,43 @@ function Update-IgwtGuiTweakList {
     param()
     if (-not $script:Gui.Data) { return }
     $c = $script:Gui.C
-    $selectedId = $null
-    if ($c.TweakList.SelectedItem) { $selectedId = $c.TweakList.SelectedItem.Id }
-    $filter = Get-IgwtGuiFilter
-    $search = [string]$c.SearchBox.Text
-    $rows = foreach ($t in $script:Gui.Catalog) {
-        $row = New-IgwtGuiTweakRow -Tweak $t -State $script:Gui.Data.States[$t.id] -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin
-        $st = $script:Gui.Data.States[$t.id]
-        $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
-        if ($personaOk -and (Test-IgwtGuiRowVisible -Row $row -Category $script:Gui.Category -Search $search -Filter $filter)) { $row }
-    }
-    $rows = @($rows)
-    $c.TweakList.ItemsSource = $rows
-    if ($selectedId) {
-        $again = $rows | Where-Object { $_.Id -eq $selectedId } | Select-Object -First 1
-        if ($again) { $c.TweakList.SelectedItem = $again }
-    }
+    # Every tweak the persona shows goes into the grid; the category is a column filter that a
+    # search lifts (Update-IgwtGuiTweakScope), so searching still covers every category.
+    $rows = @(foreach ($t in $script:Gui.Catalog) {
+            $st = $script:Gui.Data.States[$t.id]
+            $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
+            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin }
+        })
+    $grid = $script:Gui.Grids.Tweaks
+    Set-IgwtGridRows -Grid $grid -Rows $rows
+    Update-IgwtGuiTweakHeader
+    Update-IgwtGuiPending
+}
+
+function Update-IgwtGuiTweakScope {
+    <# .SYNOPSIS Pre-query hook of the tweak grid: the page's category, unless a search is typed (then every category). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the view only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Grid)
+    $Grid.Scope = $(if ($Grid.Search -or -not $script:Gui.Category) { @{} } else { @{ Category = @([string]$script:Gui.Category) } })
+    if ($script:Gui.C) { Update-IgwtGuiTweakHeader }
+}
+
+function Update-IgwtGuiTweakHeader {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $grid = $script:Gui.Grids.Tweaks
+    if (-not $grid) { return }
+    $search = [string]$grid.Search
+    $count = @($grid.Order).Count
     if ($search) { $c.TweakPageTitle.Text = "Search: $search" }
     elseif ($script:Gui.Category -eq 'Storage') { $c.TweakPageTitle.Text = 'Storage Sense' }
     elseif ($script:Gui.Category -eq 'System') { $c.TweakPageTitle.Text = 'System and diagnostics' }
     elseif ($script:Gui.Category -eq 'Risk Zone') { $c.TweakPageTitle.Text = 'Risk Zone: rejected tweaks at your own risk' }
     elseif ($script:Gui.Category) { $c.TweakPageTitle.Text = $script:Gui.Category }
-    $c.TweakPageSubtitle.Text = $(if ($script:Gui.Category -eq 'Risk Zone' -and -not $search) { "$($rows.Count) rejected tweak(s). iG Windows Tuner does not recommend these: each is placebo, obsolete or risky, and its details list what it turns off or on. Turning one on asks you to type a confirmation; every change is snapshot-backed and can be reverted." } else { "$($rows.Count) tweak(s). Toggles show the real current state; toggling stages a change. Nothing happens until you press Apply." })
-    Update-IgwtGuiPending
+    $c.TweakPageSubtitle.Text = $(if ($script:Gui.Category -eq 'Risk Zone' -and -not $search) { "$count rejected tweak(s). iG Windows Tuner does not recommend these: each is placebo, obsolete or risky, and its details list what it turns off or on. Turning one on asks you to type a confirmation; every change is snapshot-backed and can be reverted." } else { "$count tweak(s). Switches show the real current state; switching stages a change. Nothing happens until you press Apply." })
 }
 
 function Update-IgwtGuiPending {
@@ -996,7 +998,7 @@ function Update-IgwtGuiDetails {
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
-    $row = $c.TweakList.SelectedItem
+    $row = (Get-IgwtGuiGridItem -Name Tweaks)
     if (-not $row) { return }
     $t = $script:Gui.Catalog | Where-Object { $_.id -eq $row.Id } | Select-Object -First 1
     $s = $script:Gui.Data.States[$row.Id]
@@ -1010,7 +1012,7 @@ function Update-IgwtGuiDetails {
     if ($s -and $s.Reason) { $desc += [Environment]::NewLine + [Environment]::NewLine + "Current state: $($row.StateText). $($s.Reason)" }
     $c.DetDescription.Text = $desc
     $items = @()
-    if ($s) { $items = @($s.Items | ForEach-Object { [pscustomobject]@{ Target = [string]$_.Target; Current = [string]$_.Current; Desired = [string]$_.Desired; Note = [string]$_.Note } }) }
+    if ($s) { $items = @($s.Items | ForEach-Object { [pscustomobject]@{ Target = (Format-IgwtGuiChangeTarget -Target ([string]$_.Target)); Current = [string]$_.Current; Desired = [string]$_.Desired; Note = [string]$_.Note } }) }
     $c.DetChanges.ItemsSource = $items
     $c.DetSources.ItemsSource = @($t.evidence.sources)
     $c.DetEvidence.Text = [string]$t.evidence.notes
@@ -1043,7 +1045,7 @@ function Invoke-IgwtGuiToggle {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$CheckBox)
     $id = [string]$CheckBox.Tag
-    $row = @($script:Gui.C.TweakList.ItemsSource) | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    $row = @($script:Gui.Grids.Tweaks.Index.Rows) | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     if (-not $row) { return }
     $want = [bool]$CheckBox.IsChecked
     $isOn = ($row.State -eq 'On')
@@ -2548,10 +2550,10 @@ function Show-IgwtGuiTweakInCategory {
     if (-not $t) { return }
     $nav = @($c.NavList.Items | Where-Object { [string]$_.Tag -eq [string]$t.category }) | Select-Object -First 1
     if ($nav) { $c.NavList.SelectedItem = $nav }
-    $c.SearchBox.Text = $Id
-    Update-IgwtGuiTweakList
-    $row = @($c.TweakList.ItemsSource | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
-    if ($row) { $c.TweakList.SelectedItem = $row }
+    # Show the item even when chips or a search would hide it.
+    Clear-IgwtGridFilters -Grid $script:Gui.Grids.Tweaks
+    $row = @($script:Gui.Grids.Tweaks.C.Grid.ItemsSource | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
+    if ($row) { $script:Gui.Grids.Tweaks.C.Grid.SelectedItem = $row; $script:Gui.Grids.Tweaks.C.Grid.ScrollIntoView($row) }
 }
 
 #endregion
@@ -2576,9 +2578,9 @@ function Show-IgwtGuiPage {
     $c.SecuritySwitch.Visibility = $(if ($Page -eq 'Security') { 'Visible' } else { 'Collapsed' })
     if ($isTweakPage) {
         $script:Gui.Category = $Page
-        $c.SearchBox.Text = ''
         $c.PageTweaks.Visibility = 'Visible'
-        Update-IgwtGuiTweakList
+        Set-IgwtGuiTweakPageChips
+        if ($script:Gui.Data) { Update-IgwtGridView -Grid $script:Gui.Grids.Tweaks; Update-IgwtGuiTweakHeader }
         return
     }
     switch ($Page) {
@@ -2671,8 +2673,8 @@ function Save-IgwtGuiScreenshots {
         $page = [string]$item.Tag
         $script:Gui.C.NavList.SelectedIndex = $index
         Show-IgwtGuiPage -Page $page
-        if ($script:IgwtCategories -contains $page -and @($script:Gui.C.TweakList.ItemsSource).Count -gt 0) {
-            $script:Gui.C.TweakList.SelectedIndex = 0
+        if ($script:IgwtCategories -contains $page -and @($script:Gui.Grids.Tweaks.C.Grid.ItemsSource).Count -gt 0) {
+            $script:Gui.Grids.Tweaks.C.Grid.SelectedIndex = 0
             Update-IgwtGuiDetails
         }
         $root.Measure((New-Object System.Windows.Size($w, $h)))
@@ -2791,23 +2793,13 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.DefHardeningButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Security' }
     Register-IgwtGuiHandler -Control $c.DefAsrButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Asr' }
     $c.NavList.SelectedIndex = 0
-    Register-IgwtGuiHandler -Control $c.TweakList -Event 'SelectionChanged' -Handler { Update-IgwtGuiDetails }
-    $toggleHandler = [System.Windows.RoutedEventHandler] {
-        param($eventSource, $e)
-        $src = $e.OriginalSource
-        if ($src -is [System.Windows.Controls.CheckBox]) { Invoke-IgwtGuiToggle -CheckBox $src }
-    }
-    Register-IgwtGuiHandler -Control $c.TweakList -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler $toggleHandler
-    Register-IgwtGuiHandler -Control $c.SearchBox -Event 'TextChanged' -Handler { Update-IgwtGuiTweakList }
-    foreach ($f in 'FilterTierA', 'FilterTierB', 'FilterRiskLow', 'FilterRiskMedium', 'FilterRiskHigh', 'FilterRestart', 'FilterChanged') {
-        Register-IgwtGuiHandler -Control $c[$f] -Event 'Click' -Handler { Update-IgwtGuiTweakList }
-    }
+    Initialize-IgwtGuiTweakGrid
     Register-IgwtGuiHandler -Control $c.DetSources -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
             param($eventSource, $e)
             if ($e.OriginalSource -is [System.Windows.Controls.Button]) { Open-IgwtGuiPath -Target ([string]$e.OriginalSource.Tag) }
         }
     Register-IgwtGuiHandler -Control $c.DetResetButton -Event 'Click' -Handler {
-            $row = $script:Gui.C.TweakList.SelectedItem
+            $row = (Get-IgwtGuiGridItem -Name Tweaks)
             if ($row) { Set-IgwtGuiStage -Id $row.Id -Mode 'reset'; Update-IgwtGuiTweakList; Set-IgwtGuiStatus "Staged: reset '$($row.Id)' to the Windows default." }
         }
     Register-IgwtGuiHandler -Control $c.PresetCards -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
@@ -2874,7 +2866,7 @@ function Show-IgwtGui {
             if ($dlg.ShowDialog($script:Gui.Window)) { Invoke-IgwtGuiRevert -SnapshotPath $dlg.FileName }
         }
     Register-IgwtGuiHandler -Control $c.ResetStagedButton -Event 'Click' -Handler {
-            $row = $script:Gui.C.TweakList.SelectedItem
+            $row = (Get-IgwtGuiGridItem -Name Tweaks)
             if ($row) { Set-IgwtGuiStage -Id $row.Id -Mode 'reset'; Update-IgwtGuiTweakList; Set-IgwtGuiStatus "Staged: reset '$($row.Id)' to the Windows default." }
             else { Set-IgwtGuiStatus 'Select a tweak on a category page first, then use this button (or the button in its details pane).' }
         }
@@ -3008,7 +3000,7 @@ function Show-IgwtGui {
             if ($e.Key -eq 'F5') { Start-IgwtGuiRefresh -IncludeHealth; $e.Handled = $true }
             elseif ($e.Key -eq 'F' -and ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) {
                 if ($script:Gui.C.PageTweaks.Visibility -ne 'Visible') { $script:Gui.C.NavList.SelectedIndex = 2 }
-                $null = $script:Gui.C.SearchBox.Focus(); $e.Handled = $true
+                $null = $script:Gui.Grids.Tweaks.C.SearchBox.Focus(); $e.Handled = $true
             }
         }
     Register-IgwtGuiHandler -Control $window -Event 'Closed' -Handler { try { Save-IgwtGridAllViews } catch { Write-Verbose "Views not saved: $($_.Exception.Message)" } }

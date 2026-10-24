@@ -161,6 +161,13 @@ Describe 'SmartGrid control (WPF)' {
                 $g.ChipButtons['in'].IsChecked | Should -BeTrue
                 # A change action is blocked in read-only mode, with the reason.
                 Get-IgwtGridActionBlock -Action $actions[0] -Rows $rows | Should -Match 'Read-only'
+                # A page scope narrows the rows but does not count as a user filter.
+                Clear-IgwtGridFilters -Grid $g
+                $g.Scope = @{ Dir = @('Inbound') }
+                Update-IgwtGridView -Grid $g
+                $g.C.CountText.Text | Should -Be '2 rules'
+                $g.C.ClearButton.IsEnabled | Should -BeFalse
+                $g.Scope = @{}
                 Set-IgwtGridRows -Grid $g -Rows @()
                 $g.C.StatePanel.Visibility | Should -Be 'Visible'
                 Set-IgwtGridState -Grid $g -State Error -Message 'boom'
