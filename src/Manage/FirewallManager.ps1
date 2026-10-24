@@ -148,6 +148,7 @@ function Join-IgwtFirewallData {
             Service = $(if ($serviceName) { $serviceName } else { 'Any' })
             Protocol = $(if ($p -and [string]$p.Protocol) { [string]$p.Protocol } elseif ($p) { 'Any' } else { '' })
             LocalPort = $(if ($p) { ConvertTo-IgwtFirewallList $p.LocalPort } else { '' })
+            IcmpType = $(if ($p -and $p.PSObject.Properties['IcmpType']) { ConvertTo-IgwtFirewallList $p.IcmpType } elseif ($p) { 'Any' } else { '' })
             RemotePort = $(if ($p) { ConvertTo-IgwtFirewallList $p.RemotePort } else { '' })
             LocalAddress = $(if ($ad) { ConvertTo-IgwtFirewallList $ad.LocalAddress } else { '' })
             RemoteAddress = $(if ($ad) { ConvertTo-IgwtFirewallList $ad.RemoteAddress } else { '' })
@@ -388,6 +389,12 @@ function Get-IgwtFirewallChangeBlock {
     param([Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable', 'SetAction', 'Edit', 'Duplicate', 'Delete')][string]$Operation, [Parameter(Mandatory = $true)]$Rule,
         [hashtable]$Settings = @{}, [bool]$RemoteSession = $false)
     if ($Rule.Locked) { return [string]$Rule.LockReason }
+    # 3.4 classification (when present): Core Services are locked; Windows rules are never deleted;
+    # Delete only for orphaned, User Installed and Custom rules.
+    $origin = $(if ($Rule.PSObject.Properties['Origin']) { [string]$Rule.Origin } else { '' })
+    if ($origin -eq 'CoreServices' -and $Operation -ne 'Duplicate') { return 'Core Services rule: Windows needs it for basic networking or to stay secure and updated, so it is read-only here.' }
+    if ($Operation -eq 'Delete' -and $origin -in 'WindowsConnections') { return 'Windows rules are never deleted; disable it instead (the feature turns it back on when used).' }
+    if ($Operation -eq 'Delete' -and $origin -and $origin -notin 'UserInstalled', 'CustomRules' -and [string]$Rule.ProgramExists -ne 'No') { return 'Only orphaned, user-installed and custom rules can be deleted.' }
     if ($RemoteSession -and $Operation -ne 'Enable' -and $Operation -ne 'Duplicate' -and (Test-IgwtFirewallRemoteRelevant -Rule $Rule)) { return 'This rule keeps remote sessions (Remote Desktop or WinRM) working and a remote session is active; change it from the local console.' }
     switch ($Operation) {
         'Disable' { if ($Rule.Source -eq 'Windows' -and $script:IgwtFirewallCoreGroups -contains [string]$Rule.Group) { return 'Core Networking rules (DHCP, DNS, IPv6 neighbor discovery) keep the network working and are never disabled.' } }
@@ -500,7 +507,10 @@ function Get-IgwtFirewallChangePlan {
         }
         if ($Operation -eq 'SetAction' -and $Settings.Action -eq 'Allow' -and @($Rules | Where-Object { $_.Direction -eq 'Inbound' }).Count) { $warnings.Add('Switching inbound rules to Allow opens the PC to that traffic.') }
         if ($Operation -eq 'SetAction' -and $Settings.Action -eq 'Block') { $warnings.Add('Blocking can stop the program from working (online play, updates, voice chat).') }
-        if ($Operation -eq 'Disable' -and @($Rules | Where-Object { $_.Source -eq 'Windows' }).Count) { $warnings.Add('Disabling Windows rules can stop Windows features (file sharing, casting, remote help) from working.') }
+        if ($Operation -eq 'Disable' -and @($Rules | Where-Object { $_.Source -eq 'Windows' -or ($_.PSObject.Properties['Origin'] -and [string]$_.Origin -eq 'WindowsConnections') }).Count) { $warnings.Add('Disabling Windows rules can stop Windows features (file sharing, casting, remote help) from working.') }
+        # Games, launchers and anti-cheat: never recommended for blocking; warn when the user does it anyway.
+        $prot = @($Rules | Where-Object { $_.PSObject.Properties['Protected'] -and $_.Protected })
+        if ($prot.Count -and ($Operation -in 'Disable', 'Delete' -or ($Operation -eq 'SetAction' -and $Settings.Action -eq 'Block'))) { $warnings.Add("$($prot.Count) of these rules belong to a game, launcher or anti-cheat program: this may break online play.") }
     }
     $ok = @($items | Where-Object { $_.Allowed -and -not $_.NoOp })
     [pscustomobject]@{
