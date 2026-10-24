@@ -10,6 +10,7 @@
   "gaming": true,
   "levelCeiling": "Advanced",
   "antiCheatPolicy": "safeOnly",
+  "firewallScope": "public-wifi-laptop",
   "include": [
     "power.fast-startup-off",
     "power.power-throttling-on",

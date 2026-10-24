@@ -17,6 +17,7 @@ $script:IgwtFirewallProtocols = @('Any', 'TCP', 'UDP', 'ICMPv4', 'ICMPv6')
 # Rules that keep a remote session alive: never changed while a remote session is active.
 $script:IgwtFirewallRemoteGroups = @('Remote Desktop', 'Remote Desktop (WebSocket)', 'Windows Remote Management', 'Windows Remote Management (Compatibility)', 'Remote Desktop - Shadow')
 $script:IgwtFirewallRemotePorts = @('3389', '5985', '5986')
+$script:IgwtFirewallRemoteKbIds = @('remote-desktop', 'winrm')
 # Windows rules whose loss breaks networking: never disabled.
 $script:IgwtFirewallCoreGroups = @('Core Networking', 'Core Networking Diagnostics')
 
@@ -134,6 +135,12 @@ function Join-IgwtFirewallData {
             $expanded = [Environment]::ExpandEnvironmentVariables($program)
             if (-not $exists.ContainsKey($expanded)) { $exists[$expanded] = [bool](& $PathExists $expanded) }
             $programExists = $(if ($exists[$expanded]) { 'Yes' } else { 'No' })
+            if ($programExists -eq 'No') {
+                $root = $(try { [System.IO.Path]::GetPathRoot($expanded) } catch { '' })
+                $key = "root|$root"
+                if ($root -and -not $exists.ContainsKey($key)) { $exists[$key] = [bool](Test-Path -LiteralPath $root) }
+                if ($expanded.Contains('%') -or $expanded.StartsWith('\\') -or -not $root -or -not $exists[$key]) { $programExists = 'Unknown' }
+            }
         }
         $profileRaw = $(if ($null -ne $r.Profile -and [string]$r.Profile -ne '') { $r.Profile } elseif ($r.PSObject.Properties['Profiles']) { $r.Profiles } else { $null })
         $profileText = ConvertFrom-IgwtFirewallCimValue -Kind Profile -Value $profileRaw
@@ -157,7 +164,7 @@ function Join-IgwtFirewallData {
             RawGroup = [string]$r.Group; Store = $store
             Locked = ($source -eq 'GroupPolicy' -or $wsh); LockReason = $(if ($wsh) { "Windows Service Hardening rule ($store, read-only): it keeps a Windows service to the traffic it needs." } elseif ($source -eq 'GroupPolicy') { "Set by $(if ([string]$r.PolicyStoreSourceType -in 'MDM', '6', '11') { 'MDM' } else { 'Group Policy' }) ($($r.PolicyStoreSource)); change it there." } else { '' })
             ProgramExists = $programExists; Description = [string]$r.Description; Risks = @(); RiskText = ''
-            Origin = ''; OriginName = ''; Confidence = ''; OriginReason = ''; KbId = ''; KbName = ''; KbMeaning = ''; Facets = @(); Assessments = @(); BloatReason = ''; WhatStopsWorking = ''
+            Origin = ''; EngineOrigin = ''; OriginName = ''; Confidence = ''; OriginReason = ''; KbId = ''; KbName = ''; KbMeaning = ''; Facets = @(); Assessments = @(); BloatReason = ''; WhatStopsWorking = ''
             Protected = $false; ProtectedReason = ''; IsWindows = $false; Groups = @(); Findings = @(); RiskLevel = ''; Exposed = $false; ExposedBy = @()
             Shadowed = $false; ShadowedBy = @(); Redundant = $false; RedundantWith = @(); Conflicts = @(); PrecedenceText = ''
         }
@@ -375,7 +382,15 @@ function Test-IgwtFirewallRemoteRelevant {
     [OutputType([bool])]
     param([Parameter(Mandatory = $true)]$Rule)
     if ($script:IgwtFirewallRemoteGroups -contains [string]$Rule.Group) { return $true }
-    foreach ($p in @(([string]$Rule.LocalPort) -split '\s*,\s*')) { if ($script:IgwtFirewallRemotePorts -contains $p) { return $true } }
+    # Stable identifiers first (display group names are translated): raw group resource strings and rule IDs.
+    foreach ($g in @((Get-IgwtFirewallKnowledgeBase).Groups | Where-Object { [string]$_.id -in $script:IgwtFirewallRemoteKbIds })) {
+        if ([string]$Rule.RawGroup -and @($g.match.groups) -contains [string]$Rule.RawGroup) { return $true }
+        foreach ($p in @($g.match.namePatterns)) { if ([string]$Rule.Name -and [string]$Rule.Name -like [string]$p) { return $true } }
+    }
+    if ([string]$Rule.KbId -in $script:IgwtFirewallRemoteKbIds) { return $true }
+    foreach ($x in @(ConvertTo-IgwtFirewallPortRanges -Port ([string]$Rule.LocalPort))) {
+        foreach ($p in $script:IgwtFirewallRemotePorts) { if ($x.Low -ge 0 -and [int]$p -ge $x.Low -and [int]$p -le $x.High) { return $true } }
+    }
     return $false
 }
 
@@ -391,19 +406,28 @@ function Get-IgwtFirewallChangeBlock {
     if ($Rule.Locked) { return [string]$Rule.LockReason }
     # 3.4 classification (when present): Core Services are locked; Windows rules are never deleted;
     # Delete only for orphaned, User Installed and Custom rules.
-    $origin = $(if ($Rule.PSObject.Properties['Origin']) { [string]$Rule.Origin } else { '' })
+    $origin = $(if ($Rule.PSObject.Properties['EngineOrigin'] -and [string]$Rule.EngineOrigin) { [string]$Rule.EngineOrigin } elseif ($Rule.PSObject.Properties['Origin']) { [string]$Rule.Origin } else { '' })
+    $windowsRule = ($Rule.Source -eq 'Windows' -or $origin -in 'CoreServices', 'WindowsConnections')
     if ($origin -eq 'CoreServices' -and $Operation -ne 'Duplicate') { return 'Core Services rule: Windows needs it for basic networking or to stay secure and updated, so it is read-only here.' }
     if ($Operation -eq 'Delete' -and $origin -in 'WindowsConnections') { return 'Windows rules are never deleted; disable it instead (the feature turns it back on when used).' }
     if ($Operation -eq 'Delete' -and $origin -and $origin -notin 'UserInstalled', 'CustomRules' -and [string]$Rule.ProgramExists -ne 'No') { return 'Only orphaned, user-installed and custom rules can be deleted.' }
     if ($RemoteSession -and $Operation -ne 'Enable' -and $Operation -ne 'Duplicate' -and (Test-IgwtFirewallRemoteRelevant -Rule $Rule)) { return 'This rule keeps remote sessions (Remote Desktop or WinRM) working and a remote session is active; change it from the local console.' }
+    if ($RemoteSession -and [string]$Rule.Direction -eq 'Inbound') {
+        # Turning on an inbound block, or editing a rule into one, can cut the session off as well.
+        $after = @{ Action = [string]$Rule.Action; LocalPort = [string]$Rule.LocalPort }
+        if ($Operation -eq 'Edit') { foreach ($k in 'Action', 'LocalPort') { if ($Settings.ContainsKey($k) -and $null -ne $Settings[$k]) { $after[$k] = [string]$Settings[$k] } } }
+        if ($Operation -eq 'SetAction') { $after.Action = [string]$Settings.Action }
+        $blocksAll = ($after.LocalPort -in '', 'Any') -or (Test-IgwtFirewallRemoteRelevant -Rule ([pscustomobject]@{ Group = ''; LocalPort = $after.LocalPort }))
+        if ($after.Action -eq 'Block' -and $blocksAll -and ($Operation -in 'SetAction', 'Edit' -or ($Operation -eq 'Enable' -and -not $Rule.Enabled))) { return 'A remote session is active: this inbound block rule covers every port or the remote-access ports and could cut it off. Change it from the local console.' }
+    }
     switch ($Operation) {
         'Disable' { if ($Rule.Source -eq 'Windows' -and $script:IgwtFirewallCoreGroups -contains [string]$Rule.Group) { return 'Core Networking rules (DHCP, DNS, IPv6 neighbor discovery) keep the network working and are never disabled.' } }
         'SetAction' {
-            if ($Rule.Source -eq 'Windows') { return 'Windows rules can be enabled or disabled, not changed. Duplicate it and change the copy instead.' }
+            if ($windowsRule) { return 'Windows rules can be enabled or disabled, not changed. Duplicate it and change the copy instead.' }
             if ($Settings.Action -notin 'Allow', 'Block') { return 'The action must be Allow or Block.' }
         }
-        'Edit' { if ($Rule.Source -eq 'Windows') { return 'Windows rules can be enabled or disabled, not edited. Duplicate it and edit the copy instead.' } }
-        'Delete' { if ($Rule.Source -eq 'Windows') { return 'Windows rules are never deleted; disable it instead.' } }
+        'Edit' { if ($windowsRule) { return 'Windows rules can be enabled or disabled, not edited. Duplicate it and edit the copy instead.' } }
+        'Delete' { if ($windowsRule) { return 'Windows rules are never deleted; disable it instead.' } }
     }
     return ''
 }
@@ -449,19 +473,25 @@ function Test-IgwtFirewallRuleSettings {
     return $errs.ToArray()
 }
 
-function Get-IgwtFirewallRuleTemplates {
-    <# .SYNOPSIS Starting points for the new-rule wizard. #>
+function Add-IgwtFirewallOwnedMarker {
+    <# .SYNOPSIS Adds the iG Windows Tuner marker to a rule description (rules it creates carry its group and this marker). #>
     [CmdletBinding()]
-    param()
-    @(
-        [pscustomobject]@{ Id = 'game-udp-private'; Name = 'Allow a game inbound (UDP), Private networks only'; Settings = @{ Direction = 'Inbound'; Action = 'Allow'; Protocol = 'UDP'; Profiles = @('Private'); RemoteAddress = 'Any' }; Needs = 'Program' }
-        [pscustomobject]@{ Id = 'game-tcp-private'; Name = 'Allow a game inbound (TCP), Private networks only'; Settings = @{ Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; Profiles = @('Private'); RemoteAddress = 'Any' }; Needs = 'Program' }
-        [pscustomobject]@{ Id = 'block-app-out'; Name = 'Block a program from the internet (outbound)'; Settings = @{ Direction = 'Outbound'; Action = 'Block'; Protocol = 'Any'; Profiles = @('Any') }; Needs = 'Program' }
-        [pscustomobject]@{ Id = 'lan-only'; Name = 'Allow a program inbound from the local network only'; Settings = @{ Direction = 'Inbound'; Action = 'Allow'; Protocol = 'Any'; Profiles = @('Private'); RemoteAddress = 'LocalSubnet' }; Needs = 'Program' }
-        [pscustomobject]@{ Id = 'block-port-in'; Name = 'Block an inbound port on every network'; Settings = @{ Direction = 'Inbound'; Action = 'Block'; Protocol = 'TCP'; Profiles = @('Any') }; Needs = 'LocalPort' }
-    )
+    [OutputType([string])]
+    param([string]$Description)
+    $marker = [string](Get-IgwtFirewallKnowledgeBase).Apps.owned.descriptionMarker
+    if (-not $marker -or ([string]$Description).Contains($marker)) { return [string]$Description }
+    return ("$Description $marker").Trim()
 }
 
+function Get-IgwtFirewallRuleTemplates {
+    <# .SYNOPSIS Starting points for the new-rule wizard, one per scenario (data\firewall\templates.json). #>
+    [CmdletBinding()]
+    param()
+    foreach ($x in @((Get-IgwtFirewallKnowledgeBase).Templates)) {
+        $s = @{}; foreach ($p in @($x.settings.PSObject.Properties)) { $s[$p.Name] = $(if ($p.Value -is [array]) { @($p.Value) } else { $p.Value }) }
+        [pscustomobject]@{ Id = [string]$x.id; Name = [string]$x.name; Settings = $s; Needs = [string]$x.needs; Note = [string]$x.note }
+    }
+}
 function Get-IgwtFirewallChangePlan {
     <#
     .SYNOPSIS
@@ -489,6 +519,8 @@ function Get-IgwtFirewallChangePlan {
         }
         $items.Add([pscustomobject]@{ Name = ''; DisplayName = [string]$s.DisplayName; Allowed = (@($errs).Count -eq 0); Reason = (@($errs) -join ' '); Change = "Create $($s.Direction) $($s.Action) rule '$($s.DisplayName)'" })
         if ($s.Direction -eq 'Inbound' -and $s.Action -eq 'Allow' -and (@($s.Profiles) -contains 'Public' -or @($s.Profiles) -contains 'Any')) { $warnings.Add('This allows inbound traffic on public networks (cafes, hotels). Prefer Private only.') }
+        foreach ($w in @(Get-IgwtFirewallNewRuleWarnings -Settings $s)) { $warnings.Add("Risk if created: $w") }
+        if ($s.Action -eq 'Block') { $why = Test-IgwtFirewallProtectedProgram -Program ([string]$s.Program); if ($why) { $warnings.Add("This blocks a $why program: this may break online play.") } }
     } else {
         $errs = @()
         if ($Operation -eq 'Edit') { $errs = @(Test-IgwtFirewallRuleSettings -Settings $Settings) }
@@ -505,6 +537,9 @@ function Get-IgwtFirewallChangePlan {
             }
             $items.Add([pscustomobject]@{ Name = [string]$r.Name; DisplayName = [string]$r.DisplayName; Allowed = (-not $why); Reason = $why; Change = $(if ($why) { '' } elseif ($change) { $change } else { 'Already set' }); NoOp = (-not $why -and -not $change) })
         }
+        if ($Operation -eq 'Edit' -and @($Rules).Count -eq 1) { foreach ($w in @(Get-IgwtFirewallNewRuleWarnings -Settings $Settings -Rule @($Rules)[0])) { $warnings.Add("Risk after the edit: $w") } }
+        $blockAfter = @($Rules | Where-Object { ($Operation -eq 'Enable' -and [string]$_.Action -eq 'Block' -and -not $_.Enabled) -or ($Operation -eq 'Edit' -and ($(if ($Settings.Action) { [string]$Settings.Action } else { [string]$_.Action })) -eq 'Block') })
+        if (@($blockAfter | Where-Object { Test-IgwtFirewallProtectedProgram -Program $(if ($Operation -eq 'Edit' -and $Settings.Program) { [string]$Settings.Program } else { [string]$_.Program }) }).Count) { $warnings.Add('This turns on a block for a game, launcher or anti-cheat program: this may break online play.') }
         if ($Operation -eq 'SetAction' -and $Settings.Action -eq 'Allow' -and @($Rules | Where-Object { $_.Direction -eq 'Inbound' }).Count) { $warnings.Add('Switching inbound rules to Allow opens the PC to that traffic.') }
         if ($Operation -eq 'SetAction' -and $Settings.Action -eq 'Block') { $warnings.Add('Blocking can stop the program from working (online play, updates, voice chat).') }
         if ($Operation -eq 'Disable' -and @($Rules | Where-Object { $_.Source -eq 'Windows' -or ($_.PSObject.Properties['Origin'] -and [string]$_.Origin -eq 'WindowsConnections') }).Count) { $warnings.Add('Disabling Windows rules can stop Windows features (file sharing, casting, remote help) from working.') }
@@ -631,6 +666,9 @@ function Invoke-IgwtFirewallChange {
         $missing = @($Name | Where-Object { -not $byName.ContainsKey($_) })
         if ($missing.Count) { throw "Rule(s) not found: $($missing -join ', ')" }
         $rows = @($Name | ForEach-Object { $byName[$_] })
+        # The 3.4 locks (Core Services, Windows rules, Delete only for app and custom rules) need the
+        # classification; callers outside the GUI pass plain names, so classify here.
+        Invoke-IgwtFirewallEngineClassification -Rows $rows
     }
     $plan = Get-IgwtFirewallChangePlan -Operation $Operation -Rules $rows -Settings $Settings -RemoteSession $remote
     $todo = @($plan.Items | Where-Object { $_.Allowed -and -not $_.NoOp })
@@ -648,7 +686,7 @@ function Invoke-IgwtFirewallChange {
         try {
             switch ($Operation) {
                 'New' {
-                    $def = [ordered]@{ name = (New-IgwtFirewallRuleName); displayName = [string]$Settings.DisplayName; description = [string]$Settings.Description; group = $script:IgwtFirewallOwnedGroup
+                    $def = [ordered]@{ name = (New-IgwtFirewallRuleName); displayName = [string]$Settings.DisplayName; description = (Add-IgwtFirewallOwnedMarker -Description ([string]$Settings.Description)); group = $script:IgwtFirewallOwnedGroup
                         enabled = $true; direction = [string]$Settings.Direction; action = [string]$Settings.Action; profile = (@($Settings.Profiles) -join ', ')
                         program = [string]$Settings.Program; service = [string]$Settings.Service; protocol = [string]$Settings.Protocol
                         localPort = @(([string]$Settings.LocalPort) -split '\s*,\s*' | Where-Object { $_ }); remotePort = @(([string]$Settings.RemotePort) -split '\s*,\s*' | Where-Object { $_ })
@@ -813,6 +851,8 @@ function Get-IgwtFirewallImportPlan {
     if ([string]$doc.kind -ne 'firewall-rules' -or [int]$doc.version -ne 1) { throw 'This is not an iG Windows Tuner firewall rule export.' }
     $inv = Get-IgwtFirewallInventory
     $byName = @{}; foreach ($r in $inv.Rules) { $byName[$r.Name] = $r }
+    $existing = @(@($doc.rules) | ForEach-Object { $byName[[string]$_.name] } | Where-Object { $_ })
+    if ($existing.Count) { Invoke-IgwtFirewallEngineClassification -Rows $existing }
     $items = foreach ($d in @($doc.rules)) {
         $name = [string]$d.name
         $status = ''; $reason = ''
@@ -825,7 +865,7 @@ function Get-IgwtFirewallImportPlan {
             elseif (-not $byName.ContainsKey($name)) { $status = 'New' }
             else {
                 $cur = $byName[$name]
-                if ($cur.Locked -or $cur.Source -eq 'Windows') { $status = 'Skipped'; $reason = 'A Windows or Group Policy rule with this name exists.' }
+                if ($cur.Locked -or $cur.Source -eq 'Windows' -or [string]$cur.EngineOrigin -in 'CoreServices', 'WindowsConnections') { $status = 'Skipped'; $reason = 'A Windows or Group Policy rule with this name exists.' }
                 else {
                     $diff = @(foreach ($k in @(@('Enabled', 'enabled'), @('Direction', 'direction'), @('Action', 'action'), @('Profiles', 'profile'), @('Program', 'program'), @('Protocol', 'protocol'), @('LocalPort', 'localPort'), @('RemotePort', 'remotePort'), @('RemoteAddress', 'remoteAddress'))) {
                             $new = $(if ($d.($k[1]) -is [array]) { ConvertTo-IgwtFirewallList $d.($k[1]) } else { [string]$d.($k[1]) })
@@ -916,6 +956,7 @@ function Set-IgwtFirewallProfileSetting {
     Assert-IgwtWritable -Operation 'Set-IgwtFirewallProfileSetting'
     $why = Get-IgwtFirewallProfileChangeBlock -Setting $Setting -Value $Value
     if ($why) { throw $why }
+    if ($Setting -in 'Enabled', 'DefaultInboundAction', 'DefaultOutboundAction' -and (Test-IgwtRemoteSession)) { throw 'A remote session (Remote Desktop or WinRM) is active: this profile change could cut it off. Change it from the local console.' }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Firewall changes need administrator rights.' }
         Initialize-IgwtDataRoot
@@ -953,6 +994,7 @@ function Set-IgwtNetworkCategory {
     $cur = @(Get-NetConnectionProfile -InterfaceIndex $InterfaceIndex -ErrorAction Stop) | Select-Object -First 1
     if ([string]$cur.NetworkCategory -eq 'DomainAuthenticated') { throw 'Domain networks are set by the domain and are not changed.' }
     if ([string]$cur.NetworkCategory -eq $Category) { return [pscustomobject]@{ Snapshot = $null; Changed = $false } }
+    if (Test-IgwtRemoteSession) { throw 'A remote session (Remote Desktop or WinRM) is active: the rules differ per network category, so changing it could cut the session off. Change it from the local console.' }
     if (-not $PSCmdlet.ShouldProcess("$($cur.InterfaceAlias) ($($cur.Name))", "Network category -> $Category")) { return $null }
     $snap = New-IgwtSnapshot -Operation 'FirewallProfile' -Detail "$($cur.InterfaceAlias) -> $Category"
     Save-IgwtSnapshot -Snapshot $snap

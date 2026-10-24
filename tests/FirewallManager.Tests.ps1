@@ -5,7 +5,7 @@ BeforeAll {
     function New-FwRule {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test data builder.')]
         param([string]$Name, [string]$Display, [string]$Group = '', [string]$Enabled = 'True', [string]$Direction = 'Inbound', [string]$Action = 'Allow', [string]$Profiles = 'Any', [string]$StoreType = 'Local', [string]$Owner = '')
-        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profiless
+        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profiles
             PolicyStoreSourceType = $StoreType; PolicyStoreSource = $(if ($StoreType -eq 'GroupPolicy') { 'contoso.test GPO' } else { 'PersistentStore' }); Owner = $Owner; EdgeTraversalPolicy = 'Block'; Description = "$Display rule" }
     }
     # A small in-memory firewall for the change tests: name -> definition.
@@ -284,7 +284,7 @@ Describe 'Firewall Manager: changes with snapshots (mocked firewall)' {
     It 'refuses Core Networking and Windows edits, and still applies the allowed part' {
         $r = Invoke-IgwtFirewallChange -Operation Disable -Name 'CoreNet-DHCP-In', 'App-Game-In'
         $r.Changes | Should -Be 1
-        ($r.Results | Where-Object Result -EQ 'Refused').Message | Should -Match 'Core Networking'
+        ($r.Results | Where-Object Result -EQ 'Refused').Message | Should -Match 'Core Networking|Core Services'   # the engine now classifies: Core Networking is a Core Services rule
         $script:FwStore['CoreNet-DHCP-In'].enabled | Should -BeTrue
         $e = Invoke-IgwtFirewallChange -Operation Edit -Name 'Win-Cast-In' -Settings @{ Profiles = @('Public') }
         $e.Changes | Should -Be 0

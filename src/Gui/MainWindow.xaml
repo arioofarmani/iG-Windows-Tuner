@@ -757,7 +757,11 @@
                                                     <TextBlock FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" VerticalAlignment="Center" Text="Quick wins"/>
                                                 </StackPanel>
                                                 <TextBlock x:Name="FwOvQuickText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,10" Text="Not read yet."/>
-                                                <Button x:Name="FwOvQuickButton" HorizontalAlignment="Left" Margin="0" Content="Preview" ToolTip="Show which rules would be disabled and what stops working, before anything changes."/>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button x:Name="FwOvQuickButton" Margin="0,0,8,0" Content="Preview" ToolTip="Show which rules would be disabled and what stops working, before anything changes."/>
+                                                    <Button x:Name="FwOvScopeButton" Margin="0" Content="Firewall scope..." ToolTip="Preview a preset for this kind of PC (Gaming PC, Workstation, Public Wi-Fi laptop, Sysadmin hardened): which bloated rules and risk fixes would apply."/>
+                                                    <Button x:Name="FwOvExportOverridesButton" Margin="8,0,0,0" Content="Export my choices..." ToolTip="Save your category changes, 'not bloated' marks and ignored findings to a file (for another PC or a backup)."/>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -874,6 +878,21 @@
                                     </ScrollViewer>
                                 </Border>
                             </Grid>
+                        </TabItem>
+                        <TabItem x:Name="FwConnectionsTab" Header="Live connections" ToolTip="Current connections and open UDP endpoints with the program and the rule that applies (read-only)">
+                            <DockPanel Margin="0,8,0,0">
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <Button x:Name="FwConnRefreshButton" DockPanel.Dock="Right" Content="Read connections" Margin="0" ToolTip="Read the current TCP connections and UDP endpoints (read-only)."/>
+                                    <TextBlock x:Name="FwConnText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Text="Shows what is connected right now and which rule applies. Nothing is changed."/>
+                                </DockPanel>
+                                <ContentControl x:Name="FwConnHost" Focusable="False"/>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem x:Name="FwDefaultsTab" Header="Compared to Windows defaults" ToolTip="Rules added, removed or changed compared with the default rules of this Windows build">
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="FwDefaultsText" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Not read yet."/>
+                                <ContentControl x:Name="FwDefaultsHost" Focusable="False"/>
+                            </DockPanel>
                         </TabItem>
                         <TabItem Header="Profiles and networks" ToolTip="Domain, Private and Public profiles, and the network category of each connection">
                             <ScrollViewer x:Name="FwProfilesPanel" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">

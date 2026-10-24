@@ -192,7 +192,7 @@ function Invoke-IgwtFirewallClassification {
     $list = @($Rows | Where-Object { $_ })
     if (-not $list.Count) { return }
     # Rows from Join-IgwtFirewallData declare these fields; other rows get them once here.
-    $fields = @('Origin', 'OriginName', 'Confidence', 'OriginReason', 'KbId', 'KbName', 'KbMeaning', 'Facets', 'Assessments', 'BloatReason', 'WhatStopsWorking', 'Protected', 'ProtectedReason', 'IsWindows', 'Groups')
+    $fields = @('Origin', 'EngineOrigin', 'OriginName', 'Confidence', 'OriginReason', 'KbId', 'KbName', 'KbMeaning', 'Facets', 'Assessments', 'BloatReason', 'WhatStopsWorking', 'Protected', 'ProtectedReason', 'IsWindows', 'Groups')
     foreach ($r in $list) { foreach ($f in $fields) { if (-not $r.PSObject.Properties[$f]) { $r | Add-Member -NotePropertyName $f -NotePropertyValue $null } } ; break }
     if (-not $list[-1].PSObject.Properties['Groups']) { foreach ($r in $list) { foreach ($f in $fields) { if (-not $r.PSObject.Properties[$f]) { $r | Add-Member -NotePropertyName $f -NotePropertyValue $null } } } }
     $ov = $c.Overrides
@@ -207,7 +207,8 @@ function Invoke-IgwtFirewallClassification {
         $o = Resolve-IgwtFirewallOrigin -Row $r -Context $c
         $category = $o.Category; $confidence = $o.Confidence; $reason = $o.Reason
         $name = [string]$r.Name
-        if ($catOverride.ContainsKey($name) -and $catOverride[$name] -in $script:IgwtFirewallOrigins) {
+        # A user's move never takes a rule out of Core Services (they stay locked); the locks use EngineOrigin.
+        if ($catOverride.ContainsKey($name) -and $catOverride[$name] -in $script:IgwtFirewallOrigins -and $o.Category -ne 'CoreServices') {
             $category = $catOverride[$name]; $confidence = 'High'
             $reason = "$($c.Categories[$category].name): moved here by you (was: $($o.Reason))"
         }
@@ -241,7 +242,7 @@ function Invoke-IgwtFirewallClassification {
             foreach ($k in $protRegex.Keys) { $rx = $protRegex[$k]; if ($rx -and $rx.IsMatch($path)) { $prot = $k; break } }
             if (-not $prot -and $games.Contains([System.IO.Path]::GetFileName($path))) { $prot = 'Game executable (data\games.json): blocking it may break online play.' }
         }
-        $r.Origin = $category; $r.OriginName = [string]$c.Categories[$category].name; $r.Confidence = $confidence; $r.OriginReason = $reason; $r.KbId = [string]$o.KbId
+        $r.Origin = $category; $r.EngineOrigin = [string]$o.Category; $r.OriginName = [string]$c.Categories[$category].name; $r.Confidence = $confidence; $r.OriginReason = $reason; $r.KbId = [string]$o.KbId
         $r.KbName = $(if ($kb) { [string]$kb.name } else { '' }); $r.KbMeaning = $(if ($kb) { [string]$kb.meaning } else { '' }); $r.Facets = $facets
         $r.Assessments = $(if ($bloat) { @('Bloated') } else { @() }); $r.BloatReason = $bloat; $r.WhatStopsWorking = $stops
         $r.Protected = [bool]$prot; $r.ProtectedReason = $prot; $r.IsWindows = $windowsRule
@@ -359,4 +360,34 @@ function Import-IgwtFirewallOverrides {
     if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
     [System.IO.File]::WriteAllText($target, ([ordered]@{ schemaVersion = 1; Role = [string]$in.Role; Categories = $in.Categories; NotBloated = @($in.NotBloated); Ignored = $in.Ignored } | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
     return (Get-IgwtFirewallOverrides)
+}
+
+function Invoke-IgwtFirewallEngineClassification {
+    <#
+    .SYNOPSIS
+        Classifies inventory rows for the change engine (in place): the origin category the locks depend
+        on, with cached Authenticode results for their programs. Read-only. Throws when the knowledge
+        base cannot be read, so a change is never planned without its locks.
+    #>
+    [CmdletBinding()]
+    param([object[]]$Rows = @())
+    $list = @($Rows | Where-Object { $_ })
+    if (-not $list.Count) { return }
+    $sig = @{}
+    try { $sig = Get-IgwtFirewallSignatures -Path @($list | ForEach-Object { [string]$_.Program }) } catch { Write-Verbose "Signatures not read: $($_.Exception.Message)" }
+    $ctx = Get-IgwtFirewallClassificationContext -InstalledPackages @() -Signatures $sig
+    Invoke-IgwtFirewallClassification -Rows $list -Context $ctx
+}
+
+function Test-IgwtFirewallProtectedProgram {
+    <# .SYNOPSIS The reason (for example 'anti-cheat') when a program path is a protected game, launcher or anti-cheat program; '' otherwise. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Program)
+    if (-not $Program -or $Program -in 'Any', 'System') { return '' }
+    $full = [Environment]::ExpandEnvironmentVariables($Program)
+    foreach ($p in @((Get-IgwtFirewallKnowledgeBase).Apps.protected)) {
+        if ((ConvertTo-IgwtFirewallWildcardRegex -Pattern @($p.programPatterns)).IsMatch($full)) { return [string]$p.reason }
+    }
+    return ''
 }

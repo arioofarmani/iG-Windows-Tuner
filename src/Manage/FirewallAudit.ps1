@@ -11,24 +11,6 @@ function Get-IgwtFirewallInstalledPackages {
     try { return @(Get-AppxPackage -ErrorAction Stop | ForEach-Object { [string]$_.Name } | Select-Object -Unique) } catch { Write-Verbose "Packages not readable: $($_.Exception.Message)"; return $null }
 }
 
-function Get-IgwtFirewallDefaultRuleState {
-    <#
-    .SYNOPSIS
-        The Windows default rule set of this build from the read-only SystemDefaults store
-        (DECISIONS F2): rule ID -> enabled. $null when the store cannot be read.
-    #>
-    [CmdletBinding()]
-    param()
-    try {
-        $h = @{}
-        foreach ($r in @(Get-NetFirewallRule -PolicyStore SystemDefaults -ErrorAction Stop)) {
-            $id = $(if ([string]$r.Name) { [string]$r.Name } else { [string]$r.InstanceID })
-            $h[$id] = ((ConvertFrom-IgwtFirewallCimValue -Kind Enabled -Value $r.Enabled) -eq 'True')
-        }
-        return $h
-    } catch { Write-Verbose "SystemDefaults store not readable: $($_.Exception.Message)"; return $null }
-}
-
 function Get-IgwtFirewallAuditSummary {
     <#
     .SYNOPSIS
@@ -83,7 +65,7 @@ function Get-IgwtFirewallAudit {
     $inv = $(if ($Inventory) { $Inventory } else { & $step 'Inventory' { Get-IgwtFirewallInventory } })
     $rows = @($inv.Rules)
     if (-not $PSBoundParameters.ContainsKey('InstalledPackages')) { $InstalledPackages = & $step 'Packages' { Get-IgwtFirewallInstalledPackages } }
-    if (-not $PSBoundParameters.ContainsKey('DefaultRules')) { $DefaultRules = & $step 'Defaults' { Get-IgwtFirewallDefaultRuleState } }
+    if (-not $PSBoundParameters.ContainsKey('DefaultRules')) { $DefaultRules = & $step 'Defaults' { Get-IgwtFirewallDefaultRuleSet } }
     if (-not $Signatures) {
         $Signatures = @{}
         if (-not $NoSignatures) {
@@ -96,7 +78,8 @@ function Get-IgwtFirewallAudit {
     if (-not $PSBoundParameters.ContainsKey('Listeners')) { $Listeners = $(if ($NoListeners) { $null } else { & $step 'Listeners' { Get-IgwtFirewallListeners } }) }
     $ctx = & $step 'Context' { Get-IgwtFirewallClassificationContext -Role $Role -InstalledPackages $InstalledPackages -Signatures $Signatures }
     $null = & $step 'Classify' { Invoke-IgwtFirewallClassification -Rows $rows -Context $ctx }
-    $defaultEnabled = $(if ($DefaultRules) { @($DefaultRules.Keys | Where-Object { $DefaultRules[$_] }) } else { $null })
+    # Values are default-rule objects (Enabled ...) or, in tests, plain booleans.
+    $defaultEnabled = $(if ($DefaultRules) { @($DefaultRules.Keys | Where-Object { $v = $DefaultRules[$_]; if ($v -is [bool]) { $v } else { [bool]$v.Enabled } }) } else { $null })
     $findings = & $step 'Findings' { Get-IgwtFirewallFindings -Rows $rows -Context $ctx -Listeners $Listeners -DefaultEnabled $defaultEnabled }
     $relations = & $step 'Precedence' { Get-IgwtFirewallConflicts -Rows $rows }
     $exposure = & $step 'Exposure' { @(Get-IgwtFirewallExposureMap -Rows $rows -Listeners @($Listeners | Where-Object { $_ })) }

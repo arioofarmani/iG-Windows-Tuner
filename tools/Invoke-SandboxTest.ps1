@@ -157,13 +157,38 @@ try {
         $customNote = "$(@($cp.tweaks).Count) items round-tripped"
     } catch { $customNote = "error: $($_.Exception.Message)" }
 
-    $pass = ($applyFailed.Count -eq 0 -and $revertFailed.Count -eq 0 -and $mismatch.Count -eq 0 -and $presetFail.Count -eq 0 -and $sessionOk -and $cleanOk -and $customOk)
+    Write-Output '== Firewall Manager (classify, bulk-disable bloat, revert, default baseline)'
+    $fwOk = $false; $fwNote = ''
+    try {
+        # A fresh Sandbox has only the Windows default rules: export them as the baseline for this build.
+        $base = @(Get-NetFirewallRule -PolicyStore PersistentStore | ForEach-Object { [ordered]@{ Name = [string]$_.Name; DisplayName = [string]$_.DisplayName; Enabled = ([string]$_.Enabled -eq 'True'); Direction = [string]$_.Direction; Action = [string]$_.Action; Profile = [string]$_.Profile } })
+        $build = [string][Environment]::OSVersion.Version.Build
+        [ordered]@{ schemaVersion = 1; kind = 'igwtFirewallBaseline'; build = $build; exported = (Get-Date).ToString('o'); rules = $base } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $ResultsPath "firewall-baseline-$build.json") -Encoding UTF8
+        $audit = Get-IgwtFirewallAudit -Role Gamer
+        $unclassified = @($audit.Rules | Where-Object { -not $_.Origin -or -not $_.OriginReason -or -not $_.Confidence })
+        $quick = @($audit.Summary.QuickWins)
+        $fwBefore = @{}; foreach ($r in $audit.Rules) { $fwBefore[[string]$r.Name] = [bool]$r.Enabled }
+        $change = $null; $revertFw = $null; $stillOn = @(); $notBack = @(); $done = @()
+        if ($quick.Count) {
+            $change = Invoke-IgwtFirewallChange -Operation Disable -Name $quick -AllowRemoteSession
+            $fwAfter = @{}; foreach ($r in @((Get-IgwtFirewallInventory -NoServiceHardening).Rules)) { $fwAfter[[string]$r.Name] = [bool]$r.Enabled }
+            $done = @($change.Plan.Items | Where-Object { $_.Allowed -and -not $_.NoOp } | ForEach-Object { [string]$_.Name })
+            $stillOn = @($done | Where-Object { $fwAfter[$_] })
+            $revertFw = Invoke-IgwtRevert -SnapshotPath $change.Snapshot
+            $fwFinal = @{}; foreach ($r in @((Get-IgwtFirewallInventory -NoServiceHardening).Rules)) { $fwFinal[[string]$r.Name] = [bool]$r.Enabled }
+            $notBack = @($fwBefore.Keys | Where-Object { $fwFinal.ContainsKey($_) -and $fwFinal[$_] -ne $fwBefore[$_] })
+        }
+        $fwOk = ($unclassified.Count -eq 0 -and $stillOn.Count -eq 0 -and $notBack.Count -eq 0)
+        $fwNote = "$($audit.Count) rules classified ($($unclassified.Count) without a category), $($quick.Count) quick wins, $(@($done).Count) disabled ($($stillOn.Count) still on), $($notBack.Count) rule(s) not back after revert ($(if ($revertFw) { 'reverted' } else { 'nothing to revert' })), baseline $($base.Count) rules; audit $($audit.LoadMs) ms"
+    } catch { $fwNote = "error: $($_.Exception.Message)" }
+
+    $pass = ($applyFailed.Count -eq 0 -and $revertFailed.Count -eq 0 -and $mismatch.Count -eq 0 -and $presetFail.Count -eq 0 -and $sessionOk -and $cleanOk -and $customOk -and $fwOk)
     $results = [ordered]@{
         Pass = $pass; Build = (Get-IgwtOsInfo).FullBuild; Applied = @($apply.Results | Where-Object Result -EQ 'Applied').Count
         ApplyFailed = $applyFailed; NotVerified = $notVerified; NotOnAfterApply = $notOn; RevertFailed = $revertFailed
         RegistryMismatchAfterRevert = $mismatch; StateDifferencesAfterRevert = $stateDiff; Before = $before; After = $after; Final = $final
         ApplySnapshot = $apply.Snapshot; RevertSnapshot = $(if ($revert) { $revert.Snapshot } else { $null })
-        Presets = $presetRows; Session = [ordered]@{ Pass = $sessionOk; Note = $sessionNote }; Cleaner = [ordered]@{ Pass = $cleanOk; Note = $cleanNote }; CustomPresets = [ordered]@{ Pass = $customOk; Note = $customNote }
+        Presets = $presetRows; Session = [ordered]@{ Pass = $sessionOk; Note = $sessionNote }; Cleaner = [ordered]@{ Pass = $cleanOk; Note = $cleanNote }; CustomPresets = [ordered]@{ Pass = $customOk; Note = $customNote }; Firewall = [ordered]@{ Pass = $fwOk; Note = $fwNote }
     }
     $results | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $ResultsPath 'results.json') -Encoding UTF8
     $summary = @(
@@ -183,6 +208,7 @@ try {
         "Session Mode: $(if ($sessionOk) { 'PASS' } else { 'FAIL' }) ($sessionNote)"
         "Cleaner cycle: $(if ($cleanOk) { 'PASS' } else { 'FAIL' }) ($cleanNote)"
         "Custom presets: $(if ($customOk) { 'PASS' } else { 'FAIL' }) ($customNote)"
+        "Firewall Manager: $(if ($fwOk) { 'PASS' } else { 'FAIL' }) ($fwNote)"
     )
     $summary | Set-Content -LiteralPath (Join-Path $ResultsPath 'summary.txt') -Encoding UTF8
     $summary | Write-Output

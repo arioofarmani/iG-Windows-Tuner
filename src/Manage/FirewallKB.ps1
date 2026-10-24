@@ -33,6 +33,8 @@ function Get-IgwtFirewallKnowledgeBase {
         Services   = @((& $read 'services.json').services)
         Apps       = (& $read 'apps.json')
         Roles      = @((& $read 'roles.json').roles)
+        Templates  = @((& $read 'templates.json').templates)
+        Scopes     = @((& $read 'scopes.json').scopes)
     }
     $script:IgwtFirewallKbCache = $kb
     return $kb
@@ -148,6 +150,27 @@ function Test-IgwtFirewallKnowledgeBase {
     $roleIds = @($kb.Roles | ForEach-Object { [string]$_.id })
     foreach ($r in $script:IgwtFirewallRoleIds) { if ($roleIds -notcontains $r) { $errors.Add("roles: '$r' is missing.") } }
     foreach ($r in $kb.Roles) { & $checkHint "role $($r.id)" $r; if (-not (& $hasText $r 'description')) { $errors.Add("role $($r.id): missing 'description'.") } }
+    # Rule templates and firewall-scope presets.
+    $tIds = @{}
+    foreach ($t in $kb.Templates) {
+        $label = "template $($t.id)"
+        if ($tIds.ContainsKey([string]$t.id)) { $errors.Add("${label}: duplicate id.") } else { $tIds[[string]$t.id] = $true }
+        if (-not (& $hasText $t 'name')) { $errors.Add("${label}: missing 'name'.") }
+        if ([string]$t.needs -notin '', 'Program', 'LocalPort') { $errors.Add("${label}: needs must be Program, LocalPort or empty.") }
+        $s = @{}; foreach ($p in @($t.settings.PSObject.Properties)) { $s[$p.Name] = $(if ($p.Value -is [array]) { @($p.Value) } else { $p.Value }) }
+        $s.DisplayName = [string]$t.name
+        foreach ($e in @(Test-IgwtFirewallRuleSettings -Settings $s -New)) { $errors.Add("${label}: $e") }
+    }
+    $riskIds = @($kb.Risks | ForEach-Object { [string]$_.id })
+    $sIds = @{}
+    foreach ($sc in $kb.Scopes) {
+        $label = "scope $($sc.id)"
+        if ($sIds.ContainsKey([string]$sc.id)) { $errors.Add("${label}: duplicate id.") } else { $sIds[[string]$sc.id] = $true }
+        foreach ($f in 'name', 'description') { if (-not (& $hasText $sc $f)) { $errors.Add("${label}: missing '$f'.") } }
+        & $checkHint $label $sc
+        if ([string]$sc.role -notin $script:IgwtFirewallRoleIds) { $errors.Add("${label}: role '$($sc.role)' is not a known role.") }
+        foreach ($r in @($sc.risks)) { if ($riskIds -notcontains [string]$r) { $errors.Add("${label}: unknown risk rule '$r'.") } }
+    }
     # Plain output (unrolled): callers collect it with @() like the other catalog validators.
     return $errors.ToArray()
 }

@@ -197,6 +197,7 @@ function Set-IgwtGuiFirewallInventory {
     Update-IgwtGuiFirewallSummary
     Update-IgwtGuiFirewallGroups
     Update-IgwtGuiFirewallOverview
+    Update-IgwtGuiFirewallDefaults
     $c = $script:Gui.C
     $notes = @($Inventory.Notes | Where-Object { $_ })
     $c.FwNoticeText.Text = ($notes -join ' ')
@@ -215,9 +216,16 @@ function Invoke-IgwtGuiFirewallChange {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable', 'SetAction', 'Edit', 'New', 'Duplicate', 'Delete')][string]$Operation, [object[]]$Rows = @(), [hashtable]$Settings = @{}, [switch]$NoConfirm)
-    if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { Set-IgwtGuiStatus 'Firewall changes need administrator rights and are off in read-only mode.'; return }
+    # A change the user starts (not the next batch of a reviewed run) drops whatever is still queued.
+    if (-not $NoConfirm) { $script:Gui.FirewallQueue = $null }
+    if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { $script:Gui.FirewallQueue = $null; Set-IgwtGuiStatus 'Firewall changes need administrator rights and are off in read-only mode.'; return }
     $rules = @($Rows | Where-Object { $_ } | ForEach-Object { if ($_.PSObject.Properties['Rule']) { $_.Rule } else { $_ } })
     $plan = Get-IgwtFirewallChangePlan -Operation $Operation -Rules $rules -Settings $Settings
+    if ($plan.Count -eq 0 -and $NoConfirm) {
+        # A queued batch with nothing left to change: go on with the run (the preview listed it as skipped).
+        if ($script:Gui.FirewallQueue -and $script:Gui.FirewallQueue.Count) { Start-IgwtGuiFirewallQueue -Queue $script:Gui.FirewallQueue }
+        return
+    }
     if ($plan.Count -eq 0) {
         $reason = @($plan.Items | Where-Object { -not $_.Allowed } | Select-Object -First 1).Reason
         $null = Show-IgwtGuiMessage -Text $(if ($reason) { "Nothing can be changed:`n`n$reason" } else { 'Nothing to change: every selected rule is already set.' }) -Title 'iG Windows Tuner - firewall' -Icon 'Information'
@@ -240,7 +248,7 @@ function Invoke-IgwtGuiFirewallChange {
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtFirewallChange' -Parameters $params -Blocking -BusyText "$title (snapshot first)..." -OnComplete {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
-        if (-not $res) { Show-IgwtGuiError -Message "The firewall change failed: $(@($errs)[0])"; return }
+        if (-not $res) { $script:Gui.FirewallQueue = $null; Show-IgwtGuiError -Message "The firewall change failed: $(@($errs)[0])"; return }
         Complete-IgwtGuiFirewallChange -Result $res
     }
 }
@@ -256,12 +264,12 @@ function Complete-IgwtGuiFirewallChange {
     foreach ($i in @($Result.Plan.Items | Where-Object { $_.Allowed -and $_.Name })) { $names.Add([string]$i.Name) }
     foreach ($a in $applied) { if ([string]$a.Message -match '^New rule (\S+)') { $names.Add($Matches[1]) } }
     $snapshot = [string]$Result.Snapshot
-    if ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) firewall change(s) failed: $($failed[0].Target): $($failed[0].Message)" -Context 'Firewall' }
+    if ($failed.Count) { $script:Gui.FirewallQueue = $null; Show-IgwtGuiError -Message "$($failed.Count) firewall change(s) failed: $($failed[0].Target): $($failed[0].Message) (the remaining batches were not run)" -Context 'Firewall' }
     if ($applied.Count -and $snapshot) {
         $script:Gui.FirewallLastSnapshot = $snapshot
         Show-IgwtGuiToast -Text "$($applied.Count) firewall rule(s) changed." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument $snapshot
         if ($Result.RemoteSession) {
-            if (-not (Show-IgwtGuiKeepChangesDialog -Seconds 60)) { Invoke-IgwtGuiFirewallUndo -Snapshot $snapshot; return }
+            if (-not (Show-IgwtGuiKeepChangesDialog -Seconds 60)) { $script:Gui.FirewallQueue = $null; Invoke-IgwtGuiFirewallUndo -Snapshot $snapshot; return }
         }
     }
     if ($names.Count) { Update-IgwtGuiFirewallRows -Name $names.ToArray() }
@@ -309,6 +317,7 @@ function Invoke-IgwtGuiFirewallUndo {
     <# .SYNOPSIS Reverts a firewall snapshot (Undo in the toast, or the remote-session timer). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Snapshot)
+    $script:Gui.FirewallQueue = $null   # an undo ends a queued run
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtRevert' -Parameters @{ SnapshotPath = $Snapshot } -Blocking -BusyText 'Undoing the firewall change...' -OnComplete {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1

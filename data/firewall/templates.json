@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallTemplates",
+  "verified": "2026-10-24",
+  "comment": "Starting points for the new-rule wizard, one per scenario. settings use the Firewall Manager rule fields; needs names the field the user must fill in (Program or LocalPort). note is shown under the template.",
+  "templates": [
+    { "id": "game-server", "name": "Game server or host a match (UDP), Private networks only", "settings": { "Direction": "Inbound", "Action": "Allow", "Protocol": "UDP", "Profiles": [ "Private" ], "RemoteAddress": "Any" }, "needs": "Program", "note": "Pick the game or server program; it opens its ports only while it runs. Add the port too if the game's guide names one." },
+    { "id": "game-tcp-private", "name": "Allow a game inbound (TCP), Private networks only", "settings": { "Direction": "Inbound", "Action": "Allow", "Protocol": "TCP", "Profiles": [ "Private" ], "RemoteAddress": "Any" }, "needs": "Program", "note": "For games that host over TCP." },
+    { "id": "lan-file-share", "name": "Share files with PCs on my network (SMB 445, local subnet, Private)", "settings": { "Direction": "Inbound", "Action": "Allow", "Protocol": "TCP", "LocalPort": "445", "Profiles": [ "Private" ], "RemoteAddress": "LocalSubnet" }, "needs": "", "note": "Usually you only need to turn on File and Printer Sharing for Private networks in Windows; this rule limits it to your own network." },
+    { "id": "dev-web-server", "name": "Reach a development web server from my other devices (TCP 3000, 5173, 8080; local subnet)", "settings": { "Direction": "Inbound", "Action": "Allow", "Protocol": "TCP", "LocalPort": "3000, 5173, 8080", "Profiles": [ "Private" ], "RemoteAddress": "LocalSubnet" }, "needs": "", "note": "Traffic to localhost (127.0.0.1) is never filtered by the firewall: you only need this rule to open the server from a phone or another PC on your network." },
+    { "id": "lan-only", "name": "Allow a program inbound from the local network only", "settings": { "Direction": "Inbound", "Action": "Allow", "Protocol": "Any", "Profiles": [ "Private" ], "RemoteAddress": "LocalSubnet" }, "needs": "Program", "note": "Good for media servers and remote-play hosts at home." },
+    { "id": "block-app-out", "name": "Block a program from the internet (outbound)", "settings": { "Direction": "Outbound", "Action": "Block", "Protocol": "Any", "Profiles": [ "Any" ] }, "needs": "Program", "note": "Never use it on a game, launcher or anti-cheat program: online play stops working." },
+    { "id": "block-port-in", "name": "Block an inbound port on every network", "settings": { "Direction": "Inbound", "Action": "Block", "Protocol": "TCP", "Profiles": [ "Any" ] }, "needs": "LocalPort", "note": "A block always wins over an allow for the same traffic." }
+  ]
+}

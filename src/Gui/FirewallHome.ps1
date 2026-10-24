@@ -379,6 +379,8 @@ function Initialize-IgwtGuiFirewallHome {
     Register-IgwtGuiHandler -Control $c.FwOvTiles -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler { param($s, $e) $null = $s; $b = $e.OriginalSource; if ($b -is [System.Windows.Controls.Button] -and $b.Tag) { Select-IgwtGuiFirewallGroup -Id ([string]$b.Tag) -ShowRules } }
     Register-IgwtGuiHandler -Control $c.FwOvReviewButton -Event 'Click' -Handler { Show-IgwtGuiFirewallWizard }
     Register-IgwtGuiHandler -Control $c.FwOvQuickButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallQuickWins }
+    Register-IgwtGuiHandler -Control $c.FwOvScopeButton -Event 'Click' -Handler { param($s, $e) $null = $e; Show-IgwtGuiFirewallScopeMenu -Target $s }
+    Register-IgwtGuiHandler -Control $c.FwOvExportOverridesButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallExportOverrides }
     Register-IgwtGuiHandler -Control $c.FwOvRecentList -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler { param($s, $e) $null = $s; $b = $e.OriginalSource; if ($b -is [System.Windows.Controls.Button] -and $b.Tag) { Invoke-IgwtGuiFirewallUndo -Snapshot ([string]$b.Tag) } }
     # Sidebar: groups with counts, saved views.
     Register-IgwtGuiHandler -Control $c.FwGroupList -Event 'SelectionChanged' -Handler { $it = $script:Gui.C.FwGroupList.SelectedItem; if ($it -and [string]$it.Id -ne [string]$script:Gui.FirewallGroup) { Select-IgwtGuiFirewallGroup -Id ([string]$it.Id) } }
@@ -391,6 +393,7 @@ function Initialize-IgwtGuiFirewallHome {
     Register-IgwtGuiHandler -Control $c.FwDetNotBloatedButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallNotBloated }
     Update-IgwtGuiFirewallGroups
     Select-IgwtGuiFirewallGroup -Id 'All'
+    Initialize-IgwtGuiFirewallTools
 }
 
 function Update-IgwtGuiFirewallGroups {
@@ -724,4 +727,137 @@ function Start-IgwtGuiFirewallQueue {
     $next = $Queue[0]; $Queue.RemoveAt(0)
     $script:Gui.FirewallQueue = $Queue
     Invoke-IgwtGuiFirewallChange -Operation $next.Operation -Rows $next.Rows -Settings $next.Settings -NoConfirm
+}
+function Initialize-IgwtGuiFirewallTools {
+    <# .SYNOPSIS Grids of the Live connections and Compared to Windows defaults tabs (called once). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds window objects only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $conn = New-IgwtSmartGrid -Id 'firewall.connections' -Noun 'connections' -RowKey 'Key' -SearchPlaceholder 'Search programs, addresses and rules' -SelectionMode Single `
+        -EmptyTitle 'Not read yet' -EmptyText 'Press Read connections to see what is connected right now (read-only).' -OnRefresh { param($grid) $null = $grid; Start-IgwtGuiFirewallConnections } -Columns @(
+        @{ Key = 'Process'; Header = 'Program'; Width = 150; Tip = 'Path' }
+        @{ Key = 'Protocol'; Header = 'Protocol'; Width = 80 }
+        @{ Key = 'Direction'; Header = 'Direction'; Width = 90 }
+        @{ Key = 'Remote'; Header = 'Remote'; Width = 200; Template = 'Mono' }
+        @{ Key = 'Local'; Header = 'Local'; Width = 170; Template = 'Mono'; Visible = $false }
+        @{ Key = 'State'; Header = 'State'; Width = 110 }
+        @{ Key = 'Rule'; Header = 'Rule that applies'; MinWidth = 220; Tip = 'Rule' }
+        @{ Key = 'Services'; Header = 'Services'; Width = 150; Visible = $false }
+    ) -Chips @(
+        @{ Id = 'tcp'; Label = 'TCP connections'; Group = 'p'; Field = 'Protocol'; Values = @('TCP') }
+        @{ Id = 'udp'; Label = 'UDP endpoints'; Group = 'p'; Field = 'Protocol'; Values = @('UDP') }
+        @{ Id = 'norule'; Label = 'No matching rule'; Group = 'r'; Field = 'RuleId'; Values = @('') }
+    )
+    $script:Gui.Grids.FirewallConnections = $conn
+    $c.FwConnHost.Content = $conn.Root
+    Set-IgwtGridRows -Grid $conn -Rows @()
+    $def = New-IgwtSmartGrid -Id 'firewall.defaults' -Noun 'differences' -RowKey 'Key' -SearchPlaceholder 'Search rules' -SelectionMode Single `
+        -EmptyTitle 'Same as the Windows defaults' -EmptyText 'No Windows default rule was removed or changed, and no rule was added.' -Columns @(
+        @{ Key = 'ChangeCol'; Header = 'Change'; Width = 120; Template = 'Status'; SortKey = 'ChangeRank' }
+        @{ Key = 'Name'; Header = 'Rule'; MinWidth = 220; Tip = 'Detail' }
+        @{ Key = 'Detail'; Header = 'What differs'; Width = 360 }
+        @{ Key = 'RuleId'; Header = 'Rule ID'; Width = 220; Template = 'Mono'; Visible = $false }
+    ) -Chips @(
+        @{ Id = 'added'; Label = 'Added'; Group = 'c'; Field = 'Change'; Values = @('Added') }
+        @{ Id = 'removed'; Label = 'Removed'; Group = 'c'; Field = 'Change'; Values = @('Removed') }
+        @{ Id = 'modified'; Label = 'Modified'; Group = 'c'; Field = 'Change'; Values = @('Modified') }
+    )
+    $script:Gui.Grids.FirewallDefaults = $def
+    $c.FwDefaultsHost.Content = $def.Root
+    if (-not @($def.Sort).Count) { Set-IgwtGridSort -Grid $def -Key 'ChangeCol' -NoSave; Set-IgwtGridSort -Grid $def -Key 'Name' -Add -NoSave }
+    Register-IgwtGuiHandler -Control $c.FwConnRefreshButton -Event 'Click' -Handler { Start-IgwtGuiFirewallConnections }
+}
+
+function Start-IgwtGuiFirewallConnections {
+    <# .SYNOPSIS Reads the live connections in the background and matches them to the rules (read-only). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
+    [CmdletBinding()]
+    param()
+    $rules = @($(if ($script:Gui.Firewall) { $script:Gui.Firewall.Rules }))
+    Set-IgwtGridState -Grid $script:Gui.Grids.FirewallConnections -State Loading
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallConnections' -Parameters @{ Rows = $rules } -Channel 'firewall-connections' -BusyText 'Reading the current connections (read-only)...' -OnComplete {
+        param($out, $errs)
+        $rows = @($out | Where-Object { $_ })
+        if (-not $rows.Count -and @($errs).Count) { Set-IgwtGridState -Grid $script:Gui.Grids.FirewallConnections -State Error -Message ([string]@($errs)[0]); return }
+        Set-IgwtGridRows -Grid $script:Gui.Grids.FirewallConnections -Rows $rows
+        $script:Gui.C.FwConnText.Text = "$(@($rows | Where-Object Protocol -EQ 'TCP').Count) TCP connection(s) and $(@($rows | Where-Object Protocol -EQ 'UDP').Count) UDP endpoint(s), read $((Get-Date).ToString('HH:mm:ss')). Nothing is changed."
+    }
+}
+
+function Update-IgwtGuiFirewallDefaults {
+    <# .SYNOPSIS The Compared to Windows defaults tab from the last audit (hidden explanation when no baseline exists). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $a = $script:Gui.Firewall
+    if (-not $a -or -not $script:Gui.Grids.FirewallDefaults) { return }
+    $defaults = $(if ($a.PSObject.Properties['DefaultRules']) { $a.DefaultRules } else { $null })
+    if (-not $defaults -or -not $defaults.Count) {
+        $c.FwDefaultsText.Text = 'No baseline of the Windows default rules is available on this PC. The Windows Sandbox test (tools\iGWindowsTuner.wsb) exports one as firewall-baseline-<build>.json in its results; copy it to the State folder of a PC with the same Windows build.'
+        $c.FwDefaultsHost.Visibility = 'Collapsed'
+        return
+    }
+    $c.FwDefaultsHost.Visibility = 'Visible'
+    $diff = @(Compare-IgwtFirewallDefaults -Rows $a.Rules -Defaults $defaults)
+    $src = @($defaults.Values | Select-Object -First 1 | ForEach-Object { $_.Source })[0]
+    $rows = @(foreach ($d in $diff) {
+            $r = [ordered]@{ Key = [string]$d.Key; Change = [string]$d.Change; ChangeRank = @('Removed', 'Modified', 'Added').IndexOf([string]$d.Change); Name = [string]$d.Name; Detail = [string]$d.Detail; RuleId = [string]$d.RuleId }
+            Add-IgwtGuiStatusField -Row $r -Name 'ChangeCol' -Text ([string]$d.Change) -Tone $(switch ([string]$d.Change) { 'Removed' { 'Warn' } 'Modified' { 'Info' } default { 'Text' } })
+            [pscustomobject]$r
+        })
+    Set-IgwtGridRows -Grid $script:Gui.Grids.FirewallDefaults -Rows $rows
+    $n = { param($k) @($diff | Where-Object Change -EQ $k).Count }
+    $c.FwDefaultsText.Text = "Compared with the $($defaults.Count) default rules of this Windows build ($src): $(& $n 'Added') added, $(& $n 'Removed') removed and $(& $n 'Modified') changed. App and Store rules and the service hardening rules are not counted as added."
+}
+
+function Show-IgwtGuiFirewallScopeMenu {
+    <# .SYNOPSIS The firewall-scope presets as a menu; each opens a preview of what it would change. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Shows a menu; changes go through the preview.')]
+    [CmdletBinding()]
+    param($Target)
+    $menu = New-Object System.Windows.Controls.ContextMenu
+    foreach ($s in @(Get-IgwtFirewallScopes)) {
+        $mi = New-Object System.Windows.Controls.MenuItem
+        $mi.Header = "$($s.name)..."; $mi.Tag = [string]$s.id; $mi.ToolTip = [string]$s.hint
+        Register-IgwtGuiHandler -Control $mi -Event 'Click' -Handler { param($x, $e) $null = $e; Invoke-IgwtGuiFirewallScope -Scope ([string]$x.Tag) }
+        $null = $menu.Items.Add($mi)
+    }
+    $menu.PlacementTarget = $Target; $menu.Placement = 'Bottom'; $menu.IsOpen = $true
+}
+
+function Invoke-IgwtGuiFirewallScope {
+    <# .SYNOPSIS Previews a firewall scope (bloat and risk fixes for that kind of PC) and applies it in queued batches after the preview. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Scope)
+    $a = $script:Gui.Firewall
+    if (-not $a) { return }
+    $sigs = $(if ($a.PSObject.Properties['Context'] -and $a.Context -and $a.Context.Signatures) { $a.Context.Signatures } else { @{} })
+    $plan = Get-IgwtFirewallScopePlan -Scope $Scope -Rows $a.Rules -Listeners @($a.Listeners) -Signatures $sigs
+    $label = @{ Disable = 'Disable'; Delete = 'Delete'; RestrictPrivate = 'Restrict to Private'; RestrictLocalSubnet = 'Restrict to the local subnet' }
+    $nl = [Environment]::NewLine
+    $text = "$($plan.Scope.name): $($plan.Scope.description)$nl$nl" + $(if ($plan.Batches.Count) { (@($plan.Batches | ForEach-Object { Format-IgwtGuiFirewallPlanText -Plan $_.Plan -Label $label[[string]$_.Action] -Rows $_.Rules }) -join ($nl + $nl)) } else { 'Nothing to change: this PC already matches the scope.' })
+    $canApply = (-not (Test-IgwtReadOnly)) -and $script:Gui.IsAdmin -and $plan.Count -gt 0
+    if (-not $canApply -and $plan.Count) { $text += $nl + $nl + 'Read-only: this is what would change; nothing on this PC was changed.' }
+    if (Show-IgwtGuiTextDialog -Title "iG Windows Tuner - firewall scope: $($plan.Scope.name)" -Text $text -AcceptText $(if ($canApply) { "Apply $($plan.Count) change$(if ($plan.Count -ne 1) { 's' })" } else { '' })) {
+        $queue = New-Object System.Collections.Generic.List[object]
+        $byId = @{}; foreach ($r in $a.Rules) { $byId[[string]$r.Name] = $r }
+        foreach ($b in $plan.Batches) {
+            $ids = @($b.Plan.Items | Where-Object { $_.Allowed -and -not $_.NoOp } | ForEach-Object { [string]$_.Name })
+            $rows = @($ids | ForEach-Object { $byId[$_] } | Where-Object { $_ })
+            if ($rows.Count) { $queue.Add([pscustomobject]@{ Operation = $b.Operation; Rows = $rows; Settings = $b.Settings }) }
+        }
+        Start-IgwtGuiFirewallQueue -Queue $queue
+    }
+}
+
+function Invoke-IgwtGuiFirewallExportOverrides {
+    <# .SYNOPSIS Saves the user's Firewall Manager choices (categories, not bloated, ignored findings) to a file. #>
+    [CmdletBinding()]
+    param()
+    $dlg = New-Object Microsoft.Win32.SaveFileDialog
+    $dlg.Filter = 'iG Windows Tuner firewall choices (*.json)|*.json'; $dlg.FileName = 'igwt-firewall-choices.json'
+    if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
+    try { $null = Export-IgwtFirewallOverrides -Path $dlg.FileName; Set-IgwtGuiStatus "Firewall choices saved: $($dlg.FileName)" } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall' }
 }

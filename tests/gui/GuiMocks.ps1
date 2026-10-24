@@ -377,10 +377,16 @@ function script:Get-IgwtFirewallAudit {
         [pscustomobject]@{ Path = 'C:\ProgramData\iGWindowsTuner\Backups\snapshot-demo-1.json'; Created = $script:MockNow.AddHours(-2); Operation = 'Firewall:Disable'; Detail = 'Disabled 4 Media Center Extenders rules'; Rules = @('DEMO-RULE-12') }
         [pscustomobject]@{ Path = 'C:\ProgramData\iGWindowsTuner\Backups\snapshot-demo-2.json'; Created = $script:MockNow.AddDays(-1); Operation = 'Firewall:Edit'; Detail = 'Restricted "voice TCP 7" to Private networks'; Rules = @('DEMO-RULE-7') }
     )
+    # Default rules of the demo build: the Windows rules as shipped, one of them changed since, one removed.
+    $defaults = @{}
+    foreach ($r in @($rows | Where-Object { $_.IsWindows -and [string]$_.Store -notin 'StaticServiceStore', 'ConfigurableServiceStore' })) { $defaults[[string]$r.Name] = [pscustomobject]@{ Name = [string]$r.Name; DisplayName = [string]$r.DisplayName; Enabled = [bool]$r.Enabled; Direction = [string]$r.Direction; Action = [string]$r.Action; Profile = [string]$r.Profiles; Source = 'SystemDefaults' } }
+    $first = @($defaults.Keys | Sort-Object | Select-Object -First 1)
+    if ($first.Count) { $defaults[$first[0]].Enabled = -not $defaults[$first[0]].Enabled }
+    $defaults['DEMO-REMOVED-In'] = [pscustomobject]@{ Name = 'DEMO-REMOVED-In'; DisplayName = 'Demo default rule (removed)'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Private'; Source = 'SystemDefaults' }
     [pscustomobject]@{
         Rules = $rows; Count = $rows.Count; Summary = (Get-IgwtFirewallAuditSummary -Rows $rows); Findings = $findings; Relations = $relations; Listeners = $listeners
         Exposure = @(Get-IgwtFirewallExposureMap -Rows $rows -Listeners $listeners); RecentChanges = $recent
-        Role = $ctx.Role; Partial = $false; Notes = @(); HasDefaults = $false; DefaultRules = $null
+        Role = $ctx.Role; Partial = $false; Notes = @(); HasDefaults = $true; DefaultRules = $defaults
         Timing = [pscustomobject]@{ Inventory = 640; Classify = 310; Findings = 520 }; LoadMs = 2140; InventoryMs = 640; Read = $script:MockNow
     }
 }

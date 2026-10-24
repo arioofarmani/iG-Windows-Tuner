@@ -22,6 +22,7 @@ function Test-IgwtPresetDefinition {
     $label = "preset ${presetId}"
     $ids = $CatalogIndex
     Test-IgwtItemText -Item $p -Label $label -Errors $Errors
+    if ($p.PSObject.Properties['firewallScope'] -and [string]$p.firewallScope -and @(Get-IgwtFirewallScopes | Where-Object { [string]$_.id -eq [string]$p.firewallScope }).Count -eq 0) { $Errors.Add("${label}: firewallScope '$($p.firewallScope)' is not in data\firewall\scopes.json.") }
     $ceiling = Get-IgwtLevelRank -Level ([string]$p.levelCeiling)
     if ($ceiling -lt 0 -or [string]$p.levelCeiling -eq 'Lab') { $Errors.Add("${label}: levelCeiling must be Standard, Advanced or Expert (Lab items are never in presets).") }
     if ($script:IgwtAntiCheatPolicies -notcontains [string]$p.antiCheatPolicy) { $Errors.Add("${label}: antiCheatPolicy must be safeOnly or any.") }

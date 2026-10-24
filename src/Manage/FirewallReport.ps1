@@ -29,7 +29,11 @@ function Export-IgwtFirewallAuditReport {
         }
     }
     switch ($ext) {
-        '.csv' { @($rows | ForEach-Object { [pscustomobject](& $line $_) }) | Export-Csv -LiteralPath $Path -NoTypeInformation -Encoding UTF8 }
+        '.csv' {
+            # Cells that a spreadsheet would run as a formula (rule names come from other programs) start with a quote.
+            $safe = { param($h) $o = [ordered]@{}; foreach ($k in @($h.Keys)) { $v = [string]$h[$k]; $o[$k] = $(if ($v -match '^[=+\-@\t\r]') { "'$v" } else { $v }) }; [pscustomobject]$o }
+            @($rows | ForEach-Object { & $safe (& $line $_) }) | Export-Csv -LiteralPath $Path -NoTypeInformation -Encoding UTF8
+        }
         '.json' {
             $out = [ordered]@{
                 schemaVersion = 1; kind = 'igwtFirewallAudit'; generated = (Get-Date).ToString('o'); tool = "iG Windows Tuner $script:IgwtVersion"; role = [string]$Audit.Role; partial = [bool]$Audit.Partial

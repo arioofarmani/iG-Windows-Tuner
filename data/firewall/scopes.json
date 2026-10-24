@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallScopes",
+  "verified": "2026-10-24",
+  "comment": "Firewall-scope presets: which Bloated and risk recommendations apply for a kind of PC. role picks the knowledge-base role for Bloated; applyBloat disables the enabled Bloated rules (quick wins); risks lists the risk rule ids whose recommended fix applies (Keep and Ignore change nothing; protected, locked and Core Services rules are always skipped). Presets in data\\presets name a scope with firewallScope.",
+  "scopes": [
+    {
+      "id": "gaming-pc", "name": "Gaming PC", "role": "Gamer", "applyBloat": true,
+      "risks": [ "inbound-wide-open", "public-admin-protocol", "public-local-discovery", "orphaned-program", "script-host-allow" ],
+      "hint": "Turns off sharing and remote-administration rules a gaming PC does not use and closes wide-open and public-network openings.",
+      "description": "For a home gaming PC: disables the bloated Windows rules (legacy media sharing, remote administration, server features), removes rules of uninstalled programs and fixes inbound openings on public networks. Game, launcher and anti-cheat rules are never touched."
+    },
+    {
+      "id": "workstation", "name": "Workstation", "role": "Workstation", "applyBloat": true,
+      "risks": [ "inbound-wide-open", "public-admin-protocol", "orphaned-program", "script-host-allow" ],
+      "hint": "Keeps file and printer sharing and management for the office network; closes wide-open rules and public-network admin access.",
+      "description": "For an office or domain PC: keeps sharing, discovery and device management, disables only legacy media sharing and similar bloat, and fixes wide-open rules, admin protocols on public networks and orphaned rules."
+    },
+    {
+      "id": "public-wifi-laptop", "name": "Public Wi-Fi laptop", "role": "PowerUser", "applyBloat": true,
+      "risks": [ "inbound-wide-open", "public-admin-protocol", "public-local-discovery", "remote-any-local-service", "edge-traversal", "orphaned-program", "script-host-allow" ],
+      "hint": "For laptops on hotel and cafe networks: nothing answers on public networks, local services only from the local subnet.",
+      "description": "For a laptop that often joins untrusted networks: closes every inbound opening on the Public profile (sharing, discovery, remote access), limits local services to the local subnet, turns off edge traversal for apps and removes orphaned rules."
+    },
+    {
+      "id": "sysadmin-hardened", "name": "Sysadmin hardened", "role": "Sysadmin", "applyBloat": true,
+      "risks": [ "inbound-wide-open", "public-admin-protocol", "user-writable-program", "unsigned-program", "orphaned-program", "script-host-allow", "edge-traversal", "public-local-discovery", "remote-any-local-service", "disabled-security-rule" ],
+      "hint": "Keeps remote administration but applies every Critical, High and Medium fix and removes consumer bloat.",
+      "description": "For an administrator's PC: Remote Desktop, PowerShell remoting and WMI stay, consumer media sharing and casting go, and every critical, high and medium recommendation applies."
+    }
+  ]
+}
