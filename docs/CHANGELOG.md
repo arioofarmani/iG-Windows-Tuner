@@ -7,6 +7,7 @@ Firewall Manager 3.4: every rule classified (origin category, direction, blocks,
 ### Firewall Manager 3.4
 
 - Starting audit and sources: `docs\FIREWALL_AUDIT_3.4.md`.
+- **Firewall knowledge base** (`data\firewall\*.json`): the nine groups, every built-in Windows rule group of build 26100+ by its stable ID (Core Networking, service hardening, discovery, sharing, remote administration, casting, Xbox and Store apps ...) with what it is for, what stops working without it, risk notes, whether each role needs it (gaming PC, power user, sysadmin, office workstation) and Microsoft sources; 13 risk rules with severities, plain explanations and safe fixes; well-known ports and services; protected game, launcher and anti-cheat programs. Validated by `tools\Test-FirewallKB.ps1`; explained in the generated `docs\FIREWALL_CATEGORIES.md`.
 
 ## 3.3.0 (unreleased, part of 3.4.0)
 

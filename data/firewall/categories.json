@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallCategories",
+  "verified": "2026-10-24",
+  "comment": "The nine Firewall Manager groups in three layers: origin (exactly one per rule), facet (simple property) and assessment (derived, can overlap). Text is shown in the GUI and in docs\\FIREWALL_CATEGORIES.md.",
+  "categories": [
+    {
+      "id": "CoreServices", "layer": "origin", "order": 1, "name": "Core Services",
+      "hint": "Windows rules for basic networking and staying secure and updated: DHCP, DNS, IPv6 neighbor discovery, service hardening.",
+      "description": "Built-in rules Windows needs to get an address, find names, use IPv6 and keep its services restricted to the traffic they need. They come from the Core Networking group and the Windows Service Hardening stores. Turning them off breaks the network or weakens Windows' own protection, so the Firewall Manager shows them read-only with the reason each one matters.",
+      "criteria": "Rule ID or group in the knowledge base with category CoreServices (Core Networking, @FirewallAPI.dll,-25000; CoreNet-* IDs), Windows Service Hardening rules (StaticServiceStore), and the Windows Security and SmartScreen app rules.",
+      "typicalMembers": "CoreNet-DHCP-In, CoreNet-DHCPV6-In, CoreNet-IPv6-In, CoreNet-ICMP6-NDA-In, CoreNet-IGMP-In, CoreNet-DNS-Out-UDP, service hardening rules such as Audiosrv-1.",
+      "handling": "Locked: read-only, never disabled or deleted by the Firewall Manager.",
+      "sources": [ "https://technet.microsoft.com/en-us/library/cc753295", "https://learn.microsoft.com/en-us/powershell/module/netsecurity/set-netfirewallservicefilter" ]
+    },
+    {
+      "id": "WindowsConnections", "layer": "origin", "order": 2, "name": "Windows Connections",
+      "hint": "Windows rules for optional features and Microsoft apps: casting, sharing, discovery, remote help, Xbox, Store apps.",
+      "description": "Rules that ship with Windows for features you may or may not use: Cast to Device, Wi-Fi Direct, Remote Assistance, Network Discovery, File and Printer Sharing, remote management, Xbox and the Microsoft Store apps. When a feature is not used on this PC, its rules can be disabled; the feature itself turns them back on when you start using it again.",
+      "criteria": "Windows-shipped rules outside Core Services: a Windows group resource string (@FirewallAPI.dll and other system DLLs) or rule ID in the knowledge base, rules from the SystemDefaults store, and AppContainer rules of Microsoft-published packages (publisher IDs 8wekyb3d8bbwe and cw5n1h2txyewy).",
+      "typicalMembers": "NETDIS-* (Network Discovery), FPS-* (File and Printer Sharing), PlayTo-* (Cast to Device), RemoteAssistance-*, WMPNSS-*, MCX-*, Microsoft Store app rules.",
+      "handling": "Can be disabled when the feature is not used; never deleted.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "UserInstalled", "layer": "origin", "order": 3, "name": "User Installed",
+      "hint": "Rules added by apps you installed or by answering a Windows firewall prompt (Allow or Cancel).",
+      "description": "Rules created by third-party installers (games, launchers, chat and streaming apps) or automatically when you answered a Windows Defender Firewall prompt; a dismissed prompt creates block rules. Keep the ones for apps you use. Rules whose program no longer exists are orphaned: they can be deleted, because an attacker who drops a file at that path would inherit the rule.",
+      "criteria": "A program outside the Windows folder with a non-Microsoft signer or location, the firewall-prompt pattern (GUID rule ID, display name from the program, TCP and UDP pair), or an AppContainer package from a non-Microsoft publisher.",
+      "typicalMembers": "Game, launcher and voice chat rules; prompt-created allow and block pairs.",
+      "handling": "Keep if the app is installed and used; flagged when orphaned or risky; deletable after a confirmation and a snapshot.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "CustomRules", "layer": "origin", "order": 4, "name": "Custom Rules",
+      "hint": "Rules you, an administrator or iG Windows Tuner created by hand.",
+      "description": "Rules created on purpose: by iG Windows Tuner (rule ID prefix iGWindowsTuner- and its group), by you in the Firewall Manager or in Windows Defender Firewall with Advanced Security, or by an administrator script. Manual rules are recognised by elimination (not Windows, not an app installer, not a prompt), so the confidence is shown.",
+      "criteria": "iG Windows Tuner tag (rule ID prefix and group), or a rule that matches no Windows group and no app pattern (heuristic, Medium or Low confidence).",
+      "typicalMembers": "iGWindowsTuner-Block-Out-mshta-x64, port rules for a game server, LAN share rules.",
+      "handling": "Fully editable and deletable (snapshot first).",
+      "sources": []
+    },
+    {
+      "id": "Inbound", "layer": "facet", "order": 5, "name": "Inbound",
+      "hint": "Rules for traffic other devices start toward this PC.",
+      "description": "Inbound rules decide which unsolicited connections reach this PC. Windows blocks inbound traffic by default; every inbound allow rule is an opening, so these are the rules to review first.",
+      "criteria": "Direction = Inbound.",
+      "typicalMembers": "Game server ports, file sharing, remote desktop.",
+      "handling": "Filter view.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "Outbound", "layer": "facet", "order": 6, "name": "Outbound",
+      "hint": "Rules for traffic this PC starts toward other devices.",
+      "description": "Outbound traffic is allowed by default, so outbound rules mostly block something (for example the script hosts iG Windows Tuner blocks) or allow an app when outbound is set to block.",
+      "criteria": "Direction = Outbound.",
+      "typicalMembers": "Store app rules, outbound blocks for script hosts.",
+      "handling": "Filter view.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "Blocked", "layer": "facet", "order": 7, "name": "Blocked",
+      "hint": "Rules that block traffic. A block always wins over an allow for the same traffic.",
+      "description": "Block rules stop matching traffic even when an allow rule also matches. The view shows each profile's default inbound and outbound action next to the list and highlights blocks that shadow allow rules (the allow never applies).",
+      "criteria": "Action = Block.",
+      "typicalMembers": "Dismissed firewall prompts, iG Windows Tuner script-host blocks, admin blocks.",
+      "handling": "Filter view; blocks that shadow allows are highlighted.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "Bloated", "layer": "assessment", "order": 8, "name": "Bloated",
+      "hint": "Enabled rules for features this PC's role does not need, and rules whose program or app is gone.",
+      "description": "Rules for features that are not needed for this PC's role (Gamer, Power User, Sysadmin, Workstation), from the knowledge base, plus orphaned rules whose program or package no longer exists. Each one says what stops working when it is disabled. Disabling is reversible; the feature turns its rules back on when you use it.",
+      "criteria": "Enabled rule whose knowledge-base entry is 'bloat' for the current role (and whose condition holds, for example the Xbox app is not installed), or an orphaned rule (program or package missing).",
+      "typicalMembers": "Media Center Extenders, Windows Media Player Network Sharing, Remote Assistance on a gaming PC, rules of uninstalled apps.",
+      "handling": "Recommend Disable, with a 'what stops working' note; orphaned app rules can be deleted.",
+      "sources": []
+    },
+    {
+      "id": "SecurityRisks", "layer": "assessment", "order": 9, "name": "Security Risks",
+      "hint": "Rules that widen the attack surface, each with a severity, an explanation and the least invasive fix.",
+      "description": "Findings from the risk rules in data\\firewall\\risks.json: wide-open inbound rules, admin and file protocols on Public networks, programs in user-writable folders, unsigned or orphaned programs, script hosts, edge traversal and more. A rule that matches a port something is listening on right now is marked 'Exposed now' and rises one severity level.",
+      "criteria": "At least one finding from the risk rules (severity Critical, High, Medium or Low).",
+      "typicalMembers": "Any-port inbound allows, RDP or SMB allowed on Public, orphaned program rules.",
+      "handling": "Recommend the least invasive fix (restrict to Private, restrict remote to Local Subnet, disable); keep or ignore with a reason.",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules", "https://www.cisa.gov/stopransomware/misconfigurations-and-weaknesses-known-be-used-ransomware-campaigns" ]
+    }
+  ]
+}

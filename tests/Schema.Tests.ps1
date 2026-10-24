@@ -18,6 +18,7 @@ BeforeAll {
         Copy-Item -LiteralPath (Join-Path $script:RepoData 'asr') -Destination $dest -Recurse   # 2.0 ASR rule catalog (no v1 equivalent)
         Copy-Item -LiteralPath (Join-Path $script:RepoData 'power') -Destination $dest -Recurse # 2.0 power plan editor settings (no v1 equivalent)
         Copy-Item -LiteralPath (Join-Path $script:RepoData 'migration') -Destination $dest -Recurse
+        Copy-Item -LiteralPath (Join-Path $script:RepoData 'firewall') -Destination $dest -Recurse # 3.4 firewall knowledge base (no v1 equivalent)
         return $dest
     }
     function Get-RawTweaks([string]$Folder) {

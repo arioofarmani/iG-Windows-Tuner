@@ -37,7 +37,7 @@ Describe 'GUI layout' {
             foreach ($v in 'InboundPublic', 'Broad', 'ProgramMissing', 'UserWritable', 'Duplicate', 'DisabledWindows') { @($chips | Where-Object { @($_.Values) -contains $v }).Count | Should -Be 1 -Because $v }
             foreach ($id in 'enabled', 'disabled', 'in', 'out', 'allow', 'block', 'p-domain', 'p-private', 'p-public', 's-windows', 's-third', 's-owned', 's-gpo', 's-store', 'tcp', 'udp', 'icmp', 'anyproto') { @($chips | Where-Object Id -EQ $id).Count | Should -Be 1 -Because $id }
             $cols = @(Get-IgwtGuiFirewallColumns | ForEach-Object { $_.Key })
-            foreach ($k in 'DisplayName', 'Group', 'State', 'Direction', 'Action', 'Profiles', 'Program', 'Service', 'Package', 'Protocol', 'LocalPort', 'RemotePort', 'LocalAddress', 'RemoteAddress', 'InterfaceType', 'EdgeTraversal', 'Source', 'ProgramExists', 'Risk', 'Description') { $cols | Should -Contain $k }
+            foreach ($k in 'DisplayName', 'Group', 'State', 'DirectionText', 'Action', 'Profiles', 'Program', 'Service', 'Package', 'Protocol', 'LocalPort', 'RemotePort', 'LocalAddress', 'RemoteAddress', 'InterfaceType', 'EdgeTraversal', 'Source', 'ProgramExists', 'Risk', 'Description') { $cols | Should -Contain $k }
         }
     }
     It 'builds Manage rows that never throw on unexpected values' {
