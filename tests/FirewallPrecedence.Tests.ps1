@@ -14,6 +14,8 @@ BeforeAll {
         ,@('Twin-A', 'C:\Program Files\Twin\app.exe', 'Allow', 'UDP', '9000', 'Private', 'LocalSubnet', '')
         ,@('Twin-B', 'C:\Program Files\Twin\app.exe', 'Allow', 'UDP', '9000', 'Private', 'LocalSubnet', '')
         ,@('Other-Protocol', 'C:\Program Files\Shadow\app.exe', 'Allow', 'UDP', '6000', 'Private', 'LocalSubnet', '')
+        ,@('Block-Port-For-All', 'Any', 'Block', 'TCP', '7777', 'Any', 'Any', '')
+        ,@('Program-7777', 'C:\Program Files\Seven\app.exe', 'Allow', 'TCP', '7777', 'Private', 'LocalSubnet', '')
         ,@('Win-A', 'Any', 'Allow', 'TCP', '445', 'Private', 'LocalSubnet', '@FirewallAPI.dll,-28502')
         ,@('Win-B', 'Any', 'Allow', 'TCP', '445', 'Private', 'LocalSubnet', '@FirewallAPI.dll,-28502')
     )
@@ -54,7 +56,9 @@ Describe 'Firewall precedence and conflicts' {
             (& $get 'Other-Protocol').Shadowed | Should -BeFalse -Because 'UDP is not covered by a TCP block'
             # Two Windows rules are never compared (settings the inventory does not read).
             (& $get 'Win-B').Redundant | Should -BeFalse
-            @($rel | Where-Object Kind -EQ 'Shadowed').Count | Should -Be 1
+            # An any-program block shadows a program's allow on the same port.
+            @((& $get 'Program-7777').ShadowedBy) | Should -Be @('Block-Port-For-All')
+            @($rel | Where-Object Kind -EQ 'Shadowed').Count | Should -Be 2
         }
     }
 

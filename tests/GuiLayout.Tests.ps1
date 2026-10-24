@@ -23,21 +23,27 @@ Describe 'GUI layout' {
         InModuleScope iGWindowsTuner {
             $rule = [pscustomobject]@{ Name = 'r1'; DisplayName = 'Game'; Group = ''; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profiles = 'Any'; ProfileList = @('Any'); Program = 'C:\G\g.exe'; Service = 'Any'; Package = ''; Owner = ''
                 Protocol = 'ICMPv4'; LocalPort = 'Any'; RemotePort = 'Any'; LocalAddress = 'Any'; RemoteAddress = 'Any'; InterfaceType = 'Any'; EdgeTraversal = 'Block'; Source = 'GroupPolicy'; StoreSource = 'x'; Locked = $true; LockReason = 'Set by Group Policy'
-                ProgramExists = 'No'; Description = ''; Risks = @('InboundPublic', 'ProgramMissing'); RiskText = 'Inbound allow on Public; Program not found' }
+                ProgramExists = 'No'; Description = ''; Origin = 'UserInstalled'; OriginName = 'User Installed'; Confidence = 'Low'; Groups = @('UserInstalled', 'Inbound', 'SecurityRisks'); RiskLevel = 'High'; Exposed = $true
+                Findings = @([pscustomobject]@{ RiskId = 'orphaned-program'; Severity = 'High'; Title = 'Program no longer exists (orphaned rule)'; Ignored = $false }, [pscustomobject]@{ RiskId = 'no-description'; Severity = 'Low'; Title = 'Rule without a description'; Ignored = $false }) }
             $row = New-IgwtGuiFirewallRow -Rule $rule
             $row.State | Should -Be 'Enabled'
             $row.ProfileMatch | Should -Contain 'Public'
             $row.ProtocolKey | Should -Be 'ICMP'
             $row.Source | Should -Be 'Group Policy / MDM'
             $row.SourceGlyph | Should -Be ([string][char]0xE72E)
-            $row.RiskCount | Should -Be 20
-            $row.Risk | Should -Match 'Inbound allow on Public'
+            $row.OriginCol | Should -Be 'User Installed'
+            $row.OriginColGlyph | Should -Be ([string][char]0xE72E) -Because 'locked rules show a lock'
+            $row.RiskCount | Should -Be 302
+            $row.Risk | Should -Match '^High: Program no longer exists.*\(\+1\), exposed now$'
+            @($row.RiskKeys) | Should -Be @('orphaned-program', 'no-description')
+            $row.GroupsText | Should -Be 'User | In | Risk'
+            $row.ConfidenceText | Should -Be 'Low (?)'
             (New-IgwtGuiFirewallRow -Rule ([pscustomobject]@{ Name = 'x' })).State | Should -Be 'Disabled'
             $chips = @(Get-IgwtGuiFirewallChips)
-            foreach ($v in 'InboundPublic', 'Broad', 'ProgramMissing', 'UserWritable', 'Duplicate', 'DisabledWindows') { @($chips | Where-Object { @($_.Values) -contains $v }).Count | Should -Be 1 -Because $v }
-            foreach ($id in 'enabled', 'disabled', 'in', 'out', 'allow', 'block', 'p-domain', 'p-private', 'p-public', 's-windows', 's-third', 's-owned', 's-gpo', 's-store', 'tcp', 'udp', 'icmp', 'anyproto') { @($chips | Where-Object Id -EQ $id).Count | Should -Be 1 -Because $id }
+            foreach ($k in @((Get-IgwtFirewallKnowledgeBase).Risks)) { @($chips | Where-Object { $_.Field -eq 'RiskKeys' -and @($_.Values) -contains $k.id }).Count | Should -Be 1 -Because "risk view $($k.id)" }
+            foreach ($id in 'sev-high', 'sev-medium', 'sev-low', 'exposed', 'conflicts', 'lowconf', 'enabled', 'disabled', 'in', 'out', 'allow', 'block', 'p-domain', 'p-private', 'p-public', 's-windows', 's-third', 's-owned', 's-gpo', 's-store', 'tcp', 'udp', 'icmp', 'anyproto') { @($chips | Where-Object Id -EQ $id).Count | Should -Be 1 -Because $id }
             $cols = @(Get-IgwtGuiFirewallColumns | ForEach-Object { $_.Key })
-            foreach ($k in 'DisplayName', 'Group', 'State', 'DirectionText', 'Action', 'Profiles', 'Program', 'Service', 'Package', 'Protocol', 'LocalPort', 'RemotePort', 'LocalAddress', 'RemoteAddress', 'InterfaceType', 'EdgeTraversal', 'Source', 'ProgramExists', 'Risk', 'Description') { $cols | Should -Contain $k }
+            foreach ($k in 'DisplayName', 'Group', 'State', 'DirectionText', 'Action', 'Profiles', 'Program', 'Service', 'Package', 'Protocol', 'LocalPort', 'RemotePort', 'LocalAddress', 'RemoteAddress', 'InterfaceType', 'EdgeTraversal', 'Source', 'ProgramExists', 'Risk', 'Description', 'OriginCol', 'GroupsText', 'ConfidenceText') { $cols | Should -Contain $k }
         }
     }
     It 'builds Manage rows that never throw on unexpected values' {

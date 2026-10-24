@@ -106,7 +106,7 @@ function Get-IgwtFirewallAudit {
     Write-IgwtLog -Message ("Firewall audit: {0} rules in {1} ms ({2})" -f $rows.Count, $total, (@($timing.Keys | ForEach-Object { "$_ $($timing[$_]) ms" }) -join ', '))
     [pscustomobject]@{
         Rules = $rows; Count = $rows.Count; Summary = $summary; Findings = @($findings); Relations = @($relations); Listeners = @($Listeners | Where-Object { $_ })
-        Exposure = @($exposure); RecentChanges = @($recent)
+        Exposure = @($exposure); RecentChanges = @($recent); Context = $ctx
         Role = $ctx.Role; Partial = [bool]$inv.Partial; Notes = @($inv.Notes); HasDefaults = ($null -ne $DefaultRules); DefaultRules = $DefaultRules
         Timing = [pscustomobject]$timing; LoadMs = $total; InventoryMs = [int]$inv.LoadMs; Read = (Get-Date)
     }

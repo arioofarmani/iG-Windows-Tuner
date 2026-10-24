@@ -37,45 +37,91 @@ function Test-IgwtFirewallSetCovers {
 }
 
 function Get-IgwtFirewallRuleScope {
-    <# .SYNOPSIS The dimensions the precedence engine compares, normalised (program paths expanded, lower case). #>
+    <#
+    .SYNOPSIS
+        The dimensions the precedence engine compares, parsed once per rule: program and service
+        (lower case), package, protocol, port ranges and keywords, remote address, ICMP type,
+        profile and interface sets. 'Any' (or empty) is stored as Any = $true.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Row)
     $r = $Row
     $program = [string]$r.Program
     if ($program -and $program -notin 'Any', 'System') { $program = ([Environment]::ExpandEnvironmentVariables($program)).ToLowerInvariant() } elseif (-not $program) { $program = 'Any' }
+    $set = {
+        param($text)
+        $t = [string]$text
+        if ($t -in '', 'Any') { return @{ Any = $true; Items = $null } }
+        $h = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($i in ($t -split ',\s*')) { if ($i) { $null = $h.Add($i.Trim()) } }
+        return @{ Any = $false; Items = $h }
+    }
+    $lp = [string]$r.LocalPort
+    $ports = @{ Any = ($lp -in '', 'Any'); Ranges = @(); Keywords = $null }
+    if (-not $ports.Any) {
+        $kw = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $ports.Ranges = @(foreach ($part in ($lp -split ',\s*')) { $m = [regex]::Match($part.Trim(), '^(\d+)(?:-(\d+))?$'); if ($m.Success) { , @([int]$m.Groups[1].Value, $(if ($m.Groups[2].Success) { [int]$m.Groups[2].Value } else { [int]$m.Groups[1].Value })) } elseif ($part) { $null = $kw.Add($part.Trim()) } })
+        $ports.Keywords = $kw
+    }
     $profiles = @($r.ProfileList | Where-Object { $_ })
     [pscustomobject]@{
-        Program = $program; Service = $(if ([string]$r.Service) { ([string]$r.Service).ToLowerInvariant() } else { 'Any' }); Package = (([string]$r.Package) + '|' + ([string]$r.Owner)).ToLowerInvariant()
-        Protocol = $(if ([string]$r.Protocol) { [string]$r.Protocol } else { '?' }); LocalPort = [string]$r.LocalPort; RemoteAddress = [string]$r.RemoteAddress; IcmpType = [string]$r.IcmpType
-        Profiles = $(if (-not $profiles.Count -or $profiles -contains 'Any') { 'Any' } else { ($profiles -join ', ') }); Interface = $(if ([string]$r.InterfaceType) { [string]$r.InterfaceType } else { 'Any' })
+        Program = $program; Service = $(if ([string]$r.Service -and [string]$r.Service -ne 'Any') { ([string]$r.Service).ToLowerInvariant() } else { 'any' })
+        Package = (([string]$r.Package) + '|' + ([string]$r.Owner)).ToLowerInvariant()
+        Protocol = $(if ([string]$r.Protocol) { [string]$r.Protocol } else { '?' }); Ports = $ports
+        Remote = (& $set $r.RemoteAddress); Icmp = (& $set $r.IcmpType)
+        Profiles = $(if (-not $profiles.Count -or $profiles -contains 'Any') { & $set 'Any' } else { & $set ($profiles -join ',') })
+        Interface = (& $set $r.InterfaceType)
     }
 }
-
 function Test-IgwtFirewallScopeRelation {
     <#
     .SYNOPSIS
         'Covers' when scope A includes all traffic of scope B, 'Overlaps' when they share some
-        traffic, '' when they are disjoint. Rules whose port or address filters were not readable
-        (protocol unknown) are never compared.
+        traffic, '' when they are disjoint. Scopes come from Get-IgwtFirewallRuleScope. Rules whose
+        port or address filters were not readable (protocol unknown) are never compared.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)]$A, [Parameter(Mandatory = $true)]$B)
-    if ($A.Protocol -eq '?' -or $B.Protocol -eq '?') { return '' }
-    if ($A.Package -ne $B.Package) { return '' }
-    $dims = @(
-        @($A.Program, $B.Program, $false), @($A.Service, $B.Service, $false), @($A.Protocol, $B.Protocol, $false),
-        @($A.LocalPort, $B.LocalPort, $true), @($A.RemoteAddress, $B.RemoteAddress, $false), @($A.IcmpType, $B.IcmpType, $false), @($A.Profiles, $B.Profiles, $false), @($A.Interface, $B.Interface, $false)
-    )
+    if ($A.Protocol -eq '?' -or $B.Protocol -eq '?' -or $A.Package -ne $B.Package) { return '' }
     $covers = $true
-    foreach ($d in $dims) {
-        if (-not (Test-IgwtFirewallSetCovers -A $d[0] -B $d[1] -Mode Overlaps -Ports:$d[2])) { return '' }
-        if ($covers -and -not (Test-IgwtFirewallSetCovers -A $d[0] -B $d[1] -Mode Covers -Ports:$d[2])) { $covers = $false }
+    # Single-value dimensions: Any covers everything; otherwise equal values only. (Loop variables
+    # are $va/$vb: PowerShell names are case-insensitive, so $a would overwrite the parameter $A.)
+    foreach ($pair in @(@($A.Program, $B.Program), @($A.Service, $B.Service), @($A.Protocol, $B.Protocol))) {
+        $va = $pair[0]; $vb = $pair[1]
+        if ($va -eq 'any') { continue }
+        if ($vb -eq 'any') { $covers = $false; continue }
+        if ($va -ne $vb) { return '' }
+    }
+    # Set dimensions (remote address, ICMP type, profiles, interface types).
+    foreach ($pair in @(@($A.Remote, $B.Remote), @($A.Icmp, $B.Icmp), @($A.Profiles, $B.Profiles), @($A.Interface, $B.Interface))) {
+        $va = $pair[0]; $vb = $pair[1]
+        if ($va.Any) { continue }
+        if ($vb.Any) { $covers = $false; continue }
+        $shared = $false; $all = $true
+        foreach ($i in $vb.Items) { if ($va.Items.Contains($i)) { $shared = $true } else { $all = $false } }
+        if (-not $shared) { return '' }
+        if (-not $all) { $covers = $false }
+    }
+    # Local ports: numeric ranges; keywords (RPC, IPHTTPS ...) only match the same keyword.
+    $pa = $A.Ports; $pb = $B.Ports
+    if (-not $pa.Any) {
+        if ($pb.Any) { $covers = $false }
+        else {
+            $shared = $false; $all = $true
+            foreach ($y in $pb.Ranges) {
+                $inside = $false
+                foreach ($q in $pa.Ranges) { if ($y[0] -le $q[1] -and $q[0] -le $y[1]) { $shared = $true }; if ($y[0] -ge $q[0] -and $y[1] -le $q[1]) { $inside = $true } }
+                if (-not $inside) { $all = $false }
+            }
+            foreach ($k in $pb.Keywords) { if ($pa.Keywords.Contains($k)) { $shared = $true } else { $all = $false } }
+            if (-not $shared) { return '' }
+            if (-not $all) { $covers = $false }
+        }
     }
     if ($covers) { return 'Covers' }
     return 'Overlaps'
 }
-
 function Get-IgwtFirewallConflicts {
     <#
     .SYNOPSIS
@@ -93,12 +139,23 @@ function Get-IgwtFirewallConflicts {
     $label = @{}; foreach ($r in @($Rows | Where-Object { $_ })) { $label[[string]$r.Name] = $(if ([string]$r.DisplayName) { [string]$r.DisplayName } else { [string]$r.Name }) }
     foreach ($dir in 'Inbound', 'Outbound') {
         $set = @($active | Where-Object { [string]$_.Direction -eq $dir })
-        $byProgram = @{}
-        foreach ($r in $set) { $k = $scope[[string]$r.Name].Program; if (-not $byProgram.ContainsKey($k)) { $byProgram[$k] = New-Object System.Collections.Generic.List[object] }; $byProgram[$k].Add($r) }
-        $anyProgram = @($(if ($byProgram.ContainsKey('Any')) { $byProgram['Any'].ToArray() }))
+        # Buckets by program and protocol: a rule can only relate to rules of the same program and
+        # protocol, or to any-program / any-protocol rules.
+        $bucket = @{}
+        foreach ($r in $set) {
+            $sc = $scope[[string]$r.Name]
+            if ($sc.Protocol -eq '?') { continue }
+            $k = "$($sc.Program)|$($sc.Protocol)"
+            if (-not $bucket.ContainsKey($k)) { $bucket[$k] = New-Object System.Collections.Generic.List[object] }
+            $bucket[$k].Add($r)
+        }
         foreach ($a in $set) {
             $sa = $scope[[string]$a.Name]
-            $candidates = @(@($(if ($byProgram.ContainsKey($sa.Program)) { $byProgram[$sa.Program].ToArray() })) + @($(if ($sa.Program -ne 'Any') { $anyProgram })))
+            if ($sa.Protocol -eq '?') { continue }
+            $keys = @("$($sa.Program)|$($sa.Protocol)", "$($sa.Program)|Any", "any|$($sa.Protocol)", 'any|Any') | Select-Object -Unique
+            if ($sa.Protocol -eq 'Any') { $keys = @($bucket.Keys | Where-Object { $_ -like "$($sa.Program)|*" -or $_ -like 'any|*' }) }
+            if ($sa.Program -eq 'any') { $keys = @($bucket.Keys | Where-Object { $sa.Protocol -eq 'Any' -or $_ -like "*|$($sa.Protocol)" -or $_ -like '*|Any' }) }
+            $candidates = foreach ($k in $keys) { if ($bucket.ContainsKey($k)) { $bucket[$k] } }
             foreach ($b in $candidates) {
                 if ([object]::ReferenceEquals($a, $b)) { continue }
                 # Windows rules differ in settings the inventory does not read (user and computer
@@ -111,8 +168,7 @@ function Get-IgwtFirewallConflicts {
                 if ([string]$a.Action -eq 'Allow' -and [string]$b.Action -eq 'Block') { continue }
                 if ([string]$a.Action -eq [string]$b.Action -and $b.IsWindows) { continue }
                 $sb = $scope[[string]$b.Name]
-                if ($sa.Package -ne $sb.Package -or $sa.Protocol -eq '?' -or $sb.Protocol -eq '?') { continue }
-                if ($sa.Protocol -ne $sb.Protocol -and $sa.Protocol -ne 'Any' -and $sb.Protocol -ne 'Any') { continue }
+                if ($sa.Package -ne $sb.Package) { continue }
                 $rel = Test-IgwtFirewallScopeRelation -A $sa -B $sb
                 if (-not $rel) { continue }
                 $an = [string]$a.Name; $bn = [string]$b.Name

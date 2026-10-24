@@ -61,7 +61,7 @@ function New-IgwtGridIndex {
     $cols = @($Columns | ForEach-Object { if ($_.PSObject.Properties['SortKey'] -and $_.PSObject.Properties['Template']) { $_ } else { ConvertTo-IgwtGridColumn -Definition $_ } })
     $rows = @($Rows | Where-Object { $null -ne $_ })
     $n = $rows.Count
-    $keys = @{}; $texts = @{}
+    $keys = @{}; $texts = @{}; $arrayCols = @{}
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $float = [System.Globalization.NumberStyles]::Float
     # One pass per column (inline member access; a function call per cell is 100 times slower).
@@ -71,7 +71,7 @@ function New-IgwtGridIndex {
         $i = 0
         foreach ($row in $rows) {
             $v = $row.$name
-            if ($null -eq $v) { $tx[$i] = '' } elseif ($v -is [array]) { $tx[$i] = ($v -join ', ') } else { $tx[$i] = [string]$v }
+            if ($null -eq $v) { $tx[$i] = '' } elseif ($v -is [array]) { $tx[$i] = ($v -join ', '); $arrayCols[$name] = $true } else { $tx[$i] = [string]$v }
             $i++
         }
         $texts[$name] = $tx
@@ -110,7 +110,7 @@ function New-IgwtGridIndex {
         foreach ($t in $searchCols) { $null = $sb.Append($t[$i]).Append($sep) }
         $search[$i] = $sb.ToString().ToLowerInvariant()
     }
-    return @{ Rows = $rows; Count = $n; Columns = $cols; Search = $search; Keys = $keys; Texts = $texts; Ranks = @{}; Chips = @{} }
+    return @{ Rows = $rows; Count = $n; Columns = $cols; Search = $search; Keys = $keys; Texts = $texts; Ranks = @{}; Chips = @{}; ArrayColumns = $arrayCols }
 }
 
 function Get-IgwtGridRank {
@@ -205,7 +205,7 @@ function Invoke-IgwtGridQuery {
         if ($allowed.Count -eq 0) { continue }
         $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($v in $allowed) { $null = $set.Add([string]$v) }
-        $colFilters += , @($Index.Texts[$k], $set)
+        $colFilters += , @($Index.Texts[$k], $set, [bool]($Index.ArrayColumns -and $Index.ArrayColumns.ContainsKey($k)), $k)
     }
     $list = New-Object 'System.Collections.Generic.List[int]' $n
     $searchText = $Index.Search
@@ -219,7 +219,13 @@ function Invoke-IgwtGridQuery {
             if (-not $any) { $ok = $false; break }
         }
         if (-not $ok) { continue }
-        foreach ($cf in $colFilters) { if (-not $cf[1].Contains($cf[0][$i])) { $ok = $false; break } }
+        foreach ($cf in $colFilters) {
+            if ($cf[1].Contains($cf[0][$i])) { continue }
+            # Multi-value column (for example a rule's groups): any element may match.
+            $hit = $false
+            if ($cf[2]) { foreach ($e in @($Index.Rows[$i].($cf[3]))) { if ($cf[1].Contains([string]$e)) { $hit = $true; break } } }
+            if (-not $hit) { $ok = $false; break }
+        }
         if ($ok) { $list.Add($i) }
     }
     $result = $list.ToArray()

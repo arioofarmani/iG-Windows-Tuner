@@ -353,6 +353,38 @@ function script:Get-IgwtFirewallInventory {
         Counts = [pscustomobject]@{ Enabled = @($rows | Where-Object Enabled).Count; Risky = 0; Locked = @($rows | Where-Object Locked).Count }; Read = $script:MockNow }
 }
 
+function script:Get-IgwtFirewallAudit {
+    # The 1,200 demo rules through the real classification, findings, conflict and summary steps,
+    # with synthetic listeners, packages and signatures (no system reads).
+    param([string]$Role, $Inventory, [switch]$NoListeners, [switch]$NoSignatures)
+    $null = $NoListeners, $NoSignatures
+    $inv = $(if ($Inventory) { $Inventory } else { Get-IgwtFirewallInventory })
+    $rows = @($inv.Rules)
+    $listeners = @(
+        [pscustomobject]@{ Protocol = 'UDP'; LocalAddress = '0.0.0.0'; LocalPort = 27015; ProcessId = 4100; ProcessName = 'shooter'; Path = 'C:\Games\Demo\DemoShooter\shooter.exe'; Services = @(); Local = $false }
+        [pscustomobject]@{ Protocol = 'TCP'; LocalAddress = '0.0.0.0'; LocalPort = 3074; ProcessId = 4200; ProcessName = 'launcher'; Path = 'C:\Games\Demo\Launcher\launcher.exe'; Services = @(); Local = $false }
+        [pscustomobject]@{ Protocol = 'TCP'; LocalAddress = '0.0.0.0'; LocalPort = 135; ProcessId = 1000; ProcessName = 'svchost'; Path = 'C:\WINDOWS\system32\svchost.exe'; Services = @('RpcSs'); Local = $false }
+        [pscustomobject]@{ Protocol = 'TCP'; LocalAddress = '127.0.0.1'; LocalPort = 5939; ProcessId = 5100; ProcessName = 'voice'; Path = 'C:\Program Files\Demo Voice\voice.exe'; Services = @(); Local = $true }
+        [pscustomobject]@{ Protocol = 'UDP'; LocalAddress = '0.0.0.0'; LocalPort = 5353; ProcessId = 1200; ProcessName = 'svchost'; Path = 'C:\WINDOWS\system32\svchost.exe'; Services = @('Dnscache'); Local = $false }
+    )
+    $signatures = @{ 'c:\program files\old tool\tool.exe' = [pscustomobject]@{ Status = 'NotSigned'; Signer = '' } }
+    $none = [pscustomobject]@{ Role = ''; Categories = [pscustomobject]@{}; NotBloated = @(); Ignored = [pscustomobject]@{} }
+    $ctx = Get-IgwtFirewallClassificationContext -Role $(if ($Role) { $Role } else { 'Gamer' }) -InstalledPackages @('Microsoft.WindowsStore') -Signatures $signatures -Overrides $none
+    Invoke-IgwtFirewallClassification -Rows $rows -Context $ctx
+    $findings = @(Get-IgwtFirewallFindings -Rows $rows -Context $ctx -Listeners $listeners -Now $script:MockNow)
+    $relations = @(Get-IgwtFirewallConflicts -Rows $rows)
+    $recent = @(
+        [pscustomobject]@{ Path = 'C:\ProgramData\iGWindowsTuner\Backups\snapshot-demo-1.json'; Created = $script:MockNow.AddHours(-2); Operation = 'Firewall:Disable'; Detail = 'Disabled 4 Media Center Extenders rules'; Rules = @('DEMO-RULE-12') }
+        [pscustomobject]@{ Path = 'C:\ProgramData\iGWindowsTuner\Backups\snapshot-demo-2.json'; Created = $script:MockNow.AddDays(-1); Operation = 'Firewall:Edit'; Detail = 'Restricted "voice TCP 7" to Private networks'; Rules = @('DEMO-RULE-7') }
+    )
+    [pscustomobject]@{
+        Rules = $rows; Count = $rows.Count; Summary = (Get-IgwtFirewallAuditSummary -Rows $rows); Findings = $findings; Relations = $relations; Listeners = $listeners
+        Exposure = @(Get-IgwtFirewallExposureMap -Rows $rows -Listeners $listeners); RecentChanges = $recent
+        Role = $ctx.Role; Partial = $false; Notes = @(); HasDefaults = $false; DefaultRules = $null
+        Timing = [pscustomobject]@{ Inventory = 640; Classify = 310; Findings = 520 }; LoadMs = 2140; InventoryMs = 640; Read = $script:MockNow
+    }
+}
+
 function script:Get-IgwtFirewallProfileStatus {
     [pscustomobject]@{
         Profiles = @(

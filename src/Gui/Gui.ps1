@@ -30,6 +30,7 @@ $script:IgwtGuiControlNames = @(
     'ManagePersistSummary', 'ManagePersistGridHost', 'ManagePersistDetail', 'ManagePersistDisableButton', 'ManagePersistExportButton',
     'ManageOpenFirewallButton', 'ManageHostsText', 'SecFirewallButton',
     'PageFirewall', 'FwNewRuleButton', 'FwRefreshButton', 'FwSummaryIcon', 'FwSummaryText', 'FwNoticeText', 'FwTabs', 'FwImportButton', 'FwExportButton', 'FwExportPolicyButton', 'FwGridHost',
+    'FwOverviewTab', 'FwRulesTab', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
     'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
@@ -2657,7 +2658,7 @@ function Save-IgwtGuiScreenshots {
     } catch { Write-Warning "Policy data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Read-only data for the Firewall Manager (rules and profiles).
     try {
-        Set-IgwtGuiFirewallInventory -Inventory (Get-IgwtFirewallInventory)
+        Set-IgwtGuiFirewallInventory -Inventory (Get-IgwtFirewallAudit)
         Set-IgwtGuiFirewallProfiles -Status (Get-IgwtFirewallProfileStatus)
         if ($script:Gui.Grids.Firewall.Index.Count) { $script:Gui.Grids.Firewall.C.Grid.SelectedIndex = 0 }
     } catch { Write-Warning "Firewall data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
@@ -2680,18 +2681,31 @@ function Save-IgwtGuiScreenshots {
             $script:Gui.Grids.Tweaks.C.Grid.SelectedIndex = 0
             Update-IgwtGuiDetails
         }
-        $root.Measure((New-Object System.Windows.Size($w, $h)))
-        $root.Arrange((New-Object System.Windows.Rect(0, 0, $w, $h)))
-        $root.UpdateLayout()
-        $bmp = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
-        $bmp.Render($root)
-        $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
-        $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bmp))
-        $name = ('{0:D2}-{1}-{2}.png' -f $index, ($page -replace '[^A-Za-z]', ''), [int]($Scale * 100))
-        $file = Join-Path $Folder $name
-        $fs = [System.IO.File]::Create($file)
-        try { $enc.Save($fs) } finally { $fs.Dispose() }
-        $saved.Add($file)
+        $capture = {
+            param($suffix)
+            $root.Measure((New-Object System.Windows.Size($w, $h)))
+            $root.Arrange((New-Object System.Windows.Rect(0, 0, $w, $h)))
+            $root.UpdateLayout()
+            $bmp = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
+            $bmp.Render($root)
+            $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
+            $enc.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bmp))
+            $name = ('{0:D2}{3}-{1}-{2}.png' -f $index, ($page -replace '[^A-Za-z]', ''), [int]($Scale * 100), $suffix)
+            $file = Join-Path $Folder $name
+            $fs = [System.IO.File]::Create($file)
+            try { $enc.Save($fs) } finally { $fs.Dispose() }
+            $saved.Add($file)
+        }
+        & $capture ''
+        # The Firewall Manager has a second view worth checking: the Rules tab with a rule that has findings.
+        if ($page -eq 'Firewall' -and $script:Gui.Grids.Firewall) {
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwRulesTab
+            $fg = $script:Gui.Grids.Firewall.C.Grid
+            $pick = @($fg.ItemsSource | Where-Object { $_.RiskLevel -in 'Critical', 'High' } | Select-Object -First 1)
+            if ($pick.Count) { $fg.SelectedItem = $pick[0] } elseif (@($fg.ItemsSource).Count) { $fg.SelectedIndex = 0 }
+            & $capture 'b'
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwOverviewTab
+        }
         $index++
     }
     return $saved.ToArray()

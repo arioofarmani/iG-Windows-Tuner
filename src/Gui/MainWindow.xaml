@@ -722,31 +722,139 @@
                         <TextBlock x:Name="FwNoticeText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
                     </StackPanel>
                     <TabControl x:Name="FwTabs" Grid.Row="1" Margin="0,10,0,0">
-                        <TabItem Header="Rules" ToolTip="Every firewall rule: search, filter, sort and manage">
+                        <TabItem x:Name="FwOverviewTab" Header="Overview" ToolTip="What needs attention, the nine rule groups, quick wins, open ports and recent changes">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                                        <DockPanel>
+                                            <TextBlock x:Name="FwOvUpdatedText" DockPanel.Dock="Right" Style="{StaticResource TextCaption}" VerticalAlignment="Top" Text=""/>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource TextSection}" Margin="0,0,0,4" Text="Status"/>
+                                                <TextBlock x:Name="FwOvStatusText" TextWrapping="Wrap" Text="Not read yet."/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border x:Name="FwOvAttentionCard" Grid.Column="0" Style="{StaticResource Card}" Margin="0">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock x:Name="FwOvAttentionIcon" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock x:Name="FwOvAttentionTitle" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" VerticalAlignment="Center" Text="Needs attention"/>
+                                                </StackPanel>
+                                                <TextBlock x:Name="FwOvAttentionText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,10" Text="Not read yet."/>
+                                                <Button x:Name="FwOvReviewButton" Style="{StaticResource AccentButton}" HorizontalAlignment="Left" Margin="0" Content="Review risks" ToolTip="Walk through the findings one at a time: fix, skip or ignore each, with a summary at the end."/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border x:Name="FwOvQuickCard" Grid.Column="2" Style="{StaticResource Card}" Margin="0">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE945;" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" VerticalAlignment="Center" Text="Quick wins"/>
+                                                </StackPanel>
+                                                <TextBlock x:Name="FwOvQuickText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,10" Text="Not read yet."/>
+                                                <Button x:Name="FwOvQuickButton" HorizontalAlignment="Left" Margin="0" Content="Preview" ToolTip="Show which rules would be disabled and what stops working, before anything changes."/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Rule groups"/>
+                                    <WrapPanel x:Name="FwOvTiles" Margin="0,0,0,10"/>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource TextSection}" Margin="0,0,0,6" Text="Rules by origin"/>
+                                                <StackPanel x:Name="FwOvOriginChart" AutomationProperties.Name="Rules by origin chart"/>
+                                                <TextBlock x:Name="FwOvOriginText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource TextSection}" Margin="0,0,0,6" Text="Enabled rules by direction and action"/>
+                                                <StackPanel x:Name="FwOvDirChart" AutomationProperties.Name="Direction and action chart"/>
+                                                <TextBlock x:Name="FwOvDirText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Open ports (exposure map)"/>
+                                    <TextBlock x:Name="FwOvExposureText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Programs listening for connections right now, the rules that let traffic reach them, and whether they are reachable from the network."/>
+                                    <ContentControl x:Name="FwOvExposureHost" Height="280" Margin="0,0,0,10" Focusable="False"/>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Recent changes"/>
+                                    <TextBlock x:Name="FwOvRecentEmpty" Style="{StaticResource TextMuted}" Text="No firewall changes yet. Every change writes a snapshot and shows up here with Undo."/>
+                                    <ItemsControl x:Name="FwOvRecentList" Margin="0,0,0,10"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem x:Name="FwRulesTab" Header="Rules" ToolTip="Every firewall rule by group: search, filter, sort and manage">
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="210"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="330"/>
+                                    <ColumnDefinition Width="350"/>
                                 </Grid.ColumnDefinitions>
-                                <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0" Padding="6">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Bottom" Margin="4,8,4,0">
+                                            <TextBlock Style="{StaticResource TextCaption}" Text="Saved views" Margin="0,0,0,4"/>
+                                            <ListBox x:Name="FwViewList" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="160" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Saved views" ToolTip="Views saved from the View menu of the list (filters, sort and columns)."/>
+                                            <TextBlock x:Name="FwViewEmpty" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Text="Save a view from the View menu to find it here."/>
+                                        </StackPanel>
+                                        <ListBox x:Name="FwGroupList" ScrollViewer.HorizontalScrollBarVisibility="Disabled" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Rule groups" KeyboardNavigation.TabNavigation="Once">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel ToolTip="{Binding Tip}" Margin="2,3">
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" Style="{StaticResource TextMuted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Glyph}" FontFamily="{DynamicResource FontIcons}" Foreground="{Binding Brush}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </Border>
+                                <DockPanel Grid.Column="1" Margin="0,0,12,0">
                                     <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                        <Button x:Name="FwBulkButton" Content="Act on this group..." ToolTip="Disable, enable or restrict every rule of the selected group, with a preview first. Locked rules are skipped with the reason."/>
                                         <Button x:Name="FwImportButton" Content="Import..." ToolTip="Import rules from an iG Windows Tuner JSON export; a preview lists new and changed rules before anything changes."/>
                                         <Button x:Name="FwExportButton" Content="Export all..." ToolTip="Save every rule to JSON (importable) or CSV. The firewall is not changed."/>
+                                        <Button x:Name="FwReportButton" Content="Audit report..." ToolTip="Save a firewall audit report (HTML, CSV or JSON): categories, findings, open ports and recommendations."/>
                                         <Button x:Name="FwExportPolicyButton" Content="Export full policy (.wfw)..." Margin="0" ToolTip="Back up the whole firewall policy with netsh advfirewall export. The firewall is not changed."/>
                                     </WrapPanel>
                                     <ContentControl x:Name="FwGridHost" Focusable="False"/>
                                 </DockPanel>
-                                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0">
+                                <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <StackPanel>
                                             <TextBlock x:Name="FwDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
-                                            <TextBlock x:Name="FwDetMeta" Style="{StaticResource TextMuted}" Margin="0,4,0,0"/>
+                                            <TextBlock x:Name="FwDetMeta" Style="{StaticResource TextMuted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="FwDetSummary" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                            <WrapPanel x:Name="FwDetChips" Margin="0,8,0,0"/>
                                             <Border x:Name="FwDetRiskBox" Background="{DynamicResource BrushWarningSoft}" BorderBrush="{DynamicResource BrushWarning}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,10,0,0" Visibility="Collapsed">
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{DynamicResource BrushWarning}" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE72E;" Foreground="{DynamicResource BrushWarning}" VerticalAlignment="Top" Margin="0,2,8,0"/>
                                                     <TextBlock x:Name="FwDetRisk" TextWrapping="Wrap"/>
                                                 </DockPanel>
                                             </Border>
+                                            <TextBlock x:Name="FwDetFindingsTitle" Style="{StaticResource TextSection}" Text="Findings"/>
+                                            <ItemsControl x:Name="FwDetFindings"/>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Why this rule exists"/>
+                                            <TextBlock x:Name="FwDetWhyExists" Style="{StaticResource TextMuted}" TextWrapping="Wrap"/>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Classification"/>
+                                            <TextBlock x:Name="FwDetOrigin" TextWrapping="Wrap"/>
+                                            <WrapPanel Margin="0,6,0,0">
+                                                <Button x:Name="FwDetMoveButton" Content="Move to category..." Margin="0,0,6,6" ToolTip="Put this rule in another category if the classification is wrong; remembered for this PC and exportable."/>
+                                                <Button x:Name="FwDetNotBloatedButton" Content="Not bloated for me" Margin="0,0,6,6" ToolTip="Keep this rule out of Bloated (you use the feature); remembered for this PC."/>
+                                            </WrapPanel>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Conflicts"/>
+                                            <TextBlock x:Name="FwDetPrecedence" Style="{StaticResource TextMuted}" TextWrapping="Wrap"/>
                                             <TextBlock Style="{StaticResource TextSection}" Text="Actions"/>
                                             <WrapPanel>
                                                 <Button x:Name="FwEnableButton" Content="Enable" Margin="0,0,6,6" ToolTip="Turn this rule on (snapshot first)."/>
@@ -760,6 +868,8 @@
                                             <TextBlock x:Name="FwDetWhy" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                             <TextBlock Style="{StaticResource TextSection}" Text="Details"/>
                                             <TextBlock x:Name="FwDetText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" FontFamily="{DynamicResource FontUi}"/>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Change history"/>
+                                            <TextBlock x:Name="FwDetHistory" Style="{StaticResource TextMuted}" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </ScrollViewer>
                                 </Border>
