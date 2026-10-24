@@ -8,7 +8,8 @@ BeforeAll {
     # State-changing exports that are not changes to the PC: report and export files the user asks
     # for, module settings, the log sink, the cleaner test root, opening a Windows panel and the
     # elevation relaunch (which passes -ReadOnly on).
-    $script:Allowed = @('Set-IgwtEnvironment', 'Set-IgwtLogSink', 'Set-IgwtCleanerTestRoot', 'Start-IgwtPanel', 'Start-IgwtElevated')
+    # The Firewall Manager overrides are the app's own per-user preferences (DECISIONS F6).
+    $script:Allowed = @('Set-IgwtEnvironment', 'Set-IgwtLogSink', 'Set-IgwtCleanerTestRoot', 'Start-IgwtPanel', 'Start-IgwtElevated', 'Set-IgwtFirewallOverride', 'Import-IgwtFirewallOverrides')
     $m = Get-Module iGWindowsTuner
     $script:Mutating = @(foreach ($n in @($m.ExportedFunctions.Keys)) {
             $f = $m.ExportedFunctions[$n]

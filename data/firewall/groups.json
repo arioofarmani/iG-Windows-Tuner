@@ -322,6 +322,18 @@
       "sources": [ "https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/app-capability-declarations" ], "basis": "microsoft"
     },
     {
+      "id": "windows-packaged-apps", "name": "Windows packaged desktop apps (Windows Backup, setup)", "category": "WindowsConnections",
+      "match": { "groups": [ "{78E1CD88-49E3-476E-B926-580E596AD309}" ], "namePatterns": [], "programUnder": [ "%SystemRoot%\\*" ] },
+      "hint": "Rules Windows creates for its own packaged desktop apps, such as Windows Backup and the setup host.",
+      "meaning": "Windows adds these rules for Windows components that ship as packaged desktop apps (for example Windows Backup and the out-of-box setup host). The same group is used for other packaged apps, so only programs under the Windows folder are counted here.",
+      "neededFor": [ "Windows Backup", "Windows setup and account sign-in screens" ],
+      "riskNote": "Windows components; the rules follow the app.",
+      "severityHint": "none",
+      "roles": { "Gamer": "optional", "PowerUser": "optional", "Sysadmin": "optional", "Workstation": "optional" },
+      "recommendedAction": "Keep",
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ], "basis": "igwt"
+    },
+    {
       "id": "microsoft-store-apps", "name": "Microsoft apps (Store packages)", "category": "WindowsConnections",
       "match": { "groups": [], "namePatterns": [], "packagePublishers": [ "8wekyb3d8bbwe", "cw5n1h2txyewy" ] },
       "hint": "Network access of Microsoft's own Store apps and Windows shell packages (Start, Calculator, Camera, Weather ...).",

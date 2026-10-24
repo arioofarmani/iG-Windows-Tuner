@@ -127,6 +127,8 @@ function Join-IgwtFirewallData {
         $package = $(if ($a -and [string]$a.Package) { [string]$a.Package } else { '' })
         $serviceName = $(if ($s -and [string]$s.Service) { [string]$s.Service } elseif ($s -and $s.PSObject.Properties['ServiceName'] -and [string]$s.ServiceName) { [string]$s.ServiceName } else { '' })
         $source = Get-IgwtFirewallRuleSource -Rule $r -Package $package -Name $id
+        $store = $(if ($r.PSObject.Properties['Store'] -and [string]$r.Store) { [string]$r.Store } else { 'Active' })
+        $wsh = $store -in 'StaticServiceStore', 'ConfigurableServiceStore'
         $programExists = ''
         if ($program -notin 'Any', 'System') {
             $expanded = [Environment]::ExpandEnvironmentVariables($program)
@@ -151,8 +153,12 @@ function Join-IgwtFirewallData {
             RemoteAddress = $(if ($ad) { ConvertTo-IgwtFirewallList $ad.RemoteAddress } else { '' })
             InterfaceType = $(if ($i -and [string]$i.InterfaceType) { ConvertFrom-IgwtFirewallCimValue -Kind InterfaceType -Value $i.InterfaceType } elseif ($i) { 'Any' } else { '' })
             EdgeTraversal = ConvertFrom-IgwtFirewallCimValue -Kind EdgeTraversal -Value $r.EdgeTraversalPolicy; Source = $source; StoreSource = [string]$r.PolicyStoreSource
-            Locked = ($source -eq 'GroupPolicy'); LockReason = $(if ($source -eq 'GroupPolicy') { "Set by $(if ([string]$r.PolicyStoreSourceType -in 'MDM', '6', '11') { 'MDM' } else { 'Group Policy' }) ($($r.PolicyStoreSource)); change it there." } else { '' })
+            RawGroup = [string]$r.Group; Store = $store
+            Locked = ($source -eq 'GroupPolicy' -or $wsh); LockReason = $(if ($wsh) { "Windows Service Hardening rule ($store, read-only): it keeps a Windows service to the traffic it needs." } elseif ($source -eq 'GroupPolicy') { "Set by $(if ([string]$r.PolicyStoreSourceType -in 'MDM', '6', '11') { 'MDM' } else { 'Group Policy' }) ($($r.PolicyStoreSource)); change it there." } else { '' })
             ProgramExists = $programExists; Description = [string]$r.Description; Risks = @(); RiskText = ''
+            Origin = ''; OriginName = ''; Confidence = ''; OriginReason = ''; KbId = ''; KbName = ''; KbMeaning = ''; Facets = @(); Assessments = @(); BloatReason = ''; WhatStopsWorking = ''
+            Protected = $false; ProtectedReason = ''; IsWindows = $false; Groups = @(); Findings = @(); RiskLevel = ''; Exposed = $false; ExposedBy = @()
+            Shadowed = $false; ShadowedBy = @(); Redundant = $false; RedundantWith = @(); Conflicts = @(); PrecedenceText = ''
         }
         $rows.Add($row)
     }
@@ -230,7 +236,7 @@ function Get-IgwtFirewallInventory {
         ActiveStore (effective policy, default) or PersistentStore (local rules only).
     #>
     [CmdletBinding()]
-    param([ValidateSet('ActiveStore', 'PersistentStore')][string]$PolicyStore = 'ActiveStore')
+    param([ValidateSet('ActiveStore', 'PersistentStore')][string]$PolicyStore = 'ActiveStore', [switch]$NoServiceHardening)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $timing = [ordered]@{}
     $notes = New-Object System.Collections.Generic.List[string]
@@ -248,6 +254,23 @@ function Get-IgwtFirewallInventory {
     $addrF = & $read 'Addresses' { Get-NetFirewallAddressFilter -PolicyStore $PolicyStore -ErrorAction Stop }
     $svcF = & $read 'Services' { Get-NetFirewallServiceFilter -PolicyStore $PolicyStore -ErrorAction Stop }
     $ifF = & $read 'Interfaces' { Get-NetFirewallInterfaceTypeFilter -PolicyStore $PolicyStore -ErrorAction Stop }
+    # Windows Service Hardening rules live in their own stores (not part of the persistent store);
+    # read them too, tagged with the store, so every rule is classified (they are always locked).
+    if (-not $NoServiceHardening) {
+        foreach ($store in 'StaticServiceStore', 'ConfigurableServiceStore') {
+            $wr = & $read "Rules ($store)" { Get-NetFirewallRule -PolicyStore $store -ErrorAction Stop }
+            if (-not $wr) { continue }
+            foreach ($r in $wr) { $r | Add-Member -NotePropertyName Store -NotePropertyValue $store -Force }
+            $rules = @($rules) + @($wr)
+            foreach ($pair in @(@('appF', { Get-NetFirewallApplicationFilter -PolicyStore $store -ErrorAction Stop }), @('svcF', { Get-NetFirewallServiceFilter -PolicyStore $store -ErrorAction Stop }),
+                    @('portF', { Get-NetFirewallPortFilter -PolicyStore $store -ErrorAction Stop }), @('addrF', { Get-NetFirewallAddressFilter -PolicyStore $store -ErrorAction Stop }), @('ifF', { Get-NetFirewallInterfaceTypeFilter -PolicyStore $store -ErrorAction Stop }))) {
+                $extra = $null
+                try { $extra = @(& $pair[1]) } catch { Write-Verbose "$store $($pair[0]) not readable: $($_.Exception.Message)" }
+                $current = Get-Variable -Name $pair[0] -ValueOnly
+                if ($null -ne $extra -and $null -ne $current) { Set-Variable -Name $pair[0] -Value (@($current) + @($extra)) }
+            }
+        }
+    }
     $t0 = $sw.ElapsedMilliseconds
     $rows = Join-IgwtFirewallData -Rules $rules -ApplicationFilters @($appF) -PortFilters @($portF) -AddressFilters @($addrF) -ServiceFilters @($svcF) -InterfaceFilters @($ifF)
     $timing['Join'] = $sw.ElapsedMilliseconds - $t0

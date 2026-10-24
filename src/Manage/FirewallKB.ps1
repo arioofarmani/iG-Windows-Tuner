@@ -92,6 +92,7 @@ function Test-IgwtFirewallKnowledgeBase {
         $m = $g.match
         $count = @($m.groups | Where-Object { $_ }).Count + @($m.namePatterns | Where-Object { $_ }).Count + @($m.stores | Where-Object { $_ }).Count + @($m.packagePublishers | Where-Object { $_ }).Count
         if (-not $m -or $count -eq 0) { $errors.Add("${label}: 'match' needs groups, namePatterns, stores or packagePublishers.") }
+        if (@($m.programUnder | Where-Object { $_ }).Count -and -not @($m.groups | Where-Object { $_ }).Count) { $errors.Add("${label}: 'programUnder' only narrows 'groups'.") }
         foreach ($s in @($m.groups | Where-Object { $_ })) { $k = ([string]$s).ToLowerInvariant(); if ($gStrings.ContainsKey($k)) { $errors.Add("${label}: group '$s' is also in $($gStrings[$k]).") } else { $gStrings[$k] = $g.id } }
         foreach ($p in @($m.namePatterns | Where-Object { $_ })) { $k = ([string]$p).ToLowerInvariant(); if ($gPatterns.ContainsKey($k)) { $errors.Add("${label}: rule pattern '$p' is also in $($gPatterns[$k]).") } else { $gPatterns[$k] = $g.id } }
         & $checkSources $label $g.sources $true
