@@ -39,7 +39,10 @@
                     <Button x:Name="CaptionCloseButton" Style="{StaticResource CaptionCloseButton}" Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close"/>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button x:Name="DisplayButton" Style="{StaticResource GhostButton}" ToolTip="Display: theme, text size, density and motion" AutomationProperties.Name="Display settings" Padding="8,6">
+                    <Button x:Name="FocusPill" Style="{StaticResource GhostButton}" Visibility="Collapsed" Margin="0,0,6,0" Padding="10,4" ToolTip="Focus mode is on: expert pages and details are hidden. Click to show everything again." AutomationProperties.Name="Turn focus mode off">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7B3;" Margin="0,0,6,0"/><TextBlock Text="Focus mode"/></StackPanel>
+                    </Button>
+                    <Button x:Name="DisplayButton" Style="{StaticResource GhostButton}" ToolTip="Display: theme, text size, density, focus mode and motion" AutomationProperties.Name="Display settings" Padding="8,6">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE790;"/>
                     </Button>
                     <Popup x:Name="DisplayPopup" PlacementTarget="{Binding ElementName=DisplayButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
@@ -52,6 +55,10 @@
                                 <ComboBox x:Name="FontScaleBox" Margin="0,0,0,10" AutomationProperties.Name="Text size" ToolTip="Size of all text in the window (100 to 150 %)."/>
                                 <TextBlock Style="{StaticResource TextCaption}" Text="Density" Margin="0,0,0,4"/>
                                 <ComboBox x:Name="DensityBox" Margin="0,0,0,10" AutomationProperties.Name="Density" ToolTip="Compact shows more rows; Comfortable is easier to read."/>
+                                <DockPanel Margin="0,4,0,10">
+                                    <CheckBox x:Name="FocusModeBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Focus mode" ToolTip="Hides the expert pages (inspectors, Group Policy, Risk Zone, rejected tweaks), the dashboard details and the Advanced, Expert and Lab items. Nothing on the PC changes."/>
+                                    <TextBlock Text="Focus mode" VerticalAlignment="Center"/>
+                                </DockPanel>
                                 <DockPanel Margin="0,4,0,0">
                                     <CheckBox x:Name="ReduceMotionBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Reduce motion" ToolTip="No transitions or moving elements. On automatically when Windows animation effects are off." VerticalAlignment="Center"/>
                                     <TextBlock Text="Reduce motion" VerticalAlignment="Center"/>
@@ -198,8 +205,10 @@
                 </ListBox>
             </Border>
 
-            <!-- Pages -->
-            <Grid Grid.Column="1" Margin="20,14,12,8">
+            <!-- Pages, with the breadcrumb (group > page) above them -->
+            <DockPanel Grid.Column="1" Margin="20,10,12,8">
+            <TextBlock x:Name="Breadcrumb" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,2" AutomationProperties.Name="You are here"/>
+            <Grid>
 
                 <!-- Dashboard: four status tiles, one short action list, details folded away -->
                 <ScrollViewer x:Name="PageDashboard" VerticalScrollBarVisibility="Auto" Visibility="Visible">
@@ -297,6 +306,52 @@
                             </StackPanel>
                         </Border>
 
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <DockPanel Margin="0,0,0,8" Height="28">
+                                    <Button x:Name="DashAllChangesButton" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="All changes" ToolTip="Open Backups &amp; Logs: every snapshot, newest first"/>
+                                    <TextBlock Style="{StaticResource TextOverline}" Text="RECENT CHANGES" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Border Style="{StaticResource Card}" Padding="6,6">
+                                    <StackPanel>
+                                        <TextBlock x:Name="DashRecentEmpty" Style="{StaticResource TextMuted}" Margin="12,10" TextWrapping="Wrap" Text="No changes yet. Everything you apply gets a snapshot and can be undone here."/>
+                                        <ItemsControl x:Name="DashRecentList">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="12,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" ToolTip="{Binding Tip}">
+                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Text="{Binding When}" Style="{StaticResource TextMuted}" TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Content="Undo" Tag="{Binding Path}" IsEnabled="{Binding CanUndo}" ToolTip="{Binding UndoTip}" Margin="8,0,0,0" Padding="12,4"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <DockPanel Margin="0,0,0,8" Height="28"><TextBlock Style="{StaticResource TextOverline}" Text="SHORTCUTS" VerticalAlignment="Center"/></DockPanel>
+                                <Border Style="{StaticResource Card}" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock x:Name="DashShortcutText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8" Text="Pages for your persona."/>
+                                        <WrapPanel x:Name="DashShortcuts"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel x:Name="DashDetails">
                         <TextBlock Style="{StaticResource TextOverline}" Text="DETAILS" Margin="0,8,0,8"/>
                         <Expander Style="{StaticResource SectionExpander}">
                             <Expander.Header>
@@ -438,6 +493,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </Expander>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -478,7 +534,10 @@
                                 <DataTemplate>
                                     <Border Style="{StaticResource Card}" Margin="0,0,10,10" Padding="16">
                                         <DockPanel LastChildFill="True">
-                                            <Button DockPanel.Dock="Bottom" Style="{StaticResource AccentButton}" Content="{Binding ButtonText}" Tag="{Binding Id}" HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Stage this preset's differences from your current state."/>
+                                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                                                <Button Style="{StaticResource AccentButton}" Content="{Binding ButtonText}" Tag="{Binding Id}" ToolTip="Stage this preset's differences from your current state."/>
+                                                <Button Content="Compare..." Tag="{Binding CompareTag}" ToolTip="What this preset would change, by category: now and after, before anything is staged."/>
+                                            </StackPanel>
                                             <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource TextMuted}" Text="{Binding Summary}" Margin="0,8,0,0"/>
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Name}" FontSize="{DynamicResource FontSizeTitleSmall}" FontWeight="SemiBold"/>
@@ -800,9 +859,9 @@
                         <TabItem x:Name="FwRulesTab" Header="Rules" ToolTip="Every firewall rule by group: search, filter, sort and manage">
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="210"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="350"/>
+                                    <ColumnDefinition Width="0.42*" MinWidth="170" MaxWidth="210"/>
+                                    <ColumnDefinition Width="*" MinWidth="320"/>
+                                    <ColumnDefinition Width="0.7*" MinWidth="260" MaxWidth="350"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0" Padding="6">
                                     <DockPanel>
@@ -979,11 +1038,13 @@
                             <TextBlock x:Name="PolSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet."/>
                         </StackPanel>
                     </StackPanel>
-                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                    <TabControl x:Name="PolTabs" Grid.Row="1" Margin="0,10,0,0">
+                    <TabItem Header="Policies" ToolTip="Every policy of the installed administrative templates with its Local Group Policy state">
+                    <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="250"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="330"/>
+                            <ColumnDefinition Width="0.5*" MinWidth="170" MaxWidth="250"/>
+                            <ColumnDefinition Width="*" MinWidth="320"/>
+                            <ColumnDefinition Width="0.7*" MinWidth="260" MaxWidth="330"/>
                         </Grid.ColumnDefinitions>
                         <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0" Padding="6">
                             <TreeView x:Name="PolTree" Background="Transparent" BorderThickness="0" AutomationProperties.Name="Policy categories"/>
@@ -1007,6 +1068,17 @@
                             </ScrollViewer>
                         </Border>
                     </Grid>
+                    </TabItem>
+                    <TabItem x:Name="PolComplianceTab" Header="Compliance" ToolTip="Compare a security baseline or GPO backup with this PC (read-only)">
+                        <DockPanel Margin="0,8,0,0">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Button x:Name="PolBaselineButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Compare a baseline..." Margin="0" ToolTip="Pick a baseline or GPO backup folder (for example a Microsoft Security Baseline GPOs folder). It is compared with this PC; nothing changes."/>
+                                <TextBlock x:Name="PolBaselineText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" Text="Compares every setting of a baseline (registry policies, security policy, audit policy) with the Local Group Policy and the effective value on this PC. Read-only: applying a baseline stays a deliberate command-line step (-BaselineApply with -DryRun first)."/>
+                            </DockPanel>
+                            <ContentControl x:Name="PolComplianceHost" Focusable="False"/>
+                        </DockPanel>
+                    </TabItem>
+                    </TabControl>
                 </Grid>
 
                 <!-- Toolkit -->
@@ -1215,13 +1287,24 @@
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Measures latency, jitter, packet loss and stability to your router, your ISP and the internet, traces the path, detects your connection type and recommends the Windows adjustments that lower latency and jitter. Read-only: it only sends pings and DNS queries."/>
                         <WrapPanel Margin="0,10,0,0">
                             <TextBlock Text="Duration" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <ComboBox x:Name="NetDurationBox" Width="160" Margin="0,0,12,0" ToolTip="Quick: 10 seconds. Standard: 30 seconds. Extended: 2 minutes, best for spotting spikes and loss bursts."/>
+                            <ComboBox x:Name="NetDurationBox" Width="200" Margin="0,0,12,0" ToolTip="Quick: 10 seconds. Standard: 30 seconds. Extended: 2 minutes, best for spotting spikes and loss bursts."/>
+                            <TextBlock Text="Game servers (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <TextBox x:Name="NetTargetsBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Optional: up to 4 game servers or other hosts (names or IP addresses, separated by commas) to measure as well."/>
                             <Button x:Name="NetRunButton" Style="{StaticResource AccentButton}" Content="Run test" ToolTip="Run the network test (read-only)."/>
                             <Button x:Name="NetLoadButton" Content="Measure under load" ToolTip="Start a speed test or large download first; this measures latency for 20 seconds while the line is busy and grades bufferbloat."/>
                             <Button x:Name="NetExportButton" Content="Export report" Margin="0" ToolTip="Save the last result as an HTML report (no scripts) in the Reports folder."/>
                         </WrapPanel>
                         <TextBlock x:Name="NetStatusText" Style="{StaticResource TextMuted}" Margin="0,8,0,0" Text="Not run yet."/>
+                        <Border x:Name="NetEmptyCard" Style="{StaticResource Card}" Margin="0,8,0,0" Padding="16,14">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Style="{StaticResource IconDisc}" Background="{DynamicResource BrushAccentSoft}" Margin="0,0,12,0" VerticalAlignment="Top"><TextBlock Style="{StaticResource Icon}" Text="&#xE701;" Foreground="{DynamicResource BrushAccent}"/></Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Not measured yet" FontSize="{DynamicResource FontSizeBodyLarge}" FontWeight="SemiBold"/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Next step: pick a duration and press Run test. It takes 10 seconds to 2 minutes, sends only pings and DNS queries, and changes nothing. Results, recommendations and the path to the internet appear here."/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <StackPanel x:Name="NetResultPanel" Visibility="Collapsed">
                         <UniformGrid Columns="6" Margin="0,8,0,0">
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Overall grade: the weakest of latency, jitter, packet loss and stability.">
                                 <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Grade"/><TextBlock x:Name="NetGradeText" FontSize="{DynamicResource FontSizeTitleLarge}" FontWeight="SemiBold" Text="-"/></StackPanel>
@@ -1260,7 +1343,10 @@
                         <ItemsControl x:Name="NetGuidanceList" ItemTemplate="{StaticResource ManageRowTemplate}"/>
                         <TextBlock Style="{StaticResource TextSection}" Text="Path to the internet" Margin="0,12,0,4"/>
                         <TextBox x:Name="NetPathText" IsReadOnly="True" TextWrapping="NoWrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" HorizontalScrollBarVisibility="Auto" ToolTip="Each router (hop) between this PC and 1.1.1.1 with its response time and name."/>
-                    </StackPanel>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource TextSection}" Text="Earlier runs" Margin="0,12,0,4"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="The last 50 results on this PC (kept in your own settings folder), with the change against the run before. Compare a run before and after a change to see whether it helped."/>
+                        <ContentControl x:Name="NetHistoryHost" Height="300" Focusable="False"/>                    </StackPanel>
                 </ScrollViewer>
 
                 <!-- ASR Center -->
@@ -1528,7 +1614,14 @@
                             <Button x:Name="OpenLogsButton" Content="Open logs folder" ToolTip="Open the iG Windows Tuner log folder in File Explorer."/>
                         </WrapPanel>
                     </StackPanel>
-                    <ContentControl x:Name="SnapshotListHost" Grid.Row="1" Focusable="False"/>
+                    <TabControl x:Name="BackupTabs" Grid.Row="1">
+                        <TabItem Header="Snapshots" ToolTip="Every change, newest first: what changed, when, and whether anything failed">
+                            <ContentControl x:Name="SnapshotListHost" Margin="0,8,0,0" Focusable="False"/>
+                        </TabItem>
+                        <TabItem x:Name="BackupLogTab" Header="Log" ToolTip="The iG Windows Tuner log of the last 7 days (read-only)">
+                            <ContentControl x:Name="LogListHost" Margin="0,8,0,0" Focusable="False"/>
+                        </TabItem>
+                    </TabControl>
                 </Grid>
 
                 <!-- Rejected tweaks -->
@@ -1548,10 +1641,26 @@
                 <ScrollViewer x:Name="PageAbout" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                     <StackPanel MaxWidth="820" HorizontalAlignment="Left">
                         <TextBlock Style="{StaticResource TextTitle}" Text="About iG Windows Tuner"/>
+                        <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,4,0,12">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Button x:Name="AboutCopyButton" DockPanel.Dock="Right" Content="Copy" ToolTip="Copy the build information (for a bug report)" Margin="8,0,0,0"/>
+                                    <TextBlock Text="Build" FontSize="{DynamicResource FontSizeBodyLarge}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <TextBlock x:Name="AboutBuildText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" FontFamily="Consolas"/>
+                            </StackPanel>
+                        </Border>
                         <TextBlock x:Name="AboutText" TextWrapping="Wrap" LineHeight="20"/>
+                        <Expander x:Name="AboutChangelogExpander" Header="What's new (changelog)" Margin="0,12,0,0">
+                            <TextBox x:Name="AboutChangelogText" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" MaxHeight="420" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" AutomationProperties.Name="Changelog" ToolTip="The changes of every version, newest first (read-only)"/>
+                        </Expander>
+                        <Expander x:Name="AboutNoticesExpander" Header="License and third-party notices" Margin="0,8,0,12">
+                            <TextBox x:Name="AboutNoticesText" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" MaxHeight="420" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" AutomationProperties.Name="Third-party notices" ToolTip="The license of iG Windows Tuner and the notices of the third-party work it uses (read-only)"/>
+                        </Expander>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+            </DockPanel>
 
             <!-- Details pane -->
             <Border x:Name="DetailsPane" Grid.Column="2" Background="{DynamicResource BrushSurface}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="1,0,0,0">

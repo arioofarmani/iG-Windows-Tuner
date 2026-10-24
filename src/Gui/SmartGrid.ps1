@@ -262,6 +262,28 @@ function Invoke-IgwtGridQuery {
 
 $script:IgwtGrids = @{}
 
+function Update-IgwtGridToolbarWidth {
+    <# .SYNOPSIS Fits the toolbar into the list's width: the search box takes what is left (140 to 280 px); the "updated" text hides first. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Grid, [Parameter(Mandatory = $true)][double]$Width)
+    $c = $Grid.C
+    $c.UpdatedText.Visibility = $(if ($Width -lt 600) { 'Collapsed' } else { 'Visible' })
+    # Right-hand group: counter, refresh link, Clear filters and View (measured, about 330 px at 100 %).
+    $right = 0.0
+    foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton') {
+        $el = $c[$n]
+        if ($el -and $el.Visibility -eq 'Visible') { $el.Measure((New-Object System.Windows.Size([double]::PositiveInfinity, [double]::PositiveInfinity))); $right += $el.DesiredSize.Width + $el.Margin.Left + $el.Margin.Right }
+    }
+    # Too narrow for both on one line: the counter, Clear filters and View move under the search box.
+    $group = $c.CountText.Parent
+    $twoRows = ($Width - $right - 12) -lt 200
+    [System.Windows.Controls.DockPanel]::SetDock($group, $(if ($twoRows) { [System.Windows.Controls.Dock]::Bottom } else { [System.Windows.Controls.Dock]::Right }))
+    $group.HorizontalAlignment = $(if ($twoRows) { 'Right' } else { 'Stretch' })
+    $group.Margin = $(if ($twoRows) { '0,6,0,0' } else { '0' })
+    $c.SearchBox.Width = $(if ($twoRows) { [Math]::Max([double]140, [Math]::Min([double]280, $Width)) } else { [Math]::Max([double]140, [Math]::Min([double]280, [double]($Width - $right - 12))) })
+}
+
 function Get-IgwtGridShellXaml {
     [CmdletBinding()]
     [OutputType([string])]
@@ -458,6 +480,16 @@ function New-IgwtSmartGrid {
             Update-IgwtGridView -Grid $grid
             Request-IgwtGridSave -Grid $grid
         }
+
+    # Narrow lists (a three-pane page at the minimum window size): the search box shrinks and the
+    # "updated" text hides before the counter, Clear filters and View are pushed out.
+    $root.Tag = $Id
+    Register-IgwtGuiHandler -Control $root -Event 'SizeChanged' -Handler {
+        param($s, $e)
+        $grid = $script:IgwtGrids[[string]$s.Tag]
+        if (-not $grid -or -not $e.WidthChanged) { return }
+        Update-IgwtGridToolbarWidth -Grid $grid -Width ([double]$e.NewSize.Width)
+    }
 
     # Search (debounced 150 ms)
     $g.SearchTimer = New-Object System.Windows.Threading.DispatcherTimer

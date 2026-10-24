@@ -114,6 +114,12 @@ function Compare-IgwtPolicyBaseline {
     }
 }
 
+function Get-IgwtPolicyBaselineComparison {
+    <# .SYNOPSIS Reads a baseline or GPO backup folder and compares it with this PC (Import-IgwtPolicyBaseline, Compare-IgwtPolicyBaseline). Read-only. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    Compare-IgwtPolicyBaseline -Baseline (Import-IgwtPolicyBaseline -Path $Path)
+}
 function Export-IgwtPolicyComparison {
     <# .SYNOPSIS Writes a baseline comparison to CSV (UTF-8). #>
     [CmdletBinding(SupportsShouldProcess = $true)]

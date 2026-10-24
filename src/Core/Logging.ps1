@@ -63,6 +63,37 @@ function Write-IgwtLog {
     }
 }
 
+function Get-IgwtLogEntries {
+    <#
+    .SYNOPSIS
+        Log entries of the last days from the JSON-lines logs (newest first), for the log viewer.
+        Reads the administrator and the per-user log folders. Read-only.
+    .PARAMETER Days
+        How many days back (by log file date).
+    .PARAMETER Max
+        At most this many entries (the newest).
+    #>
+    [CmdletBinding()]
+    param([ValidateRange(1, 90)][int]$Days = 7, [ValidateRange(1, 50000)][int]$Max = 5000, [string[]]$Folder)
+    if (-not $Folder) {
+        $Folder = @((Join-Path $script:IgwtSettings.DataRoot 'Logs'), (Join-Path ([string]$script:IgwtSettings.UserLogRoot) 'Logs')) | Select-Object -Unique
+    }
+    $since = (Get-Date).Date.AddDays(-($Days - 1)).ToString('yyyyMMdd')
+    $files = @(foreach ($d in $Folder) { if ($d -and (Test-Path -LiteralPath $d)) { Get-ChildItem -LiteralPath $d -Filter 'iGWindowsTuner-*.jsonl' -File -ErrorAction SilentlyContinue } }) |
+        Where-Object { ($_.BaseName -replace '^iGWindowsTuner-', '') -ge $since }
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($f in $files) {
+        $lines = @(); try { $lines = [System.IO.File]::ReadAllLines($f.FullName) } catch { Write-Verbose "Log not readable: $($f.Name): $($_.Exception.Message)"; continue }
+        foreach ($l in $lines) {
+            if (-not $l) { continue }
+            try { $e = $l | ConvertFrom-Json } catch { continue }
+            $t = $null; try { $t = [datetime]::Parse([string]$e.time, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind) } catch { $t = $null }
+            $out.Add([pscustomobject]@{ Time = $t; Level = [string]$e.level; Session = [string]$e.session; Tweak = [string]$e.tweak; Message = [string]$e.message; File = $f.Name })
+        }
+    }
+    return @($out.ToArray() | Sort-Object Time -Descending | Select-Object -First $Max)
+}
+
 function Get-IgwtLogBuffer {
     <# .SYNOPSIS Returns the in-memory log entries of this session. #>
     [CmdletBinding()]

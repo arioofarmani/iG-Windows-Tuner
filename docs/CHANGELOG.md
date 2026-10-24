@@ -44,6 +44,16 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Background reads run side by side**: the GUI's worker is a pool of three runspaces, so a page that is still loading no longer blocks another page ("Busy - please wait" is gone for reads); background reads show a Cancel link next to the progress bar. Changes still run one at a time.
 - New controls for every page: segmented control, filter chips, search boxes with a placeholder, a sortable data grid style with sort arrows, visible keyboard focus everywhere, and buttons that look disabled when they cannot be used.
 
+- **Grouped navigation**: the pages sit in labelled groups (Start, Optimize, Secure, Clean, Manage, Diagnose, History) in your persona's order, and a breadcrumb above each page shows where you are. The app opens on the page you used last.
+- **Focus mode** (Display > Focus mode): hides the expert pages, the dashboard details and the Advanced, Expert and Lab items until you turn it off; a "Focus mode" pill in the header shows it is on. Nothing on the PC changes.
+- **Dashboard**: your last three changes with an Undo button each, and shortcuts to the pages your persona uses most.
+- **Presets**: each card shows how many changes it makes per category, and *Compare...* lists every change (now and after, by category, highest impact first) before anything is staged.
+- **Network test**: a clear "Not measured yet" state with the next step, a labelled game-server box, and *Earlier runs*: the last 50 results with the change in ping and jitter against the run before (kept in your own settings folder, no addresses).
+- **Group Policy > Compliance**: compare a security baseline or GPO backup folder with this PC, setting by setting (matches, differs, not set), read-only.
+- **Backups & Logs > Log**: the log of the last 7 days in the window, with search and chips for warnings and errors.
+- **About**: build information with Copy (for bug reports), the changelog and the license and third-party notices.
+- Lists and three-pane pages fit the minimum window size (1100 x 720): the search box shrinks and the toolbar moves under it instead of being cut off.
+
 ### Firewall Manager (Security > Firewall)
 
 - **Every rule of the active policy** in one list: loaded with one bulk query per class (rules, programs, ports, addresses, services, interface types) and joined in memory, about 0.7 s for 500 rules on the test PC. Columns: name, group, enabled, direction, action, profiles, program, service, package/AppContainer, protocol, local and remote port, local and remote address, interface type, edge traversal, source, program exists, risk, description (the less used ones in the column chooser).
@@ -74,6 +84,7 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Firewall Manager showed raw numbers and false duplicates when started as administrator**: every rule read as Disabled, direction and action as 1/2 and 2/4, every program as Any, the tuner's own rules as third-party, and hundreds of rules as duplicates. The background worker sometimes received the firewall rules without the NetSecurity type data (raw CIM values); the worker now loads the Windows network modules when it starts, and the Firewall Manager also understands the raw values. Store app rules (created by Windows per app package) and rules whose ports could not be read are no longer counted as duplicates.
 - Firewall direction is shown as **IN**, **OUT** or **IN/OUT** (the full word is in the tooltip and the details).
 - A list that refreshed while scrolled down (for example after a filter chip on Defender settings) showed "Something went wrong (window): Exception has been thrown by the target of an invocation"; the scroll position is now restored without the error.
+- The dashboard no longer shows an empty "Fix:" link for a security check without a fix target.
 - Lists that select one row at a time (tweaks, Defender settings, power plan) no longer fail when they refresh while a row is selected; the selection is kept.
 - The read-only text views of Diagnostics and Inspect start at the top instead of floating in the middle of the box.
 - Event handlers are registered through one guard that refuses a second registration from the same code on the same control, so an action can never fire twice.
