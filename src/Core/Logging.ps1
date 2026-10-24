@@ -47,7 +47,8 @@ function Write-IgwtLog {
     if ($script:IgwtLogSink) {
         try { & $script:IgwtLogSink ([pscustomobject]$entry) } catch { Write-Verbose "Log sink failed: $($_.Exception.Message)" }
     }
-    if ($script:IgwtLogQueue) { $script:IgwtLogQueue.Enqueue([pscustomobject]@{ Kind = 'log'; Entry = [pscustomobject]$entry }) }
+    $q = Get-IgwtLogQueue
+    if ($null -ne $q) { $q.Enqueue([pscustomobject]@{ Kind = 'log'; Entry = [pscustomobject]$entry }) }
 
     try {
         $dir = Get-IgwtDataPath -Kind Logs
@@ -85,10 +86,25 @@ function Set-IgwtLogSink {
     if ($PSBoundParameters.ContainsKey('Queue')) { $script:IgwtLogQueue = $Queue }
 }
 
+function Get-IgwtLogQueue {
+    <#
+    .SYNOPSIS
+        The GUI queue that receives log and progress entries: the one set with Set-IgwtLogSink, or
+        the IgwtGuiLogQueue variable the GUI gives every runspace of its background pool.
+    #>
+    [CmdletBinding()]
+    param()
+    if ($null -ne $script:IgwtLogQueue) { return , $script:IgwtLogQueue }
+    $g = Get-Variable -Name 'IgwtGuiLogQueue' -Scope Global -ValueOnly -ErrorAction Ignore
+    if ($g -is [System.Collections.Concurrent.ConcurrentQueue[object]]) { return , $g }
+    return $null
+}
+
 function Send-IgwtProgress {
     <# .SYNOPSIS Reports progress to the GUI queue (if any) and to an optional callback. #>
     [CmdletBinding()]
     param([string]$Text, [int]$Percent, [scriptblock]$Callback)
-    if ($script:IgwtLogQueue) { $script:IgwtLogQueue.Enqueue([pscustomobject]@{ Kind = 'progress'; Text = $Text; Percent = $Percent }) }
+    $q = Get-IgwtLogQueue
+    if ($null -ne $q) { $q.Enqueue([pscustomobject]@{ Kind = 'progress'; Text = $Text; Percent = $Percent }) }
     if ($Callback) { & $Callback $Text $Percent }
 }

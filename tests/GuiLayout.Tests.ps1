@@ -29,9 +29,24 @@ Describe 'GUI layout' {
             $script:Gui = $null
         }
     }
-    It 'has a sortable header for every column of every Manage tab' {
+    It 'hosts a SmartGrid on every Manage tab (the firewall list keeps its sortable headers until the Firewall Manager)' {
+        foreach ($tab in 'Service', 'Task', 'App', 'Persist') { @($script:Xaml.SelectNodes("//w:ContentControl[@*[local-name()='Name']='Manage${tab}GridHost']", $script:Ns)).Count | Should -Be 1 -Because $tab }
         $tags = @($script:Xaml.SelectNodes("//w:Button[starts-with(@Tag,'sort:')]", $script:Ns) | ForEach-Object { $_.Tag })
-        foreach ($tab in 'Service', 'Task', 'App', 'Persist', 'Firewall') { foreach ($col in 'Title', 'Badge', 'State') { $tags | Should -Contain "sort:${tab}:$col" } }
+        foreach ($col in 'Title', 'Badge', 'State') { $tags | Should -Contain "sort:Firewall:$col" }
+    }
+    It 'builds Manage rows that never throw on unexpected values' {
+        InModuleScope iGWindowsTuner {
+            $svc = New-IgwtGuiServiceRow -Service ([pscustomobject]@{ Name = 'X'; DisplayName = 'X svc'; Rating = 'SomethingNew' })
+            $svc.Rating | Should -Be 'SomethingNew'
+            $svc.RatingGlyph | Should -Not -BeNullOrEmpty
+            (New-IgwtGuiServiceRow -Service $null).Rating | Should -Be 'Unknown'
+            (New-IgwtGuiTaskRow -Task ([pscustomobject]@{ Name = 't'; Protected = $true })).State | Should -Be 'Protected'
+            (New-IgwtGuiAppRow -App ([pscustomobject]@{ Name = 'a'; SizeMB = 12 }) -Kind Win32).Size | Should -Be '12 MB'
+            $p = New-IgwtGuiPersistenceRow -Entry ([pscustomobject]@{ Name = 'p'; Severity = 'Warn' })
+            $p.Severity | Should -Be 'Warning'
+            $p.SeverityKey | Should -Be 0
+            (New-IgwtGuiManageRow -Title 't' -Tone 'Bogus').StateBrush | Should -Be $script:IgwtColor.Text
+        }
     }
     It 'shows the ASR Center and the Defender settings directly under Security in the navigation and in every persona' {
         $nav = @($script:Xaml.SelectNodes("//w:ListBox[@*[local-name()='Name']='NavList']/w:ListBoxItem", $script:Ns) | ForEach-Object { $_.Tag })

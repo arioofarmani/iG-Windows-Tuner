@@ -408,7 +408,14 @@ function Invoke-IgwtRevert {
             $mg = Restore-IgwtManagedSnapshot -SnapshotPath $SnapshotPath
             return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $mg.Snapshot; Results = @($mg.Results); Requires = 'none' }
         }
-        if ([string]$doc.operation -eq 'Defender') {
+        if ([string]$doc.operation -eq 'Firewall') {
+            $fw = Restore-IgwtFirewallSnapshot -SnapshotPath $SnapshotPath
+            return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $fw.Snapshot; Results = @($fw.Results); Requires = 'none' }
+        }
+        if ([string]$doc.operation -eq 'FirewallProfile') {
+            $fp = Restore-IgwtFirewallProfileSnapshot -SnapshotPath $SnapshotPath
+            return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $fp.Snapshot; Results = @($fp.Results); Requires = 'none' }
+        }        if ([string]$doc.operation -eq 'Defender') {
             $df = Restore-IgwtDefenderSettingSnapshot -SnapshotPath $SnapshotPath
             return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $df.Snapshot; Results = @($df.Results); Requires = 'none' }
         }

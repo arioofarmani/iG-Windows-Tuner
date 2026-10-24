@@ -313,8 +313,113 @@ function New-IgwtGuiManageRow {
     <# .SYNOPSIS Generic bindable row for the Manage and Diagnostics lists (title, subtitle, state with color, tooltip, source object). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
-    param([string]$Title, [string]$Subtitle, [string]$State, [string]$Badge, [ValidateSet('Pass', 'Warn', 'Fail', 'Info', 'Muted', 'Text')][string]$Tone = 'Text', [string]$Tip, $Source)
-    [pscustomobject]@{ Title = $Title; Subtitle = $Subtitle; State = $State; Badge = $Badge; StateBrush = $script:IgwtColor[$Tone]; Tip = $(if ($Tip) { $Tip } else { $Subtitle }); Source = $Source }
+    param([string]$Title, [string]$Subtitle, [string]$State, [string]$Badge, [string]$Tone = 'Text', [string]$Tip, $Source)
+    # No ValidateSet: an unexpected tone from the data must not blank the page (audit X2).
+    [pscustomobject]@{ Title = $Title; Subtitle = $Subtitle; State = $State; Badge = $Badge; StateBrush = (Get-IgwtGuiToneBrush -Tone $Tone); Tip = $(if ($Tip) { $Tip } else { $Subtitle }); Source = $Source }
+}
+
+$script:IgwtToneGlyph = @{ Pass = [string][char]0xE73E; Warn = [string][char]0xE7BA; Fail = [string][char]0xEA39; Info = [string][char]0xE946; Muted = [string][char]0xE72E; Text = [string][char]0xE91F }
+
+function Get-IgwtGuiToneBrush {
+    <# .SYNOPSIS The theme brush of a tone; unknown tones fall back to the text colour (never throws). #>
+    [CmdletBinding()]
+    param([string]$Tone)
+    $b = $script:IgwtColor[[string]$Tone]
+    if ($null -eq $b) { $b = $script:IgwtColor['Text'] }
+    return $b
+}
+
+function Get-IgwtGuiToneGlyph {
+    <# .SYNOPSIS The status icon of a tone (status is always icon plus word). #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Tone)
+    $g = $script:IgwtToneGlyph[[string]$Tone]
+    if (-not $g) { $g = $script:IgwtToneGlyph['Text'] }
+    return $g
+}
+
+function Add-IgwtGuiStatusField {
+    <# .SYNOPSIS Adds <Name>, <Name>Brush and <Name>Glyph to a row hashtable (SmartGrid Status columns). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Row, [Parameter(Mandatory = $true)][string]$Name, [string]$Text, [string]$Tone = 'Text')
+    $Row[$Name] = $Text
+    $Row["${Name}Brush"] = Get-IgwtGuiToneBrush -Tone $Tone
+    $Row["${Name}Glyph"] = Get-IgwtGuiToneGlyph -Tone $Tone
+}
+
+function New-IgwtGuiServiceRow {
+    <# .SYNOPSIS SmartGrid row for one service. Never throws on missing or unexpected values. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param($Service)
+    $s = $Service
+    $rating = [string]$s.Rating
+    $tone = @{ Protected = 'Muted'; Catalogued = 'Info'; Windows = 'Text'; ThirdParty = 'Warn' }[$rating]
+    $r = [ordered]@{
+        Key = [string]$s.Name; Title = [string]$s.DisplayName; Name = [string]$s.Name; Status = [string]$s.State; Startup = [string]$s.StartupType
+        Account = [string]$s.Account; Description = [string]$s.Description; Subtitle = "$($s.Name) - $($s.Description)"; Tip = "$($s.Advice)`n$($s.Path)".Trim(); Source = $s
+    }
+    Add-IgwtGuiStatusField -Row $r -Name 'Rating' -Text $(if ($rating -eq 'ThirdParty') { 'Installed by an app' } elseif ($rating) { $rating } else { 'Unknown' }) -Tone $tone
+    $r.RatingKey = $rating
+    return [pscustomobject]$r
+}
+
+function New-IgwtGuiTaskRow {
+    <# .SYNOPSIS SmartGrid row for one scheduled task. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param($Task)
+    $t = $Task
+    $state = $(if ($t.Protected) { 'Protected' } else { [string]$t.State })
+    $tone = $(if ($t.Protected -or [string]$t.State -eq 'Disabled') { 'Muted' } elseif (-not $t.IsMicrosoft) { 'Warn' } else { 'Pass' })
+    $r = [ordered]@{
+        Key = "$($t.TaskPath)$($t.Name)"; Title = [string]$t.Name; Path = [string]$t.TaskPath; Publisher = $(if ($t.IsMicrosoft) { 'Microsoft' } else { 'Third-party' })
+        Author = [string]$t.Author; Action = [string]$t.Action; RawState = [string]$t.State; Subtitle = [string]$t.TaskPath; Tip = "$($t.Description)`n$($t.Action)".Trim(); Source = $t
+    }
+    Add-IgwtGuiStatusField -Row $r -Name 'State' -Text $state -Tone $tone
+    return [pscustomobject]$r
+}
+
+function New-IgwtGuiAppRow {
+    <# .SYNOPSIS SmartGrid row for an inbox (Appx) or Win32 app. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param($App, [ValidateSet('Appx', 'Win32')][string]$Kind = 'Win32')
+    $a = $App
+    $size = $null
+    if ($a.PSObject.Properties['SizeMB'] -and $a.SizeMB) { $size = [double]$a.SizeMB }
+    $r = [ordered]@{
+        Key = "$Kind|$($a.Name)|$($a.Version)"; Title = [string]$a.Name; Type = $Kind; Publisher = $(if ($Kind -eq 'Appx') { 'Microsoft Store' } else { [string]$a.Publisher }); Version = [string]$a.Version
+        SizeMB = $size; Size = $(if ($size) { '{0:N0} MB' -f $size } else { '' }); Source = $a
+    }
+    if ($Kind -eq 'Appx') {
+        Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $(if ($a.Protected) { 'Protected' } elseif ($a.CanRemove) { 'Removable' } else { 'Kept' }) -Tone $(if ($a.Protected) { 'Muted' } else { 'Text' })
+        $r.Subtitle = "Inbox / Store app $($a.Version)"; $r.Tip = [string]$a.Note
+    } else {
+        Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $(if ($a.Scope) { [string]$a.Scope } else { 'Installed' }) -Tone 'Muted'
+        $r.Subtitle = "$($a.Publisher) $($a.Version)".Trim(); $r.Tip = 'Uninstall Win32 apps with their own uninstaller (Settings > Apps > Installed apps).'
+    }
+    return [pscustomobject]$r
+}
+
+function New-IgwtGuiPersistenceRow {
+    <# .SYNOPSIS SmartGrid row for one autostart (persistence) entry. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param($Entry)
+    $p = $Entry
+    $sev = [string]$p.Severity
+    $sig = "$($p.Signature) $($p.Signer)".Trim()
+    $r = [ordered]@{
+        Key = "$($p.Category)|$($p.Location)|$($p.Name)"; Title = [string]$p.Name; Category = [string]$p.Category; Signature = $(if ($sig) { $sig } else { 'Not signed' })
+        Command = [string]$p.Command; Location = [string]$p.Location; Enabled = $(if ($p.Enabled -eq $false) { 'Disabled' } else { 'Enabled' }); Subtitle = [string]$p.Command
+        Tip = "$($p.Location)`n$sig`n$($p.Note)".Trim(); Source = $p
+    }
+    Add-IgwtGuiStatusField -Row $r -Name 'Severity' -Text $(switch ($sev) { 'Warn' { 'Warning' } 'Review' { 'Review' } default { 'OK' } }) -Tone $(switch ($sev) { 'Warn' { 'Fail' } 'Review' { 'Warn' } default { 'Pass' } })
+    $r.SeverityKey = $(switch ($sev) { 'Warn' { 0 } 'Review' { 1 } default { 2 } })
+    return [pscustomobject]$r
 }
 
 function New-IgwtGuiTweakRow {

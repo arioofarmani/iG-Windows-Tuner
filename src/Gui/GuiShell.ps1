@@ -4,6 +4,45 @@
 # themed dialogs that replace MessageBox, and toasts with Undo. Nothing here changes the PC:
 # the only file written is the per-user view state.
 
+#region Event handlers (registered once)
+
+# Control -> registration ids. Weak keys: closed dialogs and rebuilt rows are not kept alive.
+$script:IgwtHandlerRegistry = New-Object 'System.Runtime.CompilerServices.ConditionalWeakTable[object,System.Collections.Generic.HashSet[string]]'
+$script:IgwtHandlerDuplicates = 0
+
+function Register-IgwtGuiHandler {
+    <#
+    .SYNOPSIS
+        The one way the GUI subscribes to events. A registration is identified by control, event
+        and the calling line (or -Key), so code that runs again (a page loaded twice, a list
+        rebuilt) cannot attach the same handler twice and make an action fire several times.
+    .PARAMETER Event
+        CLR event name (Click, SelectionChanged, Tick, ...).
+    .PARAMETER RoutedEvent
+        A routed event handled for the whole subtree (AddHandler), for example ButtonBase.ClickEvent.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Subscribes a window event only.')]
+    [CmdletBinding(DefaultParameterSetName = 'Clr')]
+    param([Parameter(Mandatory = $true)]$Control,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Clr')][string]$Event,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Routed')][System.Windows.RoutedEvent]$RoutedEvent,
+        [Parameter(Mandatory = $true)]$Handler, [string]$Key)
+    if ($Handler -isnot [scriptblock] -and $Handler -isnot [System.Delegate]) { throw "Register-IgwtGuiHandler: -Handler must be a script block or a delegate." }
+    $target = $Control.PSObject.BaseObject
+    if (-not $Key) { $Key = '{0}:{1}' -f $MyInvocation.ScriptName, $MyInvocation.ScriptLineNumber }
+    $name = $(if ($RoutedEvent) { "routed:$($RoutedEvent.OwnerType.Name).$($RoutedEvent.Name)" } else { $Event })
+    $set = $script:IgwtHandlerRegistry.GetOrCreateValue($target)
+    if (-not $set.Add("$name|$Key")) {
+        $script:IgwtHandlerDuplicates++
+        Write-Verbose "Handler for $name from $Key is already registered on this control; not added again."
+        return
+    }
+    if ($RoutedEvent) { $target.AddHandler($RoutedEvent, $(if ($Handler -is [System.Delegate]) { $Handler } else { [System.Windows.RoutedEventHandler]$Handler })) }
+    else { $target."Add_$Event"($Handler) }
+}
+
+#endregion
+
 #region View state (gui-state.json)
 
 function Get-IgwtGuiStatePath {
@@ -92,8 +131,8 @@ function Initialize-IgwtGuiDisplay {
     $c.DensityBox.ItemsSource = @('Comfortable', 'Compact')
     $c.DensityBox.SelectedItem = $density
     $c.ReduceMotionBox.IsChecked = $reduce
-    $c.DisplayButton.Add_Click({ $script:Gui.C.DisplayPopup.IsOpen = -not $script:Gui.C.DisplayPopup.IsOpen })
-    $c.ThemeBox.Add_SelectionChanged({
+    Register-IgwtGuiHandler -Control $c.DisplayButton -Event 'Click' -Handler { $script:Gui.C.DisplayPopup.IsOpen = -not $script:Gui.C.DisplayPopup.IsOpen }
+    Register-IgwtGuiHandler -Control $c.ThemeBox -Event 'SelectionChanged' -Handler {
             $label = [string]$script:Gui.C.ThemeBox.SelectedItem
             $key = @($script:IgwtThemeChoices.Keys | Where-Object { $script:IgwtThemeChoices[$_] -eq $label }) | Select-Object -First 1
             if (-not $key -or $key -eq $script:Gui.ThemeChoice) { return }
@@ -102,23 +141,23 @@ function Initialize-IgwtGuiDisplay {
             Update-IgwtGuiThemedRows
             Set-IgwtGuiViewValue -Name 'Theme' -Value $key
             Set-IgwtGuiStatus "Theme: $($script:IgwtThemeChoices[$resolved])."
-        })
-    $c.FontScaleBox.Add_SelectionChanged({
+        }
+    Register-IgwtGuiHandler -Control $c.FontScaleBox -Event 'SelectionChanged' -Handler {
             $v = [int](([string]$script:Gui.C.FontScaleBox.SelectedItem) -replace '[^\d]', '')
             if (-not $v) { return }
             Set-IgwtGuiTextScale -Target $script:Gui.Window -Percent $v
             Set-IgwtGuiViewValue -Name 'TextScale' -Value $v
-        })
-    $c.DensityBox.Add_SelectionChanged({
+        }
+    Register-IgwtGuiHandler -Control $c.DensityBox -Event 'SelectionChanged' -Handler {
             $v = [string]$script:Gui.C.DensityBox.SelectedItem
             if (-not $v) { return }
             Set-IgwtGuiDensity -Target $script:Gui.Window -Mode $v
             Set-IgwtGuiViewValue -Name 'Density' -Value $v
-        })
-    $c.ReduceMotionBox.Add_Click({
+        }
+    Register-IgwtGuiHandler -Control $c.ReduceMotionBox -Event 'Click' -Handler {
             $script:Gui.ReduceMotion = [bool]$script:Gui.C.ReduceMotionBox.IsChecked
             Set-IgwtGuiViewValue -Name 'ReduceMotion' -Value $script:Gui.ReduceMotion
-        })
+        }
     # Windows high contrast switched on or off while the app runs: follow it when the theme is System.
     $script:Gui.HcHandler = [System.ComponentModel.PropertyChangedEventHandler] {
         param($s, $e)
@@ -165,10 +204,10 @@ function Initialize-IgwtGuiChrome {
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
-    $c.CaptionMinButton.Add_Click({ $script:Gui.Window.WindowState = 'Minimized' })
-    $c.CaptionMaxButton.Add_Click({ $w = $script:Gui.Window; $w.WindowState = $(if ($w.WindowState -eq 'Maximized') { 'Normal' } else { 'Maximized' }) })
-    $c.CaptionCloseButton.Add_Click({ $script:Gui.Window.Close() })
-    $script:Gui.Window.Add_StateChanged({ Update-IgwtGuiChromeState })
+    Register-IgwtGuiHandler -Control $c.CaptionMinButton -Event 'Click' -Handler { $script:Gui.Window.WindowState = 'Minimized' }
+    Register-IgwtGuiHandler -Control $c.CaptionMaxButton -Event 'Click' -Handler { $w = $script:Gui.Window; $w.WindowState = $(if ($w.WindowState -eq 'Maximized') { 'Normal' } else { 'Maximized' }) }
+    Register-IgwtGuiHandler -Control $c.CaptionCloseButton -Event 'Click' -Handler { $script:Gui.Window.Close() }
+    Register-IgwtGuiHandler -Control $script:Gui.Window -Event 'StateChanged' -Handler { Update-IgwtGuiChromeState }
     Update-IgwtGuiChromeState
 }
 
@@ -266,14 +305,44 @@ function Show-IgwtGuiDialog {
         if ($n -in 'OK', 'Yes') { $b.IsDefault = $true }
         if ($n -eq $result.Value) { $b.IsCancel = $true }
         if ($n -eq $last) { $b.Margin = '0' }
-        $b.Add_Click({ param($s, $e) $null = $e; $result.Value = [string]$s.Tag; $w.Close() }.GetNewClosure())
+        Register-IgwtGuiHandler -Control $b -Event 'Click' -Handler { param($s, $e) $null = $e; $result.Value = [string]$s.Tag; $w.Close() }.GetNewClosure()
         $null = $panel.Children.Add($b)
     }
     $null = $grid.Children.Add($head); $null = $grid.Children.Add($sv); $null = $grid.Children.Add($panel)
     $w.Content = $grid
-    $w.Add_ContentRendered({ $first = @($panel.Children)[0]; if ($first) { $null = $first.Focus() } }.GetNewClosure())
+    Register-IgwtGuiHandler -Control $w -Event 'ContentRendered' -Handler { $first = @($panel.Children)[0]; if ($first) { $null = $first.Focus() } }.GetNewClosure()
     $null = $w.ShowDialog()
     return [string]$result.Value
+}
+
+function Read-IgwtGuiText {
+    <# .SYNOPSIS Themed one-line text prompt. Returns the text, or '' when cancelled. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Title = 'iG Windows Tuner', [string]$Prompt = '', [string]$Default = '')
+    $w = New-Object System.Windows.Window
+    $w.Title = $Title; $w.Owner = $script:Gui.Window; $w.WindowStartupLocation = 'CenterOwner'
+    $w.SizeToContent = 'Height'; $w.Width = 440; $w.ResizeMode = 'NoResize'; $w.ShowInTaskbar = $false
+    Copy-IgwtGuiResources -Target $w
+    $w.SetResourceReference([System.Windows.Window]::BackgroundProperty, 'BrushSurface')
+    $w.SetResourceReference([System.Windows.Window]::FontSizeProperty, 'FontSizeBody')
+    $panel = New-Object System.Windows.Controls.StackPanel; $panel.Margin = '20,16,20,16'
+    $label = New-Object System.Windows.Controls.TextBlock; $label.Text = $Prompt; $label.TextWrapping = 'Wrap'; $label.Margin = '0,0,0,8'
+    $box = New-Object System.Windows.Controls.TextBox; $box.Text = $Default; $box.Style = $w.Resources[[System.Windows.Controls.TextBox]]
+    [System.Windows.Automation.AutomationProperties]::SetName($box, $Prompt)
+    $buttons = New-Object System.Windows.Controls.StackPanel; $buttons.Orientation = 'Horizontal'; $buttons.HorizontalAlignment = 'Right'; $buttons.Margin = '0,16,0,0'
+    $result = @{ Text = '' }
+    $ok = New-Object System.Windows.Controls.Button; $ok.Content = 'OK'; $ok.MinWidth = 90; $ok.IsDefault = $true; $ok.Style = $w.Resources['AccentButton']
+    Register-IgwtGuiHandler -Control $ok -Event 'Click' -Handler { $result.Text = ([string]$box.Text).Trim(); $w.Close() }.GetNewClosure()
+    $cancel = New-Object System.Windows.Controls.Button; $cancel.Content = 'Cancel'; $cancel.MinWidth = 90; $cancel.IsCancel = $true; $cancel.Margin = '0'
+    $cancel.Style = $w.Resources[[System.Windows.Controls.Button]]
+    Register-IgwtGuiHandler -Control $cancel -Event 'Click' -Handler { $w.Close() }.GetNewClosure()
+    $null = $buttons.Children.Add($ok); $null = $buttons.Children.Add($cancel)
+    $null = $panel.Children.Add($label); $null = $panel.Children.Add($box); $null = $panel.Children.Add($buttons)
+    $w.Content = $panel
+    Register-IgwtGuiHandler -Control $w -Event 'ContentRendered' -Handler { $null = $box.Focus(); $box.SelectAll() }.GetNewClosure()
+    $null = $w.ShowDialog()
+    return [string]$result.Text
 }
 
 #endregion
@@ -311,23 +380,23 @@ function Show-IgwtGuiToast {
         $act = New-Object System.Windows.Controls.Button
         $act.Content = $ActionText; $act.Style = $script:Gui.Window.FindResource('LinkButton'); $act.Margin = '12,0,0,0'; $act.VerticalAlignment = 'Center'
         [System.Windows.Controls.DockPanel]::SetDock($act, 'Right')
-        $act.Add_Click({ if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast); & $Action }.GetNewClosure())
+        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast); & $Action }.GetNewClosure()
         $null = $dock.Children.Add($act)
     }
     $tb = New-Object System.Windows.Controls.TextBlock
     $tb.Text = $Text; $tb.TextWrapping = 'Wrap'; $tb.VerticalAlignment = 'Center'
     $null = $dock.Children.Add($tb)
     $toast.Child = $dock
-    $close.Add_Click({ if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure())
+    Register-IgwtGuiHandler -Control $close -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure()
     while ($c.ToastHost.Children.Count -ge 3) { $c.ToastHost.Children.RemoveAt(0) }
     $null = $c.ToastHost.Children.Add($toast)
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromSeconds([math]::Max(3, $Seconds))
-    $timer.Add_Tick({ $state.Timer.Stop(); $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure())
+    Register-IgwtGuiHandler -Control $timer -Event 'Tick' -Handler { $state.Timer.Stop(); $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure()
     $state.Timer = $timer
     # Keep the toast while the pointer is over it, so it can be read and its button used.
-    $toast.Add_MouseEnter({ $state.Timer.Stop() }.GetNewClosure())
-    $toast.Add_MouseLeave({ $state.Timer.Start() }.GetNewClosure())
+    Register-IgwtGuiHandler -Control $toast -Event 'MouseEnter' -Handler { $state.Timer.Stop() }.GetNewClosure()
+    Register-IgwtGuiHandler -Control $toast -Event 'MouseLeave' -Handler { $state.Timer.Start() }.GetNewClosure()
     $timer.Start()
     if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'toast' -Text "$Tone $Text" }
 }

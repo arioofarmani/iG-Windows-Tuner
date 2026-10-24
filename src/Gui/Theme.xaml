@@ -916,6 +916,18 @@
         </Style.Triggers>
     </Style>
 
+    <!-- SmartGrid cell text: one line, ellipsis, the full text in a tooltip (no empty tooltips) -->
+    <Style x:Key="GridCellText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        <Setter Property="TextWrapping" Value="NoWrap"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+        <Style.Triggers>
+            <Trigger Property="Text" Value=""><Setter Property="ToolTip" Value="{x:Null}"/></Trigger>
+            <Trigger Property="Text" Value="{x:Null}"><Setter Property="ToolTip" Value="{x:Null}"/></Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="{x:Type ProgressBar}">
         <Setter Property="Foreground" Value="{DynamicResource BrushAccent}"/>
         <Setter Property="Background" Value="{DynamicResource BrushSurfaceAlt}"/>

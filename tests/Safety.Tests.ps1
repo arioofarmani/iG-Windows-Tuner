@@ -68,8 +68,11 @@ Describe 'Forbidden techniques are absent from shipped code' {
         foreach ($m in @(Get-Matches "(?i)'(sfc|chkdsk|ipconfig|winmgmt|wsreset|control|mmc|netplwiz|resmon|perfmon|msinfo32|rstrui)\.exe'")) { $m | Should -Match '^Toolkit\.ps1:\d+: +\$script:Igwt(FixExecutables|PanelExecutables) = |^Toolkit\.ps1:.*''(control|mmc)\.exe''\)' }
         foreach ($i in @(Get-Matches '&\s*\$FilePath\b')) { $i | Should -Match '^Toolkit\.ps1:' }
     }
-    It 'runs netsh only to read Wi-Fi details in the network module, and resets the stack only in the network-reset fix' {
-        foreach ($h in @(Get-Matches '(?i)netsh')) { $h | Should -Match '^NetworkQuality\.ps1:|^Toolkit\.ps1:\d+: +\$script:IgwtFixExecutables = ' }
+    It 'runs netsh only to read Wi-Fi details, to export the firewall policy, and resets the stack only in the network-reset fix' {
+        foreach ($h in @(Get-Matches '(?i)netsh')) { $h | Should -Match '^NetworkQuality\.ps1:|^Toolkit\.ps1:\d+: +\$script:IgwtFixExecutables = |^FirewallManager\.ps1:\d+: .*advfirewall export' }
+        # The Firewall Manager runs netsh once, and only to export (a backup file; the firewall is not changed).
+        @(Get-Matches '(?i)netsh\.exe"\s+advfirewall') | ForEach-Object { $_ | Should -Match 'advfirewall export "\$Path"' }
+        @(Get-Matches '(?i)netsh\.exe"\s+advfirewall').Count | Should -Be 1
         @(Get-Matches '(?i)& \$exe ''wlan'' ''show'' ''interfaces''').Count | Should -Be 1
         Get-Matches "(?i)netsh.*\b(set|add|delete|reset|int(erface)?\s+ip)\b" | Should -BeNullOrEmpty
         $fixes = (Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'data\toolkit\fixes.json') -Raw | ConvertFrom-Json).fixes
@@ -98,9 +101,18 @@ Describe '2.0 action handlers stay within their limits' {
     It 'never creates, imports or deletes scheduled tasks (enable/disable only)' {
         Get-Matches '(?i)(Register-ScheduledTask|Unregister-ScheduledTask|New-ScheduledTask|Set-ScheduledTask|schtasks)' | Should -BeNullOrEmpty
     }
-    It 'creates firewall rules only in the iG Windows Tuner group and only as Block rules' {
-        foreach ($h in @(Get-Matches '(?i)New-NetFirewallRule')) { $h | Should -Match '^Firewall\.ps1:' }
-        Get-Matches "(?i)Action\s*=\s*'Allow'" | Should -BeNullOrEmpty
+    It 'creates catalog firewall rules only as Block rules, and Firewall Manager rules only from validated definitions' {
+        foreach ($h in @(Get-Matches '(?i)New-NetFirewallRule')) { $h | Should -Match '^Firewall\.ps1:|^FirewallManager\.ps1:' }
+        # Allow appears only in the new-rule wizard templates the user picks, and those are Private-network only.
+        foreach ($h in @(Get-Matches "(?i)Action\s*=\s*'Allow'")) { $h | Should -Match "^FirewallManager\.ps1:\d+: +\[pscustomobject\]@\{ Id = '[a-z\-]+'; .*Profiles = @\('Private'\)" }
+        # Firewall Manager (3.3): every created rule is splatted from ConvertTo-IgwtFirewallRuleParameters, and new
+        # rules get an iG Windows Tuner name and group so a revert can remove them.
+        $fm = Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'src\Manage\FirewallManager.ps1') -Raw
+        foreach ($m in [regex]::Matches($fm, '(?m)^.*\$null = New-NetFirewallRule.*$')) { $m.Value | Should -Match '\$np = ConvertTo-IgwtFirewallRuleParameters -Definition \$def; \$null = New-NetFirewallRule @np' }
+        $fm | Should -Match '\$script:IgwtFirewallOwnedPrefix = ''iGWindowsTuner-'''
+        $fm | Should -Match 'return "\$\(\$script:IgwtFirewallOwnedPrefix\)User-'
+        # Profiles never move away from protection.
+        $fm | Should -Match "'Enabled' \{ if \(-not \[bool\]\`$Value\) \{ return 'iG Windows Tuner never turns the firewall off.' \} \}"
     }
     It 'runs winget only through Invoke-IgwtWinget and never with --force' {
         foreach ($h in @(Get-Matches '(?i)winget\.exe')) { $h | Should -Match '^Apps\.ps1:' }

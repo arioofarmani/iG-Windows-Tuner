@@ -723,16 +723,6 @@
                         <TabItem Header="Services" ToolTip="Every service with its startup type and a safe-to-change rating">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="ManageServiceSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" Text="Not read yet."/>
-                                <Grid DockPanel.Dock="Top" Margin="1,2,22,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource SortHeader}" Tag="sort:Service:Title" Content="Service" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="1" Style="{StaticResource SortHeader}" Tag="sort:Service:Badge" Content="State, startup" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="2" Style="{StaticResource SortHeader}" Tag="sort:Service:State" Content="Rating" ToolTip="Sort by this column; click again to reverse."/>
-                                </Grid>
                                 <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock x:Name="ManageServiceDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a service."/>
@@ -743,22 +733,12 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ManageServiceList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ManageServiceGridHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Scheduled tasks" ToolTip="All scheduled tasks; disable only, never delete">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="ManageTaskSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
-                                <Grid DockPanel.Dock="Top" Margin="1,2,22,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource SortHeader}" Tag="sort:Task:Title" Content="Task" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="1" Style="{StaticResource SortHeader}" Tag="sort:Task:Badge" Content="Publisher" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="2" Style="{StaticResource SortHeader}" Tag="sort:Task:State" Content="State" ToolTip="Sort by this column; click again to reverse."/>
-                                </Grid>
                                 <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock x:Name="ManageTaskDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a task."/>
@@ -768,22 +748,12 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ManageTaskList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ManageTaskGridHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Apps" ToolTip="Installed Win32 apps and inbox (Appx) apps">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="ManageAppSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
-                                <Grid DockPanel.Dock="Top" Margin="1,2,22,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource SortHeader}" Tag="sort:App:Title" Content="App" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="1" Style="{StaticResource SortHeader}" Tag="sort:App:Badge" Content="Type" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="2" Style="{StaticResource SortHeader}" Tag="sort:App:State" Content="Status / size" ToolTip="Sort by this column; click again to reverse."/>
-                                </Grid>
                                 <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock x:Name="ManageAppDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select an app."/>
@@ -793,22 +763,12 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ManageAppList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ManageAppGridHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Persistence" ToolTip="Read-only Autoruns-style view of everything that starts automatically, with signatures">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="ManagePersistSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
-                                <Grid DockPanel.Dock="Top" Margin="1,2,22,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource SortHeader}" Tag="sort:Persist:Title" Content="Entry" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="1" Style="{StaticResource SortHeader}" Tag="sort:Persist:Badge" Content="Category" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="2" Style="{StaticResource SortHeader}" Tag="sort:Persist:State" Content="Severity" ToolTip="Sort by this column; click again to reverse."/>
-                                </Grid>
                                 <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock x:Name="ManagePersistDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select an entry."/>
@@ -818,7 +778,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ManagePersistList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ManagePersistGridHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Firewall &amp; hosts" ToolTip="Firewall rule browser (app rules can be enabled or disabled) and the read-only hosts-file viewer">
@@ -1553,7 +1513,10 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusText" Style="{StaticResource TextMuted}" Text="Ready." TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                    <ProgressBar x:Name="BusyBar" Minimum="0" Maximum="100" Value="0" Margin="0,4,0,0" Visibility="Hidden"/>
+                    <DockPanel Margin="0,4,0,0">
+                        <Button x:Name="BusyCancelButton" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Cancel" Margin="10,0,0,0" Visibility="Collapsed" VerticalAlignment="Center" ToolTip="Cancel the background reads" AutomationProperties.Name="Cancel background reads"/>
+                        <ProgressBar x:Name="BusyBar" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center" Visibility="Hidden"/>
+                    </DockPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="PreviewButton" Content="Preview" ToolTip="Dry run: show every value that would change. Nothing is modified." IsEnabled="False"/>

@@ -13,7 +13,14 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Design system and themes**: Dark, Light and High Contrast themes (System follows the Windows app mode and switches to High Contrast when Windows does, while the app runs). One set of colour, type, spacing and density tokens; text contrast is 4.5:1 or more in every theme and checked by tests. Body text is 14 px; text size can be set from 100 to 150 % and density to Comfortable or Compact (header > Display). The choices are remembered per Windows user (`%LOCALAPPDATA%\iGWindowsTuner\gui-state.json`).
 - **Title bar in the app theme** with its own minimize, maximize and close buttons (no more white title bar in the dark theme).
 - **Themed dialogs and toasts**: confirmations use the app theme instead of the Windows message box; results can appear as a toast with an Undo button.
+- **SmartGrid**, one list component for the tables: sort by any column (Shift+click adds a second and third sort level, with arrows and level numbers), search across columns (all words must match, debounced), quick-filter chips, a "N of M shown" counter and Clear filters, column chooser, reorder and resize, saved views per list (restored on the next start), multi-select with an "N selected" bulk bar, a right-click menu that mirrors the actions, copy, CSV/JSON export of the view, virtualization for thousands of rows, and loading, empty, no-match, error (with Retry) and "Updated 3 min ago" states. Manage > Services, Scheduled tasks, Apps and Persistence use it, with new columns (name, status, startup type, runs as, publisher, version, size, signature, command) and chips (running, stopped, startup type, installed by apps, protected, third-party, removable, warnings, not signed).
+- **Background reads run side by side**: the GUI's worker is a pool of three runspaces, so a page that is still loading no longer blocks another page ("Busy - please wait" is gone for reads); background reads show a Cancel link next to the progress bar. Changes still run one at a time.
 - New controls for every page: segmented control, filter chips, search boxes with a placeholder, a sortable data grid style with sort arrows, visible keyboard focus everywhere, and buttons that look disabled when they cannot be used.
+
+### Fixed
+
+- An unexpected value in a Manage row (for example a new service rating) no longer blanks the whole page; rows fall back to neutral text.
+- Event handlers are registered through one guard that refuses a second registration from the same code on the same control, so an action can never fire twice.
 
 ### Every Defender, ASR and security setting
 
