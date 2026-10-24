@@ -54,6 +54,11 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **About**: build information with Copy (for bug reports), the changelog and the license and third-party notices.
 - Lists and three-pane pages fit the minimum window size (1100 x 720): the search box shrinks and the toolbar moves under it instead of being cut off.
 
+### Performance
+
+- The window starts about half a second faster: the tweak catalog loads in about 0.15 s instead of 0.6 s, and the cleaner rules are read the first time the Cleaner page needs them.
+- The render suite records how long the window takes to build (per startup step) and how long each page takes to switch and lay out.
+
 ### Firewall Manager (Security > Firewall)
 
 - **Every rule of the active policy** in one list: loaded with one bulk query per class (rules, programs, ports, addresses, services, interface types) and joined in memory, about 0.7 s for 500 rules on the test PC. Columns: name, group, enabled, direction, action, profiles, program, service, package/AppContainer, protocol, local and remote port, local and remote address, interface type, edge traversal, source, program exists, risk, description (the less used ones in the column chooser).

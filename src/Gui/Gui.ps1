@@ -1324,6 +1324,8 @@ function Update-IgwtGuiCleanerList {
         return
     }
     $rules = @{}
+    # The cleaner rules are read the first time they are needed (faster start).
+    if ($null -eq $script:Gui.CleanRules) { $script:Gui.CleanRules = @(Get-IgwtCleanerRules) }
     foreach ($r in $script:Gui.CleanRules) { $rules[[string]$r.id] = $r }
     Set-IgwtGuiGridRows -Name 'CleanerList' -Rows @($scan.Rules | ForEach-Object { New-IgwtGuiCleanerRow -RuleScan $_ -Rule $rules[[string]$_.RuleId] -Selected ([bool]$script:Gui.CleanSelected[[string]$_.RuleId]) })
     Update-IgwtGuiCleanerSummary
@@ -2929,6 +2931,15 @@ function Show-IgwtGuiPage {
     }
 }
 
+function Add-IgwtGuiStartupMark {
+    <# .SYNOPSIS Records how long the window took to reach a startup step (render suite diagnostics, 3.3 phase 7). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    if (-not $script:IgwtGuiStartWatch) { return }
+    if (-not $script:IgwtGuiStartupMarks) { $script:IgwtGuiStartupMarks = [ordered]@{} }
+    $script:IgwtGuiStartupMarks[$Name] = [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds)
+}
+
 function Save-IgwtGuiScreenshots {
     <#
     .SYNOPSIS
@@ -2937,6 +2948,8 @@ function Save-IgwtGuiScreenshots {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Folder, [double]$Scale = 1.0, [switch]$WithNetworkTest)
+    # Offscreen cold-start proxy: module loaded, window and every page built, before the mocked data is set (3.3 phase 7).
+    $windowBuiltMs = $(if ($script:IgwtGuiStartWatch) { [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds) } else { $null })
     if (-not (Test-Path -LiteralPath $Folder)) { $null = New-Item -ItemType Directory -Path $Folder -Force }
     $data = Get-IgwtGuiData -IncludeHealth
     Update-IgwtGuiFromData -Data $data
@@ -2997,8 +3010,11 @@ function Save-IgwtGuiScreenshots {
     $w = [int]($bw * $Scale); $h = [int]($bh * $Scale)
     $saved = New-Object System.Collections.Generic.List[string]
     $index = 0
+    # Page switch time offscreen: from selecting the page to its first complete layout (no paint; 3.3 phase 7).
+    $timings = New-Object System.Collections.Generic.List[object]
     foreach ($item in @($script:Gui.C.NavList.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) })) {
         $page = [string]$item.Tag
+        $pageWatch = [System.Diagnostics.Stopwatch]::StartNew()
         $script:Gui.C.NavList.SelectedItem = $item
         Show-IgwtGuiPage -Page $page
         if ($script:IgwtCategories -contains $page -and @($script:Gui.Grids.Tweaks.C.Grid.ItemsSource).Count -gt 0) {
@@ -3010,6 +3026,7 @@ function Save-IgwtGuiScreenshots {
             $root.Measure((New-Object System.Windows.Size($w, $h)))
             $root.Arrange((New-Object System.Windows.Rect(0, 0, $w, $h)))
             $root.UpdateLayout()
+            if (-not $suffix -and $pageWatch.IsRunning) { $pageWatch.Stop(); $timings.Add([pscustomobject]@{ Page = $page; LayoutMs = [math]::Round($pageWatch.Elapsed.TotalMilliseconds, 1) }) }
             $bmp = New-Object System.Windows.Media.Imaging.RenderTargetBitmap($w, $h, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
             $bmp.Render($root)
             $enc = New-Object System.Windows.Media.Imaging.PngBitmapEncoder
@@ -3040,6 +3057,8 @@ function Save-IgwtGuiScreenshots {
         }
         $index++
     }
+    $timings.ToArray() | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $Folder 'page-timings.json') -Encoding UTF8
+    if ($script:IgwtGuiStartWatch) { [ordered]@{ WindowBuiltMs = $windowBuiltMs; AllPagesMs = [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds); Steps = $script:IgwtGuiStartupMarks } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Folder 'startup-timing.json') -Encoding UTF8 }
     return $saved.ToArray()
 }
 
@@ -3077,31 +3096,42 @@ function Show-IgwtGui {
         Start-Process -FilePath (Get-IgwtHostExecutable) -ArgumentList $relaunch
         return
     }
+    $script:IgwtGuiStartWatch = [System.Diagnostics.Stopwatch]::StartNew(); $script:IgwtGuiStartupMarks = [ordered]@{}
     $readOnlyMode = Test-IgwtReadOnly
     Import-IgwtWpf
     $window = New-IgwtMainWindow
+    Add-IgwtGuiStartupMark -Name 'xaml'
     $script:Gui = @{
         Window = $window; C = @{}; Data = $null; Staged = @{}; Category = $null; Job = $null; PresetOperation = $null
         Queue = (New-Object 'System.Collections.Concurrent.ConcurrentQueue[object]'); Runspace = $null; IsAdmin = ((Test-IgwtIsAdmin) -and -not $readOnlyMode); ReadOnly = $readOnlyMode
         DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''; NoStateSave = [bool]$RenderTo; ViewState = $(if ($RenderTo) { @{} } else { Read-IgwtGuiState }); ThemeChoice = 'System'; ReduceMotion = $false; FocusMode = $false; HcHandler = $null
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
-        CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
+        CleanRules = $null; CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
         Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null; Exploit = $null; Management = $null; Policy = $null; PolicyRows = @(); PolicyScope = ''; PolicyDetail = $null; PolicyDetailWanted = ''
     }
+    Add-IgwtGuiStartupMark -Name 'catalog'
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
         if (-not $ctl) { throw "Control '$n' not found in MainWindow.xaml." }
         $script:Gui.C[$n] = $ctl
     }
+    Add-IgwtGuiStartupMark -Name 'controls'
     $c = $script:Gui.C
     Initialize-IgwtGuiDisplay -Theme $Theme
+    Add-IgwtGuiStartupMark -Name 'display'
     Initialize-IgwtGuiChrome
     Initialize-IgwtGuiManageGrids
+    Add-IgwtGuiStartupMark -Name 'manageGrids'
     Initialize-IgwtGuiListGrids
+    Add-IgwtGuiStartupMark -Name 'listGrids'
     Initialize-IgwtGuiDiagGrids
+    Add-IgwtGuiStartupMark -Name 'diagGrids'
     Initialize-IgwtGuiFirewallPage
+    Add-IgwtGuiStartupMark -Name 'firewall'
     Initialize-IgwtGuiAsrPage
+    Add-IgwtGuiStartupMark -Name 'asr'
     Initialize-IgwtGuiPolicyPage
+    Add-IgwtGuiStartupMark -Name 'policy'
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.AboutBuildText.Text = Get-IgwtGuiBuildInfo
@@ -3128,6 +3158,7 @@ function Show-IgwtGui {
     $c.PersonaBox.ItemsSource = @('Gamer', 'PowerUser', 'Sysadmin')
     $c.PersonaBox.SelectedItem = (Get-IgwtPersona)
     Set-IgwtGuiPersona -Name ([string]$c.PersonaBox.SelectedItem)
+    Add-IgwtGuiStartupMark -Name 'persona'
     Register-IgwtGuiHandler -Control $c.PersonaBox -Event 'SelectionChanged' -Handler {
             $n = [string]$script:Gui.C.PersonaBox.SelectedItem
             if (-not $n -or ($script:Gui.Persona -and $script:Gui.Persona.Name -eq $n)) { return }
@@ -3151,8 +3182,10 @@ function Show-IgwtGui {
     $lastItem = $(if ($last) { @($c.NavList.Items | Where-Object { [string]$_.Tag -eq $last -and $_.Visibility -eq 'Visible' -and -not (Test-IgwtGuiNavHeader -Item $_) })[0] } else { $null })
     Select-IgwtGuiNavPage -Tag $(if ($lastItem) { $last } else { 'Dashboard' })
     Initialize-IgwtGuiTweakGrid
+    Add-IgwtGuiStartupMark -Name 'tweakGrid'
     Update-IgwtGuiNetHistory
     Initialize-IgwtGuiCompliance
+    Add-IgwtGuiStartupMark -Name 'compliance'
     Register-IgwtGuiHandler -Control $c.DashRecentList -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
             param($eventSource, $e)
             $null = $eventSource

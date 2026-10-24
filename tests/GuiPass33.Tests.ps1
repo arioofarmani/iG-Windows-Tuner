@@ -98,4 +98,14 @@ Describe '3.3 professional pass: remaining sections' {
             Get-IgwtGuiDocText -Name 'THIRD_PARTY_NOTICES.md' | Should -Match 'WinUtil'
         }
     }
+
+    It 'loads and normalizes the tweak catalog within 1 s (3.3 phase 7: it was about 0.6 s, now about 0.15 s)' {
+        InModuleScope iGWindowsTuner {
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $c = @(Get-IgwtCatalog -Force)
+            $sw.Elapsed.TotalSeconds | Should -BeLessThan 1
+            $c.Count | Should -BeGreaterThan 100
+            @($c | Where-Object { $null -eq $_.conflictsWith }).Count | Should -Be 0 -Because 'defaults are arrays, never $null'
+        }
+    }
 }
