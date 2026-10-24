@@ -1,6 +1,14 @@
 # Changelog
 
-## 3.3.0 (unreleased)
+## 3.4.0 (unreleased)
+
+Firewall Manager 3.4: every rule classified (origin category, direction, blocks, bloat, risks) with the reason and a confidence level, risk findings with plain-language explanations and safe fixes, conflict analysis and an overview dashboard. Includes everything listed under 3.3.0, which was not released separately.
+
+### Firewall Manager 3.4
+
+- Starting audit and sources: `docs\FIREWALL_AUDIT_3.4.md`.
+
+## 3.3.0 (unreleased, part of 3.4.0)
 
 Quality release: a rebuilt, calmer interface, a professional Firewall Manager, sorting and filtering everywhere, and a read-only mode for audits.
 
