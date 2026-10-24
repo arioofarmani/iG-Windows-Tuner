@@ -314,6 +314,12 @@ function Initialize-IgwtGuiWorker {
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     # No host is attached: a prompt in a worker could never be answered and would hang the job.
     # The runspaces inherit the process execution policy of the launcher.
+    # The Windows CIM modules load with the pool, not on first use: when parallel jobs auto-loaded
+    # NetSecurity at the same moment, its type data was missing and firewall rules came back as raw
+    # CIM objects (numbers instead of names, no rule name, every program "Any").
+    $inbox = @('NetSecurity', 'NetAdapter', 'NetTCPIP', 'DnsClient', 'NetQos', 'NetConnection', 'ScheduledTasks', 'ConfigDefender', 'Defender') |
+        Where-Object { Test-Path -LiteralPath (Join-Path $PSHOME "Modules\$_") }
+    if (@($inbox).Count) { $iss.ImportPSModule([string[]]@($inbox)) }
     $iss.ImportPSModule(@((Join-Path $script:IgwtModuleRoot 'iGWindowsTuner.psd1')))
     # Log and progress entries reach the UI thread through this queue (set once per runspace here;
     # handing the queue to every job as a parameter blocked the job).

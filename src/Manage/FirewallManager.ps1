@@ -40,13 +40,58 @@ function Get-IgwtFirewallRuleSource {
     #>
     [CmdletBinding()]
     [OutputType([string])]
-    param([Parameter(Mandatory = $true)]$Rule, [string]$Package)
+    param([Parameter(Mandatory = $true)]$Rule, [string]$Package, [string]$Name)
     $type = [string]$Rule.PolicyStoreSourceType
-    if ($type -in 'GroupPolicy', 'MDM') { return 'GroupPolicy' }
-    if ([string]$Rule.Name -like "$script:IgwtFirewallOwnedPrefix*") { return 'Owned' }
+    # Raw CIM values (PolicyStoreType): 2 GroupPolicy, 6 MDM, 9 and 11 their host firewall forms.
+    if ($type -in 'GroupPolicy', 'MDM', '2', '6', '9', '11') { return 'GroupPolicy' }
+    if (-not $Name) { $Name = $(if ([string]$Rule.Name) { [string]$Rule.Name } else { [string]$Rule.InstanceID }) }
+    if ($Name -like "$script:IgwtFirewallOwnedPrefix*") { return 'Owned' }
     if ([string]$Rule.Owner -or $Package) { return 'StoreApp' }
     if ([string]$Rule.Group -like '@*' -or [string]$Rule.DisplayGroup -like '@*' -or [string]$Rule.DisplayName -like '@*') { return 'Windows' }
     return 'ThirdParty'
+}
+
+function ConvertFrom-IgwtFirewallCimValue {
+    <#
+    .SYNOPSIS
+        A firewall property as its NetSecurity name. Rules and filters normally arrive with names
+        (True, Inbound, Allow, Domain, Private ...); when the NetSecurity type data is not attached
+        (seen in the GUI's background runspaces) they arrive as the raw CIM numbers instead
+        (Enabled 1/2, Direction 1/2, Action 2/3/4, Profiles bit mask, ...). Names pass through.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][ValidateSet('Enabled', 'Direction', 'Action', 'Profile', 'EdgeTraversal', 'InterfaceType')][string]$Kind, $Value)
+    if ($null -eq $Value) { return '' }
+    $text = [string]$Value
+    $n = 0L
+    if (-not [long]::TryParse($text, [ref]$n)) { return $text }
+    switch ($Kind) {
+        'Enabled' { return @{ 1L = 'True'; 2L = 'False' }[$n] }
+        'Direction' { $v = @{ 1L = 'Inbound'; 2L = 'Outbound' }[$n]; if ($v) { return $v } else { return $text } }
+        'Action' { $v = @{ 2L = 'Allow'; 3L = 'AllowBypass'; 4L = 'Block' }[$n]; if ($v) { return $v } else { return $text } }
+        'EdgeTraversal' { $v = @{ 0L = 'Block'; 1L = 'Allow'; 2L = 'DeferToUser'; 3L = 'DeferToApp' }[$n]; if ($v) { return $v } else { return $text } }
+        'Profile' {
+            if ($n -le 0 -or ($n -band 7) -eq 7) { return 'Any' }
+            return (@(@(@(1L, 'Domain'), @(2L, 'Private'), @(4L, 'Public')) | Where-Object { $n -band $_[0] } | ForEach-Object { $_[1] }) -join ', ')
+        }
+        'InterfaceType' {
+            if ($n -le 0) { return 'Any' }
+            return (@(@(@(1L, 'Wired'), @(2L, 'Wireless'), @(4L, 'RemoteAccess')) | Where-Object { $n -band $_[0] } | ForEach-Object { $_[1] }) -join ', ')
+        }
+    }
+    return $text
+}
+
+function Get-IgwtFirewallDirectionText {
+    <# .SYNOPSIS Short direction label for lists: IN, OUT, or IN/OUT when a rule (or a set of rules) covers both. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string[]]$Direction)
+    $d = @($Direction | ForEach-Object { ConvertFrom-IgwtFirewallCimValue -Kind Direction -Value $_ } | Where-Object { $_ } | Select-Object -Unique)
+    if ($d.Count -eq 1 -and $d[0] -eq 'Inbound') { return 'IN' }
+    if ($d.Count -eq 1 -and $d[0] -eq 'Outbound') { return 'OUT' }
+    return 'IN/OUT'
 }
 
 function ConvertTo-IgwtFirewallList {
@@ -76,31 +121,37 @@ function Join-IgwtFirewallData {
         $id = [string]$r.InstanceID
         if (-not $id) { $id = [string]$r.Name }
         $a = $app[$id]; $p = $port[$id]; $ad = $addr[$id]; $s = $svc[$id]; $i = $ift[$id]
-        $program = $(if ($a -and [string]$a.Program) { [string]$a.Program } else { 'Any' })
+        # Raw CIM filters name these AppPath and ServiceName (see ConvertFrom-IgwtFirewallCimValue).
+        $appPath = $(if ($a -and [string]$a.Program) { [string]$a.Program } elseif ($a -and $a.PSObject.Properties['AppPath'] -and [string]$a.AppPath) { [string]$a.AppPath } else { '' })
+        $program = $(if ($appPath) { $appPath } else { 'Any' })
         $package = $(if ($a -and [string]$a.Package) { [string]$a.Package } else { '' })
-        $source = Get-IgwtFirewallRuleSource -Rule $r -Package $package
+        $serviceName = $(if ($s -and [string]$s.Service) { [string]$s.Service } elseif ($s -and $s.PSObject.Properties['ServiceName'] -and [string]$s.ServiceName) { [string]$s.ServiceName } else { '' })
+        $source = Get-IgwtFirewallRuleSource -Rule $r -Package $package -Name $id
         $programExists = ''
         if ($program -notin 'Any', 'System') {
             $expanded = [Environment]::ExpandEnvironmentVariables($program)
             if (-not $exists.ContainsKey($expanded)) { $exists[$expanded] = [bool](& $PathExists $expanded) }
             $programExists = $(if ($exists[$expanded]) { 'Yes' } else { 'No' })
         }
-        $profileText = [string]$r.Profile
+        $profileRaw = $(if ($null -ne $r.Profile -and [string]$r.Profile -ne '') { $r.Profile } elseif ($r.PSObject.Properties['Profiles']) { $r.Profiles } else { $null })
+        $profileText = ConvertFrom-IgwtFirewallCimValue -Kind Profile -Value $profileRaw
         if (-not $profileText -or $profileText -eq '0') { $profileText = 'Any' }
         $profiles = @($profileText -split ',\s*' | Where-Object { $_ })
+        $direction = ConvertFrom-IgwtFirewallCimValue -Kind Direction -Value $r.Direction
         $row = [ordered]@{
-            Key = [string]$r.Name; Name = [string]$r.Name; DisplayName = $(if ([string]$r.DisplayName) { [string]$r.DisplayName } else { [string]$r.Name })
-            Group = [string]$r.DisplayGroup; Enabled = ([string]$r.Enabled -eq 'True'); Direction = [string]$r.Direction; Action = [string]$r.Action
+            Key = $id; Name = $id; DisplayName = $(if ([string]$r.DisplayName) { [string]$r.DisplayName } else { $id })
+            Group = [string]$r.DisplayGroup; Enabled = ((ConvertFrom-IgwtFirewallCimValue -Kind Enabled -Value $r.Enabled) -eq 'True'); Direction = $direction
+            DirectionText = Get-IgwtFirewallDirectionText -Direction $direction; Action = ConvertFrom-IgwtFirewallCimValue -Kind Action -Value $r.Action
             Profiles = $profileText; ProfileList = $profiles; Program = $program; Package = $package; Owner = [string]$r.Owner
-            Service = $(if ($s -and [string]$s.Service) { [string]$s.Service } else { 'Any' })
+            Service = $(if ($serviceName) { $serviceName } else { 'Any' })
             Protocol = $(if ($p -and [string]$p.Protocol) { [string]$p.Protocol } elseif ($p) { 'Any' } else { '' })
             LocalPort = $(if ($p) { ConvertTo-IgwtFirewallList $p.LocalPort } else { '' })
             RemotePort = $(if ($p) { ConvertTo-IgwtFirewallList $p.RemotePort } else { '' })
             LocalAddress = $(if ($ad) { ConvertTo-IgwtFirewallList $ad.LocalAddress } else { '' })
             RemoteAddress = $(if ($ad) { ConvertTo-IgwtFirewallList $ad.RemoteAddress } else { '' })
-            InterfaceType = $(if ($i -and [string]$i.InterfaceType) { [string]$i.InterfaceType } elseif ($i) { 'Any' } else { '' })
-            EdgeTraversal = [string]$r.EdgeTraversalPolicy; Source = $source; StoreSource = [string]$r.PolicyStoreSource
-            Locked = ($source -eq 'GroupPolicy'); LockReason = $(if ($source -eq 'GroupPolicy') { "Set by $(if ([string]$r.PolicyStoreSourceType -eq 'MDM') { 'MDM' } else { 'Group Policy' }) ($($r.PolicyStoreSource)); change it there." } else { '' })
+            InterfaceType = $(if ($i -and [string]$i.InterfaceType) { ConvertFrom-IgwtFirewallCimValue -Kind InterfaceType -Value $i.InterfaceType } elseif ($i) { 'Any' } else { '' })
+            EdgeTraversal = ConvertFrom-IgwtFirewallCimValue -Kind EdgeTraversal -Value $r.EdgeTraversalPolicy; Source = $source; StoreSource = [string]$r.PolicyStoreSource
+            Locked = ($source -eq 'GroupPolicy'); LockReason = $(if ($source -eq 'GroupPolicy') { "Set by $(if ([string]$r.PolicyStoreSourceType -in 'MDM', '6', '11') { 'MDM' } else { 'Group Policy' }) ($($r.PolicyStoreSource)); change it there." } else { '' })
             ProgramExists = $programExists; Description = [string]$r.Description; Risks = @(); RiskText = ''
         }
         $rows.Add($row)
@@ -123,9 +174,12 @@ function Add-IgwtFirewallRisk {
     $labels = @{ InboundPublic = 'Inbound allow on Public'; Broad = 'Any program, any port'; ProgramMissing = 'Program not found'; UserWritable = 'Program in a user-writable folder'; Duplicate = 'Duplicate'; DisabledWindows = 'Disabled Windows default' }
     $keyOf = { param($r) ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}' -f $r.Direction, $r.Action, ([string]$r.Program).ToLowerInvariant(), $r.Service, $r.Package, $r.Protocol, $r.LocalPort, $r.RemotePort, $r.RemoteAddress, $r.Profiles) }
     $count = @{}
-    # Duplicates are counted among app, Store and user rules only: Windows ships many look-alike rules
-    # that differ in settings this view does not read, and Group Policy rules are not ours to merge.
-    $dupCandidate = { param($r) [string]$r.Source -notin 'Windows', 'GroupPolicy' }
+    # Duplicates are counted among app and user rules only: Windows ships many look-alike rules that
+    # differ in settings this view does not read, Store app rules are created by Windows per app
+    # package (the package is in the rule name, not in the filters read here), and Group Policy rules
+    # are not ours to merge. Rules whose ports could not be read (not elevated: Protocol empty) are
+    # skipped too: a game's TCP and UDP rules would look the same.
+    $dupCandidate = { param($r) [string]$r.Source -notin 'Windows', 'GroupPolicy', 'StoreApp' -and [string]$r.Protocol -ne '' }
     foreach ($r in $Rows) { if (-not (& $dupCandidate $r)) { continue }; $k = & $keyOf $r; if ($count.ContainsKey($k)) { $count[$k]++ } else { $count[$k] = 1 } }
     foreach ($r in $Rows) {
         $risks = New-Object System.Collections.Generic.List[string]

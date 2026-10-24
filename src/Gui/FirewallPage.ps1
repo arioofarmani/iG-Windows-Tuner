@@ -32,7 +32,7 @@ function New-IgwtGuiFirewallRow {
     $proto = [string]$r.Protocol
     $row = [ordered]@{
         Key = [string]$r.Name; Rule = $r; DisplayName = [string]$r.DisplayName; Name = [string]$r.Name; Group = [string]$r.Group
-        Direction = [string]$r.Direction; Profiles = [string]$r.Profiles; ProfileMatch = $match; Program = [string]$r.Program; Service = [string]$r.Service
+        Direction = [string]$r.Direction; DirectionText = $(if ($r.PSObject.Properties['DirectionText'] -and $r.DirectionText) { [string]$r.DirectionText } else { Get-IgwtFirewallDirectionText -Direction ([string]$r.Direction) }); Profiles = [string]$r.Profiles; ProfileMatch = $match; Program = [string]$r.Program; Service = [string]$r.Service
         Package = $(if ($r.Package) { [string]$r.Package } elseif ($r.Owner) { [string]$r.Owner } else { '' })
         Protocol = $proto; ProtocolKey = $(if ($proto -like 'ICMP*') { 'ICMP' } elseif ($proto -in '', 'Any') { 'Any' } else { $proto })
         LocalPort = [string]$r.LocalPort; RemotePort = [string]$r.RemotePort; LocalAddress = [string]$r.LocalAddress; RemoteAddress = [string]$r.RemoteAddress
@@ -56,7 +56,7 @@ function Get-IgwtGuiFirewallColumns {
     @(
         @{ Key = 'DisplayName'; Header = 'Rule'; MinWidth = 200; Tip = 'Description' }
         @{ Key = 'State'; Header = 'Enabled'; Width = 110; Template = 'Status'; SortKey = 'StateKey' }
-        @{ Key = 'Direction'; Header = 'Direction'; Width = 100 }
+        @{ Key = 'DirectionText'; Header = 'Direction'; Width = 90; SortKey = 'Direction'; Tip = 'Direction' }
         @{ Key = 'Action'; Header = 'Action'; Width = 90; Template = 'Status' }
         @{ Key = 'Profiles'; Header = 'Profiles'; Width = 130 }
         @{ Key = 'Program'; Header = 'Program'; Width = 220; Template = 'Mono' }

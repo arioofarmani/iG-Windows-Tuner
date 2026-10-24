@@ -47,6 +47,8 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - Refusals (a Defender value or policy option that would turn protection off) are shown inline under the control and keep Apply off, instead of opening a dialog.
 - Defender settings that a policy sets now look locked: the value box is off, Apply is hidden and the help names the source.
 - An unexpected value in a Manage row (for example a new service rating) no longer blanks the whole page; rows fall back to neutral text.
+- **Firewall Manager showed raw numbers and false duplicates when started as administrator**: every rule read as Disabled, direction and action as 1/2 and 2/4, every program as Any, the tuner's own rules as third-party, and hundreds of rules as duplicates. The background worker sometimes received the firewall rules without the NetSecurity type data (raw CIM values); the worker now loads the Windows network modules when it starts, and the Firewall Manager also understands the raw values. Store app rules (created by Windows per app package) and rules whose ports could not be read are no longer counted as duplicates.
+- Firewall direction is shown as **IN**, **OUT** or **IN/OUT** (the full word is in the tooltip and the details).
 - A list that refreshed while scrolled down (for example after a filter chip on Defender settings) showed "Something went wrong (window): Exception has been thrown by the target of an invocation"; the scroll position is now restored without the error.
 - Lists that select one row at a time (tweaks, Defender settings, power plan) no longer fail when they refresh while a row is selected; the selection is kept.
 - The read-only text views of Diagnostics and Inspect start at the top instead of floating in the middle of the box.

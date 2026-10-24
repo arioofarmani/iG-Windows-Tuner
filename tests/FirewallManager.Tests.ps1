@@ -70,6 +70,36 @@ Describe 'Firewall Manager: inventory join and risk flags' {
         }
     }
 
+    It 'reads raw CIM rules and filters (numbers, no Name, AppPath) like named ones' {
+        # Seen in the elevated GUI: without the NetSecurity type data every rule showed Disabled, 2/4,
+        # Program Any, and different programs counted as 422 duplicates.
+        InModuleScope iGWindowsTuner {
+            $raw = @(
+                [pscustomobject]@{ InstanceID = 'iGWindowsTuner-Block-Out-mshta-x64'; Name = ''; DisplayName = 'iG Windows Tuner - Block outbound mshta.exe (System32)'; Enabled = 1; Direction = 2; Action = 4; Profile = $null; Profiles = 0; EdgeTraversalPolicy = 0; PolicyStoreSourceType = 1; DisplayGroup = ''; Owner = '' }
+                [pscustomobject]@{ InstanceID = 'App-1'; Name = ''; DisplayName = 'Game'; Enabled = 2; Direction = 1; Action = 2; Profile = $null; Profiles = 6; EdgeTraversalPolicy = 1; PolicyStoreSourceType = 1; DisplayGroup = ''; Owner = '' }
+                [pscustomobject]@{ InstanceID = 'App-2'; Name = ''; DisplayName = 'Game'; Enabled = 2; Direction = 1; Action = 2; Profile = $null; Profiles = 6; EdgeTraversalPolicy = 1; PolicyStoreSourceType = 1; DisplayGroup = ''; Owner = '' }
+                [pscustomobject]@{ InstanceID = 'Gpo-1'; Name = ''; DisplayName = 'Corp'; Enabled = 1; Direction = 1; Action = 4; Profile = $null; Profiles = 4; EdgeTraversalPolicy = 0; PolicyStoreSourceType = 2; DisplayGroup = ''; Owner = '' }
+            )
+            $app = @(
+                [pscustomobject]@{ InstanceID = 'iGWindowsTuner-Block-Out-mshta-x64'; AppPath = 'C:\WINDOWS\System32\mshta.exe'; Package = '' }
+                [pscustomobject]@{ InstanceID = 'App-1'; AppPath = 'C:\Games\a.exe'; Package = '' }
+                [pscustomobject]@{ InstanceID = 'App-2'; AppPath = 'C:\Games\b.exe'; Package = '' }
+            )
+            $svc = @([pscustomobject]@{ InstanceID = 'Gpo-1'; ServiceName = 'fdphost' })
+            $ift = @([pscustomobject]@{ InstanceID = 'App-1'; InterfaceType = 3 })
+            $rows = Join-IgwtFirewallData -Rules $raw -ApplicationFilters $app -ServiceFilters $svc -InterfaceFilters $ift -PathExists { $true }
+            $m = $rows | Where-Object Name -EQ 'iGWindowsTuner-Block-Out-mshta-x64'
+            $m.Enabled | Should -BeTrue; $m.Direction | Should -Be 'Outbound'; $m.DirectionText | Should -Be 'OUT'; $m.Action | Should -Be 'Block'
+            $m.Profiles | Should -Be 'Any'; $m.EdgeTraversal | Should -Be 'Block'; $m.Program | Should -Be 'C:\WINDOWS\System32\mshta.exe'; $m.Source | Should -Be 'Owned'
+            $a1 = $rows | Where-Object Name -EQ 'App-1'
+            $a1.Enabled | Should -BeFalse; $a1.DirectionText | Should -Be 'IN'; $a1.Profiles | Should -Be 'Private, Public'; $a1.InterfaceType | Should -Be 'Wired, Wireless'
+            @($rows | Where-Object { $_.Risks -contains 'Duplicate' }).Count | Should -Be 0 -Because 'different programs are different rules'
+            $g = $rows | Where-Object Name -EQ 'Gpo-1'
+            $g.Source | Should -Be 'GroupPolicy'; $g.Locked | Should -BeTrue; $g.Service | Should -Be 'fdphost'
+            Get-IgwtFirewallDirectionText -Direction 'Inbound', 'Outbound' | Should -Be 'IN/OUT'
+        }
+    }
+
     It 'classifies the source and locks Group Policy rules' {
         InModuleScope iGWindowsTuner -Parameters @{ R = $script:Rules; A = $script:App } {
             param($R, $A)
