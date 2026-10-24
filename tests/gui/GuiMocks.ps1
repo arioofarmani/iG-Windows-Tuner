@@ -375,3 +375,21 @@ function script:Get-IgwtExploitProtectionInventory {
         Notes = @(); WeakSystem = 0
     }
 }
+
+function script:Get-IgwtPolicyBrowserData {
+    # 600 synthetic policies in a small category tree; a few configured.
+    $cats = @('Windows Components > Microsoft Defender Antivirus', 'Windows Components > Microsoft Defender Antivirus > Real-time Protection', 'Windows Components > Windows Update > Manage end user experience', 'Windows Components > Windows Update > Legacy Policies', 'System > Power Management > Sleep Settings', 'Network > DNS Client', 'Windows Components > Game DVR', 'Control Panel > Personalization')
+    $rows = for ($i = 0; $i -lt 600; $i++) {
+        [pscustomobject]@{ Id = "Demo:Policy$i"; Name = "Demo policy ${i}: $(@('Turn on behavior monitoring', 'Configure automatic updates', 'Allow standby states', 'Turn off multicast name resolution', 'Enables or disables Game DVR', 'Prevent changing lock screen image')[$i % 6])"
+            Category = $cats[$i % $cats.Count]; Class = @('Machine', 'User', 'Machine and user')[$i % 3]; SupportedOn = 'At least Windows 10'
+            State = $(if ($i % 97 -eq 0) { 'Enabled' } elseif ($i % 113 -eq 0) { 'Disabled' } else { 'NotConfigured' }); Simple = ($i % 4 -ne 0); File = 'Demo.admx' }
+    }
+    [pscustomobject]@{ Policies = @($rows); Count = 600; Configured = @($rows | Where-Object { $_.State -ne 'NotConfigured' }).Count; CatalogMs = 820; TotalMs = 1240; Errors = @() }
+}
+
+function script:Get-IgwtPolicyBrowserDetail {
+    param([string]$Id)
+    [pscustomobject]@{ Id = $Id; Name = 'Demo policy'; Explain = 'This demo policy setting shows how the explanation of a policy appears in the details pane.'; Category = 'Windows Components'; SupportedOn = 'At least Windows 10'; Class = 'Machine'
+        LocalGpo = 'Enabled'; Source = 'Local GPO'; Tattooed = $false; Conflicts = @()
+        Choices = @([pscustomobject]@{ State = 'NotConfigured'; Label = 'Not configured'; Values = @{}; Allowed = $true; Reason = '' }, [pscustomobject]@{ State = 'Disabled'; Label = 'Disabled'; Values = @{}; Allowed = $true; Reason = '' }, [pscustomobject]@{ State = 'Enabled'; Label = 'Enabled'; Values = @{}; Allowed = $true; Reason = '' }) }
+}

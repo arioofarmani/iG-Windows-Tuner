@@ -61,4 +61,21 @@ Describe 'GUI background worker (headless)' {
             } finally { $script:Gui = $null }
         }
     }
+
+    It 'keeps slow engine queries off the UI thread (they run as background jobs)' {
+        # Plans and checks that call powercfg, CIM, package or management queries (audit E2, X5).
+        $found = New-Object System.Collections.Generic.List[string]
+        $slow = @('Get-IgwtPowerSettingChangePlan', 'Get-IgwtManagedChangePlan', 'Test-IgwtSystemProtectionEnabled', 'Get-IgwtManagementState', 'Get-IgwtFirewallInventory', 'Get-IgwtPolicyBrowserData', 'Get-IgwtAsrAudit', 'Get-IgwtExploitProtectionInventory')
+        foreach ($f in Get-ChildItem (Join-Path $script:IgwtProjectRoot 'src\Gui') -Filter *.ps1) {
+            $tk = $null; $er = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tk, [ref]$er)
+            foreach ($cmd in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $slow -contains $n.GetCommandName() }, $true)) {
+                # The offscreen renderer loads its (mocked) data synchronously on purpose.
+                $fn = $cmd.Parent; while ($fn -and $fn -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) { $fn = $fn.Parent }
+                if ($fn -and $fn.Name -eq 'Save-IgwtGuiScreenshots') { continue }
+                $found.Add("$($f.Name):$($cmd.Extent.StartLineNumber) $($cmd.GetCommandName())")
+            }
+        }
+        $found | Should -BeNullOrEmpty -Because 'these queries must run through Start-IgwtGuiJob -Command'
+    }
 }

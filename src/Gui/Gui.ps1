@@ -33,6 +33,7 @@ $script:IgwtGuiControlNames = @(
     'PageFirewall', 'FwNewRuleButton', 'FwRefreshButton', 'FwSummaryIcon', 'FwSummaryText', 'FwNoticeText', 'FwTabs', 'FwImportButton', 'FwExportButton', 'FwExportPolicyButton', 'FwGridHost',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
+    'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
     'PageToolkit', 'ToolkitRefreshButton', 'ToolkitSearchBox', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppList', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakList', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
     'ToolkitFeatureSummary', 'ToolkitFeatureList', 'ToolkitFeatureDetail', 'ToolkitFeatureEnableButton', 'ToolkitFeatureDisableButton', 'ToolkitFixSummary', 'ToolkitFixList', 'ToolkitFixDetail', 'ToolkitFixRunButton',
@@ -337,9 +338,13 @@ function Start-IgwtGuiJob {
         Background read of one page (for example 'manage'): runs alongside other work, one per
         channel, and can be cancelled. Without a channel the job is a foreground job: one at a
         time, and -Blocking ones (changes) keep the window from closing.
+    .PARAMETER Context
+        Any object; OnComplete receives it as its third argument (instead of a closure).
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)][string]$Command, [hashtable]$Parameters = @{}, [scriptblock]$OnComplete, [string]$BusyText = 'Working...', [switch]$Blocking, [string]$Channel)
+    param([Parameter(Mandatory = $true)][string]$Command, [hashtable]$Parameters = @{}, [scriptblock]$OnComplete, [string]$BusyText = 'Working...', [switch]$Blocking, [string]$Channel, $Context)
+    # No worker (offscreen renders, tests): nothing can run in the background.
+    if (-not $script:Gui.Runspace) { return $false }
     if ($null -eq $script:Gui.Jobs) { $script:Gui.Jobs = New-Object System.Collections.Generic.List[object] }
     if ($Channel) {
         if (@($script:Gui.Jobs | Where-Object { $_.Channel -eq $Channel }).Count) { return $false }
@@ -350,7 +355,7 @@ function Start-IgwtGuiJob {
     $null = $ps.AddCommand($Command)
     foreach ($k in $Parameters.Keys) { $null = $ps.AddParameter($k, $Parameters[$k]) }
     $handle = $ps.BeginInvoke()
-    $job = @{ PS = $ps; Handle = $handle; OnComplete = $OnComplete; Command = $Command; Blocking = [bool]$Blocking; Channel = $Channel; BusyText = $BusyText; Started = (Get-Date); Cancelled = $false }
+    $job = @{ PS = $ps; Handle = $handle; OnComplete = $OnComplete; Command = $Command; Blocking = [bool]$Blocking; Channel = $Channel; BusyText = $BusyText; Started = (Get-Date); Cancelled = $false; Context = $Context }
     $script:Gui.Jobs.Add($job)
     if (-not $Channel) { $script:Gui.Job = $job }
     Update-IgwtGuiBusy
@@ -442,7 +447,7 @@ function Complete-IgwtGuiJob {
     if ($errs.Count -gt 0) { $script:Gui.C.LogExpander.IsExpanded = $true }
     Update-IgwtGuiButtons
     if ($Job.OnComplete) {
-        try { & $Job.OnComplete $out $errs } catch { Show-IgwtGuiError -Message "The result of $($Job.Command) could not be shown: $($_.Exception.Message)" -Details ($_ | Out-String) }
+        try { & $Job.OnComplete $out $errs $Job.Context } catch { Show-IgwtGuiError -Message "The result of $($Job.Command) could not be shown: $($_.Exception.Message)" -Details ($_ | Out-String) }
     }
 }
 
@@ -1122,9 +1127,22 @@ function Invoke-IgwtGuiApply {
         if ($expert.Count) { $msg += "`n`nIncludes EXPERT toggle(s): $($expert -join ', ')." }
         if ((Show-IgwtGuiMessage -Text $msg -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     }
+    $null = Start-IgwtGuiJob -Command 'Test-IgwtSystemProtectionEnabled' -Channel 'precheck' -BusyText 'Checking System Protection...' -Context $sets -OnComplete {
+        param($out, $errs, $ctx)
+        $on = [bool](@($out) | Select-Object -Last 1)
+        Complete-IgwtGuiApply -Sets $ctx -SystemProtectionOn $on
+    }
+}
+
+function Complete-IgwtGuiApply {
+    <# .SYNOPSIS The rest of Apply after the background System Protection check: restore point choice, managed items, then the batch. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Sets, [bool]$SystemProtectionOn)
+    $sets = $Sets
+    $expert = @($sets.Apply | Where-Object { $id = $_; ($script:Gui.Catalog | Where-Object { $_.id -eq $id }).expert })
     $skipRp = $false
     $enableSp = $false
-    if (-not (Test-IgwtSystemProtectionEnabled)) {
+    if (-not $SystemProtectionOn) {
         $a = Show-IgwtGuiMessage -Text "System Protection is off for $env:SystemDrive, so no restore point can be created.`n`nYes: turn System Protection on for $env:SystemDrive and create a restore point.`nNo: continue with the JSON snapshot only.`nCancel: do not apply." -Buttons 'YesNoCancel' -Icon 'Question'
         if ($a -eq 'Cancel') { return }
         if ($a -eq 'Yes') { $enableSp = $true } else { $skipRp = $true }
@@ -1473,16 +1491,36 @@ function Invoke-IgwtGuiPowerChange {
     }
     $planParams = @{ Setting = $params.Setting }
     foreach ($k in 'AC', 'DC', 'Default') { if ($params.ContainsKey($k)) { $planParams[$k] = $params[$k] } }
-    try { $plan = Get-IgwtPowerSettingChangePlan @planParams } catch { $null = Show-IgwtGuiMessage -Text "This change is refused:`n`n$($_.Exception.Message)" -Icon 'Warning'; return }
-    if (-not $plan.HasChange) { Set-IgwtGuiStatus 'Already set; nothing to change.'; return }
-    $text = "Change $($row.Alias) in the active plan?`n`n$($plan.Change)`n`n$($row.Setting.Description)`n`nExpert setting. A snapshot is written first, so you can revert it in Backups & Logs."
-    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - power plan' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtPowerSettingChange' -Parameters $params -Blocking -BusyText "Changing $($row.Alias) (snapshot first)..." -OnComplete {
-        param($out, $errs)
+    # The dry run calls powercfg: it runs in the background, the confirmation follows (audit E2).
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtPowerSettingChangePlan' -Parameters $planParams -Channel 'plan' -BusyText 'Checking the change (dry run)...' -Context @{ Row = $row; Params = $params } -OnComplete {
+        param($out, $errs, $ctx)
+        $plan = @($out) | Select-Object -Last 1
+        if (-not $plan) { Show-IgwtGuiError -Message "This change is refused: $(@($errs)[0])" -Context 'Power'; return }
+        if (-not $plan.HasChange) { Set-IgwtGuiStatus 'Already set; nothing to change.'; return }
+        $row = $ctx.Row
+        $text = "Change $($row.Alias) in the active plan?`n`n$($plan.Change)`n`n$($row.Setting.Description)`n`nExpert setting. A snapshot is written first; Undo restores it."
+        if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - power plan' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+        $null = Start-IgwtGuiJob -Command 'Invoke-IgwtPowerSettingChange' -Parameters $ctx.Params -Blocking -BusyText "Changing $($row.Alias) (snapshot first)..." -OnComplete {
+            param($o2, $e2)
+            $res = @($o2) | Select-Object -Last 1
+            if (@($e2).Count) { Show-IgwtGuiError -Message "The change was not made: $(@($e2)[0])" -Context 'Power' }
+            elseif ($res -and $res.Changes -and $res.Snapshot) { Show-IgwtGuiToast -Text ("{0}: {1}." -f @($res.Results)[0].Target, @($res.Results)[0].Result) -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiSnapshotUndo -Snapshot $snap -Then { Start-IgwtGuiInspect } } -ActionArgument ([string]$res.Snapshot) }
+            Start-IgwtGuiInspect
+        }
+    }
+}
+
+function Invoke-IgwtGuiSnapshotUndo {
+    <# .SYNOPSIS Undo in a toast: reverts one snapshot in the background, then runs -Then (a refresh). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Snapshot, [scriptblock]$Then)
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtRevert' -Parameters @{ SnapshotPath = $Snapshot } -Blocking -BusyText 'Undoing the change...' -Context $Then -OnComplete {
+        param($out, $errs, $then)
         $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The change was not made: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and $res.Changes) { Set-IgwtGuiStatus ("{0}: {1}. Snapshot: {2}" -f @($res.Results)[0].Target, @($res.Results)[0].Result, $res.Snapshot) }
-        Start-IgwtGuiInspect
+        $bad = @($(if ($res) { @($res.Results | Where-Object Result -EQ 'Failed') }))
+        if (@($errs).Count -or $bad.Count) { Show-IgwtGuiError -Message "Undo failed: $(if (@($errs).Count) { @($errs)[0] } else { $bad[0].Message })" }
+        else { Show-IgwtGuiToast -Text 'The change was undone.' -Tone Info }
+        if ($then) { & $then }
     }
 }
 
@@ -1672,24 +1710,29 @@ function Invoke-IgwtGuiManagedChange {
     <# .SYNOPSIS Validates a management change (protection rules), asks for confirmation, then applies it in the worker (snapshot first). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Kind, [Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][string]$Value, [switch]$Provisioned)
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to make changes.'; return }
-    try { $plan = Get-IgwtManagedChangePlan -Kind $Kind -Target $Target -Value $Value -Provisioned:$Provisioned }
-    catch { $null = Show-IgwtGuiMessage -Text "This change is refused:`n`n$($_.Exception.Message)" -Icon 'Warning'; return }
-    if (-not $plan.HasChange) { Set-IgwtGuiStatus 'Already set; nothing to change.'; return }
-    $text = "$($plan.Change)`n`nReversible: $($plan.Reversible). A snapshot is written first; revert it in Backups & Logs.`n`nContinue?"
-    if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - manage' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+    if (-not $script:Gui.IsAdmin -or (Test-IgwtReadOnly)) { Set-IgwtGuiStatus 'Changes need administrator rights and are off in read-only mode.'; return }
     $params = @{ Kind = $Kind; Target = $Target; Value = $Value }
     if ($Provisioned) { $params.Provisioned = $true }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtManagedChange' -Parameters $params -Blocking -BusyText "$Kind $Target -> $Value (snapshot first)..." -OnComplete {
-        param($out, $errs)
-        $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The change was not made: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and $res.Changes) {
-            $r = @($res.Results)[0]
-            $null = Show-IgwtGuiMessage -Text ("[{0}] {1}{2}`n`nSnapshot: {3}" -f $r.Result, $r.Change, $(if ($r.Message) { "`n$($r.Message)" }), $res.Snapshot) -Icon $(if ($r.Result -eq 'Failed') { 'Warning' } else { 'Information' })
+    # The plan queries services and packages: it runs in the background, the confirmation follows.
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtManagedChangePlan' -Parameters $params -Channel 'plan' -BusyText 'Checking the change...' -Context $params -OnComplete {
+        param($out, $errs, $ctx)
+        $plan = @($out) | Select-Object -Last 1
+        if (-not $plan) { Show-IgwtGuiError -Message "This change is refused: $(@($errs)[0])" -Context 'Manage'; return }
+        if (-not $plan.HasChange) { Set-IgwtGuiStatus 'Already set; nothing to change.'; return }
+        $text = "$($plan.Change)`n`nReversible: $($plan.Reversible). A snapshot is written first; Undo restores it.`n`nContinue?"
+        if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - manage' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
+        $null = Start-IgwtGuiJob -Command 'Invoke-IgwtManagedChange' -Parameters $ctx -Blocking -BusyText "$($ctx.Kind) $($ctx.Target) -> $($ctx.Value) (snapshot first)..." -OnComplete {
+            param($o2, $e2)
+            $res = @($o2) | Select-Object -Last 1
+            if (@($e2).Count) { Show-IgwtGuiError -Message "The change was not made: $(@($e2)[0])" -Context 'Manage' }
+            elseif ($res -and $res.Changes) {
+                $r = @($res.Results)[0]
+                if ($r.Result -eq 'Failed') { Show-IgwtGuiError -Message "$($r.Change): $($r.Message)" -Context 'Manage' }
+                else { Show-IgwtGuiToast -Text "$($r.Change)$(if ($r.Message) { ". $($r.Message)" })" -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiSnapshotUndo -Snapshot $snap -Then { $script:Gui.Manage = $null; Start-IgwtGuiManageRefresh } } -ActionArgument ([string]$res.Snapshot) }
+            }
+            $script:Gui.Manage = $null
+            Start-IgwtGuiManageRefresh
         }
-        $script:Gui.Manage = $null
-        Start-IgwtGuiManageRefresh
     }
 }
 
@@ -2185,8 +2228,7 @@ function Invoke-IgwtGuiDefenderChange {
     if ([string]$s.Edit -eq 'parser') { $text += "`n`nNetwork Inspection parsers are only ever turned on; there is nothing to revert." }
     else { $text += "`n`nA snapshot is written first, so you can revert this in Backups & Logs." }
     $params = @{ Setting = @{ ([string]$s.Property) = $value } }
-    $m = $null
-    try { $m = Get-IgwtManagementState } catch { $m = $null }
+    $m = $script:Gui.Management
     if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override the local value."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender settings' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtDefenderSettingChange' -Parameters $params -Blocking -BusyText 'Changing the Defender setting (snapshot first)...' -OnComplete {
@@ -2234,8 +2276,7 @@ function Invoke-IgwtGuiDefenderPolicyChange {
     $text = "Set the Group Policy '$($row.Name)' to $($pick.Label)?`n`n$($row.Id)`n`nA backup of the Local Group Policy is taken first."
     $params = @{ Id = [string]$row.Id; State = [string]$pick.Value }
     if (@($pick.Values.Keys).Count) { $params.Values = $pick.Values }
-    $m = $null
-    try { $m = Get-IgwtManagementState } catch { $m = $null }
+    $m = $script:Gui.Management
     if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Set-IgwtLocalPolicy' -Parameters $params -Blocking -BusyText 'Setting the Group Policy (backup first)...' -OnComplete {
@@ -2528,7 +2569,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -2545,6 +2586,7 @@ function Show-IgwtGuiPage {
         'Presets' { $c.PagePresets.Visibility = 'Visible'; Update-IgwtGuiPresetCards }
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace) { Start-IgwtGuiAsrRefresh } }
         'Defender' { $c.PageDefender.Visibility = 'Visible'; Set-IgwtGuiDefenderView -View $(if ($script:Gui.DefenderView) { $script:Gui.DefenderView } else { 'Prefs' }) }
+        'Policy' { $c.PagePolicy.Visibility = 'Visible'; if (-not $script:Gui.Policy -and $script:Gui.Runspace) { Start-IgwtGuiPolicyRefresh } }
         'Firewall' { $c.PageFirewall.Visibility = 'Visible'; if (-not $script:Gui.Firewall -and $script:Gui.Runspace) { Start-IgwtGuiFirewallRefresh } }
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace) { Start-IgwtGuiManageRefresh } }
@@ -2603,6 +2645,11 @@ function Save-IgwtGuiScreenshots {
         Set-IgwtGuiDefenderData -Settings @(Get-IgwtDefenderSettings)
         if (@($script:Gui.C.DefList.ItemsSource).Count) { $script:Gui.C.DefList.SelectedIndex = 0 }
     } catch { Write-Warning "Defender settings unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
+    # Read-only data for the Group Policy browser.
+    try {
+        Set-IgwtGuiPolicyData -Data (Get-IgwtPolicyBrowserData)
+        if ($script:Gui.Grids.Policy.Index.Count) { $script:Gui.Grids.Policy.C.Grid.SelectedIndex = 0; Set-IgwtGuiPolicyDetail -Detail (Get-IgwtPolicyBrowserDetail -Id $script:Gui.Grids.Policy.C.Grid.SelectedItem.Id) }
+    } catch { Write-Warning "Policy data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Read-only data for the Firewall Manager (rules and profiles).
     try {
         Set-IgwtGuiFirewallInventory -Inventory (Get-IgwtFirewallInventory)
@@ -2688,7 +2735,7 @@ function Show-IgwtGui {
         DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''; NoStateSave = [bool]$RenderTo; ViewState = $(if ($RenderTo) { @{} } else { Read-IgwtGuiState }); ThemeChoice = 'System'; ReduceMotion = $false; HcHandler = $null
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null; Exploit = $null
+        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null; Exploit = $null; Management = $null; Policy = $null; PolicyRows = @(); PolicyScope = ''; PolicyDetail = $null; PolicyDetailWanted = ''
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -2701,6 +2748,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiManageGrids
     Initialize-IgwtGuiFirewallPage
     Initialize-IgwtGuiAsrPage
+    Initialize-IgwtGuiPolicyPage
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.RejectedList.ItemsSource = @(Get-IgwtRejectedTweaks | ForEach-Object {
@@ -2987,6 +3035,8 @@ function Show-IgwtGui {
 
     # Worker + timer
     Initialize-IgwtGuiWorker
+    # Domain/MDM management is read once in the background; the change dialogs use it.
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtManagementState' -Channel 'mgmt' -BusyText 'Reading how this PC is managed (read-only)...' -OnComplete { param($out, $errs) $null = $errs; $script:Gui.Management = @($out) | Select-Object -Last 1 }
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromMilliseconds(150)
     Register-IgwtGuiHandler -Control $timer -Event 'Tick' -Handler { Invoke-IgwtGuiTick }

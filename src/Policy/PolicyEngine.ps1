@@ -290,21 +290,19 @@ function Get-IgwtMdmPolicyValue {
     return $null
 }
 
-function Get-IgwtPolicyState {
+function Get-IgwtPolicyLocalState {
     <#
     .SYNOPSIS
-        Effective state of one policy per class: the Local GPO state (Enabled, Disabled, Not
-        configured, Configured), the actual registry values, domain GPO and MDM values, the winning
-        source and conflicts. Flags a value present in the registry but in no Registry.pol as
-        tattooed. Read-only.
+        The Local Group Policy state of one policy (NotConfigured, Enabled, Disabled or Configured)
+        from the Registry.pol entries only. Read-only. -Detailed also returns the entries.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Policy, [ValidateSet('Machine', 'User')][string]$Class)
+    param([Parameter(Mandatory = $true)]$Policy, [ValidateSet('Machine', 'User')][string]$Class, [object[]]$Ops, [switch]$Detailed)
     if (-not $Class) { $Class = $(if ([string]$Policy.Class -eq 'User') { 'User' } else { 'Machine' }) }
     $entries = @(Get-IgwtLocalPolicyEntries -Class $Class)
-    $enabledOps = @(Get-IgwtPolicyRegistryOps -Policy $Policy -State NotConfigured)
-    $names = @($enabledOps | Where-Object { $_.Op -eq 'Remove' } | ForEach-Object { "$($_.Key)|$($_.ValueName)".ToLowerInvariant() })
-    $keys = @($enabledOps | Where-Object { $_.Op -eq 'RemoveKeyValues' } | ForEach-Object { ([string]$_.Key).ToLowerInvariant() })
+    if ($null -eq $Ops) { $Ops = @(Get-IgwtPolicyRegistryOps -Policy $Policy -State NotConfigured) }
+    $names = @($Ops | Where-Object { $_.Op -eq 'Remove' } | ForEach-Object { "$($_.Key)|$($_.ValueName)".ToLowerInvariant() })
+    $keys = @($Ops | Where-Object { $_.Op -eq 'RemoveKeyValues' } | ForEach-Object { ([string]$_.Key).ToLowerInvariant() })
     $mine = @($entries | Where-Object { $names -contains "$($_.Key)|$($_.ValueName -replace '^\*\*del\.', '')".ToLowerInvariant() -or $keys -contains ([string]$_.Key).ToLowerInvariant() })
     $local = 'NotConfigured'
     if ($mine.Count) {
@@ -316,6 +314,25 @@ function Get-IgwtPolicyState {
             elseif (-not $Policy.EnabledValue -and -not $Policy.DisabledValue) { $local = $(if ([string]$main.Value -eq '1') { 'Enabled' } elseif ([string]$main.Value -eq '0') { 'Disabled' } else { 'Configured' }) }
         } elseif (@($mine | Where-Object { $_.Special -eq 'del' -or $_.Special -eq 'delvals' }).Count -eq $mine.Count) { $local = 'Disabled' }
     }
+    if ($Detailed) { return [pscustomobject]@{ State = $local; Entries = $mine } }
+    return $local
+}
+
+function Get-IgwtPolicyState {
+    <#
+    .SYNOPSIS
+        Effective state of one policy per class: the Local GPO state (Enabled, Disabled, Not
+        configured, Configured), the actual registry values, domain GPO and MDM values, the winning
+        source and conflicts. Flags a value present in the registry but in no Registry.pol as
+        tattooed. Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Policy, [ValidateSet('Machine', 'User')][string]$Class)
+    if (-not $Class) { $Class = $(if ([string]$Policy.Class -eq 'User') { 'User' } else { 'Machine' }) }
+    $enabledOps = @(Get-IgwtPolicyRegistryOps -Policy $Policy -State NotConfigured)
+    $localInfo = Get-IgwtPolicyLocalState -Policy $Policy -Class $Class -Ops $enabledOps -Detailed
+    $local = $localInfo.State
+    $mine = @($localInfo.Entries)
     $root = Get-IgwtPolicyRoot -Class $Class
     $registry = @(foreach ($o in $enabledOps | Where-Object { $_.Op -eq 'Remove' }) {
             $v = $null

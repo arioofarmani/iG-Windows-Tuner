@@ -154,7 +154,9 @@
                     <ListBoxItem Tag="System" AutomationProperties.Name="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Risk Zone" AutomationProperties.Name="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
+                    <ListBoxItem Tag="Policy" AutomationProperties.Name="Policy" ToolTip="Every Group Policy setting of the installed administrative templates, with its state; set the ones that are safe">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" Margin="0,0,12,0"/><TextBlock Text="Group Policy"/></StackPanel>
+                    </ListBoxItem>                    <ListBoxItem Tag="Risk Zone" AutomationProperties.Name="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{DynamicResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{DynamicResource BrushDanger}"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Inspect" AutomationProperties.Name="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
@@ -929,6 +931,53 @@
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
+                </Grid>
+
+                <!-- Group Policy browser -->
+                <Grid x:Name="PagePolicy" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <DockPanel>
+                            <Button x:Name="PolRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read the policy definitions and the Local Group Policy again (read-only)."/>
+                            <TextBlock Style="{StaticResource TextTitle}" Text="Group Policy"/>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every policy of the installed administrative templates with its Local Group Policy state. Pick a category on the left or search. Settings that would turn a security protection off are refused, and a backup of the Local Group Policy is taken before every change."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBlock x:Name="PolSummaryIcon" Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="PolSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet."/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="330"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,12,0" Padding="6">
+                            <TreeView x:Name="PolTree" Background="Transparent" BorderThickness="0" AutomationProperties.Name="Policy categories"/>
+                        </Border>
+                        <ContentControl x:Name="PolGridHost" Grid.Column="1" Margin="0,0,12,0" Focusable="False"/>
+                        <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock x:Name="PolDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a policy"/>
+                                    <TextBlock x:Name="PolDetMeta" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="PolDetState" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                                    <StackPanel x:Name="PolEditPanel" Visibility="Collapsed" Margin="0,10,0,0">
+                                        <TextBlock Style="{StaticResource TextCaption}" Text="Set to" Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="PolStateBox" DisplayMemberPath="Label" AutomationProperties.Name="Set the policy to" ToolTip="The states this policy can be set to here; options that turn a protection off are not allowed."/>
+                                        <TextBlock x:Name="PolHelp" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Margin="0,6,0,6"/>
+                                        <Button x:Name="PolApplyButton" Style="{StaticResource AccentButton}" Content="Apply" HorizontalAlignment="Left" ToolTip="Set the policy after a confirmation (Local Group Policy backup first). Needs administrator rights."/>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Explanation"/>
+                                    <TextBlock x:Name="PolDetExplain" Style="{StaticResource TextMuted}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Toolkit -->
