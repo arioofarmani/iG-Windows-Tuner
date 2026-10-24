@@ -103,8 +103,9 @@ Describe '2.0 action handlers stay within their limits' {
     }
     It 'creates catalog firewall rules only as Block rules, and Firewall Manager rules only from validated definitions' {
         foreach ($h in @(Get-Matches '(?i)New-NetFirewallRule')) { $h | Should -Match '^Firewall\.ps1:|^FirewallManager\.ps1:' }
-        # Allow appears only in the new-rule wizard templates the user picks, and those are Private-network only.
-        foreach ($h in @(Get-Matches "(?i)Action\s*=\s*'Allow'")) { $h | Should -Match "^FirewallManager\.ps1:\d+: +\[pscustomobject\]@\{ Id = '[a-z\-]+'; .*Profiles = @\('Private'\)" }
+        # Allow appears only in the new-rule wizard templates the user picks (Private networks only),
+        # and the Firewall Manager's "Set to Allow" rule action, which the user picks and confirms.
+        foreach ($h in @(Get-Matches "(?i)Action\s*=\s*'Allow'")) { $h | Should -Match "^FirewallManager\.ps1:\d+: +\[pscustomobject\]@\{ Id = '[a-z\-]+'; .*Profiles = @\('Private'\)|^FirewallPage\.ps1:\d+: +@\{ Id = 'allow'; Label = 'Set to Allow'; Bulk = \`$true; Changes = \`$true;" }
         # Firewall Manager (3.3): every created rule is splatted from ConvertTo-IgwtFirewallRuleParameters, and new
         # rules get an iG Windows Tuner name and group so a revert can remove them.
         $fm = Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'src\Manage\FirewallManager.ps1') -Raw

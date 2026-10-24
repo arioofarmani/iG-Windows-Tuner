@@ -10,29 +10,35 @@ BeforeAll {
 }
 
 Describe 'GUI layout' {
-    It 'sorts Manage rows by text and by number, both directions, and leaves them unsorted by default' {
-        InModuleScope iGWindowsTuner {
-            $rows = @(
-                [pscustomobject]@{ Title = 'beta'; Badge = 'Win32'; State = '120 MB' },
-                [pscustomobject]@{ Title = 'Alpha'; Badge = 'Appx'; State = '9 MB' },
-                [pscustomobject]@{ Title = 'gamma'; Badge = 'Win32'; State = '15 MB' })
-            $script:Gui = [pscustomobject]@{ ManageSort = @{} }
-            @(ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'App' | ForEach-Object { $_.Title }) | Should -Be @('beta', 'Alpha', 'gamma')
-            $script:Gui.ManageSort['App'] = [pscustomobject]@{ Key = 'Title'; Descending = $false }
-            @(ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'App' | ForEach-Object { $_.Title }) | Should -Be @('Alpha', 'beta', 'gamma')
-            $script:Gui.ManageSort['App'] = [pscustomobject]@{ Key = 'State'; Descending = $false }
-            @(ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'App' | ForEach-Object { $_.State }) | Should -Be @('9 MB', '15 MB', '120 MB')
-            $script:Gui.ManageSort['App'] = [pscustomobject]@{ Key = 'State'; Descending = $true }
-            @(ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'App' | ForEach-Object { $_.State }) | Should -Be @('120 MB', '15 MB', '9 MB')
-            $script:Gui.ManageSort['App'] = [pscustomobject]@{ Key = 'Badge'; Descending = $false }
-            $sorted = ConvertTo-IgwtGuiSortedRows -Rows $rows -Tab 'App'; $sorted[0].Badge | Should -Be 'Appx'
-            $script:Gui = $null
-        }
+    It 'hosts a SmartGrid on every Manage tab and on the Firewall page' {
+        foreach ($h in 'ManageServiceGridHost', 'ManageTaskGridHost', 'ManageAppGridHost', 'ManagePersistGridHost', 'FwGridHost') { @($script:Xaml.SelectNodes("//w:ContentControl[@*[local-name()='Name']='$h']", $script:Ns)).Count | Should -Be 1 -Because $h }
+        @($script:Xaml.SelectNodes("//w:Button[starts-with(@Tag,'sort:')]", $script:Ns)).Count | Should -Be 0 -Because 'SmartGrid replaced the old sort header buttons'
     }
-    It 'hosts a SmartGrid on every Manage tab (the firewall list keeps its sortable headers until the Firewall Manager)' {
-        foreach ($tab in 'Service', 'Task', 'App', 'Persist') { @($script:Xaml.SelectNodes("//w:ContentControl[@*[local-name()='Name']='Manage${tab}GridHost']", $script:Ns)).Count | Should -Be 1 -Because $tab }
-        $tags = @($script:Xaml.SelectNodes("//w:Button[starts-with(@Tag,'sort:')]", $script:Ns) | ForEach-Object { $_.Tag })
-        foreach ($col in 'Title', 'Badge', 'State') { $tags | Should -Contain "sort:Firewall:$col" }
+    It 'lists the Firewall Manager under Security, after the ASR Center and the Defender settings' {
+        $nav = @($script:Xaml.SelectNodes("//w:ListBox[@*[local-name()='Name']='NavList']/w:ListBoxItem", $script:Ns) | ForEach-Object { $_.Tag })
+        $nav[[array]::IndexOf($nav, 'Security') + 3] | Should -Be 'Firewall'
+        InModuleScope iGWindowsTuner { foreach ($p in 'Gamer', 'Sysadmin') { $o = @((Get-IgwtPersonaProfile -Name $p).NavOrder); if ($o.Count) { $o[[array]::IndexOf($o, 'Defender') + 1] | Should -Be 'Firewall' -Because $p } } }
+    }
+    It 'builds Firewall rows with status, source, lock and risk fields and offers every quick filter of the spec' {
+        InModuleScope iGWindowsTuner {
+            $rule = [pscustomobject]@{ Name = 'r1'; DisplayName = 'Game'; Group = ''; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profiles = 'Any'; ProfileList = @('Any'); Program = 'C:\G\g.exe'; Service = 'Any'; Package = ''; Owner = ''
+                Protocol = 'ICMPv4'; LocalPort = 'Any'; RemotePort = 'Any'; LocalAddress = 'Any'; RemoteAddress = 'Any'; InterfaceType = 'Any'; EdgeTraversal = 'Block'; Source = 'GroupPolicy'; StoreSource = 'x'; Locked = $true; LockReason = 'Set by Group Policy'
+                ProgramExists = 'No'; Description = ''; Risks = @('InboundPublic', 'ProgramMissing'); RiskText = 'Inbound allow on Public; Program not found' }
+            $row = New-IgwtGuiFirewallRow -Rule $rule
+            $row.State | Should -Be 'Enabled'
+            $row.ProfileMatch | Should -Contain 'Public'
+            $row.ProtocolKey | Should -Be 'ICMP'
+            $row.Source | Should -Be 'Group Policy / MDM'
+            $row.SourceGlyph | Should -Be ([string][char]0xE72E)
+            $row.RiskCount | Should -Be 20
+            $row.Risk | Should -Match 'Inbound allow on Public'
+            (New-IgwtGuiFirewallRow -Rule ([pscustomobject]@{ Name = 'x' })).State | Should -Be 'Disabled'
+            $chips = @(Get-IgwtGuiFirewallChips)
+            foreach ($v in 'InboundPublic', 'Broad', 'ProgramMissing', 'UserWritable', 'Duplicate', 'DisabledWindows') { @($chips | Where-Object { @($_.Values) -contains $v }).Count | Should -Be 1 -Because $v }
+            foreach ($id in 'enabled', 'disabled', 'in', 'out', 'allow', 'block', 'p-domain', 'p-private', 'p-public', 's-windows', 's-third', 's-owned', 's-gpo', 's-store', 'tcp', 'udp', 'icmp', 'anyproto') { @($chips | Where-Object Id -EQ $id).Count | Should -Be 1 -Because $id }
+            $cols = @(Get-IgwtGuiFirewallColumns | ForEach-Object { $_.Key })
+            foreach ($k in 'DisplayName', 'Group', 'State', 'Direction', 'Action', 'Profiles', 'Program', 'Service', 'Package', 'Protocol', 'LocalPort', 'RemotePort', 'LocalAddress', 'RemoteAddress', 'InterfaceType', 'EdgeTraversal', 'Source', 'ProgramExists', 'Risk', 'Description') { $cols | Should -Contain $k }
+        }
     }
     It 'builds Manage rows that never throw on unexpected values' {
         InModuleScope iGWindowsTuner {

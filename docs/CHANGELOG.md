@@ -17,6 +17,19 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Background reads run side by side**: the GUI's worker is a pool of three runspaces, so a page that is still loading no longer blocks another page ("Busy - please wait" is gone for reads); background reads show a Cancel link next to the progress bar. Changes still run one at a time.
 - New controls for every page: segmented control, filter chips, search boxes with a placeholder, a sortable data grid style with sort arrows, visible keyboard focus everywhere, and buttons that look disabled when they cannot be used.
 
+### Firewall Manager (Security > Firewall)
+
+- **Every rule of the active policy** in one list: loaded with one bulk query per class (rules, programs, ports, addresses, services, interface types) and joined in memory, about 0.7 s for 500 rules on the test PC. Columns: name, group, enabled, direction, action, profiles, program, service, package/AppContainer, protocol, local and remote port, local and remote address, interface type, edge traversal, source, program exists, risk, description (the less used ones in the column chooser).
+- **Where each rule comes from**: Windows, third-party app, Store app, iG Windows Tuner or Group Policy / MDM. Group Policy and MDM rules are locked with the managing source shown.
+- **Risk views**: inbound allow on Public, any program / any port, program not found, program in a user-writable folder, duplicates (among app and user rules) and disabled Windows defaults, each with an explanation in the details pane. The page opens with what needs attention.
+- **Quick filters** for enabled/disabled, direction, action, profile, source and protocol, search over name, group, program, port and address, multi-column sort and saved views.
+- **Actions** (single and bulk): enable, disable, Allow/Block (with a warning), edit (name, networks, ports, addresses, program) with validation, duplicate, and delete (not for Windows rules, which can only be disabled). Every action shows a summary first, writes a snapshot, offers Undo in a toast, and refreshes only the rules it changed. Core Networking rules are never disabled.
+- **New rule wizard** in five steps with templates (for example "Allow a game inbound (UDP), Private networks only"), Back/Next without losing values and a summary before anything changes.
+- **Import and export**: JSON (importable, with a preview of new and changed rules) and CSV, and a full policy backup with netsh advfirewall export (.wfw).
+- **Remote-session safety**: rules that keep Remote Desktop or WinRM working are not changed while such a session is active, and other changes are reverted automatically unless you keep them within 60 seconds.
+- **Profiles and networks**: per profile on/off, default actions, notifications, unicast response and logging, and Private/Public per connected network. Changes only move toward protection: the firewall is never turned off and inbound traffic stays blocked by default. A firewall log analysis is one click away.
+- The Manage page's old firewall tab now points to the Firewall Manager and keeps the hosts-file viewer.
+
 ### Fixed
 
 - An unexpected value in a Manage row (for example a new service rating) no longer blanks the whole page; rows fall back to neutral text.

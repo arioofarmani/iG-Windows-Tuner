@@ -358,7 +358,7 @@ function Show-IgwtGuiToast {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Text, [ValidateSet('Info', 'Success', 'Warning', 'Danger')][string]$Tone = 'Success',
-        [string]$ActionText, [scriptblock]$Action, [int]$Seconds = 10)
+        [string]$ActionText, [scriptblock]$Action, $ActionArgument, [int]$Seconds = 10)
     $c = $script:Gui.C
     $glyph = @{ Info = 0xE946; Success = 0xE73E; Warning = 0xE7BA; Danger = 0xEA39 }[$Tone]
     $toast = New-Object System.Windows.Controls.Border
@@ -375,12 +375,12 @@ function Show-IgwtGuiToast {
     [System.Windows.Automation.AutomationProperties]::SetName($close, 'Close message')
     [System.Windows.Controls.DockPanel]::SetDock($close, 'Right')
     $null = $dock.Children.Add($ic); $null = $dock.Children.Add($close)
-    $state = @{ Toast = $toast; Timer = $null }
+    $state = @{ Toast = $toast; Timer = $null; Action = $Action; Arg = $ActionArgument }
     if ($ActionText -and $Action) {
         $act = New-Object System.Windows.Controls.Button
         $act.Content = $ActionText; $act.Style = $script:Gui.Window.FindResource('LinkButton'); $act.Margin = '12,0,0,0'; $act.VerticalAlignment = 'Center'
         [System.Windows.Controls.DockPanel]::SetDock($act, 'Right')
-        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast); & $Action }.GetNewClosure()
+        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast); & $state.Action $state.Arg }.GetNewClosure()
         $null = $dock.Children.Add($act)
     }
     $tb = New-Object System.Windows.Controls.TextBlock

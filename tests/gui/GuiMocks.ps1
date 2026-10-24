@@ -316,3 +316,50 @@ function script:Invoke-IgwtNetworkQualityTest {
         Recommendations = [pscustomobject]@{ Profile = 'Wired, low latency'; Tweaks = @([pscustomobject]@{ Id = 'net.nagle-off'; Name = 'Turn off Nagle for games'; Why = 'Sends small game packets right away.'; Level = 'Advanced'; Tier = 'B' }); Reverts = @(); Guidance = @([pscustomobject]@{ Title = 'Use wired Ethernet'; Text = 'Already wired.'; Severity = 'Info' }); TweakIds = @('net.nagle-off') }
         Trace = @(@(1, '192.0.2.1', 0.4, 'Router', ''), @(2, '198.51.100.1', 3.2, 'ISP', ''), @(3, '1.1.1.1', 6.8, 'Internet', 'one.one.one.one')) | ForEach-Object { [pscustomobject]@{ Hop = $_[0]; Address = $_[1]; RttMs = $_[2]; Class = $_[3]; Name = $_[4] } } }
 }
+
+function script:Get-IgwtFirewallInventory {
+    # 1,200 synthetic rules (Windows, third-party, Store apps, iG Windows Tuner, Group Policy) with
+    # the risk cases the page shows; programs under C:\Games\Demo exist, the others do not.
+    param([string]$PolicyStore = 'ActiveStore')
+    $null = $PolicyStore
+    $rnd = Get-IgwtMockRandom -Seed 'firewall-manager'
+    $groups = @('Core Networking', 'Remote Desktop', 'File and Printer Sharing', 'Network Discovery', 'Delivery Optimization', 'mDNS', 'Cast to Device functionality', 'Wi-Fi Direct Network Discovery')
+    $apps = @('C:\Games\Demo\DemoShooter\shooter.exe', 'C:\Games\Demo\Launcher\launcher.exe', 'C:\Program Files\Demo Voice\voice.exe', 'C:\Users\Player\AppData\Local\DemoUpdater\update.exe', 'C:\Program Files\Old Tool\tool.exe', 'C:\Games\Demo\Racer\racer.exe')
+    $rules = New-Object System.Collections.Generic.List[object]; $app = New-Object System.Collections.Generic.List[object]; $port = New-Object System.Collections.Generic.List[object]; $addr = New-Object System.Collections.Generic.List[object]
+    for ($i = 0; $i -lt 1200; $i++) {
+        $kind = $(if ($i % 10 -lt 6) { 'win' } elseif ($i % 10 -lt 8) { 'third' } elseif ($i % 10 -eq 8) { 'store' } elseif ($i % 40 -eq 9) { 'gpo' } elseif ($i % 20 -eq 19) { 'owned' } else { 'third' })
+        $name = "DEMO-RULE-$i"; $display = ''; $group = ''; $owner = ''; $storeType = 'Local'; $program = 'Any'; $package = ''
+        switch ($kind) {
+            'win' { $g = $groups[$i % $groups.Count]; $display = "$g ($(if ($i % 2) { 'In' } else { 'Out' })-$i)"; $group = "@FirewallAPI.dll,-$(30000 + $i % 50)"; $program = $(if ($i % 3) { 'System' } else { '%SystemRoot%\system32\svchost.exe' }) }
+            'third' { $p = $apps[$i % $apps.Count]; $display = "$([IO.Path]::GetFileNameWithoutExtension($p)) $(if ($i % 2) { 'TCP' } else { 'UDP' }) $i"; $program = $p }
+            'store' { $display = "Demo Store App $($i % 25)"; $owner = "S-1-5-21-0-0-0-$($i % 25)"; $package = "S-1-15-2-$($i % 25)" }
+            'gpo' { $display = "Corporate policy $i"; $storeType = 'GroupPolicy' }
+            'owned' { $name = "iGWindowsTuner-User-demo$i"; $display = "My rule $i"; $group = 'iG Windows Tuner'; $program = $apps[0] }
+        }
+        $dir = $(if ($i % 2) { 'Inbound' } else { 'Outbound' })
+        $prof = @('Any', 'Private', 'Public', 'Domain', 'Private, Public', 'Domain, Private')[$i % 6]
+        $rules.Add([pscustomobject]@{ InstanceID = $name; Name = $name; DisplayName = $display; DisplayGroup = $(if ($group -like '@*') { $groups[$i % $groups.Count] } else { $group }); Group = $group
+                Enabled = $(if ($i % 7 -eq 0) { 'False' } else { 'True' }); Direction = $dir; Action = $(if ($i % 9 -eq 0) { 'Block' } else { 'Allow' }); Profile = $prof
+                PolicyStoreSourceType = $storeType; PolicyStoreSource = $(if ($storeType -eq 'GroupPolicy') { 'demo.test policy' } else { 'PersistentStore' }); Owner = $owner; EdgeTraversalPolicy = 'Block'; Description = "Demo rule $i for the screenshots." })
+        $app.Add([pscustomobject]@{ InstanceID = $name; Program = $program; Package = $package })
+        $proto = @('TCP', 'UDP', 'Any', 'ICMPv4', 'TCP', 'UDP')[$i % 6]
+        $lp = $(if ($proto -in 'TCP', 'UDP') { @('27015', '3074', '443', '5353', '80', '27015-27030')[$rnd.Next(6)] } else { 'Any' })
+        if ($i -eq 13) { $proto = 'Any'; $lp = 'Any'; $app[$app.Count - 1].Program = 'Any' }
+        $port.Add([pscustomobject]@{ InstanceID = $name; Protocol = $proto; LocalPort = $lp; RemotePort = 'Any' })
+        $addr.Add([pscustomobject]@{ InstanceID = $name; LocalAddress = 'Any'; RemoteAddress = $(if ($i % 11 -eq 0) { 'LocalSubnet' } elseif ($i % 13 -eq 0) { '192.0.2.0/24' } else { 'Any' }) })
+    }
+    $rows = Join-IgwtFirewallData -Rules $rules.ToArray() -ApplicationFilters $app.ToArray() -PortFilters $port.ToArray() -AddressFilters $addr.ToArray() -PathExists { param($p) $p -like 'C:\Games\Demo\*' -or $p -like '*svchost.exe' -or $p -like 'C:\Program Files\Demo Voice\*' }
+    [pscustomobject]@{ Rules = $rows; Count = @($rows).Count; PolicyStore = 'ActiveStore'; Partial = $false; Notes = @(); Timing = [pscustomobject]@{ Rules = 412; Join = 96 }; LoadMs = 640
+        Counts = [pscustomobject]@{ Enabled = @($rows | Where-Object Enabled).Count; Risky = 0; Locked = @($rows | Where-Object Locked).Count }; Read = $script:MockNow }
+}
+
+function script:Get-IgwtFirewallProfileStatus {
+    [pscustomobject]@{
+        Profiles = @(
+            [pscustomobject]@{ Name = 'Domain'; Enabled = $true; DefaultInboundAction = 'Block'; DefaultOutboundAction = 'Allow'; Notifications = $false; UnicastResponse = $true; LogAllowed = $false; LogBlocked = $false; LogFile = '%systemroot%\system32\LogFiles\Firewall\pfirewall.log'; LogMaxKB = 4096 }
+            [pscustomobject]@{ Name = 'Private'; Enabled = $true; DefaultInboundAction = 'Block'; DefaultOutboundAction = 'Allow'; Notifications = $true; UnicastResponse = $true; LogAllowed = $false; LogBlocked = $true; LogFile = '%systemroot%\system32\LogFiles\Firewall\pfirewall.log'; LogMaxKB = 32767 }
+            [pscustomobject]@{ Name = 'Public'; Enabled = $true; DefaultInboundAction = 'Block'; DefaultOutboundAction = 'Allow'; Notifications = $true; UnicastResponse = $false; LogAllowed = $false; LogBlocked = $true; LogFile = '%systemroot%\system32\LogFiles\Firewall\pfirewall.log'; LogMaxKB = 32767 }
+        )
+        Networks = @([pscustomobject]@{ InterfaceAlias = 'Ethernet'; InterfaceIndex = 12; Network = 'Demo Network'; Category = 'Private'; IPv4 = 'Internet' })
+    }
+}

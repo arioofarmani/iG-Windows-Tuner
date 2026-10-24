@@ -25,11 +25,14 @@ $script:IgwtGuiControlNames = @(
     'PageInspect', 'InspectRefreshButton', 'InspectTabs', 'InspectPowerAllBox', 'InspectPowerSummary', 'InspectPowerList', 'InspectPowerDetailName', 'InspectPowerDetailText',
     'InspectPowerAcBox', 'InspectPowerDcBox', 'InspectPowerApplyButton', 'InspectPowerDefaultButton', 'InspectIrqSummary', 'InspectIrqList', 'InspectNicList',
     'InspectKernelChangedBox', 'InspectKernelSummary', 'InspectKernelList', 'InspectCrashText',
-    'PageManage', 'ManageRefreshButton', 'ManageSearchBox', 'ManageTabs', 'ManageServiceSummary', 'ManageServiceGridHost', 'ManageServiceDetail', 'ManageServiceStartBox', 'ManageServiceApplyButton',
+    'PageManage', 'ManageRefreshButton', 'ManageTabs', 'ManageServiceSummary', 'ManageServiceGridHost', 'ManageServiceDetail', 'ManageServiceStartBox', 'ManageServiceApplyButton',
     'ManageTaskSummary', 'ManageTaskGridHost', 'ManageTaskDetail', 'ManageTaskDisableButton', 'ManageTaskEnableButton',
     'ManageAppSummary', 'ManageAppGridHost', 'ManageAppDetail', 'ManageAppProvisionedBox', 'ManageAppRemoveButton',
     'ManagePersistSummary', 'ManagePersistGridHost', 'ManagePersistDetail', 'ManagePersistDisableButton', 'ManagePersistExportButton',
-    'ManageFirewallSummary', 'ManageFirewallList', 'ManageFirewallDetail', 'ManageFirewallToggleButton', 'ManageHostsText',
+    'ManageOpenFirewallButton', 'ManageHostsText', 'SecFirewallButton',
+    'PageFirewall', 'FwNewRuleButton', 'FwRefreshButton', 'FwSummaryIcon', 'FwSummaryText', 'FwNoticeText', 'FwTabs', 'FwImportButton', 'FwExportButton', 'FwExportPolicyButton', 'FwGridHost',
+    'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
+    'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
     'PageToolkit', 'ToolkitRefreshButton', 'ToolkitSearchBox', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppList', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakList', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
     'ToolkitFeatureSummary', 'ToolkitFeatureList', 'ToolkitFeatureDetail', 'ToolkitFeatureEnableButton', 'ToolkitFeatureDisableButton', 'ToolkitFixSummary', 'ToolkitFixList', 'ToolkitFixDetail', 'ToolkitFixRunButton',
@@ -718,7 +721,7 @@ function Update-IgwtGuiButtons {
     $c.InspectPowerDefaultButton.IsEnabled = $canPower
     $canManage = (-not $busy) -and $script:Gui.IsAdmin
     $svc = Get-IgwtGuiGridItem -Name Service; $task = Get-IgwtGuiGridItem -Name Task; $app = Get-IgwtGuiGridItem -Name App
-    $pe = Get-IgwtGuiGridItem -Name Persist; $fw = $c.ManageFirewallList.SelectedItem
+    $pe = Get-IgwtGuiGridItem -Name Persist
     $c.ManageRefreshButton.IsEnabled = -not $busy
     $c.ManageServiceApplyButton.IsEnabled = $canManage -and [bool]$svc -and [bool]$svc.Source.CanChange -and [bool]$c.ManageServiceStartBox.SelectedItem
     $c.ManageTaskDisableButton.IsEnabled = $canManage -and [bool]$task -and [bool]$task.Source.CanDisable
@@ -726,7 +729,6 @@ function Update-IgwtGuiButtons {
     $c.ManageAppRemoveButton.IsEnabled = $canManage -and [bool]$app -and $app.Source.PSObject.Properties['CanRemove'] -and [bool]$app.Source.CanRemove
     $c.ManagePersistDisableButton.IsEnabled = $canManage -and [bool]$pe -and [string]$pe.Source.ActionKind -ne 'None' -and $pe.Source.Enabled -ne $false
     $c.ManagePersistExportButton.IsEnabled = [bool]$script:Gui.Manage -and $script:Gui.Manage.Persistence.PSObject.Properties['Entries']
-    $c.ManageFirewallToggleButton.IsEnabled = $canManage -and [bool]$fw -and [bool]$fw.Source.CanChange
     $pick = $c.PresetPickBox.SelectedItem
     $c.SessionStartButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and -not $script:Gui.SessionActive
     $c.SessionStopButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$script:Gui.SessionActive
@@ -1509,34 +1511,6 @@ function Test-IgwtGuiSearchMatch {
     return ("$($Row.Title) $($Row.Subtitle) $($Row.Tip)".IndexOf($Text, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
 }
 
-function ConvertTo-IgwtGuiSortedRows {
-    <#
-    .SYNOPSIS
-        Sorts Manage rows by the column chosen in that tab's header (Title, Badge or State), numbers
-        by value ("120 MB" after "9 MB"), text case-insensitively; unsorted when no column is chosen.
-    #>
-    [CmdletBinding()]
-    param([AllowEmptyCollection()][object[]]$Rows, [Parameter(Mandatory = $true)][string]$Tab)
-    $s = $null
-    if ($script:Gui.ManageSort -and $script:Gui.ManageSort.ContainsKey($Tab)) { $s = $script:Gui.ManageSort[$Tab] }
-    if (-not $s -or -not $Rows -or $Rows.Count -lt 2) { return , @($Rows) }
-    $key = [string]$s.Key
-    $num = { param($v) $m = [regex]::Match([string]$v, '^\s*(\d+(?:[.,]\d+)?)'); if ($m.Success) { [double]($m.Groups[1].Value -replace ',', '.') } else { [double]::NaN } }
-    $allNum = @($Rows | Where-Object { [double]::IsNaN((& $num $_.$key)) }).Count -eq 0
-    $sorted = $(if ($allNum) { @($Rows | Sort-Object -Property @{ Expression = { & $num $_.$key } }, Title -Descending:([bool]$s.Descending)) }
-        else { @($Rows | Sort-Object -Property @{ Expression = { ([string]$_.$key).ToLowerInvariant() } }, @{ Expression = { ([string]$_.Title).ToLowerInvariant() } } -Descending:([bool]$s.Descending)) })
-    return , $sorted
-}
-
-function Get-IgwtGuiSortHeaders {
-    <# .SYNOPSIS The sortable column header buttons of the Manage page (Tag sort:<tab>:<column>). #>
-    [CmdletBinding()]
-    param($Node)
-    if ($null -eq $Node) { return }
-    if ($Node -is [System.Windows.Controls.Button] -and ([string]$Node.Tag).StartsWith('sort:')) { $Node }
-    if ($Node -is [System.Windows.DependencyObject]) { foreach ($child in [System.Windows.LogicalTreeHelper]::GetChildren($Node)) { Get-IgwtGuiSortHeaders -Node $child } }
-}
-
 function Get-IgwtGuiGridItem {
     <# .SYNOPSIS The first selected row of a page SmartGrid ($null when none). #>
     [CmdletBinding()]
@@ -1621,36 +1595,14 @@ function Initialize-IgwtGuiManageGrids {
     $c.ManagePersistGridHost.Content = $script:Gui.Grids.Persist.Root
 }
 
-function Set-IgwtGuiManageSort {
-    <# .SYNOPSIS Header click on the Manage page: sorts that tab by the column, a second click reverses, and marks the column with an arrow. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Tag)
-    $parts = $Tag.Split(':')
-    if ($parts.Count -ne 3) { return }
-    $tab = $parts[1]; $key = $parts[2]
-    if (-not $script:Gui.ManageSort) { $script:Gui.ManageSort = @{} }
-    $cur = $script:Gui.ManageSort[$tab]
-    $desc = $(if ($cur -and $cur.Key -eq $key) { -not [bool]$cur.Descending } else { $false })
-    $script:Gui.ManageSort[$tab] = [pscustomobject]@{ Key = $key; Descending = $desc }
-    foreach ($b in @(Get-IgwtGuiSortHeaders -Node $script:Gui.C.ManageTabs)) {
-        $p = ([string]$b.Tag).Split(':')
-        if ($p[1] -ne $tab) { continue }
-        $label = ([string]$b.Content) -replace '\s+[\u25B2\u25BC]$', ''
-        $b.Content = $(if ($p[2] -eq $key) { "$label $(if ($desc) { [char]0x25BC } else { [char]0x25B2 })" } else { $label })
-    }
-    Update-IgwtGuiManageLists
-}
-
 function Update-IgwtGuiManageLists {
-    <# .SYNOPSIS Fills the Manage lists from the cached data, filtered by the search box. #>
+    <# .SYNOPSIS Fills the Manage grids and the hosts viewer from the cached data. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
     $m = $script:Gui.Manage
     if (-not $m) { return }
-    $q = ([string]$c.ManageSearchBox.Text).Trim()
     $has = { param($o, $n) $o -and $o.PSObject.Properties[$n] }
     $err = { param($o) if (& $has $o 'Error') { "Not readable: $($o.Error)" } else { 'Not readable.' } }
     $grids = $script:Gui.Grids
@@ -1672,13 +1624,6 @@ function Update-IgwtGuiManageLists {
         $k = $m.Persistence.Counts
         $c.ManagePersistSummary.Text = "$($k.Total) entries (Microsoft-signed services, drivers and tasks hidden), $($k.Warn) warning(s), $($k.Review) to review. $($m.Persistence.Note)"
     } else { $c.ManagePersistSummary.Text = & $err $m.Persistence; Set-IgwtGridState -Grid $grids.Persist -State Error -Message (& $err $m.Persistence) }
-    if (& $has $m.Firewall 'Rules') {
-        $c.ManageFirewallList.ItemsSource = (ConvertTo-IgwtGuiSortedRows -Tab 'Firewall' -Rows @($m.Firewall.Rules | ForEach-Object {
-                    New-IgwtGuiManageRow -Title $_.DisplayName -Subtitle $(if ($_.Program) { $_.Program } else { $_.Group }) -Badge "$($_.Direction), $($_.Action)$(if ($_.IsWindowsRule) { ', Windows' })" -State $(if ($_.Enabled) { 'Enabled' } else { 'Disabled' }) `
-                        -Tone $(if ($_.IsWindowsRule) { 'Muted' } elseif ($_.Enabled) { 'Pass' } else { 'Muted' }) -Tip "$($_.Name)`nProfile: $($_.Profile)" -Source $_
-                } | Where-Object { Test-IgwtGuiSearchMatch -Row $_ -Text $q }))
-        $c.ManageFirewallSummary.Text = "$(@($m.Firewall.Rules).Count) rules, $($m.Firewall.AppRules) created by apps. $($m.Firewall.Note)"
-    } else { $c.ManageFirewallSummary.Text = & $err $m.Firewall }
     if (& $has $m.Hosts 'Entries') {
         $h = $m.Hosts
         $lines = @($h.Entries | Where-Object { $_.Flag -ne 'Expected' } | Select-Object -First 8 | ForEach-Object { "[$($_.Flag)] $($_.Address) $($_.HostName)" })
@@ -1713,8 +1658,6 @@ function Update-IgwtGuiManageDetail {
         $how = switch ([string]$x.ActionKind) { 'StartupEntry' { 'Disable turns the startup entry off (StartupApproved), like Task Manager.' } 'Service' { 'Disable sets the service startup type to Disabled.' } 'Task' { 'Disable disables the scheduled task.' } default { 'No documented disable mechanism here; investigate with Microsoft Defender or Autoruns.' } }
         $c.ManagePersistDetail.Text = "[$($x.Severity)] $($x.Category): $($x.Name)${nl}Location: $($x.Location)${nl}Command: $($x.Command)${nl}File: $($x.File)  Signature: $($x.Signature) $($x.Signer)$(if ($x.Note) { "$nl$($x.Note)" })$nl$how"
     } else { $c.ManagePersistDetail.Text = 'Select an entry.' }
-    $f = $c.ManageFirewallList.SelectedItem
-    $c.ManageFirewallDetail.Text = $(if ($f) { "$($f.Source.DisplayName) ($($f.Source.Name)): $($f.Source.Direction) $($f.Source.Action), $(if ($f.Source.Enabled) { 'enabled' } else { 'disabled' }), profile $($f.Source.Profile).${nl}Program: $($f.Source.Program)$(if ($f.Source.IsWindowsRule) { "${nl}Windows rule: shown for reference, never changed." })" } else { 'Select a rule.' })
     Update-IgwtGuiButtons
 }
 
@@ -2718,7 +2661,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -2735,6 +2678,7 @@ function Show-IgwtGuiPage {
         'Presets' { $c.PagePresets.Visibility = 'Visible'; Update-IgwtGuiPresetCards }
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace) { Start-IgwtGuiAsrRefresh } }
         'Defender' { $c.PageDefender.Visibility = 'Visible'; Set-IgwtGuiDefenderView -View $(if ($script:Gui.DefenderView) { $script:Gui.DefenderView } else { 'Prefs' }) }
+        'Firewall' { $c.PageFirewall.Visibility = 'Visible'; if (-not $script:Gui.Firewall -and $script:Gui.Runspace) { Start-IgwtGuiFirewallRefresh } }
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace) { Start-IgwtGuiManageRefresh } }
         'Toolkit' { $c.PageToolkit.Visibility = 'Visible'; Update-IgwtGuiToolkitLists; if (-not $script:Gui.Toolkit -and $script:Gui.Runspace) { Start-IgwtGuiToolkitRefresh } }
@@ -2791,6 +2735,12 @@ function Save-IgwtGuiScreenshots {
         Set-IgwtGuiDefenderData -Settings @(Get-IgwtDefenderSettings)
         if (@($script:Gui.C.DefList.ItemsSource).Count) { $script:Gui.C.DefList.SelectedIndex = 0 }
     } catch { Write-Warning "Defender settings unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
+    # Read-only data for the Firewall Manager (rules and profiles).
+    try {
+        Set-IgwtGuiFirewallInventory -Inventory (Get-IgwtFirewallInventory)
+        Set-IgwtGuiFirewallProfiles -Status (Get-IgwtFirewallProfileStatus)
+        if ($script:Gui.Grids.Firewall.Index.Count) { $script:Gui.Grids.Firewall.C.Grid.SelectedIndex = 0 }
+    } catch { Write-Warning "Firewall data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     $root = $script:Gui.Window.Content
     # Copy the window resources (theme) onto the root so implicit styles still resolve after detaching.
     $rd = New-Object System.Windows.ResourceDictionary
@@ -2870,7 +2820,7 @@ function Show-IgwtGui {
         DiagnosticsPath = $null; LastErrorDetails = ''; CurrentPage = ''; NoStateSave = [bool]$RenderTo; ViewState = $(if ($RenderTo) { @{} } else { Read-IgwtGuiState }); ThemeChoice = 'System'; ReduceMotion = $false; HcHandler = $null
         Catalog = @(Get-IgwtCatalog); Presets = @(Get-IgwtPreset); ScriptPath = $ScriptPath; AllowClose = $false
         CleanRules = @(Get-IgwtCleanerRules); CleanScan = $null; CleanSelected = @{}; Cts = $null; DiskSelected = $null
-        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null
+        Defender = $null; DefenderPolicies = $null; DefenderView = 'Prefs'; DefenderStale = $false; AsrStatus = $null; AsrAudit = $null; Inspection = $null; Manage = $null; Toolkit = $null; Drift = $null; SessionActive = $false; Acked = @{}; Persona = $null; NavDefault = $null; Diag = $null; NetResult = $null; Grids = @{}; Jobs = $null; Firewall = $null; FirewallProfiles = $null; FirewallLastSnapshot = $null
     }
     foreach ($n in $script:IgwtGuiControlNames) {
         $ctl = $window.FindName($n)
@@ -2881,7 +2831,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiDisplay -Theme $Theme
     Initialize-IgwtGuiChrome
     Initialize-IgwtGuiManageGrids
-    $c.ManageSearchBox.Visibility = 'Collapsed'
+    Initialize-IgwtGuiFirewallPage
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.RejectedList.ItemsSource = @(Get-IgwtRejectedTweaks | ForEach-Object {
@@ -2923,12 +2873,6 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.AsrDefenderButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Defender' }
     Register-IgwtGuiHandler -Control $c.DefHardeningButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Security' }
     Register-IgwtGuiHandler -Control $c.DefAsrButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Asr' }
-    Register-IgwtGuiHandler -Control $c.ManageTabs -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
-            param($source, $e)
-            $null = $source
-            $src = $e.OriginalSource
-            if ($src -is [System.Windows.Controls.Button] -and ([string]$src.Tag).StartsWith('sort:')) { Set-IgwtGuiManageSort -Tag ([string]$src.Tag); $e.Handled = $true }
-        }
     $c.NavList.SelectedIndex = 0
     Register-IgwtGuiHandler -Control $c.TweakList -Event 'SelectionChanged' -Handler { Update-IgwtGuiDetails }
     $toggleHandler = [System.Windows.RoutedEventHandler] {
@@ -3049,10 +2993,8 @@ function Show-IgwtGui {
     # Manage
     $c.ManageServiceStartBox.ItemsSource = @('Automatic', 'AutomaticDelayed', 'Manual', 'Disabled')
     Register-IgwtGuiHandler -Control $c.ManageRefreshButton -Event 'Click' -Handler { Start-IgwtGuiManageRefresh }
-    Register-IgwtGuiHandler -Control $c.ManageSearchBox -Event 'TextChanged' -Handler { Update-IgwtGuiManageLists }
-    Register-IgwtGuiHandler -Control $c.ManageFirewallList -Event 'SelectionChanged' -Handler { Update-IgwtGuiManageDetail }
-    # The page search box filters the firewall list; the other tabs have their own SmartGrid search.
-    Register-IgwtGuiHandler -Control $c.ManageTabs -Event 'SelectionChanged' -Handler { param($s, $e) if ([object]::ReferenceEquals($e.OriginalSource, $s)) { $script:Gui.C.ManageSearchBox.Visibility = $(if ($s.SelectedIndex -eq 4) { 'Visible' } else { 'Collapsed' }) } }
+    Register-IgwtGuiHandler -Control $c.ManageOpenFirewallButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Firewall' }
+    Register-IgwtGuiHandler -Control $c.SecFirewallButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Firewall' }
     # Toolkit
     Register-IgwtGuiHandler -Control $c.ToolkitRefreshButton -Event 'Click' -Handler { Start-IgwtGuiToolkitRefresh -WithAppState:([bool]($script:Gui.Toolkit -and $script:Gui.Toolkit.AppState)) }
     Register-IgwtGuiHandler -Control $c.ToolkitSearchBox -Event 'TextChanged' -Handler { Update-IgwtGuiToolkitLists }
@@ -3084,10 +3026,6 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.ManageAppRemoveButton -Event 'Click' -Handler { $row = Get-IgwtGuiGridItem -Name App; if ($row) { Invoke-IgwtGuiManagedChange -Kind appx -Target ([string]$row.Source.Name) -Value 'Removed' -Provisioned:([bool]$script:Gui.C.ManageAppProvisionedBox.IsChecked) } }
     Register-IgwtGuiHandler -Control $c.ManagePersistDisableButton -Event 'Click' -Handler { Invoke-IgwtGuiPersistenceDisable }
     Register-IgwtGuiHandler -Control $c.ManagePersistExportButton -Event 'Click' -Handler { Export-IgwtGuiPersistence }
-    Register-IgwtGuiHandler -Control $c.ManageFirewallToggleButton -Event 'Click' -Handler {
-            $row = $script:Gui.C.ManageFirewallList.SelectedItem
-            if ($row) { Invoke-IgwtGuiManagedChange -Kind firewallRule -Target ([string]$row.Source.Name) -Value $(if ($row.Source.Enabled) { 'Disabled' } else { 'Enabled' }) }
-        }
     # Network test
     $c.NetDurationBox.ItemsSource = @('Quick (10 seconds)', 'Standard (30 seconds)', 'Extended (2 minutes)')
     $c.NetDurationBox.SelectedIndex = 1

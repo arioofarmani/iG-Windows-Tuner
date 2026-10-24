@@ -148,6 +148,9 @@
                     <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
+                    <ListBoxItem Tag="Firewall" AutomationProperties.Name="Firewall" ToolTip="Security > Firewall: every firewall rule with risk views, safe rule actions, the new-rule wizard and the profiles">
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE774;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Firewall" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="System" AutomationProperties.Name="System" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
@@ -515,7 +518,8 @@
                         <StackPanel x:Name="SecuritySwitch" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
                             <Button x:Name="SecHardeningButton" Style="{StaticResource AccentButton}" Content="Hardening items" ToolTip="Security items of the catalog (VBS/HVCI, Defender, firewall, hardening)."/>
                             <Button x:Name="SecAsrButton" Content="ASR Center" ToolTip="Attack surface reduction rules (part of Security)."/>
-                            <Button x:Name="SecDefenderButton" Content="Defender settings" Margin="0" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy (part of Security)."/>
+                            <Button x:Name="SecDefenderButton" Content="Defender settings" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy (part of Security)."/>
+                            <Button x:Name="SecFirewallButton" Content="Firewall" Margin="0" ToolTip="Every firewall rule and profile (part of Security)."/>
                         </StackPanel>
                         <TextBlock x:Name="TweakPageTitle" Style="{StaticResource TextTitle}" Text="Tweaks"/>
                         <TextBlock x:Name="TweakPageSubtitle" Style="{StaticResource TextMuted}" Text="Toggles show the real current state. Toggling stages a change; nothing happens until you press Apply."/>
@@ -714,7 +718,6 @@
                     <StackPanel Grid.Row="0">
                         <DockPanel>
                             <Button x:Name="ManageRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read services, tasks, apps, persistence entries and firewall rules again (read-only)."/>
-                            <TextBox x:Name="ManageSearchBox" Style="{StaticResource SearchBox}" Tag="Filter this list" AutomationProperties.Name="Filter this list" DockPanel.Dock="Right" Width="240" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab by name, path or program."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Manage"/>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Every change here writes a snapshot first and can be reverted in Backups &amp; Logs. Protected services, tasks and apps (core Windows, security, update, audio, network, GPU drivers, anti-cheat) are refused. Nothing is ever deleted except inbox apps you remove on purpose."/>
@@ -781,28 +784,149 @@
                                 <ContentControl x:Name="ManagePersistGridHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
-                        <TabItem Header="Firewall &amp; hosts" ToolTip="Firewall rule browser (app rules can be enabled or disabled) and the read-only hosts-file viewer">
-                            <DockPanel Margin="0,8,0,0">
-                                <TextBlock x:Name="ManageFirewallSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
-                                <Grid DockPanel.Dock="Top" Margin="1,2,22,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Style="{StaticResource SortHeader}" Tag="sort:Firewall:Title" Content="Rule" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="1" Style="{StaticResource SortHeader}" Tag="sort:Firewall:Badge" Content="Direction, action" ToolTip="Sort by this column; click again to reverse."/>
-                                    <Button Grid.Column="2" Style="{StaticResource SortHeader}" Tag="sort:Firewall:State" Content="State" ToolTip="Sort by this column; click again to reverse."/>
-                                </Grid>
-                                <Border DockPanel.Dock="Bottom" Style="{StaticResource Card}" Margin="0,8,0,0">
-                                    <StackPanel>
-                                        <TextBlock x:Name="ManageFirewallDetail" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Select a rule."/>
-                                        <Button x:Name="ManageFirewallToggleButton" Content="Enable / disable app rule" HorizontalAlignment="Left" Margin="0" ToolTip="Confirm, write a snapshot and switch this app rule. Windows rules are never changed or deleted."/>
-                                        <TextBlock x:Name="ManageHostsText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-                                    </StackPanel>
+                        <TabItem Header="Hosts file" ToolTip="Read-only hosts-file viewer; firewall rules are in Security > Firewall">
+                            <StackPanel Margin="0,8,0,0">
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <Button x:Name="ManageOpenFirewallButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Open the Firewall Manager" Margin="12,0,0,0" VerticalAlignment="Center" ToolTip="Security > Firewall: every rule with risk views, rule actions and the profiles."/>
+                                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Text="Firewall rules moved to Security > Firewall, a full rule manager with search, filters, risk views and safe actions."/>
+                                    </DockPanel>
                                 </Border>
-                                <ListView x:Name="ManageFirewallList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
-                            </DockPanel>
+                                <TextBlock x:Name="ManageHostsText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,8,0,0" Text="Not read yet."/>
+                            </StackPanel>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+
+                <!-- Firewall Manager (Security > Firewall) -->
+                <Grid x:Name="PageFirewall" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Button x:Name="FwNewRuleButton" Style="{StaticResource AccentButton}" Content="New rule..." ToolTip="Create a firewall rule step by step (program, ports, networks), with a summary before anything changes."/>
+                                <Button x:Name="FwRefreshButton" Content="Refresh" Margin="0" ToolTip="Read every rule and profile again (read-only)."/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource TextTitle}"><Run Text="Security" Foreground="{DynamicResource BrushTextMuted}"/><Run Text="  &#x203A;  " Foreground="{DynamicResource BrushTextMuted}"/><Run Text="Firewall"/></TextBlock>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every rule of the active firewall policy, with where it comes from and what looks risky. Every change shows a summary first, writes a snapshot and can be undone. Group Policy rules are locked, Windows rules can only be enabled or disabled, and the firewall itself is never turned off."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <TextBlock x:Name="FwSummaryIcon" Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,0,8,0"/>
+                            <TextBlock x:Name="FwSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet."/>
+                        </StackPanel>
+                        <TextBlock x:Name="FwNoticeText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
+                    </StackPanel>
+                    <TabControl x:Name="FwTabs" Grid.Row="1" Margin="0,10,0,0">
+                        <TabItem Header="Rules" ToolTip="Every firewall rule: search, filter, sort and manage">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="330"/>
+                                </Grid.ColumnDefinitions>
+                                <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                                    <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                        <Button x:Name="FwImportButton" Content="Import..." ToolTip="Import rules from an iG Windows Tuner JSON export; a preview lists new and changed rules before anything changes."/>
+                                        <Button x:Name="FwExportButton" Content="Export all..." ToolTip="Save every rule to JSON (importable) or CSV. The firewall is not changed."/>
+                                        <Button x:Name="FwExportPolicyButton" Content="Export full policy (.wfw)..." Margin="0" ToolTip="Back up the whole firewall policy with netsh advfirewall export. The firewall is not changed."/>
+                                    </WrapPanel>
+                                    <ContentControl x:Name="FwGridHost" Focusable="False"/>
+                                </DockPanel>
+                                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock x:Name="FwDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a rule"/>
+                                            <TextBlock x:Name="FwDetMeta" Style="{StaticResource TextMuted}" Margin="0,4,0,0"/>
+                                            <Border x:Name="FwDetRiskBox" Background="{DynamicResource BrushWarningSoft}" BorderBrush="{DynamicResource BrushWarning}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,10,0,0" Visibility="Collapsed">
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{DynamicResource BrushWarning}" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                                                    <TextBlock x:Name="FwDetRisk" TextWrapping="Wrap"/>
+                                                </DockPanel>
+                                            </Border>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Actions"/>
+                                            <WrapPanel>
+                                                <Button x:Name="FwEnableButton" Content="Enable" Margin="0,0,6,6" ToolTip="Turn this rule on (snapshot first)."/>
+                                                <Button x:Name="FwDisableButton" Content="Disable" Margin="0,0,6,6" ToolTip="Turn this rule off (snapshot first). Windows rules can be disabled, not deleted."/>
+                                                <Button x:Name="FwAllowButton" Content="Set to Allow" Margin="0,0,6,6" ToolTip="Change the action to Allow (snapshot first)."/>
+                                                <Button x:Name="FwBlockButton" Content="Set to Block" Margin="0,0,6,6" ToolTip="Change the action to Block (snapshot first). The program may stop working online."/>
+                                                <Button x:Name="FwEditButton" Content="Edit..." Margin="0,0,6,6" ToolTip="Change the name, networks, ports, addresses or program (snapshot first)."/>
+                                                <Button x:Name="FwDuplicateButton" Content="Duplicate" Margin="0,0,6,6" ToolTip="Copy this rule as a new iG Windows Tuner rule you can change."/>
+                                                <Button x:Name="FwDeleteButton" Style="{StaticResource DangerButton}" Content="Delete..." Margin="0,0,6,6" ToolTip="Delete this rule (a snapshot keeps it so Undo recreates it). Windows rules are never deleted."/>
+                                            </WrapPanel>
+                                            <TextBlock x:Name="FwDetWhy" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            <TextBlock Style="{StaticResource TextSection}" Text="Details"/>
+                                            <TextBlock x:Name="FwDetText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" FontFamily="{DynamicResource FontUi}"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Profiles and networks" ToolTip="Domain, Private and Public profiles, and the network category of each connection">
+                            <ScrollViewer x:Name="FwProfilesPanel" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Each network uses one profile: Public for networks you do not control (cafes, hotels, school), Private for your home network. Changes here only move toward more protection: the firewall stays on and inbound traffic stays blocked by default."/>
+                                    <ItemsControl x:Name="FwProfileList" Margin="0,10,0,0">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource Card}" Width="320" Margin="0,0,12,12">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,6">
+                                                            <TextBlock Style="{StaticResource Icon}" Text="{Binding StateGlyph}" Foreground="{Binding StateBrush}" FontSize="14" Margin="0,0,6,0"/>
+                                                            <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}"/>
+                                                        <DockPanel Margin="0,8,0,0">
+                                                            <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding Notifications, Mode=OneWay}" Tag="{Binding NotifyTag}" ToolTip="Notify me when a program is blocked from listening" AutomationProperties.Name="{Binding NotifyName}"/>
+                                                            <TextBlock Text="Notify when a program is blocked" VerticalAlignment="Center"/>
+                                                        </DockPanel>
+                                                        <DockPanel Margin="0,6,0,0">
+                                                            <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding LogBlocked, Mode=OneWay}" Tag="{Binding LogBlockedTag}" ToolTip="Log dropped packets (for the firewall log analyzer)" AutomationProperties.Name="{Binding LogBlockedName}"/>
+                                                            <TextBlock Text="Log blocked connections" VerticalAlignment="Center"/>
+                                                        </DockPanel>
+                                                        <DockPanel Margin="0,6,0,0">
+                                                            <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding LogAllowed, Mode=OneWay}" Tag="{Binding LogAllowedTag}" ToolTip="Log allowed connections (large logs)" AutomationProperties.Name="{Binding LogAllowedName}"/>
+                                                            <TextBlock Text="Log allowed connections" VerticalAlignment="Center"/>
+                                                        </DockPanel>
+                                                        <DockPanel Margin="0,6,0,0">
+                                                            <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding UnicastResponse, Mode=OneWay}" Tag="{Binding UnicastTag}" ToolTip="Allow unicast responses to multicast and broadcast traffic (needed by some discovery protocols)" AutomationProperties.Name="{Binding UnicastName}"/>
+                                                            <TextBlock Text="Unicast response to multicast" VerticalAlignment="Center"/>
+                                                        </DockPanel>
+                                                        <WrapPanel Margin="0,10,0,0">
+                                                            <Button Content="Turn on" Style="{StaticResource AccentButton}" Tag="{Binding TurnOnTag}" Visibility="{Binding TurnOnVisibility}" Margin="0,0,6,0" ToolTip="Turn this firewall profile on (snapshot first)."/>
+                                                            <Button Content="{Binding OutboundText}" Tag="{Binding OutboundTag}" Margin="0" ToolTip="Switch the default for outbound connections between Allow and Block (snapshot first). Block needs outbound rules for every program."/>
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Connected networks"/>
+                                    <ItemsControl x:Name="FwNetworkList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource Card}">
+                                                    <DockPanel>
+                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Content="Set to Private" Tag="{Binding PrivateTag}" IsEnabled="{Binding CanPrivate}" ToolTip="Home network you trust: allows discovery and sharing rules for this network (snapshot first)."/>
+                                                            <Button Content="Set to Public" Tag="{Binding PublicTag}" IsEnabled="{Binding CanPublic}" Margin="0" ToolTip="Networks you do not control: the safer choice (snapshot first)."/>
+                                                        </StackPanel>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}"/>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock x:Name="FwProfileNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    <Button x:Name="FwLogButton" Content="Analyze the firewall log" HorizontalAlignment="Left" Margin="0,10,0,0" ToolTip="Summarize blocked and allowed connections from the firewall log (read-only). Turn on logging above first."/>
+                                </StackPanel>
+                            </ScrollViewer>
                         </TabItem>
                     </TabControl>
                 </Grid>

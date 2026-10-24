@@ -249,7 +249,7 @@ function Export-IgwtGuiReport {
 }
 
 function Get-IgwtGuiManageData {
-    <# .SYNOPSIS (worker) Read-only data for the Manage page: services, tasks, apps, persistence and app firewall rules. Each part reports its own error. #>
+    <# .SYNOPSIS (worker) Read-only data for the Manage page: services, tasks, apps, persistence and the hosts file. Each part reports its own error. #>
     [CmdletBinding()]
     param()
     $part = { param($block) try { & $block } catch { [pscustomobject]@{ Error = $_.Exception.Message } } }
@@ -258,7 +258,6 @@ function Get-IgwtGuiManageData {
         Tasks       = & $part { Get-IgwtTaskInventory }
         Apps        = & $part { Get-IgwtAppInventory }
         Persistence = & $part { Get-IgwtPersistenceInventory }
-        Firewall    = & $part { Get-IgwtFirewallRuleList }
         Hosts       = & $part { Get-IgwtHostsFile }
     }
 }
@@ -318,7 +317,7 @@ function New-IgwtGuiManageRow {
     [pscustomobject]@{ Title = $Title; Subtitle = $Subtitle; State = $State; Badge = $Badge; StateBrush = (Get-IgwtGuiToneBrush -Tone $Tone); Tip = $(if ($Tip) { $Tip } else { $Subtitle }); Source = $Source }
 }
 
-$script:IgwtToneGlyph = @{ Pass = [string][char]0xE73E; Warn = [string][char]0xE7BA; Fail = [string][char]0xEA39; Info = [string][char]0xE946; Muted = [string][char]0xE72E; Text = [string][char]0xE91F }
+$script:IgwtToneGlyph = @{ Pass = [string][char]0xE73E; Warn = [string][char]0xE7BA; Fail = [string][char]0xEA39; Info = [string][char]0xE946; Muted = [string][char]0xE738; Text = [string][char]0xE91F; Lock = [string][char]0xE72E }
 
 function Get-IgwtGuiToneBrush {
     <# .SYNOPSIS The theme brush of a tone; unknown tones fall back to the text colour (never throws). #>
@@ -343,10 +342,11 @@ function Add-IgwtGuiStatusField {
     <# .SYNOPSIS Adds <Name>, <Name>Brush and <Name>Glyph to a row hashtable (SmartGrid Status columns). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Row, [Parameter(Mandatory = $true)][string]$Name, [string]$Text, [string]$Tone = 'Text')
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Row, [Parameter(Mandatory = $true)][string]$Name, [string]$Text, [string]$Tone = 'Text', [switch]$Locked)
     $Row[$Name] = $Text
     $Row["${Name}Brush"] = Get-IgwtGuiToneBrush -Tone $Tone
-    $Row["${Name}Glyph"] = Get-IgwtGuiToneGlyph -Tone $Tone
+    # Locked or protected items show a lock; everything else the icon of its tone.
+    $Row["${Name}Glyph"] = $(if ($Locked) { $script:IgwtToneGlyph['Lock'] } else { Get-IgwtGuiToneGlyph -Tone $Tone })
 }
 
 function New-IgwtGuiServiceRow {
@@ -361,7 +361,7 @@ function New-IgwtGuiServiceRow {
         Key = [string]$s.Name; Title = [string]$s.DisplayName; Name = [string]$s.Name; Status = [string]$s.State; Startup = [string]$s.StartupType
         Account = [string]$s.Account; Description = [string]$s.Description; Subtitle = "$($s.Name) - $($s.Description)"; Tip = "$($s.Advice)`n$($s.Path)".Trim(); Source = $s
     }
-    Add-IgwtGuiStatusField -Row $r -Name 'Rating' -Text $(if ($rating -eq 'ThirdParty') { 'Installed by an app' } elseif ($rating) { $rating } else { 'Unknown' }) -Tone $tone
+    Add-IgwtGuiStatusField -Row $r -Name 'Rating' -Text $(if ($rating -eq 'ThirdParty') { 'Installed by an app' } elseif ($rating) { $rating } else { 'Unknown' }) -Tone $tone -Locked:($rating -eq 'Protected')
     $r.RatingKey = $rating
     return [pscustomobject]$r
 }
@@ -378,7 +378,7 @@ function New-IgwtGuiTaskRow {
         Key = "$($t.TaskPath)$($t.Name)"; Title = [string]$t.Name; Path = [string]$t.TaskPath; Publisher = $(if ($t.IsMicrosoft) { 'Microsoft' } else { 'Third-party' })
         Author = [string]$t.Author; Action = [string]$t.Action; RawState = [string]$t.State; Subtitle = [string]$t.TaskPath; Tip = "$($t.Description)`n$($t.Action)".Trim(); Source = $t
     }
-    Add-IgwtGuiStatusField -Row $r -Name 'State' -Text $state -Tone $tone
+    Add-IgwtGuiStatusField -Row $r -Name 'State' -Text $state -Tone $tone -Locked:([bool]$t.Protected)
     return [pscustomobject]$r
 }
 
@@ -395,7 +395,7 @@ function New-IgwtGuiAppRow {
         SizeMB = $size; Size = $(if ($size) { '{0:N0} MB' -f $size } else { '' }); Source = $a
     }
     if ($Kind -eq 'Appx') {
-        Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $(if ($a.Protected) { 'Protected' } elseif ($a.CanRemove) { 'Removable' } else { 'Kept' }) -Tone $(if ($a.Protected) { 'Muted' } else { 'Text' })
+        Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $(if ($a.Protected) { 'Protected' } elseif ($a.CanRemove) { 'Removable' } else { 'Kept' }) -Tone $(if ($a.Protected) { 'Muted' } else { 'Text' }) -Locked:([bool]$a.Protected)
         $r.Subtitle = "Inbox / Store app $($a.Version)"; $r.Tip = [string]$a.Note
     } else {
         Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $(if ($a.Scope) { [string]$a.Scope } else { 'Installed' }) -Tone 'Muted'

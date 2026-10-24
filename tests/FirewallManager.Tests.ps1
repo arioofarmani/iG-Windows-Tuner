@@ -2,12 +2,16 @@ BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     Initialize-IgwtTestEnvironment
 
-    function New-FwRule([string]$Name, [string]$Display, [string]$Group = '', [string]$Enabled = 'True', [string]$Direction = 'Inbound', [string]$Action = 'Allow', [string]$Profile = 'Any', [string]$StoreType = 'Local', [string]$Owner = '') {
-        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profile
+    function New-FwRule {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test data builder.')]
+        param([string]$Name, [string]$Display, [string]$Group = '', [string]$Enabled = 'True', [string]$Direction = 'Inbound', [string]$Action = 'Allow', [string]$Profiles = 'Any', [string]$StoreType = 'Local', [string]$Owner = '')
+        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profiless
             PolicyStoreSourceType = $StoreType; PolicyStoreSource = $(if ($StoreType -eq 'GroupPolicy') { 'contoso.test GPO' } else { 'PersistentStore' }); Owner = $Owner; EdgeTraversalPolicy = 'Block'; Description = "$Display rule" }
     }
     # A small in-memory firewall for the change tests: name -> definition.
     function Reset-FwStore {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test data builder.')]
+        param()
         $script:FwStore = @{
             'App-Game-In' = @{ name = 'App-Game-In'; displayName = 'Game server'; description = ''; group = ''; enabled = $true; direction = 'Inbound'; action = 'Allow'; profile = 'Private'; program = 'C:\Games\game.exe'; protocol = 'UDP'; localPort = @('27015'); remotePort = @(); localAddress = @(); remoteAddress = @(); service = 'Any'; package = ''; owner = ''; edgeTraversal = 'Block'; interfaceType = 'Any' }
             'CoreNet-DHCP-In' = @{ name = 'CoreNet-DHCP-In'; displayName = 'Core Networking - DHCP'; description = ''; group = '@FirewallAPI.dll,-25000'; enabled = $true; direction = 'Inbound'; action = 'Allow'; profile = 'Any'; program = 'System'; protocol = 'UDP'; localPort = @('68'); remotePort = @('67'); localAddress = @(); remoteAddress = @(); service = 'Dhcp'; package = ''; owner = ''; edgeTraversal = 'Block'; interfaceType = 'Any' }
@@ -27,10 +31,10 @@ BeforeAll {
 Describe 'Firewall Manager: inventory join and risk flags' {
     BeforeAll {
         $script:Rules = @(
-            New-FwRule 'Game-In' 'Game (inbound)' -Profile 'Private, Public'
-            New-FwRule 'Game-In-2' 'Game (inbound) again' -Profile 'Private, Public'
-            New-FwRule 'Open-All' 'Open everything' -Profile 'Public'
-            New-FwRule 'Win-Cast' '@{Microsoft.Cast}' -Group '@FirewallAPI.dll,-36001' -Enabled 'False' -Profile 'Private'
+            New-FwRule 'Game-In' 'Game (inbound)' -Profiles 'Private, Public'
+            New-FwRule 'Game-In-2' 'Game (inbound) again' -Profiles 'Private, Public'
+            New-FwRule 'Open-All' 'Open everything' -Profiles 'Public'
+            New-FwRule 'Win-Cast' '@{Microsoft.Cast}' -Group '@FirewallAPI.dll,-36001' -Enabled 'False' -Profiles 'Private'
             New-FwRule 'Gpo-Block' 'Corp block' -Direction 'Outbound' -Action 'Block' -StoreType 'GroupPolicy'
             New-FwRule 'Store-App' 'Store app' -Owner 'S-1-15-2-1' -Direction 'Outbound'
             New-FwRule 'iGWindowsTuner-User-abc' 'My rule' -Group 'iG Windows Tuner' -Direction 'Outbound' -Action 'Block'

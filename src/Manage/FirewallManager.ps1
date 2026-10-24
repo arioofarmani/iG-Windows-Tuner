@@ -123,7 +123,10 @@ function Add-IgwtFirewallRisk {
     $labels = @{ InboundPublic = 'Inbound allow on Public'; Broad = 'Any program, any port'; ProgramMissing = 'Program not found'; UserWritable = 'Program in a user-writable folder'; Duplicate = 'Duplicate'; DisabledWindows = 'Disabled Windows default' }
     $keyOf = { param($r) ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}' -f $r.Direction, $r.Action, ([string]$r.Program).ToLowerInvariant(), $r.Service, $r.Package, $r.Protocol, $r.LocalPort, $r.RemotePort, $r.RemoteAddress, $r.Profiles) }
     $count = @{}
-    foreach ($r in $Rows) { $k = & $keyOf $r; if ($count.ContainsKey($k)) { $count[$k]++ } else { $count[$k] = 1 } }
+    # Duplicates are counted among app, Store and user rules only: Windows ships many look-alike rules
+    # that differ in settings this view does not read, and Group Policy rules are not ours to merge.
+    $dupCandidate = { param($r) [string]$r.Source -notin 'Windows', 'GroupPolicy' }
+    foreach ($r in $Rows) { if (-not (& $dupCandidate $r)) { continue }; $k = & $keyOf $r; if ($count.ContainsKey($k)) { $count[$k]++ } else { $count[$k] = 1 } }
     foreach ($r in $Rows) {
         $risks = New-Object System.Collections.Generic.List[string]
         $inboundAllow = $r.Enabled -and $r.Direction -eq 'Inbound' -and $r.Action -eq 'Allow'
@@ -131,7 +134,7 @@ function Add-IgwtFirewallRisk {
         if ($inboundAllow -and $r.Program -eq 'Any' -and $r.Service -eq 'Any' -and -not $r.Package -and $r.LocalPort -in 'Any', '' -and $r.RemoteAddress -in 'Any', '') { $risks.Add('Broad') }
         if ($r.ProgramExists -eq 'No') { $risks.Add('ProgramMissing') }
         if (Test-IgwtFirewallUserWritablePath -Path $r.Program) { $risks.Add('UserWritable') }
-        if ($count[(& $keyOf $r)] -gt 1) { $risks.Add('Duplicate') }
+        if ((& $dupCandidate $r) -and $count[(& $keyOf $r)] -gt 1) { $risks.Add('Duplicate') }
         if ($r.Source -eq 'Windows' -and -not $r.Enabled) { $risks.Add('DisabledWindows') }
         $r.Risks = $risks.ToArray()
         $r.RiskText = (@($risks | Where-Object { $_ -ne 'DisabledWindows' } | ForEach-Object { $labels[$_] }) -join '; ')

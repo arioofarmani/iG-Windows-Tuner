@@ -278,6 +278,7 @@ function Get-IgwtGridShellXaml {
         <TextBox x:Name="SearchBox" Style="{DynamicResource SearchBox}" Width="280" HorizontalAlignment="Left"/>
     </DockPanel>
     <WrapPanel x:Name="ChipPanel" DockPanel.Dock="Top" Margin="0,2,0,4"/>
+    <WrapPanel x:Name="MoreChipPanel" DockPanel.Dock="Top" Margin="0,0,0,4" Visibility="Collapsed"/>
     <Border x:Name="BulkBar" DockPanel.Dock="Top" Visibility="Collapsed" Background="{DynamicResource BrushAccentSoft}" BorderBrush="{DynamicResource BrushAccent}" BorderThickness="1" CornerRadius="6" Padding="12,6" Margin="0,0,0,6">
         <DockPanel>
             <TextBlock x:Name="BulkText" DockPanel.Dock="Left" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
@@ -357,9 +358,9 @@ function New-IgwtSmartGrid {
         EmptyActionText = ''; EmptyAction = $null; StateAction = ''
         Index = (New-IgwtGridIndex -Rows @() -Columns $cols); Order = [int[]]@(); Search = ''; ActiveChips = (New-Object 'System.Collections.Generic.HashSet[string]'); ColumnFilters = @{}; Sort = @()
         State = 'Loading'; StateMessage = ''; LastRefreshed = $null; OnSelectionChanged = $OnSelectionChanged; OnRefresh = $OnRefresh; OnActivate = $OnActivate; OnRetry = $OnRefresh
-        C = @{}; ChipButtons = @{}; DataColumns = @{}; Restoring = $false; Updating = $false; SearchTimer = $null; SaveTimer = $null; LastQueryMs = 0; Default = $null
+        C = @{}; ChipButtons = @{}; MoreButton = $null; DataColumns = @{}; Restoring = $false; Updating = $false; SearchTimer = $null; SaveTimer = $null; LastQueryMs = 0; Default = $null
     }
-    foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton', 'SearchBox', 'ChipPanel', 'BulkBar', 'BulkText', 'BulkClearButton', 'BulkActions', 'Grid', 'StatePanel', 'SkeletonPanel', 'StateIcon', 'StateTitle', 'StateText', 'StateButton') {
+    foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton', 'SearchBox', 'ChipPanel', 'MoreChipPanel', 'BulkBar', 'BulkText', 'BulkClearButton', 'BulkActions', 'Grid', 'StatePanel', 'SkeletonPanel', 'StateIcon', 'StateTitle', 'StateText', 'StateButton') {
         $g.C[$n] = $root.FindName($n)
     }
     $c = $g.C
@@ -369,6 +370,7 @@ function New-IgwtSmartGrid {
     $root.Tag = $Id
     foreach ($b in 'ClearButton', 'ViewButton', 'RefreshLink', 'BulkClearButton', 'StateButton', 'BulkActions', 'Grid') { $c[$b].Tag = $Id }
     $c.ChipPanel.DataContext = $Id
+    $c.MoreChipPanel.DataContext = $Id
     $c.SearchBox.DataContext = $Id
     $c.SearchBox.Tag = $SearchPlaceholder
     $c.SearchBox.ToolTip = "$SearchPlaceholder (all words must match; Ctrl+F)"
@@ -403,8 +405,22 @@ function New-IgwtSmartGrid {
         $tb.ToolTip = $(if ($ch.Tip) { [string]$ch.Tip } else { "Show only: $($ch.Label)" })
         [System.Windows.Automation.AutomationProperties]::SetAutomationId($tb, "Chip_${auto}_$(([string]$ch.Id) -replace '[^A-Za-z0-9]', '')")
         [System.Windows.Automation.AutomationProperties]::SetName($tb, [string]$ch.Label)
-        $null = $c.ChipPanel.Children.Add($tb)
+        # Primary chips are always shown; chips marked More sit behind a "More filters" toggle (fewer
+        # choices at once).
+        if ($ch.More) { $null = $c.MoreChipPanel.Children.Add($tb) } else { $null = $c.ChipPanel.Children.Add($tb) }
         $g.ChipButtons[[string]$ch.Id] = $tb
+    }
+    $moreCount = @($g.Chips | Where-Object { $_.More }).Count
+    if ($moreCount) {
+        $mb = New-Object System.Windows.Controls.Primitives.ToggleButton
+        $mb.SetResourceReference([System.Windows.FrameworkElement]::StyleProperty, 'Chip')
+        $mb.Content = "More filters ($moreCount)"
+        $mb.Tag = ''
+        $mb.ToolTip = 'Show or hide the other quick filters'
+        [System.Windows.Automation.AutomationProperties]::SetAutomationId($mb, "${auto}MoreFilters")
+        [System.Windows.Automation.AutomationProperties]::SetName($mb, 'More filters')
+        $null = $c.ChipPanel.Children.Add($mb)
+        $g.MoreButton = $mb
     }
     if ($g.Chips.Count -eq 0) { $c.ChipPanel.Visibility = 'Collapsed' }
     Register-IgwtGuiHandler -Control $c.ChipPanel -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
@@ -413,6 +429,18 @@ function New-IgwtSmartGrid {
             if (-not ($tb -is [System.Windows.Controls.Primitives.ToggleButton])) { return }
             $grid = $script:IgwtGrids[[string]$s.DataContext]
             if (-not $grid) { return }
+            if ([object]::ReferenceEquals($tb, $grid.MoreButton)) { $grid.C.MoreChipPanel.Visibility = $(if ($tb.IsChecked) { 'Visible' } else { 'Collapsed' }); return }
+            if ($tb.IsChecked) { $null = $grid.ActiveChips.Add([string]$tb.Tag) } else { $null = $grid.ActiveChips.Remove([string]$tb.Tag) }
+            Update-IgwtGridView -Grid $grid
+            Request-IgwtGridSave -Grid $grid
+        }
+    Register-IgwtGuiHandler -Control $c.MoreChipPanel -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
+            param($s, $e)
+            $tb = $e.OriginalSource
+            if (-not ($tb -is [System.Windows.Controls.Primitives.ToggleButton])) { return }
+            $grid = $script:IgwtGrids[[string]$s.DataContext]
+            if (-not $grid) { return }
+            if ([object]::ReferenceEquals($tb, $grid.MoreButton)) { $grid.C.MoreChipPanel.Visibility = $(if ($tb.IsChecked) { 'Visible' } else { 'Collapsed' }); return }
             if ($tb.IsChecked) { $null = $grid.ActiveChips.Add([string]$tb.Tag) } else { $null = $grid.ActiveChips.Remove([string]$tb.Tag) }
             Update-IgwtGridView -Grid $grid
             Request-IgwtGridSave -Grid $grid
@@ -547,6 +575,7 @@ function Set-IgwtGridChip {
     if ($Exclusive) { $Grid.ActiveChips.Clear(); foreach ($tb in $Grid.ChipButtons.Values) { $tb.IsChecked = $false } }
     if ($On) { $null = $Grid.ActiveChips.Add($ChipId) } else { $null = $Grid.ActiveChips.Remove($ChipId) }
     if ($Grid.ChipButtons.ContainsKey($ChipId)) { $Grid.ChipButtons[$ChipId].IsChecked = $On }
+    Update-IgwtGridMorePanel -Grid $Grid
     Update-IgwtGridView -Grid $Grid
 }
 
@@ -922,6 +951,17 @@ function Set-IgwtGridViewSnapshot {
         if (@($Grid.DataColumns.Values | Where-Object { $_.Visibility -eq 'Visible' }).Count -eq 0) { foreach ($dc in $Grid.DataColumns.Values) { $dc.Visibility = 'Visible' } }
     } finally { $Grid.Restoring = $false }
     Update-IgwtGridSortIndicators -Grid $Grid
+    Update-IgwtGridMorePanel -Grid $Grid
+}
+
+function Update-IgwtGridMorePanel {
+    <# .SYNOPSIS Shows the More filters panel when one of its chips is on. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the view only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Grid)
+    if (-not $Grid.MoreButton) { return }
+    $on = @($Grid.Chips | Where-Object { $_.More -and $Grid.ActiveChips.Contains([string]$_.Id) }).Count -gt 0
+    if ($on) { $Grid.MoreButton.IsChecked = $true; $Grid.C.MoreChipPanel.Visibility = 'Visible' }
 }
 
 function Restore-IgwtGridView {
