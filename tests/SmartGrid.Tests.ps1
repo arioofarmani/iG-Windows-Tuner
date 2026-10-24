@@ -175,4 +175,21 @@ Describe 'SmartGrid control (WPF)' {
             } finally { $script:Gui = $null; $script:IgwtGrids.Remove('test.grid') }
         }
     }
+
+    It 'keeps the selected row of a single-select grid when its rows reload' {
+        # Single-select grids (tweaks, Defender, power plan) used SelectedItems.Add, which throws.
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF requires an STA thread.'; return }
+        InModuleScope iGWindowsTuner {
+            $w = New-IgwtMainWindow
+            $null = Set-IgwtGuiTheme -Target $w -Name Dark
+            $script:Gui = @{ Window = $w; ViewState = @{}; NoStateSave = $true; ReadOnly = $true; IsAdmin = $false; DiagnosticsPath = $null }
+            try {
+                $g = New-IgwtSmartGrid -Id 'test.single' -Columns @(@{ Key = 'Name' }) -RowKey 'Name' -SelectionMode Single
+                Set-IgwtGridRows -Grid $g -Rows @([pscustomobject]@{ Name = 'a' }, [pscustomobject]@{ Name = 'b' })
+                $g.C.Grid.SelectedIndex = 1
+                { Set-IgwtGridRows -Grid $g -Rows @([pscustomobject]@{ Name = 'a' }, [pscustomobject]@{ Name = 'b' }, [pscustomobject]@{ Name = 'c' }) } | Should -Not -Throw
+                $g.C.Grid.SelectedItem.Name | Should -Be 'b'
+            } finally { $script:Gui = $null; $script:IgwtGrids.Remove('test.single') }
+        }
+    }
 }

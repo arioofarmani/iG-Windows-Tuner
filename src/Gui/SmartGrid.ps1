@@ -676,7 +676,13 @@ function Update-IgwtGridView {
         # A new ItemsSource clears the sort arrows of the DataGrid; show ours again.
         Update-IgwtGridSortIndicators -Grid $Grid
         if ($selectedKeys -and $selectedKeys.Count) {
-            foreach ($r in $items) { if ($selectedKeys.Contains([string]$r.($Grid.RowKey))) { $null = $c.Grid.SelectedItems.Add($r) } }
+            # A single-select grid refuses SelectedItems.Add: set SelectedItem instead.
+            $single = ($c.Grid.SelectionMode -eq [System.Windows.Controls.DataGridSelectionMode]::Single)
+            foreach ($r in $items) {
+                if (-not $selectedKeys.Contains([string]$r.($Grid.RowKey))) { continue }
+                if ($single) { $c.Grid.SelectedItem = $r; break }
+                $null = $c.Grid.SelectedItems.Add($r)
+            }
         }
     } finally { $Grid.Updating = $false }
     if ($Grid.ScrollViewer -and $offset -gt 0) { $sv = $Grid.ScrollViewer; $null = $c.Grid.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Loaded, [Action[double]] { param($o) $sv.ScrollToVerticalOffset($o) }, $offset) }

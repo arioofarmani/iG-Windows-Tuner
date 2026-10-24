@@ -312,12 +312,16 @@ function New-IgwtGuiManageRow {
     <# .SYNOPSIS Generic bindable row for the Manage and Diagnostics lists (title, subtitle, state with color, tooltip, source object). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
-    param([string]$Title, [string]$Subtitle, [string]$State, [string]$Badge, [string]$Tone = 'Text', [string]$Tip, $Source)
+    param([string]$Title, [string]$Subtitle, [string]$State, [string]$Badge, [string]$Tone = 'Text', [string]$Tip, $Source, [string]$Key, [hashtable]$Extra)
     # No ValidateSet: an unexpected tone from the data must not blank the page (audit X2).
-    [pscustomobject]@{ Title = $Title; Subtitle = $Subtitle; State = $State; Badge = $Badge; StateBrush = (Get-IgwtGuiToneBrush -Tone $Tone); Tip = $(if ($Tip) { $Tip } else { $Subtitle }); Source = $Source }
+    $r = [ordered]@{ Key = $(if ($Key) { $Key } else { "$Title|$Badge|$Subtitle" }); Title = $Title; Subtitle = $Subtitle; State = $State; Badge = $Badge
+        StateBrush = (Get-IgwtGuiToneBrush -Tone $Tone); StateGlyph = (Get-IgwtGuiToneGlyph -Tone $Tone); Tone = [string]$Tone; Tip = $(if ($Tip) { $Tip } else { $Subtitle }); Source = $Source }
+    # Extra fields for chips and sort keys of one list (they never replace the fields above).
+    if ($Extra) { foreach ($k in $Extra.Keys) { if (-not $r.Contains($k)) { $r[$k] = $Extra[$k] } } }
+    [pscustomobject]$r
 }
 
-$script:IgwtToneGlyph = @{ Pass = [string][char]0xE73E; Warn = [string][char]0xE7BA; Fail = [string][char]0xEA39; Info = [string][char]0xE946; Muted = [string][char]0xE738; Text = [string][char]0xE91F; Lock = [string][char]0xE72E }
+$script:IgwtToneGlyph = @{ Pass = [string][char]0xE73E; Warn = [string][char]0xE7BA; Fail = [string][char]0xEA39; Info = [string][char]0xE946; Accent = [string][char]0xE946; Muted = [string][char]0xE738; Text = [string][char]0xE91F; Lock = [string][char]0xE72E }
 
 function Get-IgwtGuiToneBrush {
     <# .SYNOPSIS The theme brush of a tone; unknown tones fall back to the text colour (never throws). #>
@@ -602,7 +606,8 @@ function New-IgwtGuiCleanerRow {
     if ($RuleScan.Skipped -and $RuleScan.Skipped.Count) { $tip.Add('Skipped: ' + (@($RuleScan.Skipped.GetEnumerator() | ForEach-Object { "$($_.Key) ($($_.Value))" }) -join '; ')) }
     $count = ''
     if ([int]$RuleScan.Count -gt 0) { $count = "$($RuleScan.Count) item(s)" }
-    [pscustomobject]@{
+    $r = [ordered]@{
+        Key             = [string]$RuleScan.RuleId
         Id              = [string]$RuleScan.RuleId
         Name            = [string]$RuleScan.Name
         Hint            = [string]$RuleScan.Hint
@@ -621,7 +626,16 @@ function New-IgwtGuiCleanerRow {
         CanSelect       = $canSelect
         SelectTip       = $selectTip
         Tip             = ($tip -join [Environment]::NewLine)
+        OptInText       = $(if ($RuleScan.Default) { '' } else { 'Opt-in' })
+        Count           = [int]$RuleScan.Count
     }
+    # SmartGrid fields: the tick box (On, Tag = Key) and the status and level columns (icon + word).
+    $r.On = $r.Selected; $r.OnEnabled = $canSelect; $r.OnTip = $selectTip; $r.OnName = "Clean $($r.Name)"
+    $tone = switch ($status) { 'Ready' { 'Accent' } 'RequiresClose' { 'Warn' } 'RequiresAdmin' { 'Warn' } 'Error' { 'Fail' } 'Empty' { 'Pass' } default { 'Muted' } }
+    Add-IgwtGuiStatusField -Row $r -Name 'StatusCol' -Text $statusText -Tone $tone -Locked:($status -eq 'Refused')
+    Add-IgwtGuiStatusField -Row $r -Name 'LevelCol' -Text ([string]$RuleScan.Level) -Tone $(switch ([string]$RuleScan.Level) { 'Advanced' { 'Warn' } 'Expert' { 'Fail' } default { 'Muted' } })
+    $r.LevelRank = $(switch ([string]$RuleScan.Level) { 'Advanced' { 1 } 'Expert' { 2 } default { 0 } })
+    [pscustomobject]$r
 }
 
 function New-IgwtGuiAsrRow {
@@ -726,11 +740,17 @@ function New-IgwtGuiPowerRow {
     if (@($Setting.Options).Count) { $tip.Add('Values: ' + (@($Setting.Options | ForEach-Object { "$($_.Index) $($_.Name)" }) -join ', ')) }
     elseif ($null -ne $Setting.Min) { $tip.Add("Range $($Setting.Min)-$($Setting.Max) $($Setting.Units)") }
     if ($Setting.BlockReason) { $tip.Add([string]$Setting.BlockReason) }
-    [pscustomobject]@{
-        Alias = $(if ($Setting.Alias) { [string]$Setting.Alias } else { [string]$Setting.Guid }); Name = [string]$Setting.Name
-        AcText = "AC $($Setting.AcText)"; DcText = "DC $($Setting.DcText)"; StateText = ($state -join ' | '); StateBrush = $brush
-        Tip = ($tip -join [Environment]::NewLine); Setting = $Setting
+    $r = [ordered]@{
+        Key = [string]$Setting.Guid; Alias = $(if ($Setting.Alias) { [string]$Setting.Alias } else { [string]$Setting.Guid }); Name = [string]$Setting.Name; Group = [string]$Setting.Group
+        AcText = [string]$Setting.AcText; DcText = [string]$Setting.DcText; StateText = ($state -join ' | ')
+        Tip = ($tip -join [Environment]::NewLine); Setting = $Setting; LevelText = [string]$Setting.Level
+        EditKey = $(if ($Setting.Blocked) { 'Blocked' } elseif ($Setting.Editable) { 'Editable' } else { 'Read-only' })
+        ChangedKey = $(if ($Setting.ChangedFromDefault) { 'Yes' } else { 'No' }); HiddenKey = $(if ($Setting.Hidden) { 'Yes' } else { 'No' })
     }
+    $tone = $(if ($Setting.Blocked) { 'Warn' } elseif ($Setting.Editable) { 'Accent' } else { 'Muted' })
+    Add-IgwtGuiStatusField -Row $r -Name 'State' -Text $(if ($state.Count) { $state -join ' | ' } else { 'Shown only' }) -Tone $tone -Locked:([bool]$Setting.Blocked)
+    $r.StateBrush = $brush
+    [pscustomobject]$r
 }
 
 function New-IgwtGuiIrqRow {
@@ -742,12 +762,16 @@ function New-IgwtGuiIrqRow {
     $brush = switch ([string]$Device.CurrentMode) { 'Message-signaled' { $script:IgwtColor.Pass } 'Line-based' { $script:IgwtColor.Muted } default { $script:IgwtColor.Muted } }
     $policy = "$($Device.PolicyName); priority $($Device.PriorityName)"
     if (@($Device.TargetCpus).Count) { $policy += "; CPUs $(@($Device.TargetCpus) -join ',')" }
-    [pscustomobject]@{
+    $r = [ordered]@{
+        Key = [string]$Device.InstanceId; Device = [string]$Device.Name; Class = [string]$Device.Class; ModeKey = [string]$Device.CurrentMode
         Name = "$($Device.Name)  [$($Device.Class)]"; Note = [string]$Device.Note; ModeText = $mode; ModeBrush = $brush
         SupportsText = "Supports: $(if (@($Device.Supports).Count) { @($Device.Supports) -join ', ' } else { 'not reported' })$(if ($Device.MessageMaximum) { "; up to $($Device.MessageMaximum) messages" })"
         PolicyText = $policy
         Tip = "Instance: $($Device.InstanceId)`nMSISupported: $(if ($null -ne $Device.MsiSupported) { $Device.MsiSupported } else { 'not set' }); MessageNumberLimit: $(if ($null -ne $Device.MessageLimit) { $Device.MessageLimit } else { 'not set' })"
     }
+    Add-IgwtGuiStatusField -Row $r -Name 'Mode' -Text $mode -Tone $(if ([string]$Device.CurrentMode -eq 'Message-signaled') { 'Pass' } else { 'Muted' })
+    $r.ModeBrush = $brush
+    [pscustomobject]$r
 }
 
 function New-IgwtGuiNicRow {
@@ -772,11 +796,16 @@ function New-IgwtGuiKernelRow {
     $brush = switch ([string]$Value.Status) { 'Changed' { $script:IgwtColor.Warn } 'Default' { $script:IgwtColor.Pass } 'Absent' { $script:IgwtColor.Muted } default { $script:IgwtColor.Muted } }
     $link = ''
     if ($Value.Item) { $link = "Change through catalog item $($Value.Item)" } elseif ($Value.Rejected) { $link = "Explained in $($Value.Rejected) (not changed by iG Windows Tuner)" }
-    [pscustomobject]@{
-        Name = [string]$Value.Name; Key = $Key; Meaning = [string]$Value.Meaning; Link = $link; Current = [string]$Value.Current
-        DefaultText = $(if ($Value.Default) { "Windows default: $($Value.Default)" } else { '' }); Status = [string]$Value.Status; StatusBrush = $brush
+    $r = [ordered]@{
+        RowId = "$Key\$($Value.Name)"; Name = [string]$Value.Name; Key = $Key; Meaning = [string]$Value.Meaning; Link = $link; Current = [string]$Value.Current
+        DefaultText = $(if ($Value.Default) { "Windows default: $($Value.Default)" } else { '' }); Default = [string]$Value.Default
         Tip = ([string]$Value.Meaning + $(if (@($Value.Sources).Count) { "`n" + (@($Value.Sources) -join "`n") } else { '' }))
+        StatusKey = [string]$Value.Status; HasItem = $(if ($Value.Item) { 'Yes' } else { 'No' })
     }
+    $text = switch ([string]$Value.Status) { 'Changed' { 'Differs' } 'Absent' { 'Not set' } '' { 'Unknown' } default { [string]$Value.Status } }
+    Add-IgwtGuiStatusField -Row $r -Name 'Status' -Text $text -Tone $(switch ([string]$Value.Status) { 'Changed' { 'Warn' } 'Default' { 'Pass' } default { 'Muted' } })
+    $r.StatusBrush = $brush
+    [pscustomobject]$r
 }
 
 function New-IgwtGuiDiskRow {
@@ -791,6 +820,9 @@ function New-IgwtGuiDiskRow {
     if ($Extra) { $detail = "$Extra  |  $parent" }
     [pscustomobject]@{
         Path     = $Path
+        Parent   = $parent
+        Extra    = $Extra
+        ShareText = $(if ($Largest -gt 0) { '{0:N0} %' -f (100.0 * $Bytes / $Largest) } else { '' })
         Name     = $leaf
         Detail   = $detail
         Bytes    = $Bytes
@@ -833,7 +865,7 @@ function New-IgwtGuiDefenderRow {
     $rec = ''
     if ($Setting.ProtectiveDisplay) { $rec = $(if ([string]$Setting.Status -eq 'On') { 'Meets recommendation' } else { "Recommended: $($Setting.ProtectiveDisplay)" }) }
     elseif ([string]$Setting.Status -eq 'Info') { $rec = 'Your choice' }
-    [pscustomobject]@{
+    $r = [ordered]@{
         Id               = [string]$Setting.Property
         Name             = [string]$Setting.Name
         Hint             = [string]$Setting.Hint
@@ -847,6 +879,17 @@ function New-IgwtGuiDefenderRow {
         RecommendText    = $rec
         Setting          = $Setting
     }
+    # SmartGrid fields: value and route columns (icon + word), chip keys and a sort rank.
+    $r.Key = $r.Id
+    $r.StatusKey = [string]$Setting.Status
+    $r.EditableKey = $(if ($Setting.Editable) { 'Yes' } else { 'No' })
+    $r.SourceName = [string]$Setting.Source
+    $r.CategoryId = [string]$Setting.Category
+    $r.StatusRank = $(switch ([string]$Setting.Status) { 'Off' { 0 } 'Below' { 1 } 'Optional' { 2 } 'On' { 3 } default { 4 } })
+    $statusTone = switch ([string]$Setting.Status) { 'On' { 'Pass' } 'Off' { 'Fail' } 'Below' { 'Warn' } 'Optional' { 'Accent' } default { 'Text' } }
+    Add-IgwtGuiStatusField -Row $r -Name 'ValueCol' -Text $(if ($r.ValueText) { $r.ValueText } else { '(not set)' }) -Tone $statusTone
+    Add-IgwtGuiStatusField -Row $r -Name 'EditCol' -Text $editText -Tone $(if ($Setting.Editable) { 'Accent' } elseif ([string]$Setting.Edit -in 'set', 'parser') { 'Warn' } else { 'Muted' }) -Locked:(-not $Setting.Editable -and [string]$Setting.Source -ne 'Local' -and [string]$Setting.Edit -in 'set', 'parser')
+    [pscustomobject]$r
 }
 
 function New-IgwtGuiDefenderPolicyRow {
@@ -856,7 +899,7 @@ function New-IgwtGuiDefenderPolicyRow {
     param([Parameter(Mandatory = $true)]$Policy)
     $state = [string]$Policy.State
     $refused = @(@($Policy.Refused) | ForEach-Object { ([string]$_ -split ':')[0] } | Where-Object { $_ })
-    [pscustomobject]@{
+    $r = [ordered]@{
         Id                   = [string]$Policy.Id
         Name                 = [string]$Policy.Name
         CategoryText         = ([string]$Policy.Category -replace '^Windows Components > ', '')
@@ -869,5 +912,13 @@ function New-IgwtGuiDefenderPolicyRow {
         SourceText           = $(if ([string]$Policy.Source -eq 'Not configured') { '' } else { [string]$Policy.Source })
         Policy               = $Policy
     }
+    # SmartGrid fields: state column (icon + word) and chip keys.
+    $r.Key = $r.Id
+    $r.StateKey = $state
+    $r.SimpleKey = $(if ($Policy.Simple) { 'Yes' } else { 'No' })
+    $r.RefusedList = ($refused -join ', ')
+    $r.PreferenceName = [string]$Policy.Preference
+    Add-IgwtGuiStatusField -Row $r -Name 'StateCol' -Text $r.StateText -Tone $(switch ($state) { 'NotConfigured' { 'Muted' } 'Enabled' { 'Pass' } 'Disabled' { 'Warn' } default { 'Accent' } })
+    [pscustomobject]$r
 }
 #endregion

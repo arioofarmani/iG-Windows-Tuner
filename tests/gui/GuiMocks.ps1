@@ -138,7 +138,7 @@ function script:Get-IgwtInspection {
     $settings = foreach ($p in $proc) {
         $rnd = Get-IgwtMockRandom -Seed ([string]$p.alias)
         $ac = $rnd.Next(0, 100)
-        [pscustomobject]@{ Guid = [string]$p.guid; Alias = [string]$p.alias; Name = [string]$p.name; Group = [string]$p.group; AC = [long]$ac; DC = [long]$ac; AcText = "$ac"; DcText = "$ac"; DefaultAC = $ac; DefaultDC = $ac; DefaultSource = 'Balanced'
+        [pscustomobject]@{ Guid = [string]$p.guid; Alias = [string]$p.alias; Name = "Processor $(([string]$p.group).ToLowerInvariant()) setting ($($p.alias))"; Group = [string]$p.group; AC = [long]$ac; DC = [long]$ac; AcText = "$ac"; DcText = "$ac"; DefaultAC = $ac; DefaultDC = $ac; DefaultSource = 'Balanced'
             ChangedFromDefault = ($rnd.Next(4) -eq 0); Min = [long]0; Max = [long]100; Increment = [long]1; Units = '%'; Options = @(); Hidden = $false; Editable = $true; Level = [string]$p.level; Hint = [string]$p.hint; Description = [string]$p.description
             Blocked = $false; BlockReason = ''; DcBlocked = $false; DcBlockReason = ''; Sources = $p.sources }
     }

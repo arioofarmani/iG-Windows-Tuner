@@ -553,27 +553,7 @@
                                     <CheckBox x:Name="InspectPowerAllBox" DockPanel.Dock="Right" Style="{StaticResource FilterCheck}" Content="Show all settings" ToolTip="Show every processor setting, not only the editable ones and those that differ from the default."/>
                                     <TextBlock x:Name="InspectPowerSummary" Style="{StaticResource TextMuted}" VerticalAlignment="Center" Text="Not read yet."/>
                                 </DockPanel>
-                                <ListView x:Name="InspectPowerList" Grid.Row="1" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ToolTip="{Binding Tip}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="170"/>
-                                                    <ColumnDefinition Width="170"/>
-                                                    <ColumnDefinition Width="120"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock Text="{Binding Alias}" FontWeight="SemiBold"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding AcText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding DcText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding StateText}" Foreground="{Binding StateBrush}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                <ContentControl x:Name="InspectPowerListHost" Grid.Row="1" Focusable="False"/>
                                 <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock x:Name="InspectPowerDetailName" FontWeight="SemiBold" Text="Select a setting"/>
@@ -593,28 +573,7 @@
                         <TabItem Header="Interrupts" ToolTip="Interrupt mode, MSI configuration and affinity of PCI devices">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="InspectIrqSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" Text="Not read yet."/>
-                                <ListView x:Name="InspectIrqList" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ToolTip="{Binding Tip}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="190"/>
-                                                    <ColumnDefinition Width="190"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Note}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding ModeText}" Foreground="{Binding ModeBrush}"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding SupportsText}" FontSize="{DynamicResource FontSizeCaption}"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2" Text="{Binding PolicyText}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="{DynamicResource FontSizeCaption}"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                <ContentControl x:Name="InspectIrqListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Network queues" ToolTip="Receive side scaling, queues and buffers of the network adapters">
@@ -641,34 +600,12 @@
                                     <CheckBox x:Name="InspectKernelChangedBox" DockPanel.Dock="Right" Style="{StaticResource FilterCheck}" Content="Only values that differ" IsChecked="True" ToolTip="Hide values that are at the Windows default."/>
                                     <TextBlock x:Name="InspectKernelSummary" Style="{StaticResource TextMuted}" VerticalAlignment="Center" Text="Not read yet."/>
                                 </DockPanel>
-                                <ListView x:Name="InspectKernelList" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid ToolTip="{Binding Tip}">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="200"/>
-                                                    <ColumnDefinition Width="110"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"><Run Text="{Binding Name, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Key, Mode=OneWay}" Foreground="{DynamicResource BrushTextMuted}" FontWeight="Normal"/></TextBlock>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Meaning}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                                    <TextBlock Text="{Binding Link}" Foreground="{DynamicResource BrushAccent}" FontSize="{DynamicResource FontSizeCaption}"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Current}" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding DefaultText}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2" Text="{Binding Status}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                <ContentControl x:Name="InspectKernelListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Timer &amp; crash" ToolTip="Timer resolution behaviour, crash dumps and page file">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="InspectCrashText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" ToolTip="Read-only summary of the timer, crash dump and page file configuration."/>
+                                <TextBox x:Name="InspectCrashText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" ToolTip="Read-only summary of the timer, crash dump and page file configuration."/>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
@@ -952,7 +889,6 @@
                     <StackPanel Grid.Row="0">
                         <DockPanel>
                             <Button x:Name="ToolkitRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Read the Toolkit lists and states again (read-only)."/>
-                            <TextBox x:Name="ToolkitSearchBox" Style="{StaticResource SearchBox}" Tag="Filter this list" AutomationProperties.Name="Filter this list" DockPanel.Dock="Right" Width="240" Margin="0,0,10,0" VerticalAlignment="Top" ToolTip="Filter the list on the current tab."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Toolkit"/>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Inspired by Chris Titus Tech's WinUtil (MIT), re-implemented with documented sources: install apps with winget, turn Windows features on or off, run repair fixes after a preview, and open classic panels. Nothing is downloaded except the packages you pick. Feature changes write a snapshot first."/>
@@ -975,7 +911,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitAppList" SelectionMode="Extended" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitAppListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Tweaks" ToolTip="WinUtil-derived catalog items; they also appear in their normal categories">
@@ -987,7 +923,7 @@
                                         <Button x:Name="ToolkitTweakGoButton" Content="Open in its category" HorizontalAlignment="Left" Margin="0" ToolTip="Show this item on its category page, where you can stage, preview and apply it."/>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitTweakList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitTweakListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Features" ToolTip="Optional Windows features and capabilities (WSL, Hyper-V, Sandbox, .NET 3.5, OpenSSH)">
@@ -1002,7 +938,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitFeatureList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitFeatureListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Fixes" ToolTip="Repair fixes; each shows every step before it runs">
@@ -1014,7 +950,7 @@
                                         <Button x:Name="ToolkitFixRunButton" Content="Run fix" HorizontalAlignment="Left" Margin="0" ToolTip="Shows the steps again for confirmation, then runs the fix and reports each step."/>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitFixList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitFixListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Panels" ToolTip="Classic Windows tools and consoles">
@@ -1025,7 +961,7 @@
                                         <Button x:Name="ToolkitPanelOpenButton" Content="Open" HorizontalAlignment="Left" Margin="0" ToolTip="Open this Windows tool. Opening changes nothing by itself."/>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitPanelList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitPanelListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Updates" ToolTip="Windows Update deferrals, driver exclusion and active hours. There is no 'disable updates'.">
@@ -1040,7 +976,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ListView x:Name="ToolkitUpdateList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="ToolkitUpdateListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                     </TabControl>
@@ -1063,18 +999,18 @@
                     <TabControl x:Name="DiagTabs" Grid.Row="1" Margin="0,10,0,0" Background="Transparent" BorderThickness="0">
                         <TabItem Header="Overview" ToolTip="DPC and ISR time, reliability history, crashes and boot performance">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagOverviewText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="DPC/ISR percentages, stability index, crash events, minidumps and boot times."/>
+                                <TextBox x:Name="DiagOverviewText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="DPC/ISR percentages, stability index, crash events, minidumps and boot times."/>
                             </ScrollViewer>
                         </TabItem>
                         <TabItem Header="Drivers" ToolTip="Non-Microsoft drivers with version, date and signer">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="DiagDriverSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
-                                <ListView x:Name="DiagDriverList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="DiagDriverListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="Windows Update" ToolTip="Update services, pending restart, policies and history (read-only)">
                             <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                                <TextBox x:Name="DiagUpdateText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
+                                <TextBox x:Name="DiagUpdateText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Text="Not read yet." ToolTip="Windows Update status. Policies change only through catalog items."/>
                             </ScrollViewer>
                         </TabItem>
                         <TabItem Header="Network tools" ToolTip="Adapter properties, DNS benchmark and latency/jitter/loss test">
@@ -1086,11 +1022,11 @@
                                             <TextBox x:Name="DiagLatencyBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" Text="1.1.1.1, 9.9.9.9" ToolTip="Host names or IP addresses, separated by commas (for example a game server you know)."/>
                                             <Button x:Name="DiagLatencyButton" Content="Measure latency" Margin="0" ToolTip="Send 20 echo requests to each target and show latency, jitter and loss. Changes nothing."/>
                                         </WrapPanel>
-                                        <TextBox x:Name="DiagNetText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,8,0,0" MaxHeight="160" VerticalScrollBarVisibility="Auto" ToolTip="Results of the DNS benchmark and latency test."/>
+                                        <TextBox x:Name="DiagNetText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,8,0,0" MaxHeight="160" VerticalScrollBarVisibility="Auto" ToolTip="Results of the DNS benchmark and latency test."/>
                                     </StackPanel>
                                 </Border>
                                 <TextBlock x:Name="DiagAdapterSummary" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Adapter properties: not read yet."/>
-                                <ListView x:Name="DiagAdapterList" ItemContainerStyle="{StaticResource RowItem}" ItemTemplate="{StaticResource ManageRowTemplate}" VirtualizingPanel.ScrollUnit="Pixel"/>
+                                <ContentControl x:Name="DiagAdapterListHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
                     </TabControl>
@@ -1283,62 +1219,12 @@
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every Microsoft Defender Antivirus setting with its current and recommended value, including the hidden ones. Protection settings only move toward on, values that turn a protection off are refused, and settings a policy controls are changed through that policy. Every change writes a snapshot you can revert in Backups &amp; Logs (a protection that is on stays on)."/>
                         <WrapPanel Margin="0,10,0,6" VerticalAlignment="Center">
-                            <TextBox x:Name="DefSearchBox" Style="{StaticResource SearchBox}" Tag="Search settings" AutomationProperties.Name="Search settings" Width="240" Margin="0,0,12,0" ToolTip="Search names, descriptions and property names"/>
                             <ComboBox x:Name="DefCategoryBox" MinWidth="250" ToolTip="Show one category"/>
-                            <CheckBox x:Name="DefAttentionBox" Style="{StaticResource FilterCheck}" Content="Needs attention" VerticalAlignment="Center" ToolTip="Only settings that are Off, below the recommended level or optional hardening that is off"/>
-                            <CheckBox x:Name="DefEditableBox" Style="{StaticResource FilterCheck}" Content="Changeable here" VerticalAlignment="Center" ToolTip="Only settings this page can change"/>
                         </WrapPanel>
                         <TextBlock x:Name="DefSummaryText" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
                     </StackPanel>
-                    <ListView x:Name="DefList" Grid.Row="2" Grid.Column="0" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Hint}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="190"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding CategoryText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding EditBrush}"><TextBlock Text="{Binding EditText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding EditBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding SourceVisibility}"><TextBlock Text="{Binding SourceText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <TextBlock Text="{Binding ValueText}" Foreground="{Binding StatusBrush}" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding RecommendText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                    <ListView x:Name="DefPolicyList" Grid.Row="2" Grid.Column="0" Visibility="Collapsed" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Id}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="150"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding CategoryText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding PreferenceVisibility}"><TextBlock Text="{Binding PreferenceText}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding RefusedVisibility}" BorderBrush="{DynamicResource BrushWarning}"><TextBlock Text="{Binding RefusedText}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource BrushWarning}"/></Border>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding SourceText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ContentControl x:Name="DefListHost" Grid.Row="2" Grid.Column="0" Focusable="False"/>
+                    <ContentControl x:Name="DefPolicyListHost" Grid.Row="2" Grid.Column="0" Visibility="Collapsed" Focusable="False"/>
                     <ScrollViewer Grid.Row="2" Grid.Column="1" Margin="12,0,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock x:Name="DefDetName" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" Text="Select a setting"/>
@@ -1393,35 +1279,7 @@
                         <CheckBox x:Name="CleanOptInBox" Style="{StaticResource FilterCheck}" Content="Include opt-in rules" ToolTip="Also scan rules that are off by default (browsers, shader caches, developer caches, Downloads)."/>
                         <TextBlock x:Name="CleanSummaryText" Style="{StaticResource TextMuted}" VerticalAlignment="Center" Text="No scan yet."/>
                     </WrapPanel>
-                    <ListView x:Name="CleanerList" Grid.Row="2" ItemContainerStyle="{StaticResource RowItem}" KeyboardNavigation.TabNavigation="Continue" VirtualizingPanel.ScrollUnit="Pixel">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Tip}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="40"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="140"/>
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Grid.Column="0" Style="{StaticResource FilterCheck}" Margin="0" IsChecked="{Binding Selected, Mode=OneWay}" IsEnabled="{Binding CanSelect}" Tag="{Binding Id}" VerticalAlignment="Center" ToolTip="{Binding SelectTip}"/>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Hint}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Style="{StaticResource Badge}"><TextBlock Text="{Binding Category}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <Border Style="{StaticResource Badge}" BorderBrush="{Binding LevelBrush}"><TextBlock Text="{Binding Level}" FontSize="{DynamicResource FontSizeCaption}" Foreground="{Binding LevelBrush}"/></Border>
-                                            <Border Style="{StaticResource Badge}" Visibility="{Binding OptInVisibility}"><TextBlock Text="Opt-in" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Reason}" FontSize="{DynamicResource FontSizeCaption}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <TextBlock Text="{Binding SizeText}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding CountText}" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right"/>
-                                        <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}" FontSize="{DynamicResource FontSizeCaption}" HorizontalAlignment="Right"/>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ContentControl x:Name="CleanerListHost" Grid.Row="2" Focusable="False"/>
                 </Grid>
 
                 <!-- Disk analyzer -->
@@ -1453,37 +1311,11 @@
                         </Grid.ColumnDefinitions>
                         <DockPanel Grid.Column="0" Margin="0,0,6,0">
                             <TextBlock DockPanel.Dock="Top" Style="{StaticResource TextSection}" Text="Largest folders"/>
-                            <ListView x:Name="DiskFolderList" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel ToolTip="{Binding Path}">
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0"/>
-                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
-                                            </DockPanel>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                            <ProgressBar Value="{Binding Share, Mode=OneWay}" Maximum="100" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                            <ContentControl x:Name="DiskFolderListHost" Focusable="False"/>
                         </DockPanel>
                         <DockPanel Grid.Column="1" Margin="6,0,0,0">
                             <TextBlock DockPanel.Dock="Top" Style="{StaticResource TextSection}" Text="Largest files"/>
-                            <ListView x:Name="DiskFileList" ItemContainerStyle="{StaticResource RowItem}" VirtualizingPanel.ScrollUnit="Pixel">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel ToolTip="{Binding Path}">
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding SizeText}" FontWeight="SemiBold" Margin="8,0,0,0"/>
-                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
-                                            </DockPanel>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Detail}" FontSize="{DynamicResource FontSizeCaption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                            <ProgressBar Value="{Binding Share, Mode=OneWay}" Maximum="100" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                            <ContentControl x:Name="DiskFileListHost" Focusable="False"/>
                         </DockPanel>
                     </Grid>
                 </Grid>
@@ -1501,25 +1333,7 @@
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Toggling uses the StartupApproved mechanism (like Task Manager); entries are never deleted, and every change is snapshotted. Machine-wide entries need administrator rights." Margin="0,0,0,10"/>
                     </StackPanel>
-                    <ListView x:Name="StartupList" Grid.Row="1" ItemContainerStyle="{StaticResource RowItem}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ToolTip="{Binding Command}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="56"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Grid.Column="0" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding Enabled, Mode=OneWay}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" ToolTip="Turn this startup entry on or off (StartupApproved; the entry is never deleted)."/>
-                                    <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Command}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                                    </StackPanel>
-                                    <Border Grid.Column="2" Style="{StaticResource Badge}"><TextBlock Text="{Binding Scope}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ContentControl x:Name="StartupListHost" Grid.Row="1" Focusable="False"/>
                 </Grid>
 
                 <!-- Backups and logs -->
@@ -1538,44 +1352,21 @@
                             <Button x:Name="OpenLogsButton" Content="Open logs folder" ToolTip="Open the iG Windows Tuner log folder in File Explorer."/>
                         </WrapPanel>
                     </StackPanel>
-                    <ListView x:Name="SnapshotList" Grid.Row="1" ItemContainerStyle="{StaticResource RowItem}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <TextBlock FontWeight="SemiBold"><Run Text="{Binding When, Mode=OneWay}"/><Run Text="  "/><Run Text="{Binding Operation, Mode=OneWay}" Foreground="{DynamicResource BrushAccent}"/></TextBlock>
-                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Summary}"/>
-                                    <TextBlock Style="{StaticResource TextMuted}" Text="{Binding File}" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ContentControl x:Name="SnapshotListHost" Grid.Row="1" Focusable="False"/>
                 </Grid>
 
                 <!-- Rejected tweaks -->
-                <ScrollViewer x:Name="PageRejected" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
-                    <StackPanel>
+                <Grid x:Name="PageRejected" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
                         <TextBlock Style="{StaticResource TextTitle}" Text="Rejected Tweaks"/>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Popular tweaks iG Windows Tuner does not recommend: placebo, obsolete, unstable, security-reducing or anti-cheat-hostile. Reversible performance and network items can be applied at your own risk from the Risk Zone; items that turn off security protections or cannot be undone are not offered." Margin="0,0,0,10"/>
-                        <ItemsControl x:Name="RejectedList">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Style="{StaticResource Card}">
-                                        <StackPanel>
-                                            <DockPanel>
-                                                <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" BorderBrush="{DynamicResource BrushDanger}"><TextBlock Text="{Binding Category}" Foreground="{DynamicResource BrushDanger}" FontSize="{DynamicResource FontSizeCaption}"/></Border>
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                            </DockPanel>
-                                            <TextBlock Style="{StaticResource TextMuted}" Margin="0,4,0,0"><Run Text="Claim: "/><Run Text="{Binding Claim, Mode=OneWay}"/></TextBlock>
-                                            <TextBlock TextWrapping="Wrap" Margin="0,4,0,0" Text="{Binding Reason}"/>
-                                            <TextBlock Text="{Binding Availability}" Foreground="{Binding AvailabilityBrush}" TextWrapping="Wrap" Margin="0,4,0,0" FontWeight="SemiBold"/>
-                                            <TextBlock Style="{StaticResource TextMuted}" Text="{Binding SourcesText}" Margin="0,4,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
                     </StackPanel>
-                </ScrollViewer>
+                    <ContentControl x:Name="RejectedListHost" Grid.Row="1" Focusable="False"/>
+                </Grid>
 
                 <!-- About -->
                 <ScrollViewer x:Name="PageAbout" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">

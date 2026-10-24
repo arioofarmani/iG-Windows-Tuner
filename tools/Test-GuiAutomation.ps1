@@ -84,7 +84,7 @@ try {
     Note "$($items.Count) navigation items"
     $sel = [System.Windows.Automation.SelectionItemPattern]::Pattern
     $memory = New-Object System.Collections.Generic.List[object]
-    $safeChecks = '^(Filter[A-Za-z]+|DefAttentionBox|DefEditableBox|InspectPowerAllBox|InspectKernelChangedBox|Chip_.+|Focus.+)$'
+    $safeChecks = '^(Filter[A-Za-z]+|InspectPowerAllBox|InspectKernelChangedBox|Chip_.+|Focus.+)$'
 
     # 2. Every page: tabs, rows, search, filters, headers.
     foreach ($it in $items) {
