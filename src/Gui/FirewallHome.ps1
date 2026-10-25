@@ -106,7 +106,10 @@ function Update-IgwtGuiFirewallOverview {
     $c.FwOvReviewButton.IsEnabled = [bool]$open
     # Quick wins: enabled bloated rules that can be disabled safely.
     $q = @($s.QuickWins).Count
-    $c.FwOvQuickText.Text = $(if ($q) { "$q bloated rule$(if ($q -ne 1) { 's' }) can be disabled safely for a $($a.Role) PC. The preview shows what stops working; every change can be undone." } else { 'No bloated rules to disable for this role.' })
+    # The role box follows the audit (no save while it is set from here).
+    $script:Gui.FwRoleSync = $true
+    try { $c.FwOvRoleBox.SelectedItem = @($c.FwOvRoleBox.ItemsSource | Where-Object { $_.Id -eq [string]$a.Role })[0] } finally { $script:Gui.FwRoleSync = $false }
+    $c.FwOvQuickText.Text = $(if ($q) { "$q bloated rule$(if ($q -ne 1) { 's' }) can be disabled safely for a $(@($c.FwOvRoleBox.ItemsSource | Where-Object { $_.Id -eq [string]$a.Role } | ForEach-Object { $_.Name })[0]). The preview shows what stops working; every change can be undone." } else { 'No bloated rules to disable for this role.' })
     $c.FwOvQuickButton.Content = $(if ($q) { "Preview $q change$(if ($q -ne 1) { 's' })" } else { 'Nothing to preview' })
     $c.FwOvQuickButton.IsEnabled = [bool]$q
     # Group tiles.
@@ -381,6 +384,14 @@ function Initialize-IgwtGuiFirewallHome {
     Register-IgwtGuiHandler -Control $c.FwOvQuickButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallQuickWins }
     Register-IgwtGuiHandler -Control $c.FwOvScopeButton -Event 'Click' -Handler { param($s, $e) $null = $e; Show-IgwtGuiFirewallScopeMenu -Target $s }
     Register-IgwtGuiHandler -Control $c.FwOvExportOverridesButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallExportOverrides }
+    $c.FwOvRoleBox.ItemsSource = @((Get-IgwtFirewallKnowledgeBase).Roles | ForEach-Object { [pscustomobject]@{ Id = [string]$_.id; Name = [string]$_.name; Hint = [string]$_.hint } })
+    Register-IgwtGuiHandler -Control $c.FwOvRoleBox -Event 'SelectionChanged' -Handler {
+        $sel = $script:Gui.C.FwOvRoleBox.SelectedItem
+        if ($script:Gui.FwRoleSync -or -not $sel -or -not $script:Gui.Firewall -or [string]$sel.Id -eq [string]$script:Gui.Firewall.Role) { return }
+        try { $null = Set-IgwtFirewallOverride -Role ([string]$sel.Id) } catch { Show-IgwtGuiError -Message "Role not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
+        Set-IgwtGuiStatus "Firewall role: $($sel.Name). Reading the rules again for this role..."
+        Start-IgwtGuiFirewallRefresh
+    }
     Register-IgwtGuiHandler -Control $c.FwOvRecentList -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler { param($s, $e) $null = $s; $b = $e.OriginalSource; if ($b -is [System.Windows.Controls.Button] -and $b.Tag) { Invoke-IgwtGuiFirewallUndo -Snapshot ([string]$b.Tag) } }
     # Sidebar: groups with counts, saved views.
     Register-IgwtGuiHandler -Control $c.FwGroupList -Event 'SelectionChanged' -Handler { $it = $script:Gui.C.FwGroupList.SelectedItem; if ($it -and [string]$it.Id -ne [string]$script:Gui.FirewallGroup) { Select-IgwtGuiFirewallGroup -Id ([string]$it.Id) } }

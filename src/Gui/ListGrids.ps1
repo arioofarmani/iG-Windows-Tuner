@@ -346,7 +346,7 @@ function New-IgwtGuiStartupRow {
         Key = "$($Entry.Scope)|$($Entry.Name)"; Scope = [string]$Entry.Scope; Name = [string]$Entry.Name; Command = [string]$Entry.Command; Enabled = $enabled; CanToggle = $CanToggle
         ScopeText = $(if ([string]$Entry.Scope -in 'HKCU-Run', 'User-Folder') { 'This user' } else { 'All users' }); StateKey = $(if ($enabled) { 'On' } else { 'Off' })
         On = $enabled; OnEnabled = $CanToggle; OnName = "Start $($Entry.Name) with Windows"
-        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved; the entry is never deleted).' } else { 'Restart as administrator to turn startup entries on or off.' })
+        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved; the entry is never deleted).' } else { (Get-IgwtGuiChangeBlockReason -What 'turn startup entries on or off') })
     }
 }
 

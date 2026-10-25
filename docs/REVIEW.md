@@ -53,3 +53,27 @@ Confirmed by the reviewer: Group Policy and MDM rules are locked with their sour
 | - | Minor | CSV export did not neutralise spreadsheet formulas in rule names. | **Fixed.** Cells starting with `=`, `+`, `-` or `@` are prefixed with a quote. |
 
 Open High findings: none.
+
+## 3.3 read-only enforcement and UX rules (3.3 phase 8, 24 October 2026)
+
+An independent reviewer (read-only file access; ran nothing, changed nothing) checked that every exported writer is guarded by `Assert-IgwtWritable`, that no GUI path changes the PC directly or in read-only mode, the new 3.3/3.4 features (dashboard Undo, preset Compare, firewall scope, focus mode, log viewer, compliance, network history), and every page against the UX checklist C1-C12 (`docs\UX_GUIDELINES.md`). The firewall change safety was reviewed separately (3.4 section above).
+
+**Engine guard confirmed**: every exported writer checked (apply/revert, cleaner, ASR, power, managed changes, firewall, Defender, Group Policy and security/audit policy, toolkit, presets and session, persona, migration, restore point, startup items) calls `Assert-IgwtWritable` first; the GUI forces `IsAdmin` off in read-only mode and the workers inherit read-only mode. No GUI path changes the PC directly. There are no High findings.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| M1 | Medium | Toolkit "Check installed" stayed enabled in read-only mode and runs `winget export` (writes a temporary file). | **Fixed.** Off in read-only mode, with the reason in the tooltip; the handler checks too. |
+| M2 | Medium | "Clean selected" stayed enabled in read-only mode and showed the delete warning before the engine refused. | **Fixed.** Off in read-only mode with the reason; the handler returns early. |
+| M3 | Medium | "Run fix" (fixes without admin rights) stayed enabled in read-only mode. | **Fixed.** Same as M2. |
+| M4 | Medium | Defender > Group Policy "Set policy" could never be enabled: the button looked at a variable that was never assigned. | **Fixed.** It reads the selected policy row. |
+| L1 | Low | Refusals in read-only mode said "Restart as administrator", which does not help (the restart keeps -ReadOnly). | **Fixed.** One reason helper (`Get-IgwtGuiChangeBlockReason`) says read-only mode first, administrator rights second. |
+| L2 | Low | Changing the persona in read-only mode silently did not save. | **Fixed.** The status line says it applies to the window only. |
+| L3 | Low | App-owned files written in read-only mode (network history, Authenticode cache, ADMX cache) were not listed in the decisions. | **Fixed.** DECISIONS U7b. |
+| L4 | Low (uncertain) | An elevated run trusted the Authenticode cache in the per-user folder, which feeds the firewall origin and therefore the locks. | **Fixed.** Elevated runs keep the cache in the admin-only State folder. |
+| U1 | UX | Navigation accessible names did not match the labels ("Asr", "NetTest", "Policy"); six combo and text boxes had no accessible name. | **Fixed.** |
+| U2 | UX | Reduce motion did not stop the moving busy bar. | **Fixed.** A static bar when Reduce motion is on. |
+| U3 | UX | Some titles were in title case ("Disk Analyzer", "Startup Apps", "Rejected Tweaks", "Expert Inspectors", "Network Test"). | **Fixed** (sentence case). The ALL-CAPS overlines stay as a deliberate section style. |
+| U4 | UX | Backups & Logs and Rejected tweaks had no status line. | **Fixed.** |
+| U5 | UX | Several pages still miss a one-line status and a single primary action at the top (Presets, Diagnostics, Inspect, Toolkit, Manage, Startup), and some pages use more than one accent button. Some results still use dialogs instead of a toast with Undo (startup toggle, Defender setting, toolkit feature). Tab and expander state is not remembered everywhere. Focus mode hides pages, dashboard details and advanced items but does not yet change list columns. | **Open (Low)**, recorded as known UX gaps in `docs\FINAL_REPORT_3.3.md`; none affects safety. |
+
+Open High findings: none.

@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.4.0 (unreleased)
+## 3.4.0 (2026-10-25)
 
 Firewall Manager 3.4: every rule classified (origin category, direction, blocks, bloat, risks) with the reason and a confidence level, risk findings with plain-language explanations and safe fixes, conflict analysis and an overview dashboard. Includes everything listed under 3.3.0, which was not released separately.
 
@@ -16,6 +16,8 @@ Firewall Manager 3.4: every rule classified (origin category, direction, blocks,
 - **Details pane** explains each rule: origin and why, confidence, each finding as a card with the recommended fix and alternatives (turned off with the reason where a rule is locked, a Core Service or a protected game rule), *Move to category*, *Not bloated for me* and *Ignore for 90 days*.
 - **Bulk actions per group** and a **smart fix wizard**: one step per kind of finding, your choice per step, a plan preview with the skipped rules and why, then the changes in batches, each with a snapshot and Undo.
 - **Audit report**: export the audit as HTML, CSV or JSON.
+- **Role picker** on the Overview ("This PC is a Gaming PC / Power user / Sysadmin / Office workstation"): what counts as bloat follows the role; the choice is stored with your firewall choices.
+- User guide and audit workflow: `docs\FIREWALL.md`.
 - **Rule templates for common scenarios** (game server, LAN file sharing, local web development and more) and **warnings before a rule is created or edited**: the risk rules check the new settings first, for example "Critical: inbound allow for any program, any port, from anywhere". Rules the tuner creates are marked in their description.
 - **Compared to Windows defaults**: which default rules of this Windows build were removed or changed, and which rules were added (from the read-only default rule store; a Windows Sandbox baseline is the fallback).
 - **Live connections**: current TCP connections and UDP endpoints with the program, its services and the rule that applies (read-only).
@@ -24,7 +26,7 @@ Firewall Manager 3.4: every rule classified (origin category, direction, blocks,
 - **Safety hardening from the independent review** (`docs\REVIEW.md`): the change engine classifies rules itself, so Core Services stay read-only and Windows rules are never deleted or edited even when it is called directly or from an import file; "Move to category" can no longer take a rule out of Core Services; queued wizard and scope batches stop when a batch fails, is undone or is reverted by the remote-session timer; Remote Desktop and WinRM rules are recognised on every Windows language and by port range; profile and network-category changes are refused during a remote session; programs on drives that are not connected are no longer treated as orphaned; blocking a game in a secondary Steam library warns too; CSV exports cannot run spreadsheet formulas.
 - **Firewall knowledge base** (`data\firewall\*.json`): the nine groups, every built-in Windows rule group of build 26100+ by its stable ID (Core Networking, service hardening, discovery, sharing, remote administration, casting, Xbox and Store apps ...) with what it is for, what stops working without it, risk notes, whether each role needs it (gaming PC, power user, sysadmin, office workstation) and Microsoft sources; 13 risk rules with severities, plain explanations and safe fixes; well-known ports and services; protected game, launcher and anti-cheat programs. Validated by `tools\Test-FirewallKB.ps1`; explained in the generated `docs\FIREWALL_CATEGORIES.md`.
 
-## 3.3.0 (unreleased, part of 3.4.0)
+## 3.3.0 (not released separately; part of 3.4.0)
 
 Quality release: a rebuilt, calmer interface, a professional Firewall Manager, sorting and filtering everywhere, and a read-only mode for audits.
 
@@ -89,6 +91,10 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - **Firewall Manager showed raw numbers and false duplicates when started as administrator**: every rule read as Disabled, direction and action as 1/2 and 2/4, every program as Any, the tuner's own rules as third-party, and hundreds of rules as duplicates. The background worker sometimes received the firewall rules without the NetSecurity type data (raw CIM values); the worker now loads the Windows network modules when it starts, and the Firewall Manager also understands the raw values. Store app rules (created by Windows per app package) and rules whose ports could not be read are no longer counted as duplicates.
 - Firewall direction is shown as **IN**, **OUT** or **IN/OUT** (the full word is in the tooltip and the details).
 - A list that refreshed while scrolled down (for example after a filter chip on Defender settings) showed "Something went wrong (window): Exception has been thrown by the target of an invocation"; the scroll position is now restored without the error.
+- Read-only mode is honest everywhere: *Clean selected*, *Run fix* and *Check installed* (it runs winget export) are off with the reason in the tooltip, and refusals say "read-only mode" instead of suggesting a restart as administrator. A persona change in read-only mode says it is not saved.
+- Defender settings > Group Policy: *Set policy* could never be enabled; it now follows the selected policy.
+- Reduce motion also stops the moving progress bar; navigation and input boxes have accessible names that match their labels; titles use sentence case; Backups & Logs and Rejected tweaks show a status line.
+- `-Version` prints the version (with `-Json` as an object).
 - The dashboard no longer shows an empty "Fix:" link for a security check without a fix target.
 - Lists that select one row at a time (tweaks, Defender settings, power plan) no longer fail when they refresh while a row is selected; the selection is kept.
 - The read-only text views of Diagnostics and Inspect start at the top instead of floating in the middle of the box.

@@ -10,6 +10,9 @@ function Get-IgwtFirewallSignatureCachePath {
     [OutputType([string])]
     param()
     $dir = $(if ($env:IGWT_GUI_STATE_DIR) { $env:IGWT_GUI_STATE_DIR } else { Join-Path $env:LOCALAPPDATA 'iGWindowsTuner' })
+    # Elevated runs (whose results feed the change locks) use the admin-only State folder: the per-user
+    # folder can be written by any process of the user.
+    if (-not $env:IGWT_GUI_STATE_DIR -and -not $script:IgwtSettings.TestMode -and (Test-IgwtIsAdmin)) { $dir = Get-IgwtDataPath -Kind State }
     return (Join-Path $dir 'firewall-signatures.json')
 }
 

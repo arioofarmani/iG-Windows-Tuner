@@ -67,7 +67,7 @@
                             </StackPanel>
                         </Border>
                     </Popup>
-                    <ComboBox x:Name="PersonaBox" Width="150" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Persona: changes the navigation order and which item levels are shown. Safety rules are the same for every persona."/>
+                    <ComboBox x:Name="PersonaBox" AutomationProperties.Name="Persona" Width="150" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Persona: changes the navigation order and which item levels are shown. Safety rules are the same for every persona."/>
                     <Border x:Name="AcPill" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{DynamicResource BrushSurfaceAlt}" ToolTip="Anti-cheat readiness (TPM, Secure Boot, VBS, HVCI, IOMMU). Open the Dashboard for details.">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="AcPillDot" Width="9" Height="9" Fill="{DynamicResource BrushTextMuted}" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -149,25 +149,25 @@
                     <ListBoxItem Tag="Security" AutomationProperties.Name="Security" ToolTip="VBS/HVCI, Defender, firewall and hardening items; the ASR Center and the Defender settings are part of Security">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Margin="0,0,12,0"/><TextBlock Text="Security"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Asr" AutomationProperties.Name="Asr" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
+                    <ListBoxItem Tag="Asr" AutomationProperties.Name="ASR Center" ToolTip="Security > ASR Center: attack surface reduction rules, modes, gamer impact, exclusions and the audit view">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE83D;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="ASR Center" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
+                    <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender settings" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Firewall" AutomationProperties.Name="Firewall" ToolTip="Security > Firewall: every firewall rule with risk views, safe rule actions, the new-rule wizard and the profiles">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE774;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Firewall" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="System" AutomationProperties.Name="System" ToolTip="Page file, crash dumps and boot diagnostics">
+                    <ListBoxItem Tag="System" AutomationProperties.Name="System and diagnostics" ToolTip="Page file, crash dumps and boot diagnostics">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" Margin="0,0,12,0"/><TextBlock Text="System &amp; Diagnostics"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Policy" AutomationProperties.Name="Policy" ToolTip="Every Group Policy setting of the installed administrative templates, with its state; set the ones that are safe">
+                    <ListBoxItem Tag="Policy" AutomationProperties.Name="Group Policy" ToolTip="Every Group Policy setting of the installed administrative templates, with its state; set the ones that are safe">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" Margin="0,0,12,0"/><TextBlock Text="Group Policy"/></StackPanel>
                     </ListBoxItem>                    <ListBoxItem Tag="Risk Zone" AutomationProperties.Name="Risk Zone" ToolTip="Rejected tweaks you can apply at your own risk, each with its warnings and what it turns off or on">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Margin="0,0,12,0" Foreground="{DynamicResource BrushDanger}"/><TextBlock Text="Risk Zone" Foreground="{DynamicResource BrushDanger}"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Inspect" AutomationProperties.Name="Inspect" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,12,0"/><TextBlock Text="Expert Inspectors"/></StackPanel>
+                    <ListBoxItem Tag="Inspect" AutomationProperties.Name="Expert inspectors" ToolTip="Read-only expert inspectors: power plan, interrupts, network queues, kernel and memory, crash dumps">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D9;" Margin="0,0,12,0"/><TextBlock Text="Expert inspectors"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Manage" AutomationProperties.Name="Manage" ToolTip="Services, scheduled tasks, apps, the persistence inspector and the firewall rule browser">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE912;" Margin="0,0,12,0"/><TextBlock Text="Manage"/></StackPanel>
@@ -175,11 +175,11 @@
                     <ListBoxItem Tag="Toolkit" AutomationProperties.Name="Toolkit" ToolTip="Install apps with winget, Windows features, previewed repair fixes, classic panels and Windows Update options (inspired by WinUtil)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE90F;" Margin="0,0,12,0"/><TextBlock Text="Toolkit"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Diagnostics" AutomationProperties.Name="Diagnostics" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
+                    <ListBoxItem Tag="Diagnostics" AutomationProperties.Name="Diagnostics and network" ToolTip="DPC/ISR, reliability, crashes, boot time, drivers, Windows Update, network tools and the system report">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE9D2;" Margin="0,0,12,0"/><TextBlock Text="Diagnostics &amp; Network"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="NetTest" AutomationProperties.Name="NetTest" ToolTip="Measure latency, jitter, packet loss and stability, detect your connection type and get the best network adjustments">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE701;" Margin="0,0,12,0"/><TextBlock Text="Network Test"/></StackPanel>
+                    <ListBoxItem Tag="NetTest" AutomationProperties.Name="Network test" ToolTip="Measure latency, jitter, packet loss and stability, detect your connection type and get the best network adjustments">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE701;" Margin="0,0,12,0"/><TextBlock Text="Network test"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Cleaner" AutomationProperties.Name="Cleaner" ToolTip="Scan, then clean temp files, caches and logs with allow-list rules">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" Margin="0,0,12,0"/><TextBlock Text="Cleaner"/></StackPanel>
@@ -187,17 +187,17 @@
                     <ListBoxItem Tag="Storage" AutomationProperties.Name="Storage" ToolTip="Windows Storage Sense policies (automatic cleanup by Windows itself)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEDA2;" Margin="0,0,12,0"/><TextBlock Text="Storage Sense"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Disk" AutomationProperties.Name="Disk" ToolTip="Largest folders and files on a drive (read-only)">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" Margin="0,0,12,0"/><TextBlock Text="Disk Analyzer"/></StackPanel>
+                    <ListBoxItem Tag="Disk" AutomationProperties.Name="Disk analyzer" ToolTip="Largest folders and files on a drive (read-only)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" Margin="0,0,12,0"/><TextBlock Text="Disk analyzer"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Startup" AutomationProperties.Name="Startup" ToolTip="Programs that start with Windows (StartupApproved, never deleted)">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" Margin="0,0,12,0"/><TextBlock Text="Startup Apps"/></StackPanel>
+                    <ListBoxItem Tag="Startup" AutomationProperties.Name="Startup apps" ToolTip="Programs that start with Windows (StartupApproved, never deleted)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" Margin="0,0,12,0"/><TextBlock Text="Startup apps"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Backups" AutomationProperties.Name="Backups" ToolTip="Snapshots, revert and logs">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE81C;" Margin="0,0,12,0"/><TextBlock Text="Backups &amp; Logs"/></StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Rejected" AutomationProperties.Name="Rejected" ToolTip="Popular tweaks iG Windows Tuner deliberately does not implement, and why">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE711;" Margin="0,0,12,0"/><TextBlock Text="Rejected Tweaks"/></StackPanel>
+                    <ListBoxItem Tag="Rejected" AutomationProperties.Name="Rejected tweaks" ToolTip="Popular tweaks iG Windows Tuner deliberately does not implement, and why">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE711;" Margin="0,0,12,0"/><TextBlock Text="Rejected tweaks"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="About" AutomationProperties.Name="About" ToolTip="What iG Windows Tuner does and does not do">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE946;" Margin="0,0,12,0"/><TextBlock Text="About"/></StackPanel>
@@ -815,7 +815,11 @@
                                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE945;" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <TextBlock FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" VerticalAlignment="Center" Text="Quick wins"/>
                                                 </StackPanel>
-                                                <TextBlock x:Name="FwOvQuickText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,10" Text="Not read yet."/>
+                                                <TextBlock x:Name="FwOvQuickText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,8" Text="Not read yet."/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <TextBlock Text="This PC is a" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <ComboBox x:Name="FwOvRoleBox" Width="190" DisplayMemberPath="Name" AutomationProperties.Name="PC role for the bloat assessment" ToolTip="What the PC is for decides which Windows rules count as bloat. Stored with your firewall choices; nothing on the PC changes."/>
+                                                </StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <Button x:Name="FwOvQuickButton" Margin="0,0,8,0" Content="Preview" ToolTip="Show which rules would be disabled and what stops working, before anything changes."/>
                                                     <Button x:Name="FwOvScopeButton" Margin="0" Content="Firewall scope..." ToolTip="Preview a preset for this kind of PC (Gaming PC, Workstation, Public Wi-Fi laptop, Sysadmin hardened): which bloated rules and risk fixes would apply."/>
@@ -1267,7 +1271,7 @@
                                     <StackPanel>
                                         <WrapPanel>
                                             <Button x:Name="DiagDnsButton" Content="Run DNS benchmark" ToolTip="Resolve gaming-related names against your DNS servers and public resolvers and compare latency. Sends DNS queries; changes nothing."/>
-                                            <TextBox x:Name="DiagLatencyBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" Text="1.1.1.1, 9.9.9.9" ToolTip="Host names or IP addresses, separated by commas (for example a game server you know)."/>
+                                            <TextBox x:Name="DiagLatencyBox" AutomationProperties.Name="Latency measurement duration" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" Text="1.1.1.1, 9.9.9.9" ToolTip="Host names or IP addresses, separated by commas (for example a game server you know)."/>
                                             <Button x:Name="DiagLatencyButton" Content="Measure latency" Margin="0" ToolTip="Send 20 echo requests to each target and show latency, jitter and loss. Changes nothing."/>
                                         </WrapPanel>
                                         <TextBox x:Name="DiagNetText" IsReadOnly="True" VerticalContentAlignment="Top" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" FontFamily="{StaticResource FontMono}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,8,0,0" MaxHeight="160" VerticalScrollBarVisibility="Auto" ToolTip="Results of the DNS benchmark and latency test."/>
@@ -1287,7 +1291,7 @@
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Measures latency, jitter, packet loss and stability to your router, your ISP and the internet, traces the path, detects your connection type and recommends the Windows adjustments that lower latency and jitter. Read-only: it only sends pings and DNS queries."/>
                         <WrapPanel Margin="0,10,0,0">
                             <TextBlock Text="Duration" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <ComboBox x:Name="NetDurationBox" Width="200" Margin="0,0,12,0" ToolTip="Quick: 10 seconds. Standard: 30 seconds. Extended: 2 minutes, best for spotting spikes and loss bursts."/>
+                            <ComboBox x:Name="NetDurationBox" AutomationProperties.Name="Network test duration" Width="200" Margin="0,0,12,0" ToolTip="Quick: 10 seconds. Standard: 30 seconds. Extended: 2 minutes, best for spotting spikes and loss bursts."/>
                             <TextBlock Text="Game servers (optional)" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <TextBox x:Name="NetTargetsBox" Width="260" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Optional: up to 4 game servers or other hosts (names or IP addresses, separated by commas) to measure as well."/>
                             <Button x:Name="NetRunButton" Style="{StaticResource AccentButton}" Content="Run test" ToolTip="Run the network test (read-only)."/>
@@ -1481,7 +1485,7 @@
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every Microsoft Defender Antivirus setting with its current and recommended value, including the hidden ones. Protection settings only move toward on, values that turn a protection off are refused, and settings a policy controls are changed through that policy. Every change writes a snapshot you can revert in Backups &amp; Logs (a protection that is on stays on)."/>
                         <WrapPanel Margin="0,10,0,6" VerticalAlignment="Center">
-                            <ComboBox x:Name="DefCategoryBox" MinWidth="250" ToolTip="Show one category"/>
+                            <ComboBox x:Name="DefCategoryBox" AutomationProperties.Name="Defender settings category" MinWidth="250" ToolTip="Show one category"/>
                         </WrapPanel>
                         <TextBlock x:Name="DefSummaryText" Style="{StaticResource TextMuted}" Margin="0,0,0,6" TextWrapping="Wrap" Text="Not read yet."/>
                     </StackPanel>
@@ -1533,7 +1537,7 @@
                     </StackPanel>
                     <WrapPanel Grid.Row="1" Margin="0,10,0,8" VerticalAlignment="Center">
                         <TextBlock Text="Rules up to" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox x:Name="CleanLevelBox" SelectedIndex="0" ToolTip="Standard: safe everyday rules. Advanced: larger caches and servicing cleanup. Expert: rules with permanent side effects (read each hint).">
+                        <ComboBox x:Name="CleanLevelBox" AutomationProperties.Name="Cleaner rules up to level" SelectedIndex="0" ToolTip="Standard: safe everyday rules. Advanced: larger caches and servicing cleanup. Expert: rules with permanent side effects (read each hint).">
                             <ComboBoxItem Content="Standard"/>
                             <ComboBoxItem Content="Advanced"/>
                             <ComboBoxItem Content="Expert"/>
@@ -1553,7 +1557,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0">
-                        <TextBlock Style="{StaticResource TextTitle}" Text="Disk Analyzer"/>
+                        <TextBlock Style="{StaticResource TextTitle}" Text="Disk analyzer"/>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Read-only: finds the largest folders and files under a folder or drive. Junctions, symbolic links and cloud placeholders are not followed, so nothing is counted twice or downloaded. Double-click a folder to look inside it."/>
                     </StackPanel>
                     <DockPanel Grid.Row="1" Margin="0,10,0,8">
@@ -1563,7 +1567,7 @@
                             <Button x:Name="DiskOpenButton" Content="Show in Explorer" Margin="0" ToolTip="Open the selected folder, or the folder that contains the selected file, in File Explorer."/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox x:Name="DiskPathBox" Margin="0,0,10,0" VerticalContentAlignment="Center" ToolTip="Folder or drive to analyze, for example C:\ or D:\Games"/>
+                        <TextBox x:Name="DiskPathBox" AutomationProperties.Name="Folder or drive to analyze" Margin="0,0,10,0" VerticalContentAlignment="Center" ToolTip="Folder or drive to analyze, for example C:\ or D:\Games"/>
                     </DockPanel>
                     <TextBlock x:Name="DiskSummaryText" Grid.Row="2" Style="{StaticResource TextMuted}" Text="Enter a folder or drive and press Analyze." Margin="0,0,0,6"/>
                     <Grid Grid.Row="3">
@@ -1591,7 +1595,7 @@
                     <StackPanel Grid.Row="0">
                         <DockPanel>
                             <Button x:Name="StartupRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Re-read the startup entries (read-only)."/>
-                            <TextBlock Style="{StaticResource TextTitle}" Text="Startup Apps"/>
+                            <TextBlock Style="{StaticResource TextTitle}" Text="Startup apps"/>
                         </DockPanel>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Toggling uses the StartupApproved mechanism (like Task Manager); entries are never deleted, and every change is snapshotted. Machine-wide entries need administrator rights." Margin="0,0,0,10"/>
                     </StackPanel>
@@ -1606,6 +1610,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0">
                         <TextBlock Style="{StaticResource TextTitle}" Text="Backups &amp; Logs"/>
+                        <TextBlock x:Name="BackupSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4" Text="Not read yet."/>
                         <TextBlock Style="{StaticResource TextMuted}" Text="Every apply, revert and reset writes a JSON snapshot of the exact previous values to %ProgramData%\iGWindowsTuner\Backups before anything changes. Logs (text and JSON lines) are in %ProgramData%\iGWindowsTuner\Logs."/>
                         <WrapPanel Margin="0,10,0,10">
                             <Button x:Name="BackupRevertLastButton" Content="Revert last apply" ToolTip="Restore every value captured before the most recent apply or preset."/>
@@ -1631,7 +1636,8 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0">
-                        <TextBlock Style="{StaticResource TextTitle}" Text="Rejected Tweaks"/>
+                        <TextBlock Style="{StaticResource TextTitle}" Text="Rejected tweaks"/>
+                        <TextBlock x:Name="RejectedSummaryText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
                         <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Popular tweaks iG Windows Tuner does not recommend: placebo, obsolete, unstable, security-reducing or anti-cheat-hostile. Reversible performance and network items can be applied at your own risk from the Risk Zone; items that turn off security protections or cannot be undone are not offered." Margin="0,0,0,10"/>
                     </StackPanel>
                     <ContentControl x:Name="RejectedListHost" Grid.Row="1" Focusable="False"/>

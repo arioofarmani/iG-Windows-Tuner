@@ -15,7 +15,7 @@ $script:IgwtGuiControlNames = @(
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
     'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
-    'RejectedListHost', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
+    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
@@ -30,7 +30,7 @@ $script:IgwtGuiControlNames = @(
     'ManagePersistSummary', 'ManagePersistGridHost', 'ManagePersistDetail', 'ManagePersistDisableButton', 'ManagePersistExportButton',
     'ManageOpenFirewallButton', 'ManageHostsText', 'SecFirewallButton',
     'PageFirewall', 'FwNewRuleButton', 'FwRefreshButton', 'FwSummaryIcon', 'FwSummaryText', 'FwNoticeText', 'FwTabs', 'FwImportButton', 'FwExportButton', 'FwExportPolicyButton', 'FwGridHost',
-    'FwOverviewTab', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
+    'FwOverviewTab', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvRoleBox', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
     'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
@@ -389,7 +389,7 @@ function Update-IgwtGuiBusy {
     $running = [object[]]$(if ($script:Gui.Jobs) { $script:Gui.Jobs.ToArray() } else { @() })
     if ($null -eq $running) { $running = @() }
     if ($running.Count) {
-        if ($c.BusyBar.Visibility -ne 'Visible') { $c.BusyBar.IsIndeterminate = $true }
+        if ($c.BusyBar.Visibility -ne 'Visible') { if ($script:Gui.ReduceMotion) { $c.BusyBar.IsIndeterminate = $false; $c.BusyBar.Value = 100 } else { $c.BusyBar.IsIndeterminate = $true } }
         $c.BusyBar.Visibility = 'Visible'
     } else {
         $c.BusyBar.Visibility = 'Hidden'
@@ -662,7 +662,15 @@ function Update-IgwtGuiSnapshots {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param($Snapshots)
-    Set-IgwtGuiGridRows -Name 'SnapshotList' -Rows @($Snapshots | ForEach-Object { New-IgwtGuiSnapshotRow -Snapshot $_ })
+    $list = @($Snapshots | Where-Object { $_ })
+    Set-IgwtGuiGridRows -Name 'SnapshotList' -Rows @($list | ForEach-Object { New-IgwtGuiSnapshotRow -Snapshot $_ })
+    # Status line (3.3 C1): how many snapshots, the last change and any failures.
+    $c = $script:Gui.C
+    if ($list.Count) {
+        $last = New-IgwtGuiSnapshotRow -Snapshot $list[0]
+        $failed = @($list | Where-Object { $_.PSObject.Properties['Failed'] -and [int]$_.Failed -gt 0 }).Count
+        $c.BackupSummaryText.Text = "$($list.Count) snapshot$(if ($list.Count -ne 1) { 's' }); last change $($last.When): $(if ($last.Detail) { $last.Detail } else { $last.Operation }).$(if ($failed) { " $failed with failures." } else { '' }) Every one can be reverted."
+    } else { $c.BackupSummaryText.Text = 'No changes yet. Every change you apply writes a snapshot here first.' }
 }
 
 function Update-IgwtGuiTweakList {
@@ -735,11 +743,13 @@ function Update-IgwtGuiButtons {
     $jobCommand = ''
     if ($busy) { $jobCommand = [string]$script:Gui.Job.Command }
     $c.CleanScanButton.IsEnabled = -not $busy
-    $c.CleanRunButton.IsEnabled = (-not $busy) -and [bool]$script:Gui.CleanScan -and @(Get-IgwtGuiCleanerSelection).Count -gt 0
+    $c.CleanRunButton.IsEnabled = (-not $busy) -and [bool]$script:Gui.CleanScan -and @(Get-IgwtGuiCleanerSelection).Count -gt 0 -and -not (Test-IgwtReadOnly)
+    if (Test-IgwtReadOnly) { $c.CleanRunButton.ToolTip = Get-IgwtGuiChangeBlockReason -What 'delete files' }
     $c.CleanCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -like 'Invoke-IgwtCleaner*'
     $c.DiskAnalyzeButton.IsEnabled = -not $busy
     $c.DiskCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -eq 'Get-IgwtDiskUsage'
     Update-IgwtGuiAsrButtons
+    $polRow = Get-IgwtGuiGridItem -Name DefPolicyList
     $c.DefPolicyApplyButton.IsEnabled = (-not $busy) -and $script:Gui.IsAdmin -and [bool]$polRow -and [bool]$c.DefPolicyStateBox.SelectedItem -and [bool]$c.DefPolicyStateBox.SelectedItem.Allowed
     $c.DefDocButton.IsEnabled = [bool][string]$c.DefDocButton.Tag
     $powerRow = (Get-IgwtGuiGridItem -Name InspectPowerList)
@@ -767,14 +777,16 @@ function Update-IgwtGuiButtons {
     $tkApps = @(Get-IgwtGuiGridItems -Name ToolkitAppList).Count
     $tkFeature = (Get-IgwtGuiGridItem -Name ToolkitFeatureList)
     $c.ToolkitRefreshButton.IsEnabled = -not $busy
-    $c.ToolkitAppStateButton.IsEnabled = -not $busy
+    $c.ToolkitAppStateButton.IsEnabled = (-not $busy) -and -not (Test-IgwtReadOnly)
+    if (Test-IgwtReadOnly) { $c.ToolkitAppStateButton.ToolTip = 'Read-only mode: checking installed apps runs winget export (it writes a temporary file), so it is off here.' }
     foreach ($b in 'ToolkitInstallButton', 'ToolkitUpgradeButton', 'ToolkitUninstallButton') { $c[$b].IsEnabled = $canManage -and $tkApps -gt 0 }
     $c.ToolkitUpgradeAllButton.IsEnabled = $canManage
     $c.ToolkitExportButton.IsEnabled = $tkApps -gt 0
     $c.ToolkitImportButton.IsEnabled = [bool]$script:Gui.Toolkit
     $c.ToolkitFeatureEnableButton.IsEnabled = $canManage -and [bool]$tkFeature -and [bool]$tkFeature.Source.Supported -and [string]$tkFeature.Source.State -ne 'On'
     $c.ToolkitFeatureDisableButton.IsEnabled = $canManage -and [bool]$tkFeature -and [string]$tkFeature.Source.State -in 'On', 'Partial'
-    $c.ToolkitFixRunButton.IsEnabled = (-not $busy) -and [bool](Get-IgwtGuiGridItem -Name ToolkitFixList)
+    $c.ToolkitFixRunButton.IsEnabled = (-not $busy) -and [bool](Get-IgwtGuiGridItem -Name ToolkitFixList) -and -not (Test-IgwtReadOnly)
+    if (Test-IgwtReadOnly) { $c.ToolkitFixRunButton.ToolTip = Get-IgwtGuiChangeBlockReason -What 'run fixes' }
     $c.ToolkitPanelOpenButton.IsEnabled = [bool](Get-IgwtGuiGridItem -Name ToolkitPanelList)
     $c.ToolkitTweakGoButton.IsEnabled = [bool](Get-IgwtGuiGridItem -Name ToolkitTweakList)
     $c.ToolkitUpdateGoButton.IsEnabled = [bool](Get-IgwtGuiGridItem -Name ToolkitUpdateList)
@@ -1260,7 +1272,7 @@ function Complete-IgwtGuiApply {
 function Invoke-IgwtGuiRevert {
     [CmdletBinding()]
     param([string]$SnapshotPath, [switch]$Last)
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Reverting requires administrator rights. Use "Restart as administrator".'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text (Get-IgwtGuiChangeBlockReason -What 'revert changes'); return }
     $what = $(if ($Last) { 'every value changed by the most recent apply' } else { "the values in $(Split-Path $SnapshotPath -Leaf)" })
     if ((Show-IgwtGuiMessage -Text "Restore ${what}? A new snapshot of the current state is written first, so this can be undone too." -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $p = @{}
@@ -1369,6 +1381,7 @@ function Invoke-IgwtGuiCleanerClean {
     <# .SYNOPSIS Confirms, then deletes only what the last scan found for the ticked rules. #>
     [CmdletBinding()]
     param()
+    if (Test-IgwtReadOnly) { Set-IgwtGuiStatus (Get-IgwtGuiChangeBlockReason -What 'delete files'); return }
     $scan = $script:Gui.CleanScan
     $ids = @(Get-IgwtGuiCleanerSelection)
     if (-not $scan -or $ids.Count -eq 0) { return }
@@ -1614,6 +1627,16 @@ function Test-IgwtGuiSearchMatch {
     param($Row, [string]$Text)
     if (-not $Text) { return $true }
     return ("$($Row.Title) $($Row.Subtitle) $($Row.Tip)".IndexOf($Text, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+function Get-IgwtGuiChangeBlockReason {
+    <# .SYNOPSIS Why changes are off in this window ('' when they are allowed): read-only mode or no administrator rights. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$What = 'make changes')
+    if ((Test-IgwtReadOnly) -or ($script:Gui -and $script:Gui.ReadOnly)) { return "Read-only mode: this window cannot $What. Start iG Windows Tuner without -ReadOnly to $What." }
+    if ($script:Gui -and -not $script:Gui.IsAdmin) { return "Restart as administrator to $What." }
+    return ''
 }
 
 function Get-IgwtGuiGridItem {
@@ -2212,7 +2235,7 @@ function Invoke-IgwtGuiNetApply {
     param()
     $r = $script:Gui.NetResult
     if (-not $r -or -not $r.Recommendations) { return }
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart iG Windows Tuner as administrator to apply the recommended adjustments. You can still review them here.'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text ((Get-IgwtGuiChangeBlockReason -What 'apply the recommended adjustments') + ' You can still review them here.'); return }
     $count = 0
     foreach ($id in @($r.Recommendations.TweakIds)) { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
     $script:Gui.PresetOperation = 'Apply:NetworkTest'
@@ -2451,7 +2474,7 @@ function Invoke-IgwtGuiDefenderChange {
     $c = $script:Gui.C
     $row = (Get-IgwtGuiGridItem -Name DefList)
     if (-not $row) { Set-IgwtGuiStatus 'Select a setting first.'; return }
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Defender settings.'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text (Get-IgwtGuiChangeBlockReason -What 'change Defender settings'); return }
     $s = $row.Setting
     $def = Get-IgwtDefenderSettingDefinition -Name ([string]$s.Property)
     $raw = $null
@@ -2814,7 +2837,7 @@ function Invoke-IgwtGuiToolkitFeature {
     <# .SYNOPSIS Enables or disables the selected Toolkit feature in the worker after confirmation (snapshot first). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][ValidateSet('Enabled', 'Disabled')][string]$State)
-    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to change Windows features.'; return }
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text (Get-IgwtGuiChangeBlockReason -What 'change Windows features'); return }
     $row = (Get-IgwtGuiGridItem -Name ToolkitFeatureList)
     if (-not $row) { return }
     $f = $row.Source
@@ -2836,6 +2859,7 @@ function Invoke-IgwtGuiToolkitFix {
     $row = (Get-IgwtGuiGridItem -Name ToolkitFixList)
     if (-not $row) { return }
     $p = $row.Source
+    if (Test-IgwtReadOnly) { Set-IgwtGuiStatus (Get-IgwtGuiChangeBlockReason -What 'run fixes'); return }
     if ($p.Admin -and -not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text "'$($p.Name)' needs administrator rights. Restart as administrator first."; return }
     $text = "$($p.Name)`n$($p.Description)`n`nSteps:`n$(@($p.Steps | ForEach-Object { "  - $_" }) -join "`n")$(if ($p.Warning) { "`n`nWarning: $($p.Warning)" })$(if ($p.Reboot) { "`n`nA restore point is created first; restart Windows afterwards." })`n`nSource: $($p.Source)"
     if (-not (Show-IgwtGuiTextDialog -Title "Run fix: $($p.Name)" -Text $text -AcceptText 'Run fix' -CancelText 'Cancel')) { return }
@@ -3139,7 +3163,9 @@ function Show-IgwtGui {
     # The changelog and notices are read when first opened (files of the installed copy).
     Register-IgwtGuiHandler -Control $c.AboutChangelogExpander -Event 'Expanded' -Handler { if (-not $script:Gui.C.AboutChangelogText.Text) { $script:Gui.C.AboutChangelogText.Text = Get-IgwtGuiDocText -Name 'docs\CHANGELOG.md' -MaxChars 60000 } }
     Register-IgwtGuiHandler -Control $c.AboutNoticesExpander -Event 'Expanded' -Handler { if (-not $script:Gui.C.AboutNoticesText.Text) { $script:Gui.C.AboutNoticesText.Text = (Get-IgwtGuiDocText -Name 'LICENSE') + [Environment]::NewLine + [Environment]::NewLine + (Get-IgwtGuiDocText -Name 'THIRD_PARTY_NOTICES.md') } }
-    Set-IgwtGuiGridRows -Name 'RejectedList' -Rows @(Get-IgwtRejectedTweaks | ForEach-Object { New-IgwtGuiRejectedRow -Entry $_ })
+    $rejected = @(Get-IgwtRejectedTweaks)
+    Set-IgwtGuiGridRows -Name 'RejectedList' -Rows @($rejected | ForEach-Object { New-IgwtGuiRejectedRow -Entry $_ })
+    $c.RejectedSummaryText.Text = "$($rejected.Count) popular tweaks are not offered; $(@($rejected | Where-Object { $_.riskItem }).Count) of them can be applied at your own risk from the Risk Zone."
     $c.AdminText.Text = $(if ($script:Gui.ReadOnly) { 'Read-only mode' } elseif ($script:Gui.IsAdmin) { 'Administrator' } else { 'Read-only (not elevated)' })
     $c.ElevateButton.Visibility = $(if ($script:Gui.IsAdmin -or $script:Gui.ReadOnly) { 'Collapsed' } else { 'Visible' })
     if ($script:Gui.ReadOnly) {
@@ -3162,7 +3188,7 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.PersonaBox -Event 'SelectionChanged' -Handler {
             $n = [string]$script:Gui.C.PersonaBox.SelectedItem
             if (-not $n -or ($script:Gui.Persona -and $script:Gui.Persona.Name -eq $n)) { return }
-            try { Set-IgwtPersona -Name $n } catch { Write-Verbose "Persona not saved: $($_.Exception.Message)" }
+            if (Test-IgwtReadOnly) { Set-IgwtGuiStatus "Persona: $n for this window (read-only mode: not saved)." } else { try { Set-IgwtPersona -Name $n } catch { Write-Verbose "Persona not saved: $($_.Exception.Message)" } }
             Set-IgwtGuiPersona -Name $n
         }
 
@@ -3215,7 +3241,7 @@ function Show-IgwtGui {
                 $cmp = $script:Gui.Presets | Where-Object { $_.id -eq $tag.Substring(8) } | Select-Object -First 1
                 if ($cmp -and $script:Gui.Data -and (Show-IgwtGuiPresetCompare -Preset $cmp) -and $script:Gui.IsAdmin) { $tag = [string]$cmp.id } else { return }
             }
-            if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to stage and apply presets. You can still preview tweaks on the category pages.'; return }
+            if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text ((Get-IgwtGuiChangeBlockReason -What 'stage and apply presets') + ' You can still compare presets and preview tweaks.'); return }
             $preset = $script:Gui.Presets | Where-Object { $_.id -eq $tag } | Select-Object -First 1
             if (-not $preset -or -not $script:Gui.Data) { return }
             $script:Gui.Staged.Clear()
@@ -3315,7 +3341,7 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.SecFirewallButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Firewall' }
     # Toolkit
     Register-IgwtGuiHandler -Control $c.ToolkitRefreshButton -Event 'Click' -Handler { Start-IgwtGuiToolkitRefresh -WithAppState:([bool]($script:Gui.Toolkit -and $script:Gui.Toolkit.AppState)) }
-    Register-IgwtGuiHandler -Control $c.ToolkitAppStateButton -Event 'Click' -Handler { Start-IgwtGuiToolkitRefresh -WithAppState }
+    Register-IgwtGuiHandler -Control $c.ToolkitAppStateButton -Event 'Click' -Handler { if (Test-IgwtReadOnly) { return }; Start-IgwtGuiToolkitRefresh -WithAppState }
     Register-IgwtGuiHandler -Control $c.ToolkitInstallButton -Event 'Click' -Handler { Invoke-IgwtGuiToolkitApps -Operation Install }
     Register-IgwtGuiHandler -Control $c.ToolkitUpgradeButton -Event 'Click' -Handler { Invoke-IgwtGuiToolkitApps -Operation Upgrade }
     Register-IgwtGuiHandler -Control $c.ToolkitUninstallButton -Event 'Click' -Handler { Invoke-IgwtGuiToolkitApps -Operation Uninstall }
