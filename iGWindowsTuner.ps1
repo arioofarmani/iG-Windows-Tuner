@@ -15,6 +15,8 @@
     Read-only health and anti-cheat readiness report.
 .PARAMETER ReportPath
     With -Report: also write the report to this .html or .json file.
+.PARAMETER Version
+    Show the version of iG Windows Tuner (with -Json as an object) and exit.
 .PARAMETER ListTweaks
     List every tweak with tier, risk, presets and current state.
 .PARAMETER Preset
@@ -399,6 +401,7 @@
 param(
     [switch]$Report,
     [string]$ReportPath,
+    [switch]$Version,
     [switch]$ListTweaks,
     [string]$Preset,
     [string[]]$AddItem,
@@ -769,6 +772,7 @@ function Write-IgwtAsrStatus {
 # ---------------------------------------------------------------------------------------------
 $modes = @()
 if ($Report) { $modes += 'Report' }
+if ($Version) { $modes += 'Version' }
 if ($ListTweaks) { $modes += 'ListTweaks' }
 if ($Preset -and -not ($Drift -or $AdoptDrift)) { $modes += 'Preset' }
 if ($ListPresets) { $modes += 'ListPresets' }
@@ -894,6 +898,11 @@ try {
     }
 
     switch ($modes[0]) {
+        'Version' {
+            $v = [string](Get-Module iGWindowsTuner).Version
+            if ($Json) { [pscustomobject]@{ name = 'iG Windows Tuner'; version = $v; powershell = [string]$PSVersionTable.PSVersion } | ConvertTo-Json | Write-Output } else { Write-IgwtCliLine "iG Windows Tuner $v" ([ConsoleColor]::White) }
+            exit 0
+        }
         'Report' {
             $r = Get-IgwtHealthReport
             if ($Json) { $r | ConvertTo-Json -Depth 10 } else { Format-IgwtHealthReport -Report $r | Write-Output }

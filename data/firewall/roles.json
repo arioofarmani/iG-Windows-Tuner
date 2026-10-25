@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallRoles",
+  "verified": "2026-10-24",
+  "comment": "PC roles the Bloated assessment is evaluated against. personas: the iG Windows Tuner personas that map to the role by default (the user can pick another role in the Firewall Manager; the choice is stored with the overrides).",
+  "roles": [
+    { "id": "Gamer", "name": "Gaming PC", "personas": [ "Gamer" ], "hint": "Games, launchers, voice chat and streaming. No file sharing or remote administration.", "description": "A home gaming PC: games and their launchers, voice chat, streaming and casting stay; server roles, remote administration and legacy media sharing are bloat." },
+    { "id": "PowerUser", "name": "Power user", "personas": [ "PowerUser" ], "hint": "Home PC that may share files and use Remote Desktop on the home network.", "description": "A home PC used for work and play: sharing and Remote Desktop are optional, enterprise server roles are bloat." },
+    { "id": "Sysadmin", "name": "Sysadmin", "personas": [ "Sysadmin" ], "hint": "Admin workstation that manages other machines and may be managed remotely.", "description": "An administrator's PC: Remote Desktop, PowerShell remoting and WMI are needed; consumer media sharing and casting are bloat." },
+    { "id": "Workstation", "name": "Office workstation", "personas": [], "hint": "Office or domain PC: file and printer sharing, discovery and management are expected.", "description": "A managed office PC: file and printer sharing, network discovery and device management are needed; legacy media sharing is bloat." }
+  ]
+}

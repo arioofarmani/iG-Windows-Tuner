@@ -65,7 +65,7 @@ Describe 'GUI background worker (headless)' {
     It 'keeps slow engine queries off the UI thread (they run as background jobs)' {
         # Plans and checks that call powercfg, CIM, package or management queries (audit E2, X5).
         $found = New-Object System.Collections.Generic.List[string]
-        $slow = @('Get-IgwtPowerSettingChangePlan', 'Get-IgwtManagedChangePlan', 'Test-IgwtSystemProtectionEnabled', 'Get-IgwtManagementState', 'Get-IgwtFirewallInventory', 'Get-IgwtPolicyBrowserData', 'Get-IgwtAsrAudit', 'Get-IgwtExploitProtectionInventory')
+        $slow = @('Get-IgwtPowerSettingChangePlan', 'Get-IgwtManagedChangePlan', 'Test-IgwtSystemProtectionEnabled', 'Get-IgwtManagementState', 'Get-IgwtFirewallInventory', 'Get-IgwtFirewallAudit', 'Get-IgwtPolicyBrowserData', 'Get-IgwtAsrAudit', 'Get-IgwtExploitProtectionInventory')
         foreach ($f in Get-ChildItem (Join-Path $script:IgwtProjectRoot 'src\Gui') -Filter *.ps1) {
             $tk = $null; $er = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tk, [ref]$er)

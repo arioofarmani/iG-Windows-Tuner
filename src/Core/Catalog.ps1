@@ -60,38 +60,29 @@ function ConvertTo-IgwtNormalizedTweak {
     } else {
         foreach ($f in $legacy) { $Tweak.PSObject.Properties.Remove($f) }
     }
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'editions' -Value @() -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'managedBy' -Value @('local') -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'gpoPath' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'admxRef' -Value $null -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'requiresDomain' -Value $false -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'requiresMdm' -Value $false -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'order' -Value 50 -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'group' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'expert' -Value $false -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'warning' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'conflictsWith' -Value @() -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'status' -Value 'Active' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'statusReason' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'policyKeys' -Value @() -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'postApply' -Value $null -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'requires' -Value 'none' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'appliesTo' -Value ([pscustomobject]@{ minBuild = 26100 }) -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'revertNote' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'sourceFile' -Value $SourceFile -WhatIf:$false
-    if ($null -eq $Tweak.appliesTo.PSObject.Properties['conditions']) { $Tweak.appliesTo | Add-Member -NotePropertyName conditions -NotePropertyValue @() }
-    if ($null -eq $Tweak.appliesTo.PSObject.Properties['minBuild']) { $Tweak.appliesTo | Add-Member -NotePropertyName minBuild -NotePropertyValue 26100 }
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'sideEffects' -Value '' -WhatIf:$false
-    Set-IgwtDefaultProperty -Object $Tweak -Name 'attribution' -Value '' -WhatIf:$false
+    # Defaults for optional fields (direct property access: Add-Member per field made the catalog slow to load).
+    $props = $Tweak.PSObject.Properties
+    $defaults = [ordered]@{
+        editions = @(); managedBy = @('local'); gpoPath = ''; admxRef = $null; requiresDomain = $false; requiresMdm = $false; order = 50; group = ''; expert = $false
+        warning = ''; conflictsWith = @(); status = 'Active'; statusReason = ''; policyKeys = @(); postApply = $null; requires = 'none'; appliesTo = $null; revertNote = ''; sourceFile = $SourceFile
+    }
+    foreach ($k in $defaults.Keys) {
+        if ($null -ne $props[$k]) { continue }
+        # (no $() here: it would turn the empty array defaults into $null)
+        if ($k -eq 'appliesTo') { $v = [pscustomobject]@{ minBuild = 26100 } } else { $v = $defaults[$k] }
+        $props.Add([System.Management.Automation.PSNoteProperty]::new($k, $v))
+    }
+    $at = $Tweak.appliesTo.PSObject.Properties
+    if ($null -eq $at['conditions']) { $at.Add([System.Management.Automation.PSNoteProperty]::new('conditions', @())) }
+    if ($null -eq $at['minBuild']) { $at.Add([System.Management.Automation.PSNoteProperty]::new('minBuild', 26100)) }
+    foreach ($k in 'sideEffects', 'attribution') { if ($null -eq $props[$k]) { $props.Add([System.Management.Automation.PSNoteProperty]::new($k, '')) } }
     # Computed (never written to files): the engine, GUI and docs read these.
     $ac = ConvertTo-IgwtAntiCheatInfo -Value $Tweak.antiCheat
-    $Tweak | Add-Member -NotePropertyName expert -NotePropertyValue ([string]$Tweak.level -in 'Expert', 'Lab') -Force
-    $Tweak | Add-Member -NotePropertyName antiCheatSafe -NotePropertyValue ([bool]$ac.Safe) -Force
-    $Tweak | Add-Member -NotePropertyName antiCheatText -NotePropertyValue ([string]$ac.Text) -Force
-    $Tweak | Add-Member -NotePropertyName tier -NotePropertyValue ([string]$Tweak.evidence.tier) -Force
-    $Tweak | Add-Member -NotePropertyName sourceSchema -NotePropertyValue $SourceSchema -Force
-    $Tweak | Add-Member -NotePropertyName legacyFields -NotePropertyValue $legacy -Force
-    return $Tweak
+    $computed = [ordered]@{ expert = ([string]$Tweak.level -in 'Expert', 'Lab'); antiCheatSafe = [bool]$ac.Safe; antiCheatText = [string]$ac.Text; tier = [string]$Tweak.evidence.tier; sourceSchema = $SourceSchema; legacyFields = $legacy }
+    foreach ($k in $computed.Keys) {
+        if ($null -ne $props[$k]) { $props.Remove($k) }
+        $props.Add([System.Management.Automation.PSNoteProperty]::new($k, $computed[$k]))
+    }    return $Tweak
 }
 
 function Get-IgwtCatalog {
@@ -503,5 +494,6 @@ function Test-IgwtCatalog {
     foreach ($e in @(Test-IgwtKernelInspectorCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtManageCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtToolkitCatalog)) { $errors.Add([string]$e) }
+    foreach ($e in @(Test-IgwtFirewallKnowledgeBase)) { $errors.Add([string]$e) }
     return $errors.ToArray()
 }

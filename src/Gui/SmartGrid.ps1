@@ -61,7 +61,7 @@ function New-IgwtGridIndex {
     $cols = @($Columns | ForEach-Object { if ($_.PSObject.Properties['SortKey'] -and $_.PSObject.Properties['Template']) { $_ } else { ConvertTo-IgwtGridColumn -Definition $_ } })
     $rows = @($Rows | Where-Object { $null -ne $_ })
     $n = $rows.Count
-    $keys = @{}; $texts = @{}
+    $keys = @{}; $texts = @{}; $arrayCols = @{}
     $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $float = [System.Globalization.NumberStyles]::Float
     # One pass per column (inline member access; a function call per cell is 100 times slower).
@@ -71,7 +71,7 @@ function New-IgwtGridIndex {
         $i = 0
         foreach ($row in $rows) {
             $v = $row.$name
-            if ($null -eq $v) { $tx[$i] = '' } elseif ($v -is [array]) { $tx[$i] = ($v -join ', ') } else { $tx[$i] = [string]$v }
+            if ($null -eq $v) { $tx[$i] = '' } elseif ($v -is [array]) { $tx[$i] = ($v -join ', '); $arrayCols[$name] = $true } else { $tx[$i] = [string]$v }
             $i++
         }
         $texts[$name] = $tx
@@ -110,7 +110,7 @@ function New-IgwtGridIndex {
         foreach ($t in $searchCols) { $null = $sb.Append($t[$i]).Append($sep) }
         $search[$i] = $sb.ToString().ToLowerInvariant()
     }
-    return @{ Rows = $rows; Count = $n; Columns = $cols; Search = $search; Keys = $keys; Texts = $texts; Ranks = @{}; Chips = @{} }
+    return @{ Rows = $rows; Count = $n; Columns = $cols; Search = $search; Keys = $keys; Texts = $texts; Ranks = @{}; Chips = @{}; ArrayColumns = $arrayCols }
 }
 
 function Get-IgwtGridRank {
@@ -205,7 +205,7 @@ function Invoke-IgwtGridQuery {
         if ($allowed.Count -eq 0) { continue }
         $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($v in $allowed) { $null = $set.Add([string]$v) }
-        $colFilters += , @($Index.Texts[$k], $set)
+        $colFilters += , @($Index.Texts[$k], $set, [bool]($Index.ArrayColumns -and $Index.ArrayColumns.ContainsKey($k)), $k)
     }
     $list = New-Object 'System.Collections.Generic.List[int]' $n
     $searchText = $Index.Search
@@ -219,7 +219,13 @@ function Invoke-IgwtGridQuery {
             if (-not $any) { $ok = $false; break }
         }
         if (-not $ok) { continue }
-        foreach ($cf in $colFilters) { if (-not $cf[1].Contains($cf[0][$i])) { $ok = $false; break } }
+        foreach ($cf in $colFilters) {
+            if ($cf[1].Contains($cf[0][$i])) { continue }
+            # Multi-value column (for example a rule's groups): any element may match.
+            $hit = $false
+            if ($cf[2]) { foreach ($e in @($Index.Rows[$i].($cf[3]))) { if ($cf[1].Contains([string]$e)) { $hit = $true; break } } }
+            if (-not $hit) { $ok = $false; break }
+        }
         if ($ok) { $list.Add($i) }
     }
     $result = $list.ToArray()
@@ -255,6 +261,28 @@ function Invoke-IgwtGridQuery {
 #region Grid control (WPF)
 
 $script:IgwtGrids = @{}
+
+function Update-IgwtGridToolbarWidth {
+    <# .SYNOPSIS Fits the toolbar into the list's width: the search box takes what is left (140 to 280 px); the "updated" text hides first. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Grid, [Parameter(Mandatory = $true)][double]$Width)
+    $c = $Grid.C
+    $c.UpdatedText.Visibility = $(if ($Width -lt 600) { 'Collapsed' } else { 'Visible' })
+    # Right-hand group: counter, refresh link, Clear filters and View (measured, about 330 px at 100 %).
+    $right = 0.0
+    foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton') {
+        $el = $c[$n]
+        if ($el -and $el.Visibility -eq 'Visible') { $el.Measure((New-Object System.Windows.Size([double]::PositiveInfinity, [double]::PositiveInfinity))); $right += $el.DesiredSize.Width + $el.Margin.Left + $el.Margin.Right }
+    }
+    # Too narrow for both on one line: the counter, Clear filters and View move under the search box.
+    $group = $c.CountText.Parent
+    $twoRows = ($Width - $right - 12) -lt 200
+    [System.Windows.Controls.DockPanel]::SetDock($group, $(if ($twoRows) { [System.Windows.Controls.Dock]::Bottom } else { [System.Windows.Controls.Dock]::Right }))
+    $group.HorizontalAlignment = $(if ($twoRows) { 'Right' } else { 'Stretch' })
+    $group.Margin = $(if ($twoRows) { '0,6,0,0' } else { '0' })
+    $c.SearchBox.Width = $(if ($twoRows) { [Math]::Max([double]140, [Math]::Min([double]280, $Width)) } else { [Math]::Max([double]140, [Math]::Min([double]280, [double]($Width - $right - 12))) })
+}
 
 function Get-IgwtGridShellXaml {
     [CmdletBinding()]
@@ -452,6 +480,16 @@ function New-IgwtSmartGrid {
             Update-IgwtGridView -Grid $grid
             Request-IgwtGridSave -Grid $grid
         }
+
+    # Narrow lists (a three-pane page at the minimum window size): the search box shrinks and the
+    # "updated" text hides before the counter, Clear filters and View are pushed out.
+    $root.Tag = $Id
+    Register-IgwtGuiHandler -Control $root -Event 'SizeChanged' -Handler {
+        param($s, $e)
+        $grid = $script:IgwtGrids[[string]$s.Tag]
+        if (-not $grid -or -not $e.WidthChanged) { return }
+        Update-IgwtGridToolbarWidth -Grid $grid -Width ([double]$e.NewSize.Width)
+    }
 
     # Search (debounced 150 ms)
     $g.SearchTimer = New-Object System.Windows.Threading.DispatcherTimer

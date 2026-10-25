@@ -719,7 +719,9 @@ function New-IgwtGuiSecurityCheckRow {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Check)
     $brush = switch ([string]$Check.Status) { 'Pass' { $script:IgwtColor.Pass } 'Warn' { $script:IgwtColor.Warn } 'Fail' { $script:IgwtColor.Fail } default { $script:IgwtColor.Muted } }
-    $route = switch ([string]$Check.Fix) { 'Tweak' { "Fix: $($Check.Target)" } 'AsrCenter' { 'Fix: ASR Center' } 'None' { '' } default { "Fix: $($Check.Target)" } }
+    # No route text without a target (3.3 D2): the hint is shown instead of an empty "Fix:".
+    $target = [string]$Check.Target
+    $route = switch ([string]$Check.Fix) { 'AsrCenter' { 'Fix: ASR Center' } 'None' { '' } default { $(if ($target) { "Fix: $target" } else { '' }) } }
     [pscustomobject]@{ Status = [string]$Check.Status; Brush = $brush; Name = [string]$Check.Name; Value = [string]$Check.Value; Route = $route; Hint = [string]$Check.Hint }
 }
 
@@ -830,6 +832,36 @@ function New-IgwtGuiDiskRow {
         Share    = $(if ($Largest -gt 0) { [Math]::Round(100.0 * $Bytes / $Largest, 1) } else { 0 })
         IsFolder = [bool]$IsFolder
     }
+}
+
+function Get-IgwtGuiBuildInfo {
+    <# .SYNOPSIS Build information for the About page and bug reports (no user or device names). #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    $os = $(try { Get-IgwtOsInfo } catch { $null })
+    $sums = Join-Path $script:IgwtProjectRoot 'SHA256SUMS.txt'
+    $lines = @(
+        "Version      $script:IgwtVersion"
+        "Windows      $(if ($os) { "$($os.Caption) build $($os.FullBuild)" } else { [Environment]::OSVersion.VersionString })"
+        "PowerShell   $($PSVersionTable.PSVersion) ($([Environment]::Is64BitProcess | ForEach-Object { if ($_) { '64-bit' } else { '32-bit' } }))"
+        ".NET CLR     $([Environment]::Version)"
+        "Mode         $(if (Test-IgwtReadOnly) { 'read-only' } elseif ($script:Gui -and $script:Gui.IsAdmin) { 'administrator' } else { 'standard user (read-only views)' })"
+        "Manifest     $(if (Test-Path -LiteralPath $sums) { "SHA256SUMS.txt, $((Get-Item -LiteralPath $sums).LastWriteTimeUtc.ToString('yyyy-MM-dd')) (UTC)" } else { 'not present' })"
+    )
+    return ($lines -join [Environment]::NewLine)
+}
+
+function Get-IgwtGuiDocText {
+    <# .SYNOPSIS Text of a document shipped with this copy (changelog, license, notices); a short note when it is not included. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][string]$Name, [int]$MaxChars = 200000)
+    $p = Join-Path $script:IgwtProjectRoot $Name
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { return "$Name is not included in this copy." }
+    $t = [System.IO.File]::ReadAllText($p)
+    if ($t.Length -gt $MaxChars) { $t = $t.Substring(0, $MaxChars) + [Environment]::NewLine + '... (the full file is ' + $Name + ')' }
+    return $t
 }
 
 function Get-IgwtAboutText {

@@ -5,7 +5,7 @@ BeforeAll {
     function New-FwRule {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test data builder.')]
         param([string]$Name, [string]$Display, [string]$Group = '', [string]$Enabled = 'True', [string]$Direction = 'Inbound', [string]$Action = 'Allow', [string]$Profiles = 'Any', [string]$StoreType = 'Local', [string]$Owner = '')
-        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profiless
+        [pscustomobject]@{ InstanceID = $Name; Name = $Name; DisplayName = $Display; DisplayGroup = $Group; Group = $Group; Enabled = $Enabled; Direction = $Direction; Action = $Action; Profile = $Profiles
             PolicyStoreSourceType = $StoreType; PolicyStoreSource = $(if ($StoreType -eq 'GroupPolicy') { 'contoso.test GPO' } else { 'PersistentStore' }); Owner = $Owner; EdgeTraversalPolicy = 'Block'; Description = "$Display rule" }
     }
     # A small in-memory firewall for the change tests: name -> definition.
@@ -141,13 +141,22 @@ Describe 'Firewall Manager: inventory join and risk flags' {
         Mock -ModuleName iGWindowsTuner Get-NetFirewallAddressFilter { throw 'Access is denied.' }
         Mock -ModuleName iGWindowsTuner Get-NetFirewallServiceFilter { @() }
         Mock -ModuleName iGWindowsTuner Get-NetFirewallInterfaceTypeFilter { throw 'Access is denied.' }
+        # Windows Service Hardening stores: one rule, tagged with its store and locked.
+        $wsh = [pscustomobject]@{ Name = 'Svc-1'; InstanceID = 'Svc-1'; DisplayName = 'Block any inbound traffic to Svc'; Group = ''; DisplayGroup = ''; Enabled = 'True'; Direction = 'Inbound'; Action = 'Block'; Profile = 'Any'; EdgeTraversalPolicy = 'Block'; Owner = ''; PolicyStoreSource = 'No Policy Store (Invalid)'; PolicyStoreSourceType = 'None'; Description = '' }
+        Mock -ModuleName iGWindowsTuner Get-NetFirewallRule { $wsh } -ParameterFilter { $PolicyStore -eq 'StaticServiceStore' }
+        Mock -ModuleName iGWindowsTuner Get-NetFirewallRule { @() } -ParameterFilter { $PolicyStore -eq 'ConfigurableServiceStore' }
         $inv = Get-IgwtFirewallInventory
-        $inv.Count | Should -Be 8
+        $inv.Count | Should -Be 9
         $inv.Partial | Should -BeTrue
         $inv.Notes -join ' ' | Should -Match 'administrator'
         $inv.Timing.Rules | Should -Not -BeNullOrEmpty
-        Should -Invoke -ModuleName iGWindowsTuner Get-NetFirewallRule -Times 1 -Exactly
-        Should -Invoke -ModuleName iGWindowsTuner Get-NetFirewallApplicationFilter -Times 1 -Exactly
+        $s = $inv.Rules | Where-Object Name -EQ 'Svc-1'
+        $s.Store | Should -Be 'StaticServiceStore'
+        $s.Locked | Should -BeTrue
+        Should -Invoke -ModuleName iGWindowsTuner Get-NetFirewallRule -Times 1 -Exactly -ParameterFilter { $PolicyStore -eq 'ActiveStore' }
+        Should -Invoke -ModuleName iGWindowsTuner Get-NetFirewallApplicationFilter -Times 1 -Exactly -ParameterFilter { $PolicyStore -eq 'ActiveStore' }
+        # -NoServiceHardening reads the active store only.
+        (Get-IgwtFirewallInventory -NoServiceHardening).Count | Should -Be 8
     }
 }
 
@@ -275,7 +284,7 @@ Describe 'Firewall Manager: changes with snapshots (mocked firewall)' {
     It 'refuses Core Networking and Windows edits, and still applies the allowed part' {
         $r = Invoke-IgwtFirewallChange -Operation Disable -Name 'CoreNet-DHCP-In', 'App-Game-In'
         $r.Changes | Should -Be 1
-        ($r.Results | Where-Object Result -EQ 'Refused').Message | Should -Match 'Core Networking'
+        ($r.Results | Where-Object Result -EQ 'Refused').Message | Should -Match 'Core Networking|Core Services'   # the engine now classifies: Core Networking is a Core Services rule
         $script:FwStore['CoreNet-DHCP-In'].enabled | Should -BeTrue
         $e = Invoke-IgwtFirewallChange -Operation Edit -Name 'Win-Cast-In' -Settings @{ Profiles = @('Public') }
         $e.Changes | Should -Be 0

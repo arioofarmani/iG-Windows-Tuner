@@ -2,9 +2,9 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Version](https://img.shields.io/badge/version-3.0-0078D4)
+![Version](https://img.shields.io/badge/version-3.4-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-782%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-924%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
@@ -20,6 +20,17 @@ iG Windows Tuner takes the opposite approach:
 - **Anti-cheat compatible by design.** Nothing that anti-cheat depends on is touched, and readiness for each major anti-cheat is checked and shown.
 - **Transparent.** Every registry path, service, power setting and policy is shown as "current -> target" before you apply anything. Nothing is downloaded, obfuscated or hidden.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/3.4/00-Dashboard.png) | ![Firewall Manager overview](docs/screenshots/3.4/14-Firewall.png) |
+| Dashboard: status at a glance, one numbered "Do this next" list | Firewall Manager: what needs attention, quick wins, rule groups |
+| ![Firewall rules](docs/screenshots/3.4/14b-Firewall.png) | ![Presets](docs/screenshots/3.4/01-Presets.png) |
+| Every rule explained: origin, confidence, findings and safe fixes | Presets with changes per category and a compare view |
+
+Screenshots are rendered offscreen from demo data (`tools\Test-GuiRender.ps1`); more in [docs/screenshots/3.4](docs/screenshots/3.4), and the 3.0 interface for comparison in [docs/screenshots/3.3/before](docs/screenshots/3.3/before).
+
 ## What it does
 
 | Area | Highlights |
@@ -27,6 +38,8 @@ iG Windows Tuner takes the opposite approach:
 | **Presets** | Ten presets (Competitive, Balanced, Hardened, Streamer & Creator, Engineer Workstation, Laptop Gamer, Privacy Max, Clean Install / Debloat, Fortress and a temporary Session Mode for match days), adjusted automatically to your hardware. Build your own custom presets, export and import them with an integrity check, and see what drifted since you applied one. |
 | **Tweak catalog** | 127 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
 | **Health report** | Read-only checks of firmware, microcode, Secure Boot, VBS/HVCI, GPU (Resizable BAR, refresh rate), network adapter, storage and an anti-cheat readiness score. HTML export. |
+| **Firewall Manager** | Every firewall rule classified (Core Services, Windows Connections, User Installed, Custom Rules) with the reason and a confidence level, risk findings with plain explanations and safe fixes, conflict analysis, an exposure map of open ports, a smart fix wizard, firewall scopes per kind of PC and an audit report. Core Services stay read-only, Windows rules are never deleted, game and anti-cheat rules are never blocked, and every change is previewed, snapshot-backed and undoable. See [docs/FIREWALL.md](docs/FIREWALL.md). |
+| **Interface** | Dark, Light and High Contrast themes, grouped navigation, sortable and filterable lists everywhere, focus mode, a read-only mode for audits, and a calm, predictable layout ([docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md)). |
 | **ASR Center** | All 19 Microsoft Defender attack surface reduction rules with modes, gamer-impact notes, per-rule exclusions and an audit view of what each rule blocked. |
 | **Security score** | 25 weighted checks, each with the exact fix, plus a local accounts audit and a listening-ports report. |
 | **Expert inspectors** | Power plan (hidden processor settings included), interrupts and MSI mode, network queues, kernel and memory values, timer, crash dumps, all next to their Windows defaults. |
@@ -111,13 +124,15 @@ These rules are enforced by a static safety test suite that runs against the sou
 | [docs/DEFENDER_CENTER.md](docs/DEFENDER_CENTER.md), [docs/SECURITY_COVERAGE.md](docs/SECURITY_COVERAGE.md), [docs/NETWORK_IDS_IPS.md](docs/NETWORK_IDS_IPS.md) | Defender & Security Control Center and settings editor; coverage of every ASR rule, Defender setting and Windows Security feature; what the endpoint adds to a network IDS/IPS |
 | [docs/NETWORK_GAMING.md](docs/NETWORK_GAMING.md) | Gaming network optimizer: what it measures, the rules it follows, and how to undo it |
 | [docs/WINUTIL_MAPPING.md](docs/WINUTIL_MAPPING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | How each WinUtil item was adopted, adapted or rejected; credits |
+| [docs/FIREWALL.md](docs/FIREWALL.md), [docs/FIREWALL_CATEGORIES.md](docs/FIREWALL_CATEGORIES.md) | Firewall Manager guide and audit workflow; how rules are classified |
+| [docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md) | How every page is built (attention first, small chunks, no surprises) |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions and their reasons |
 | [docs/TESTING.md](docs/TESTING.md) | Test suite, Sandbox test and measurement plan |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release notes |
 
 ## Project status
 
-This is version **3.0** (preview). It adds the Group Policy engine, security policy and auditing, category policy presets with baselines and exports, the Defender & Security Control Center and the gaming network optimizer, all covered by tests. The new 3.0 features are available on the command line; the GUI shows the 2.x features.
+This is version **3.4** (preview). It combines the 3.3 quality release (a rebuilt, calmer interface with themes, sortable and filterable lists everywhere, a read-only mode and many fixes) with the 3.4 Firewall Manager (classification, risk findings, conflict analysis, a fix wizard and firewall scopes). The 3.0 features (Group Policy engine, security policy and auditing, policy presets, Defender & Security Control Center, gaming network optimizer) are in the GUI and on the command line. See [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 Run the read-only commands and `-DryRun` first, and review what a change does before you apply it.
 

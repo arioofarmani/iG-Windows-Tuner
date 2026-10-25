@@ -8,6 +8,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 
 | Parameter | Description |
 |---|---|
+| `-Version` | Show the version of iG Windows Tuner (with -Json as an object) and exit. |
 | `-Report` | Read-only health and anti-cheat readiness report. |
 | `-ReportPath` | With -Report: also write the report to this .html or .json file. |
 | `-ListTweaks` | List every tweak with tier, risk, presets and current state. |

@@ -10,6 +10,8 @@
     Themes to render (Dark, Light, HighContrast). Default: all.
 .PARAMETER Scale
     Display scales to emulate (1 = 100 %). Default: 1, 1.5, 2.
+.PARAMETER Size
+    Window size in device-independent pixels (default 1280x820; the minimum supported size is 1100x720).
 .PARAMETER Live
     Use live data from this PC instead of the mocks (read-only; screenshots may contain machine details).
 #>
@@ -18,6 +20,7 @@ param(
     [string]$OutDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\gui-render'),
     [ValidateSet('Dark', 'Light', 'HighContrast')][string[]]$Theme = @('Dark', 'Light', 'HighContrast'),
     [double[]]$Scale = @(1, 1.5, 2),
+    [ValidatePattern('^\d{3,4}x\d{3,4}$')][string]$Size = '1280x820',
     [switch]$Live
 )
 $ErrorActionPreference = 'Stop'
@@ -26,7 +29,8 @@ $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.e
 if (-not (Test-Path -LiteralPath $OutDir)) { $null = New-Item -ItemType Directory -Path $OutDir -Force }
 $child = Join-Path ([System.IO.Path]::GetTempPath()) ("igwt-render-{0}.ps1" -f [guid]::NewGuid().ToString('N'))
 @'
-param([string]$Root, [string]$Dir, [double]$Scale, [string]$Theme, [switch]$Live)
+param([string]$Root, [string]$Dir, [double]$Scale, [string]$Theme, [string]$Size = '1280x820', [switch]$Live)
+$env:IGWT_RENDER_SIZE = $Size
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $Root 'src\iGWindowsTuner.psd1') -Force
 Set-IgwtEnvironment -ReadOnly
@@ -49,10 +53,10 @@ $summary = New-Object System.Collections.Generic.List[object]
 try {
     foreach ($t in $Theme) {
         foreach ($s in $Scale) {
-            $dir = Join-Path $OutDir ("{0}-{1}" -f $t.ToLowerInvariant(), [int]($s * 100))
+            $dir = Join-Path $OutDir ("{0}-{1}{2}" -f $t.ToLowerInvariant(), [int]($s * 100), $(if ($Size -ne '1280x820') { "-$Size" } else { '' }))
             if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
             $null = New-Item -ItemType Directory -Path $dir -Force
-            $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', $child, '-Root', $root, '-Dir', $dir, '-Scale', $s, '-Theme', $t)
+            $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', $child, '-Root', $root, '-Dir', $dir, '-Scale', $s, '-Theme', $t, '-Size', $Size)
             if ($Live) { $argList += '-Live' }
             $out = & $psExe @argList 2>&1
             $line = @($out | Where-Object { "$_" -like '{*' }) | Select-Object -Last 1

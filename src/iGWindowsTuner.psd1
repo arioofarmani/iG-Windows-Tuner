@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '3.0.0'
+    ModuleVersion        = '3.4.0'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -17,7 +17,7 @@
         'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
         'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',
         'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled',
-        'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Set-IgwtLogSink',
+        'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Get-IgwtLogEntries', 'Set-IgwtLogSink',
         'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
         'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
         'Get-IgwtDiskUsage', 'Format-IgwtBytes',
@@ -31,7 +31,7 @@
         'Invoke-IgwtManagedChange', 'Get-IgwtManagedChangePlan', 'Get-IgwtServiceInventory', 'Get-IgwtTaskInventory', 'Get-IgwtAppInventory', 'Get-IgwtFeatureInventory', 'Test-IgwtManageCatalog',
         'Get-IgwtPersistenceInventory', 'Export-IgwtPersistenceReport', 'Get-IgwtUpdateStatus',
         'Get-IgwtAdapterPropertyInspection', 'Invoke-IgwtDnsBenchmark', 'Test-IgwtNetworkLatency', 'Get-IgwtFirewallRuleList', 'Get-IgwtHostsFile',
-        'Get-IgwtFirewallInventory', 'Get-IgwtFirewallProfileStatus', 'Get-IgwtFirewallChangePlan', 'Invoke-IgwtFirewallChange', 'Restore-IgwtFirewallSnapshot', 'Export-IgwtFirewallRules', 'Export-IgwtFirewallPolicy', 'Get-IgwtFirewallImportPlan', 'Import-IgwtFirewallRules', 'Set-IgwtFirewallProfileSetting', 'Set-IgwtNetworkCategory', 'Restore-IgwtFirewallProfileSnapshot', 'Get-IgwtFirewallRuleTemplates', 'Test-IgwtRemoteSession', 'Get-IgwtFirewallRuleRows', 'Get-IgwtFirewallLogReport', 'Get-IgwtExploitProtectionInventory', 'Get-IgwtPolicyBrowserData', 'Get-IgwtPolicyBrowserDetail',
+        'Get-IgwtFirewallInventory', 'Get-IgwtFirewallKnowledgeBase', 'Get-IgwtFirewallNewRuleWarnings', 'Get-IgwtFirewallDefaultRuleSet', 'Compare-IgwtFirewallDefaults', 'Get-IgwtFirewallConnections', 'Get-IgwtFirewallScopes', 'Get-IgwtFirewallScopePlan', 'Export-IgwtFirewallAuditReport', 'Get-IgwtFirewallConflicts', 'Get-IgwtFirewallAudit', 'Get-IgwtFirewallExposureMap', 'Get-IgwtFirewallWizardSteps', 'Get-IgwtFirewallFixPlan', 'Format-IgwtFirewallRuleSummary', 'Get-IgwtFirewallFindings', 'Get-IgwtFirewallListeners', 'Get-IgwtFirewallSignatures', 'Get-IgwtFirewallClassificationContext', 'Invoke-IgwtFirewallClassification', 'Resolve-IgwtFirewallOrigin', 'Get-IgwtFirewallOverrides', 'Set-IgwtFirewallOverride', 'Export-IgwtFirewallOverrides', 'Import-IgwtFirewallOverrides', 'Test-IgwtFirewallIgnored', 'Test-IgwtFirewallKnowledgeBase', 'Get-IgwtFirewallProfileStatus', 'Get-IgwtFirewallChangePlan', 'Invoke-IgwtFirewallChange', 'Restore-IgwtFirewallSnapshot', 'Export-IgwtFirewallRules', 'Export-IgwtFirewallPolicy', 'Get-IgwtFirewallImportPlan', 'Import-IgwtFirewallRules', 'Set-IgwtFirewallProfileSetting', 'Set-IgwtNetworkCategory', 'Restore-IgwtFirewallProfileSnapshot', 'Get-IgwtFirewallRuleTemplates', 'Test-IgwtRemoteSession', 'Get-IgwtFirewallRuleRows', 'Get-IgwtFirewallLogReport', 'Get-IgwtExploitProtectionInventory', 'Get-IgwtPolicyBrowserData', 'Get-IgwtPolicyBrowserDetail',
         'Get-IgwtDiagnostics', 'Format-IgwtDiagnostics', 'Get-IgwtDpcIsrSample', 'Get-IgwtReliabilityHistory', 'Get-IgwtCrashHistory', 'Get-IgwtBootPerformance', 'Get-IgwtDriverInventory',
         'Get-IgwtSystemReport', 'Export-IgwtSystemReport',
         'Invoke-IgwtNetworkQualityTest', 'Measure-IgwtLoadedLatency', 'Format-IgwtNetworkQuality', 'Export-IgwtNetworkReport', 'Get-IgwtActiveConnection', 'Invoke-IgwtRouteTrace', 'Find-IgwtPathMtu', 'Get-IgwtNetworkTypeGuess', 'Get-IgwtNetworkRecommendations', 'ConvertTo-IgwtLatencyStats', 'Get-IgwtNetworkScore', 'Get-IgwtBufferbloatGrade', 'Get-IgwtRiskZoneSummary',
@@ -45,7 +45,7 @@
         'Backup-IgwtLocalGpo', 'Restore-IgwtLocalGpo', 'Reset-IgwtLocalGpo', 'Get-IgwtLocalGpoResetPlan', 'Get-IgwtPolicyRegistryOps',
         'Get-IgwtDefenderCenter', 'Get-IgwtDefenderStatus', 'Get-IgwtDefenderSettings', 'Get-IgwtDefenderSettingChangePlan', 'Invoke-IgwtDefenderSettingChange', 'Restore-IgwtDefenderSettingSnapshot', 'Get-IgwtDefenderPolicySettings', 'Test-IgwtDefenderSettingValue', 'Get-IgwtDefenderThreats', 'Set-IgwtDefenderParsersOn', 'Start-IgwtDefenderScan', 'Restore-IgwtQuarantineItem', 'Remove-IgwtDefenderThreat', 'Get-IgwtWebProtectionStatus', 'Get-IgwtDeviceControlStatus', 'Get-IgwtDetectionLoggingStatus', 'Get-IgwtSysmonEventSummary', 'Get-IgwtDefenderExclusionAudit', 'Remove-IgwtDefenderExclusion', 'Test-IgwtExclusionRisk', 'Get-IgwtFirewallLoggingStatus', 'Read-IgwtFirewallLog', 'Get-IgwtFirewallLogAnalysis', 'Export-IgwtFirewallLogAnalysis', 'Get-IgwtOutboundAllowListPlan',
         'Get-IgwtGamingNetworkPlan', 'Invoke-IgwtGamingNetworkOptimization', 'Compare-IgwtNetworkQuality', 'Test-IgwtNetworkConnectivity',
-        'Import-IgwtPolicyBaseline', 'Compare-IgwtPolicyBaseline', 'Export-IgwtPolicyComparison', 'Get-IgwtPolicyBaselinePlan', 'Invoke-IgwtPolicyBatch',
+        'Import-IgwtPolicyBaseline', 'Compare-IgwtPolicyBaseline', 'Get-IgwtPolicyBaselineComparison', 'Export-IgwtPolicyComparison', 'Get-IgwtPolicyBaselinePlan', 'Invoke-IgwtPolicyBatch',
         'Get-IgwtPolicyPresets', 'Test-IgwtPolicyPresetCatalog', 'Get-IgwtPolicyPresetPlan', 'Invoke-IgwtPolicyPreset', 'Restore-IgwtPolicyPreset', 'Export-IgwtPolicyPreset',
         'Get-IgwtTattooAdoptionPlan', 'Invoke-IgwtTattooAdoption', 'Restore-IgwtTattooRemoval', 'Test-IgwtPolicyBridgeEnabled',
         'Get-IgwtSecurityPolicy', 'Export-IgwtSecurityPolicy', 'Get-IgwtSecurityChangePlan', 'Set-IgwtSecurityPolicy', 'Restore-IgwtSecurityPolicy', 'ConvertFrom-IgwtSecurityChangeText', 'Get-IgwtAuditPolicy', 'Get-IgwtAuditChangePlan', 'Set-IgwtAuditPolicy', 'Restore-IgwtAuditPolicy', 'Import-IgwtAuditCsv', 'Export-IgwtAuditCsv',

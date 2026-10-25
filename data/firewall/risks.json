@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallRisks",
+  "verified": "2026-10-24",
+  "comment": "Security-risk rules. 'when' is a list of named checks that must all hold (closed set, evaluated by Get-IgwtFirewallRowFacts; see docs\\FIREWALL_CATEGORIES.md): enabled, inbound, outbound, allow, block, programAny, serviceAny, packageAny, portAny, remoteAny, profilePublic, ports (localPorts any of portSets), userWritablePath, unsigned, orphaned, nonWindows, scriptHost, edgeTraversal, localServiceRemoteAny, disabledSecurityRelevant, duplicate, broadPortRange, noDescription. Severity: Critical, High, Medium, Low. 'Exposed now' (a live listener matches) raises a finding one level. actions: RestrictPrivate, RestrictLocalSubnet, Disable, Delete, Keep, Ignore.",
+  "portSets": {
+    "adminFile": { "name": "admin and file protocols", "tcp": [ "3389", "445", "139", "5985", "5986", "22", "5900", "1433" ], "udp": [ "3389" ] },
+    "localDiscovery": { "name": "local discovery protocols", "tcp": [ "139", "2869", "5357", "5358" ], "udp": [ "137", "138", "5355", "5353", "1900", "3702" ] }
+  },
+  "risks": [
+    {
+      "id": "inbound-wide-open", "severity": "Critical", "title": "Inbound allow for any program, any port, from anywhere",
+      "hint": "Lets any program on this PC accept connections on any port from any address.",
+      "explanation": "This rule allows unsolicited incoming traffic without limiting the program, the port or the remote address. Anything that listens on this PC, including malware or a misconfigured service, is reachable through it.",
+      "when": [ "enabled", "inbound", "allow", "programAny", "serviceAny", "packageAny", "portAny", "remoteAny" ],
+      "recommended": "Disable", "alternatives": [ "RestrictLocalSubnet", "RestrictPrivate", "Keep", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "public-admin-protocol", "severity": "High", "title": "Remote access or file sharing allowed on Public networks",
+      "hint": "RDP, SMB, WinRM, SSH, VNC or SQL Server can be reached on public Wi-Fi.",
+      "explanation": "Remote Desktop, file sharing, PowerShell remoting, SSH, VNC and SQL Server are among the most attacked services. Allowing them on the Public profile exposes them on hotel, cafe and airport networks. Keep them to Private (or the local subnet) unless you really connect to this PC over a public network.",
+      "when": [ "enabled", "inbound", "allow", "profilePublic", "ports:adminFile" ],
+      "recommended": "RestrictPrivate", "alternatives": [ "RestrictLocalSubnet", "Disable", "Keep", "Ignore" ],
+      "sources": [ "https://www.cisa.gov/stopransomware/misconfigurations-and-weaknesses-known-be-used-ransomware-campaigns", "https://www.cisa.gov/eviction-strategies-tool/info-countermeasures/CM0025" ]
+    },
+    {
+      "id": "user-writable-program", "severity": "High", "title": "Program in a folder any program can write to",
+      "hint": "The rule's program sits in AppData, Temp, Downloads or Public, where malware could replace it.",
+      "explanation": "Programs under your user profile (AppData, Temp, Downloads) or the Public folder can be replaced by any process running as you, without administrator rights. A replaced file inherits the firewall rule. Prefer programs installed under Program Files, or remove the rule when the app is not needed.",
+      "when": [ "enabled", "allow", "userWritablePath" ],
+      "recommended": "Keep", "alternatives": [ "RestrictPrivate", "Disable", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "unsigned-program", "severity": "High", "title": "Program without a valid digital signature",
+      "hint": "The rule's program has no valid Authenticode signature, so its publisher cannot be verified.",
+      "explanation": "A signature shows who published a program and that it was not changed since. An allow rule for an unsigned program cannot be traced to a publisher; check that you know the program before keeping the rule.",
+      "when": [ "enabled", "allow", "unsigned" ],
+      "recommended": "Keep", "alternatives": [ "Disable", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "orphaned-program", "severity": "High", "title": "Program no longer exists (orphaned rule)",
+      "hint": "The program this rule allows was removed; anyone who drops a file at that path inherits the rule.",
+      "explanation": "The app this rule was made for is gone, but the rule still allows its path. If an attacker places a file with the same name there, it gets the same network access without a prompt. Rules of uninstalled apps can be deleted.",
+      "when": [ "allow", "orphaned", "nonWindows" ],
+      "recommended": "Delete", "alternatives": [ "Disable", "Keep", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "script-host-allow", "severity": "High", "title": "Allow rule for a script host or LOLBin",
+      "hint": "Allows PowerShell, cmd, mshta, wscript, cscript, rundll32 or regsvr32 to use the network.",
+      "explanation": "Script hosts and these signed Windows tools are what attackers use to download and run code ('living off the land'). A rule that explicitly allows them makes that easier, and normal apps do not need one.",
+      "when": [ "enabled", "allow", "scriptHost" ],
+      "recommended": "Disable", "alternatives": [ "Keep", "Ignore" ],
+      "sources": [ "https://lolbas-project.github.io/" ]
+    },
+    {
+      "id": "edge-traversal", "severity": "Medium", "title": "Edge traversal allowed",
+      "hint": "Lets traffic reach this PC through NAT and Teredo from the internet, not only from the local network.",
+      "explanation": "Edge traversal lets unsolicited traffic arrive through a NAT router (for example over Teredo IPv6). Games and voice apps sometimes need it for peer connections; other apps rarely do. Windows' own rules (Teredo, casting) use it by design and are not flagged.",
+      "when": [ "enabled", "inbound", "allow", "edgeTraversal", "nonWindows" ],
+      "recommended": "Keep", "alternatives": [ "Disable", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/teredo/implementing-firewall-filters-for-teredo" ]
+    },
+    {
+      "id": "public-local-discovery", "severity": "Medium", "title": "Local discovery protocols open on Public networks",
+      "hint": "NetBIOS, LLMNR, mDNS, SSDP/UPnP or WSD answer on public Wi-Fi.",
+      "explanation": "Name and device discovery protocols (NetBIOS 137-139, LLMNR 5355, mDNS 5353, SSDP 1900, WSD) are meant for your own network. On public networks they reveal the PC and LLMNR/NetBIOS answers can be abused to capture credentials. Microsoft is phasing out NetBIOS and LLMNR.",
+      "when": [ "enabled", "inbound", "allow", "profilePublic", "ports:localDiscovery" ],
+      "recommended": "RestrictPrivate", "alternatives": [ "Disable", "Keep", "Ignore" ],
+      "sources": [ "https://thewindowsupdate.com/?p=176993", "https://isc.sans.edu/diary/Passwords+Part+2+Passwords+off+the+Wire+using+LLMNR/23369" ]
+    },
+    {
+      "id": "remote-any-local-service", "severity": "Medium", "title": "Any remote address where the local subnet would do",
+      "hint": "A service meant for your own network accepts connections from any address.",
+      "explanation": "File sharing, discovery, casting and remote management are used on your own network. Limiting the remote address to Local Subnet keeps them working at home while refusing connections from further away, as Microsoft recommends for home and small-network services.",
+      "when": [ "enabled", "inbound", "allow", "localServiceRemoteAny" ],
+      "recommended": "RestrictLocalSubnet", "alternatives": [ "RestrictPrivate", "Keep", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "disabled-security-rule", "severity": "Medium", "title": "Windows security rule turned off",
+      "hint": "A Core Services rule or a Windows block rule that protects the PC is disabled.",
+      "explanation": "Windows ships this rule enabled because networking or protection depends on it. Turning it off can break IPv6, DHCP or a security feature. Re-enable it unless you changed it on purpose.",
+      "when": [ "disabledSecurityRelevant" ],
+      "recommended": "Keep", "alternatives": [ "Ignore" ],
+      "sources": [ "https://technet.microsoft.com/en-us/library/cc753295" ]
+    },
+    {
+      "id": "duplicate", "severity": "Low", "title": "Duplicate rule",
+      "hint": "Another rule does exactly the same; one of them can go.",
+      "explanation": "Two rules with the same direction, action, program, protocol, ports, addresses and profiles. Keeping one makes the list easier to review; the result for your traffic does not change.",
+      "when": [ "duplicate" ],
+      "recommended": "Disable", "alternatives": [ "Delete", "Keep", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "broad-port-range", "severity": "Low", "title": "Very wide port range",
+      "hint": "Allows more than 1,000 ports at once.",
+      "explanation": "Wide port ranges allow far more than an app usually needs. Microsoft recommends being as specific as possible; a program rule (which opens ports only while the program listens) is usually better.",
+      "when": [ "enabled", "inbound", "allow", "broadPortRange" ],
+      "recommended": "Keep", "alternatives": [ "Disable", "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    },
+    {
+      "id": "no-description", "severity": "Low", "title": "Rule without a description",
+      "hint": "Nobody wrote down why this rule exists.",
+      "explanation": "Microsoft recommends documenting every rule (the app, the ports and why) so it can be reviewed later. Add a description, or delete the rule if nobody knows what it is for.",
+      "when": [ "nonWindows", "noDescription", "enabled" ],
+      "recommended": "Keep", "alternatives": [ "Ignore" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+    }
+  ]
+}

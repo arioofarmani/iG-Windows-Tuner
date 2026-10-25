@@ -305,6 +305,22 @@ function Initialize-IgwtGuiListGrids {
     )
     Add-IgwtGuiListGrid -Name 'SnapshotList' -Grid $g -SortBy 'When' -Descending
 
+    # Backups > Log: the last 7 days of the log (3.3 L1).
+    $g = New-IgwtSmartGrid -Id 'backups.log' -Noun 'entries' -RowKey 'Key' -SearchPlaceholder 'Search the log' -SelectionMode Single -OnRefresh { param($grid) $null = $grid; Start-IgwtGuiLogLoad } `
+        -EmptyTitle 'No log entries' -EmptyText 'Nothing was logged in the last 7 days.' -Columns @(
+        @{ Key = 'When'; Header = 'When'; Width = 150; Kind = 'Date'; SortKey = 'Sort' }
+        @{ Key = 'LevelCol'; Header = 'Level'; Width = 90; Template = 'Status'; SortKey = 'Level' }
+        @{ Key = 'Message'; Header = 'Message'; MinWidth = 300; Tip = 'Message' }
+        @{ Key = 'Tweak'; Header = 'Item'; Width = 200; Template = 'Mono' }
+        @{ Key = 'Session'; Header = 'Session'; Width = 110; Template = 'Mono'; Visible = $false }
+        @{ Key = 'File'; Header = 'File'; Width = 200; Template = 'Mono'; Visible = $false }
+    ) -Chips @(
+        @{ Id = 'problems'; Label = 'Warnings and errors'; Group = 'level'; Field = 'Level'; Values = @('Warn', 'Error') }
+        @{ Id = 'info'; Label = 'Info'; Group = 'level'; Field = 'Level'; Values = @('Info') }
+        @{ Id = 'today'; Label = 'Today'; Group = 'when'; Test = { param($row) $row.Day -eq (Get-Date).ToString('yyyy-MM-dd') } }
+    )
+    Add-IgwtGuiListGrid -Name 'LogList' -Grid $g -SortBy 'When' -Descending
+
     # Rejected tweaks
     $g = New-IgwtSmartGrid -Id 'rejected' -Noun 'tweaks' -RowKey 'Key' -SearchPlaceholder 'Search rejected tweaks' -SelectionMode Single -Columns @(
         @{ Key = 'Name'; Header = 'Tweak'; Width = 280; MinWidth = 180; Tip = 'Reason' }
@@ -330,7 +346,7 @@ function New-IgwtGuiStartupRow {
         Key = "$($Entry.Scope)|$($Entry.Name)"; Scope = [string]$Entry.Scope; Name = [string]$Entry.Name; Command = [string]$Entry.Command; Enabled = $enabled; CanToggle = $CanToggle
         ScopeText = $(if ([string]$Entry.Scope -in 'HKCU-Run', 'User-Folder') { 'This user' } else { 'All users' }); StateKey = $(if ($enabled) { 'On' } else { 'Off' })
         On = $enabled; OnEnabled = $CanToggle; OnName = "Start $($Entry.Name) with Windows"
-        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved; the entry is never deleted).' } else { 'Restart as administrator to turn startup entries on or off.' })
+        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved; the entry is never deleted).' } else { (Get-IgwtGuiChangeBlockReason -What 'turn startup entries on or off') })
     }
 }
 
@@ -378,4 +394,36 @@ function New-IgwtGuiRejectedRow {
     $r.AvailTip = $(if ($risk) { "Available in the Risk Zone at your own risk: $($e.riskItem)" } elseif ($e.unavailable) { [string]$e.unavailable } else { 'Not offered.' })
     Add-IgwtGuiStatusField -Row $r -Name 'AvailCol' -Text $(if ($risk) { 'In the Risk Zone' } else { 'Not offered' }) -Tone $(if ($risk) { 'Warn' } else { 'Muted' }) -Locked:(-not $risk)
     [pscustomobject]$r
+}
+
+function New-IgwtGuiLogRow {
+    <# .SYNOPSIS SmartGrid row for one log entry (from Get-IgwtLogEntries). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Entry, [int]$Index)
+    $t = $Entry.Time
+    $r = [ordered]@{
+        Key = "$Index"; When = $(if ($t) { ([datetime]$t).ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss') } else { '' }); Sort = $(if ($t) { ([datetime]$t).ToUniversalTime().Ticks } else { 0 })
+        Day = $(if ($t) { ([datetime]$t).ToLocalTime().ToString('yyyy-MM-dd') } else { '' }); Level = [string]$Entry.Level; Message = [string]$Entry.Message; Tweak = [string]$Entry.Tweak
+        Session = [string]$Entry.Session; File = [string]$Entry.File
+    }
+    Add-IgwtGuiStatusField -Row $r -Name 'LevelCol' -Text ([string]$Entry.Level) -Tone $(switch ([string]$Entry.Level) { 'Error' { 'Fail' } 'Warn' { 'Warn' } 'Info' { 'Info' } default { 'Text' } })
+    [pscustomobject]$r
+}
+
+function Start-IgwtGuiLogLoad {
+    <# .SYNOPSIS Reads the log of the last 7 days in the background (read-only) into Backups > Log. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
+    [CmdletBinding()]
+    param()
+    $grid = $script:Gui.Grids.LogList
+    if (-not $grid) { return }
+    Set-IgwtGridState -Grid $grid -State Loading
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtLogEntries' -Parameters @{ Days = 7 } -Channel 'logs' -BusyText 'Reading the log...' -OnComplete {
+        param($out, $errs)
+        $rows = @($out | Where-Object { $_ })
+        if (-not $rows.Count -and @($errs).Count) { Set-IgwtGridState -Grid $script:Gui.Grids.LogList -State Error -Message ([string]@($errs)[0]); return }
+        $i = 0
+        Set-IgwtGuiGridRows -Name 'LogList' -Rows @(foreach ($e in $rows) { $i++; New-IgwtGuiLogRow -Entry $e -Index $i })
+    }
 }

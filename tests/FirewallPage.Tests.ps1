@@ -69,7 +69,8 @@ Describe 'Firewall page: rule dialog (headless)' {
         if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }
         InModuleScope iGWindowsTuner {
             $f = $script:IgwtFwDlg.F
-            $f.TemplateBox.SelectedIndex = 3   # block a program outbound
+            $ids = @(@($script:IgwtFwDlg.Templates) | ForEach-Object { $_.Id })
+            $f.TemplateBox.SelectedIndex = [array]::IndexOf($ids, 'block-app-out') + 1   # block a program outbound (index 0 is Custom rule)
             Use-IgwtGuiFirewallTemplate
             $f.DirOut.IsChecked | Should -BeTrue
             $f.ActBlock.IsChecked | Should -BeTrue

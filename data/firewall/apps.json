@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallApps",
+  "verified": "2026-10-24",
+  "comment": "Program knowledge for the Firewall Manager. protected: anti-cheat services and game launchers whose rules are never recommended for blocking (outbound blocks on them are flagged 'may break online play'); the game executables of data\\games.json are protected too. scriptHosts: LOLBins whose allow rules are a risk. userWritable: path patterns any process running as the user can write to. microsoftPublishers: package publisher IDs of Microsoft (Store and Windows packages). owned: how iG Windows Tuner tags its rules.",
+  "protected": [
+    { "id": "steam", "name": "Steam and Valve networking", "programPatterns": [ "*\\Steam\\steam.exe", "*\\Steam\\bin\\cef\\*\\steamwebhelper.exe", "*\\steamapps\\common\\*", "*\\steamservice.exe" ], "reason": "Steam downloads, Steam Networking and Steam Datagram Relay carry matchmaking and voice for many games." },
+    { "id": "faceit", "name": "FACEIT client and anti-cheat", "programPatterns": [ "*\\FACEIT\\*", "*\\FACEIT AC\\*" ], "reason": "FACEIT refuses matches when its client or anti-cheat cannot connect." },
+    { "id": "vanguard", "name": "Riot Vanguard and Riot Client", "programPatterns": [ "*\\Riot Vanguard\\*", "*\\Riot Games\\Riot Client\\*", "*\\Riot Games\\*" ], "reason": "VALORANT and League of Legends do not start when Vanguard or the Riot Client is blocked." },
+    { "id": "eac", "name": "Easy Anti-Cheat", "programPatterns": [ "*\\EasyAntiCheat\\*", "*\\EasyAntiCheat_EOS\\*", "*EasyAntiCheat*.exe" ], "reason": "Games protected by Easy Anti-Cheat kick or refuse players whose anti-cheat cannot reach its servers." },
+    { "id": "battleye", "name": "BattlEye", "programPatterns": [ "*\\BattlEye\\*", "*BEService*.exe" ], "reason": "BattlEye-protected games disconnect when BattlEye is blocked." },
+    { "id": "launchers", "name": "Game launchers", "programPatterns": [ "*\\Epic Games\\Launcher\\*", "*\\Battle.net\\*", "*\\EA Desktop\\*", "*\\Electronic Arts\\EA Desktop\\*", "*\\Ubisoft Game Launcher\\*", "*\\GOG Galaxy\\*", "*\\XboxPcApp*" ], "reason": "Launchers handle sign-in, entitlement checks and updates; blocking them breaks online play." },
+    { "id": "anticheat-misc", "name": "Other anti-cheat (Javelin, RICOCHET, EA Anti-Cheat)", "programPatterns": [ "*\\EAAntiCheat*", "*Javelin*", "*randgrid*" ], "reason": "Anti-cheat services must reach their servers or the game refuses to start." }
+  ],
+  "scriptHosts": [ "powershell.exe", "pwsh.exe", "cmd.exe", "mshta.exe", "wscript.exe", "cscript.exe", "rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "msbuild.exe", "installutil.exe" ],
+  "userWritable": [ "%USERPROFILE%\\AppData\\*", "%LOCALAPPDATA%\\*", "%APPDATA%\\*", "%TEMP%\\*", "%TMP%\\*", "%USERPROFILE%\\Downloads\\*", "%PUBLIC%\\*", "C:\\Users\\*\\AppData\\*", "C:\\Users\\*\\Downloads\\*", "C:\\Users\\Public\\*", "C:\\Windows\\Temp\\*", "C:\\ProgramData\\*\\Temp\\*" ],
+  "userWritableExceptions": [ "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\*", "C:\\Users\\*\\AppData\\Local\\Microsoft\\WindowsApps\\*" ],
+  "microsoftPublishers": [ "8wekyb3d8bbwe", "cw5n1h2txyewy" ],
+  "microsoftSigners": [ "Microsoft Windows", "Microsoft Corporation", "Microsoft Windows Publisher" ],
+  "owned": { "namePrefix": "iGWindowsTuner-", "group": "iG Windows Tuner", "descriptionMarker": "[iG Windows Tuner]" },
+  "sources": [ "https://lolbas-project.github.io/", "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ]
+}

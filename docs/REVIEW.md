@@ -27,3 +27,53 @@ The reviewer found the core design sound: the cleaner deletes single files from 
 | L8 | Low | `risk.processor-idle-disable` contradicts the CLAUDE.md wording, and `risk.no-auto-reboot-logged-on` weakens update reboot enforcement. | Documented: both are Risk Zone (rejected, Lab) items behind the typed acknowledgement; processor idle stays blocked on Raptor Lake by the hardware overlay. Custom presets can no longer shadow built-in names (fixed with M2). |
 
 The 3.0 review (phase 13) will audit the Group Policy write path, the lockout safeguards, network rollback, silent mode and edition/management gating.
+
+## 3.4 Firewall Manager (3.4 phase 9, 24 October 2026)
+
+An independent reviewer (a separate agent with read-only file access; it ran nothing and changed nothing) audited the classification, the knowledge base, the risk, precedence and audit engines, the change engine, the GUI actions (details pane, bulk actions, smart fix wizard, change queue, firewall scopes), the HTML report and the Sandbox step against the safety rules of SPEC-v3.4 section 6. It reported 2 High, 6 Medium and 6 Low findings. **Both High and all Medium findings are fixed**, each with a regression test (`tests\FirewallTools.Tests.ps1`, Describe "Firewall review fixes"); the Low findings are fixed except L5 and L6, recorded below.
+
+Confirmed by the reviewer: Group Policy and MDM rules are locked with their source shown; every change writes a snapshot first and can be undone; read-only mode blocks every change path in the engine; the firewall is never turned off and inbound traffic is never allowed by default; every rule gets exactly one origin category with a reason and a confidence; recommendations never disable or block protected game, launcher or anti-cheat rules; firewall scopes run only from the Firewall Manager, never with a tweak apply; the HTML report encodes every value.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| H1 | High | The change engine re-read the rules without the 3.4 classification, so the Core Services lock and "Delete only for app and custom rules" held only in the GUI; a direct `Invoke-IgwtFirewallChange -Operation Delete` on a Core Services Store-app rule, or a crafted import file, was not refused. | **Fixed.** `Invoke-IgwtFirewallChange` and `Get-IgwtFirewallImportPlan` classify the target rules themselves (`Invoke-IgwtFirewallEngineClassification`) before planning; the locks use the engine's own category. |
+| H2 | High | Batches left in the GUI change queue (after a refused batch, a failed job or a remote-session revert) ran later, without confirmation, after the next unrelated change. | **Fixed.** The queue continues only straight after a completed batch; a change the user starts, a failed or reverted batch, an undo and read-only mode all drop it, and a queued batch with nothing left to change moves on. |
+| M1 | Medium | "Move to category" could move a Core Services rule out of Core Services and so unlock it. | **Fixed.** Moves out of Core Services are ignored; the locks use `EngineOrigin`, which a move never changes. |
+| M2 | Medium | Windows-category rules matched by rule ID or package publisher (Source Store app or third party) could be edited or switched to Block. | **Fixed.** Core Services and Windows Connections rules are enable/disable only, whatever their source. |
+| M3 | Medium | The scope preview classified without the audit's signatures, so its plan could differ from the screen. | **Fixed.** The preview uses the audit's signatures. |
+| M4 | Medium | Remote-session protection matched translated group names and three exact ports: port ranges, the Shadow and WebSocket rules on non-English Windows, enabling an inbound block rule and edits into a block rule were not caught. | **Fixed.** Remote Desktop and WinRM rules are recognised by group resource string, rule ID and parsed port ranges; enabling or editing into an inbound block on every port or a remote port is refused during a remote session. |
+| M5 | Medium | Profile and network-category changes had no remote-session guard. | **Fixed.** Turning a profile on or off, default actions and the network category are refused during a remote session (local console only). |
+| M6 | Medium | Programs on drives that are not connected (USB, network shares, unexpanded variables) counted as missing, so their rules were offered for deletion as orphaned. | **Fixed.** Such programs are "Unknown", never orphaned. |
+| L1 | Low | New, edited or re-enabled block rules on protected game programs did not warn. | **Fixed.** The change plan warns "may break online play". |
+| L2 | Low | Protected Steam games in secondary libraries (`D:\SteamLibrary\steamapps\common`) were not matched. | **Fixed.** The pattern is `*\steamapps\common\*`. |
+| L3 | Low | The Sandbox firewall step overwrote the tweak results' variables and stopped on the Sandbox's own remote session. | **Fixed.** Own variables, `-AllowRemoteSession` inside the Sandbox, and only rules the engine actually changed are checked. |
+| L4 | Low | Test gaps: a fixture typo made every rule "Any profile"; the "works on copies" check compared only the origin. | **Fixed** (typo); the new review tests cover H1, H2, M1, M2, M4, M6 and L1. |
+| L5 | Low | The legacy firewall-profile tweak's restore writes back the previous profile values exactly, even "off" (`src\Actions\Custom.ps1`). | **Accepted.** A tweak revert restores the user's own previous state exactly (snapshot rule); the Firewall Manager's own profile restore keeps protection on. |
+| L6 | Low (uncertain) | Filters are joined by InstanceID, assuming IDs are unique across policy stores. | **Recorded.** Not seen on this PC (692 rules, no duplicate IDs across stores); revisit if a GPO copy of a built-in ID appears. |
+| - | Minor | CSV export did not neutralise spreadsheet formulas in rule names. | **Fixed.** Cells starting with `=`, `+`, `-` or `@` are prefixed with a quote. |
+
+Open High findings: none.
+
+## 3.3 read-only enforcement and UX rules (3.3 phase 8, 24 October 2026)
+
+An independent reviewer (read-only file access; ran nothing, changed nothing) checked that every exported writer is guarded by `Assert-IgwtWritable`, that no GUI path changes the PC directly or in read-only mode, the new 3.3/3.4 features (dashboard Undo, preset Compare, firewall scope, focus mode, log viewer, compliance, network history), and every page against the UX checklist C1-C12 (`docs\UX_GUIDELINES.md`). The firewall change safety was reviewed separately (3.4 section above).
+
+**Engine guard confirmed**: every exported writer checked (apply/revert, cleaner, ASR, power, managed changes, firewall, Defender, Group Policy and security/audit policy, toolkit, presets and session, persona, migration, restore point, startup items) calls `Assert-IgwtWritable` first; the GUI forces `IsAdmin` off in read-only mode and the workers inherit read-only mode. No GUI path changes the PC directly. There are no High findings.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| M1 | Medium | Toolkit "Check installed" stayed enabled in read-only mode and runs `winget export` (writes a temporary file). | **Fixed.** Off in read-only mode, with the reason in the tooltip; the handler checks too. |
+| M2 | Medium | "Clean selected" stayed enabled in read-only mode and showed the delete warning before the engine refused. | **Fixed.** Off in read-only mode with the reason; the handler returns early. |
+| M3 | Medium | "Run fix" (fixes without admin rights) stayed enabled in read-only mode. | **Fixed.** Same as M2. |
+| M4 | Medium | Defender > Group Policy "Set policy" could never be enabled: the button looked at a variable that was never assigned. | **Fixed.** It reads the selected policy row. |
+| L1 | Low | Refusals in read-only mode said "Restart as administrator", which does not help (the restart keeps -ReadOnly). | **Fixed.** One reason helper (`Get-IgwtGuiChangeBlockReason`) says read-only mode first, administrator rights second. |
+| L2 | Low | Changing the persona in read-only mode silently did not save. | **Fixed.** The status line says it applies to the window only. |
+| L3 | Low | App-owned files written in read-only mode (network history, Authenticode cache, ADMX cache) were not listed in the decisions. | **Fixed.** DECISIONS U7b. |
+| L4 | Low (uncertain) | An elevated run trusted the Authenticode cache in the per-user folder, which feeds the firewall origin and therefore the locks. | **Fixed.** Elevated runs keep the cache in the admin-only State folder. |
+| U1 | UX | Navigation accessible names did not match the labels ("Asr", "NetTest", "Policy"); six combo and text boxes had no accessible name. | **Fixed.** |
+| U2 | UX | Reduce motion did not stop the moving busy bar. | **Fixed.** A static bar when Reduce motion is on. |
+| U3 | UX | Some titles were in title case ("Disk Analyzer", "Startup Apps", "Rejected Tweaks", "Expert Inspectors", "Network Test"). | **Fixed** (sentence case). The ALL-CAPS overlines stay as a deliberate section style. |
+| U4 | UX | Backups & Logs and Rejected tweaks had no status line. | **Fixed.** |
+| U5 | UX | Several pages still miss a one-line status and a single primary action at the top (Presets, Diagnostics, Inspect, Toolkit, Manage, Startup), and some pages use more than one accent button. Some results still use dialogs instead of a toast with Undo (startup toggle, Defender setting, toolkit feature). Tab and expander state is not remembered everywhere. Focus mode hides pages, dashboard details and advanced items but does not yet change list columns. | **Open (Low)**, recorded as known UX gaps in `docs\FINAL_REPORT_3.3.md`; none affects safety. |
+
+Open High findings: none.

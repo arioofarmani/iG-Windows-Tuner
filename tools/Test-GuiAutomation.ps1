@@ -80,6 +80,8 @@ try {
 
     $nav = Find-ById $win 'NavList'
     $items = @($nav.FindAll($TS::Children, (Get-Cond $A::ControlTypeProperty $CT::ListItem)))
+    # Navigation group labels (3.3 grouped navigation) are not pages.
+    $items = @($items | Where-Object { -not ([string]$_.Current.Name).EndsWith(' group') })
     if (-not (Wait-AppIdle $win 120)) { Note 'start-up data still loading after 120 s' }
     Note "$($items.Count) navigation items"
     $sel = [System.Windows.Automation.SelectionItemPattern]::Pattern

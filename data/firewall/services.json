@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "firewallServices",
+  "verified": "2026-10-24",
+  "comment": "Windows services that firewall rules refer to (service filter). category CoreServices marks the services Windows networking depends on; their rules are Core Services even outside the Core Networking group. Service names are the short names (locale-independent).",
+  "services": [
+    { "name": "Dhcp", "displayName": "DHCP Client", "category": "CoreServices", "meaning": "Gets an IP address from the router.", "sources": [ "https://technet.microsoft.com/en-us/library/cc753295" ] },
+    { "name": "Dnscache", "displayName": "DNS Client", "category": "CoreServices", "meaning": "Resolves names to addresses.", "sources": [ "https://technet.microsoft.com/en-us/library/cc753295" ] },
+    { "name": "iphlpsvc", "displayName": "IP Helper", "category": "CoreServices", "meaning": "IPv6 transition technologies (Teredo, IP-HTTPS) used by Xbox networking.", "sources": [ "https://learn.microsoft.com/en-us/windows/win32/teredo/implementing-firewall-filters-for-teredo" ] },
+    { "name": "NlaSvc", "displayName": "Network Location Awareness", "category": "CoreServices", "meaning": "Detects which network (and firewall profile) the PC is on.", "sources": [ "https://technet.microsoft.com/en-us/library/cc753295" ] },
+    { "name": "mpssvc", "displayName": "Windows Defender Firewall", "category": "CoreServices", "meaning": "The firewall service itself.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "BFE", "displayName": "Base Filtering Engine", "category": "CoreServices", "meaning": "The filtering platform the firewall runs on.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "WinDefend", "displayName": "Microsoft Defender Antivirus", "category": "CoreServices", "meaning": "Antivirus updates and cloud protection.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "wuauserv", "displayName": "Windows Update", "category": "CoreServices", "meaning": "Downloads and installs updates.", "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization" ] },
+    { "name": "DoSvc", "displayName": "Delivery Optimization", "category": "WindowsConnections", "meaning": "Peer-to-peer update sharing.", "sources": [ "https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization" ] },
+    { "name": "TermService", "displayName": "Remote Desktop Services", "category": "WindowsConnections", "meaning": "Accepts Remote Desktop connections.", "sources": [ "https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-allow-access" ] },
+    { "name": "WinRM", "displayName": "Windows Remote Management", "category": "WindowsConnections", "meaning": "PowerShell remoting.", "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winrm/installation-and-configuration-for-windows-remote-management" ] },
+    { "name": "LanmanServer", "displayName": "Server (file sharing)", "category": "WindowsConnections", "meaning": "Shares folders and printers.", "sources": [ "https://www.cisa.gov/stopransomware/misconfigurations-and-weaknesses-known-be-used-ransomware-campaigns" ] },
+    { "name": "Spooler", "displayName": "Print Spooler", "category": "WindowsConnections", "meaning": "Printing and printer sharing.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "SSDPSRV", "displayName": "SSDP Discovery", "category": "WindowsConnections", "meaning": "Finds UPnP devices.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "upnphost", "displayName": "UPnP Device Host", "category": "WindowsConnections", "meaning": "Hosts UPnP devices.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "fdphost", "displayName": "Function Discovery Provider Host", "category": "WindowsConnections", "meaning": "Network discovery of devices.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "CDPSvc", "displayName": "Connected Devices Platform", "category": "WindowsConnections", "meaning": "Phone Link and Nearby sharing.", "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules" ] },
+    { "name": "DiagTrack", "displayName": "Connected User Experiences and Telemetry", "category": "WindowsConnections", "meaning": "Windows diagnostic data.", "sources": [ "https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization" ] }
+  ]
+}

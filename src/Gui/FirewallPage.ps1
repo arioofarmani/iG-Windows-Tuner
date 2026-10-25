@@ -1,5 +1,6 @@
 # FirewallPage.ps1
-# Security > Firewall: the Firewall Manager page. Rules in a SmartGrid (every column and quick
+# Security > Firewall: the Firewall Manager page (3.4: Overview home, group sidebar and classified rules
+# in FirewallHome.ps1). Rules in a SmartGrid (every column and quick
 # filter of the spec, risk views), a details pane with the rule actions, the new-rule wizard and the
 # edit form, import with preview, exports, and the Profiles and networks tab. Every change goes
 # through the engine (Invoke-IgwtFirewallChange and friends): summary first, snapshot, Undo toast;
@@ -7,16 +8,6 @@
 # After a change only the affected rules are read again.
 
 $script:IgwtFirewallSourceLabel = @{ Windows = 'Windows'; ThirdParty = 'Third-party app'; StoreApp = 'Store app'; Owned = 'iG Windows Tuner'; GroupPolicy = 'Group Policy / MDM' }
-$script:IgwtFirewallRiskLabel = @{ InboundPublic = 'Inbound allow on Public'; Broad = 'Any program, any port'; ProgramMissing = 'Program not found'; UserWritable = 'Program in a user-writable folder'; Duplicate = 'Duplicate'; DisabledWindows = 'Disabled Windows default' }
-$script:IgwtFirewallRiskHelp = @{
-    InboundPublic   = 'It lets other devices on public networks (cafes, hotels) connect to this PC. Limit it to Private unless you need it.'
-    Broad           = 'It allows every program on every port. Narrow it to one program or port.'
-    ProgramMissing  = 'The program it allows no longer exists (an uninstalled app left it behind). Disable or delete it.'
-    UserWritable    = 'The program sits in a folder any program you run can write to, so malware could replace it. Prefer programs under Program Files.'
-    Duplicate       = 'Another rule does exactly the same. Keep one of them.'
-    DisabledWindows = 'A Windows rule that is off. That is often intentional (the feature is not used).'
-}
-
 #region Rows
 
 function New-IgwtGuiFirewallRow {
@@ -27,8 +18,9 @@ function New-IgwtGuiFirewallRow {
     $r = $Rule
     $profiles = @($r.ProfileList | Where-Object { $_ })
     $match = $(if ($profiles -contains 'Any' -or $profiles.Count -eq 0) { @('Domain', 'Private', 'Public', 'Any') } else { $profiles })
-    $risks = @($r.Risks | Where-Object { $_ })
-    $shown = @($risks | Where-Object { $_ -ne 'DisabledWindows' })
+    $open = @($r.Findings | Where-Object { $_ -and -not $_.Ignored })
+    $rank = @{ Critical = 4; High = 3; Medium = 2; Low = 1 }
+    $top = [string]$r.RiskLevel
     $proto = [string]$r.Protocol
     $row = [ordered]@{
         Key = [string]$r.Name; Rule = $r; DisplayName = [string]$r.DisplayName; Name = [string]$r.Name; Group = [string]$r.Group
@@ -37,16 +29,23 @@ function New-IgwtGuiFirewallRow {
         Protocol = $proto; ProtocolKey = $(if ($proto -like 'ICMP*') { 'ICMP' } elseif ($proto -in '', 'Any') { 'Any' } else { $proto })
         LocalPort = [string]$r.LocalPort; RemotePort = [string]$r.RemotePort; LocalAddress = [string]$r.LocalAddress; RemoteAddress = [string]$r.RemoteAddress
         InterfaceType = [string]$r.InterfaceType; EdgeTraversal = [string]$r.EdgeTraversal; SourceKey = [string]$r.Source; ProgramExists = [string]$r.ProgramExists
-        RiskKeys = $risks; RiskCount = (@($shown | Where-Object { $_ -ne 'Duplicate' }).Count * 10 + @($shown | Where-Object { $_ -eq 'Duplicate' }).Count); Description = [string]$r.Description
+        RiskKeys = @($open | ForEach-Object { [string]$_.RiskId }); RiskCount = $(if ($top) { [int]$rank[$top] * 100 + $open.Count } else { 0 }); RiskLevel = $top; Description = [string]$r.Description
+        Groups = @($r.Groups); GroupsText = ''; Confidence = [string]$r.Confidence; ConfidenceText = $(if ([string]$r.Confidence -eq 'Low') { 'Low (?)' } else { [string]$r.Confidence })
+        ExposedKey = $(if ($r.Exposed) { 'Yes' } else { 'No' }); ConflictKey = $(if ($r.Shadowed -or @($r.Conflicts).Count -or $r.Redundant) { 'Yes' } else { 'No' }); Origin = [string]$r.Origin
     }
+    $names = @{ CoreServices = 'Core'; WindowsConnections = 'Windows'; UserInstalled = 'User'; CustomRules = 'Custom'; Inbound = 'In'; Outbound = 'Out'; Blocked = 'Blocked'; Bloated = 'Bloated'; SecurityRisks = 'Risk' }
+    $row.GroupsText = (@($r.Groups | Where-Object { $_ } | ForEach-Object { $(if ($names[[string]$_]) { $names[[string]$_] } else { [string]$_ }) }) -join ' | ')
     Add-IgwtGuiStatusField -Row $row -Name 'State' -Text $(if ($r.Enabled) { 'Enabled' } else { 'Disabled' }) -Tone $(if ($r.Enabled) { 'Pass' } else { 'Muted' })
     $row.StateKey = $(if ($r.Enabled) { 'Enabled' } else { 'Disabled' })
     Add-IgwtGuiStatusField -Row $row -Name 'Action' -Text ([string]$r.Action) -Tone $(if ([string]$r.Action -eq 'Block') { 'Warn' } else { 'Info' })
     $srcLabel = $script:IgwtFirewallSourceLabel[[string]$r.Source]
     if (-not $srcLabel) { $srcLabel = [string]$r.Source }
     Add-IgwtGuiStatusField -Row $row -Name 'Source' -Text $srcLabel -Tone $(if ($r.Locked) { 'Muted' } elseif ([string]$r.Source -eq 'Owned') { 'Info' } else { 'Text' }) -Locked:([bool]$r.Locked)
-    Add-IgwtGuiStatusField -Row $row -Name 'Risk' -Text $(if ($shown.Count) { [string]$r.RiskText } else { '' }) -Tone $(if ($shown.Count) { 'Warn' } else { 'Muted' })
-    if (-not $shown.Count) { $row.RiskGlyph = '' }
+    $riskText = $(if ($open.Count) { "${top}: $(@($open | Sort-Object @{ Expression = { -[int]$rank[[string]$_.Severity] } })[0].Title)$(if ($open.Count -gt 1) { " (+$($open.Count - 1))" })$(if ($r.Exposed) { ', exposed now' })" } else { '' })
+    Add-IgwtGuiStatusField -Row $row -Name 'Risk' -Text $riskText -Tone $(switch ($top) { 'Critical' { 'Fail' } 'High' { 'Fail' } 'Medium' { 'Warn' } 'Low' { 'Info' } default { 'Muted' } })
+    if (-not $open.Count) { $row.RiskGlyph = '' }
+    $originTone = switch ([string]$r.Origin) { 'CoreServices' { 'Muted' } 'WindowsConnections' { 'Info' } 'UserInstalled' { 'Text' } 'CustomRules' { 'Pass' } default { 'Text' } }
+    Add-IgwtGuiStatusField -Row $row -Name 'OriginCol' -Text $(if ($r.OriginName) { [string]$r.OriginName } else { '' }) -Tone $originTone -Locked:([bool]$r.Locked)
     return [pscustomobject]$row
 }
 
@@ -55,6 +54,7 @@ function Get-IgwtGuiFirewallColumns {
     param()
     @(
         @{ Key = 'DisplayName'; Header = 'Rule'; MinWidth = 200; Tip = 'Description' }
+        @{ Key = 'OriginCol'; Header = 'Category'; Width = 170; Template = 'Status'; SortKey = 'Origin' }
         @{ Key = 'State'; Header = 'Enabled'; Width = 110; Template = 'Status'; SortKey = 'StateKey' }
         @{ Key = 'DirectionText'; Header = 'Direction'; Width = 90; SortKey = 'Direction'; Tip = 'Direction' }
         @{ Key = 'Action'; Header = 'Action'; Width = 90; Template = 'Status' }
@@ -62,8 +62,11 @@ function Get-IgwtGuiFirewallColumns {
         @{ Key = 'Program'; Header = 'Program'; Width = 220; Template = 'Mono' }
         @{ Key = 'Protocol'; Header = 'Protocol'; Width = 90 }
         @{ Key = 'LocalPort'; Header = 'Local port'; Width = 110 }
-        @{ Key = 'Source'; Header = 'Source'; Width = 150; Template = 'Status' }
-        @{ Key = 'Risk'; Header = 'Risk'; Width = 200; Template = 'Status'; Kind = 'Number'; SortKey = 'RiskCount' }
+        @{ Key = 'Source'; Header = 'Source'; Width = 150; Template = 'Status'; Visible = $false }
+        @{ Key = 'Risk'; Header = 'Risk'; Width = 240; Template = 'Status'; Kind = 'Number'; SortKey = 'RiskCount' }
+        @{ Key = 'GroupsText'; Header = 'Groups'; Width = 190; Visible = $false; Search = $false }
+        @{ Key = 'ConfidenceText'; Header = 'Confidence'; Width = 100; Visible = $false }
+        @{ Key = 'Groups'; Header = 'Group keys'; Width = 100; Visible = $false; Search = $false }
         @{ Key = 'Group'; Header = 'Group'; Width = 180; Visible = $false }
         @{ Key = 'Service'; Header = 'Service'; Width = 120; Visible = $false }
         @{ Key = 'Package'; Header = 'Package / AppContainer'; Width = 200; Visible = $false; Template = 'Mono' }
@@ -81,13 +84,14 @@ function Get-IgwtGuiFirewallColumns {
 function Get-IgwtGuiFirewallChips {
     [CmdletBinding()]
     param()
+    $riskChips = @(foreach ($k in @((Get-IgwtFirewallKnowledgeBase).Risks)) { @{ Id = "risk-$($k.id)"; Label = [string]$k.title; Group = 'risk'; Field = 'RiskKeys'; Values = @([string]$k.id); Tip = [string]$k.hint; More = $true } })
     @(
-        @{ Id = 'risk-public'; Label = 'Inbound allow on Public'; Group = 'risk'; Field = 'RiskKeys'; Values = @('InboundPublic'); Tip = $script:IgwtFirewallRiskHelp.InboundPublic }
-        @{ Id = 'risk-broad'; Label = 'Any program / any port'; Group = 'risk'; Field = 'RiskKeys'; Values = @('Broad'); Tip = $script:IgwtFirewallRiskHelp.Broad }
-        @{ Id = 'risk-missing'; Label = 'Program not found'; Group = 'risk'; Field = 'RiskKeys'; Values = @('ProgramMissing'); Tip = $script:IgwtFirewallRiskHelp.ProgramMissing }
-        @{ Id = 'risk-writable'; Label = 'User-writable path'; Group = 'risk'; Field = 'RiskKeys'; Values = @('UserWritable'); Tip = $script:IgwtFirewallRiskHelp.UserWritable }
-        @{ Id = 'risk-dup'; Label = 'Duplicates'; Group = 'risk'; Field = 'RiskKeys'; Values = @('Duplicate'); Tip = $script:IgwtFirewallRiskHelp.Duplicate }
-        @{ Id = 'risk-winoff'; Label = 'Disabled Windows defaults'; Group = 'risk'; Field = 'RiskKeys'; Values = @('DisabledWindows'); Tip = $script:IgwtFirewallRiskHelp.DisabledWindows; More = $true }
+        @{ Id = 'sev-high'; Label = 'Critical and High'; Group = 'sev'; Field = 'RiskLevel'; Values = @('Critical', 'High'); Tip = 'Rules with a critical or high-severity finding: review these first' }
+        @{ Id = 'sev-medium'; Label = 'Medium'; Group = 'sev'; Field = 'RiskLevel'; Values = @('Medium') }
+        @{ Id = 'sev-low'; Label = 'Low'; Group = 'sev'; Field = 'RiskLevel'; Values = @('Low'); More = $true }
+        @{ Id = 'exposed'; Label = 'Exposed now'; Group = 'exposed'; Field = 'ExposedKey'; Values = @('Yes'); Tip = 'Allow rules that match a port something is listening on right now' }
+        @{ Id = 'conflicts'; Label = 'Conflicts'; Group = 'conflicts'; Field = 'ConflictKey'; Values = @('Yes'); Tip = 'Shadowed, redundant or partly blocked rules'; More = $true }
+        @{ Id = 'lowconf'; Label = 'Low confidence'; Group = 'conf'; Field = 'Confidence'; Values = @('Low'); Tip = 'Classifications that are a best guess: check them'; More = $true }
         @{ Id = 'enabled'; Label = 'Enabled'; Group = 'state'; Field = 'StateKey'; Values = @('Enabled') }
         @{ Id = 'disabled'; Label = 'Disabled'; Group = 'state'; Field = 'StateKey'; Values = @('Disabled') }
         @{ Id = 'in'; Label = 'Inbound'; Group = 'dir'; Field = 'Direction'; Values = @('Inbound') }
@@ -106,7 +110,7 @@ function Get-IgwtGuiFirewallChips {
         @{ Id = 'udp'; Label = 'UDP'; Group = 'proto'; Field = 'ProtocolKey'; Values = @('UDP'); More = $true }
         @{ Id = 'icmp'; Label = 'ICMP'; Group = 'proto'; Field = 'ProtocolKey'; Values = @('ICMP'); More = $true }
         @{ Id = 'anyproto'; Label = 'Any protocol'; Group = 'proto'; Field = 'ProtocolKey'; Values = @('Any'); More = $true }
-    )
+    ) + $riskChips
 }
 
 #endregion
@@ -132,6 +136,7 @@ function Initialize-IgwtGuiFirewallPage {
     $null = $rows
     $g = New-IgwtSmartGrid -Id 'firewall.rules' -Noun 'rules' -RowKey 'Key' -SearchPlaceholder 'Search name, group, program, port or address' -Columns (Get-IgwtGuiFirewallColumns) -Chips (Get-IgwtGuiFirewallChips) -Actions $actions `
         -EmptyTitle 'No firewall rules were read' -EmptyText 'Press Refresh to read the rules again.' `
+        -OnBeforeQuery { param($grid) $grid.Scope = $(if ($script:Gui.FirewallGroup -and $script:Gui.FirewallGroup -ne 'All') { @{ Groups = @([string]$script:Gui.FirewallGroup) } } else { @{} }) } `
         -OnSelectionChanged { param($grid, $sel) $null = $grid; Update-IgwtGuiFirewallDetail -Rows $sel } -OnRefresh { param($grid) $null = $grid; Start-IgwtGuiFirewallRefresh } `
         -OnActivate { param($grid, $row) $null = $grid; if (-not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiFirewallEdit -Row $row } }
     $script:Gui.Grids.Firewall = $g
@@ -157,6 +162,7 @@ function Initialize-IgwtGuiFirewallPage {
         $e.Handled = $true
         Invoke-IgwtGuiFirewallProfileTag -Tag $tag -Source $src
     }
+    Initialize-IgwtGuiFirewallHome
     Update-IgwtGuiFirewallDetail -Rows @()
 }
 
@@ -166,17 +172,17 @@ function Start-IgwtGuiFirewallRefresh {
     [CmdletBinding()]
     param()
     Set-IgwtGridState -Grid $script:Gui.Grids.Firewall -State Loading
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallInventory' -Channel 'firewall' -BusyText 'Reading every firewall rule (read-only)...' -OnComplete {
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallAudit' -Channel 'firewall' -BusyText 'Reading and checking every firewall rule (read-only)...' -OnComplete {
         param($out, $errs)
         $inv = @($out) | Select-Object -Last 1
         if (-not $inv) { Set-IgwtGridState -Grid $script:Gui.Grids.Firewall -State Error -Message $(if (@($errs).Count) { [string]@($errs)[0] } else { 'No data was returned.' }); return }
         Set-IgwtGuiFirewallInventory -Inventory $inv
-        Set-IgwtGuiStatus ("Firewall: {0} rules read in {1:N1} s." -f $inv.Count, ($inv.LoadMs / 1000))
+        Set-IgwtGuiStatus ("Firewall: {0} rules read and checked in {1:N1} s." -f $inv.Count, ($inv.LoadMs / 1000))
     }
     $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallProfileStatus' -Channel 'firewall-profiles' -BusyText 'Reading the firewall profiles (read-only)...' -OnComplete {
         param($out, $errs)
         $p = @($out) | Select-Object -Last 1
-        if ($p) { Set-IgwtGuiFirewallProfiles -Status $p } else { $script:Gui.C.FwProfileNote.Text = "The profiles could not be read: $(@($errs)[0])" }
+        if ($p) { $script:Gui.FirewallProfiles = $p; Set-IgwtGuiFirewallProfiles -Status $p; Update-IgwtGuiFirewallOverview } else { $script:Gui.C.FwProfileNote.Text = "The profiles could not be read: $(@($errs)[0])" }
     }
 }
 
@@ -186,90 +192,16 @@ function Set-IgwtGuiFirewallInventory {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Inventory)
     $script:Gui.Firewall = $Inventory
+    $script:Gui.FirewallContext = $(if ($Inventory.PSObject.Properties['Context']) { $Inventory.Context } else { $null })
     Set-IgwtGridRows -Grid $script:Gui.Grids.Firewall -Rows @($Inventory.Rules | ForEach-Object { New-IgwtGuiFirewallRow -Rule $_ })
     Update-IgwtGuiFirewallSummary
+    Update-IgwtGuiFirewallGroups
+    Update-IgwtGuiFirewallOverview
+    Update-IgwtGuiFirewallDefaults
     $c = $script:Gui.C
     $notes = @($Inventory.Notes | Where-Object { $_ })
     $c.FwNoticeText.Text = ($notes -join ' ')
     $c.FwNoticeText.Visibility = $(if ($notes.Count) { 'Visible' } else { 'Collapsed' })
-}
-
-function Update-IgwtGuiFirewallSummary {
-    <# .SYNOPSIS The one-line status at the top: what needs attention first. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
-    [CmdletBinding()]
-    param()
-    $c = $script:Gui.C
-    $rules = @($script:Gui.Firewall.Rules)
-    $risky = @($rules | Where-Object { @($_.Risks | Where-Object { $_ -notin 'DisabledWindows', 'Duplicate' }).Count })
-    $dups = @($rules | Where-Object { @($_.Risks) -contains 'Duplicate' }).Count
-    $public = @($rules | Where-Object { @($_.Risks) -contains 'InboundPublic' }).Count
-    $missing = @($rules | Where-Object { @($_.Risks) -contains 'ProgramMissing' }).Count
-    $enabled = @($rules | Where-Object { $_.Enabled }).Count
-    $locked = @($rules | Where-Object { $_.Locked }).Count
-    $parts = New-Object System.Collections.Generic.List[string]
-    if ($public) { $parts.Add("$public allow inbound traffic on public networks") }
-    if ($missing) { $parts.Add("$missing point to a program that no longer exists") }
-    $text = $(if ($risky.Count) { "$($risky.Count) rule(s) need attention" + $(if ($parts.Count) { ": " + ($parts -join ', ') } else { '' }) + '. Use the risk chips to see them.' } else { 'No risky rules found.' })
-    $c.FwSummaryText.Text = "$text  $($rules.Count) rules, $enabled enabled$(if ($locked) { ", $locked locked by Group Policy" })$(if ($dups) { ", $dups duplicates to tidy up" })."
-    $c.FwSummaryIcon.Text = $(if ($risky.Count) { [string][char]0xE7BA } else { [string][char]0xE73E })
-    $c.FwSummaryIcon.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, $(if ($risky.Count) { 'BrushWarning' } else { 'BrushSuccess' }))
-}
-
-function Update-IgwtGuiFirewallDetail {
-    <# .SYNOPSIS Details pane and action buttons for the selected rule(s), with the reason when an action is not available. #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
-    [CmdletBinding()]
-    param([object[]]$Rows = @())
-    $c = $script:Gui.C
-    if (-not $script:Gui.Grids.Firewall) { return }
-    $sel = @($Rows | Where-Object { $_ })
-    $buttons = @{ FwEnableButton = 'enable'; FwDisableButton = 'disable'; FwAllowButton = 'allow'; FwBlockButton = 'block'; FwEditButton = 'edit'; FwDuplicateButton = 'duplicate'; FwDeleteButton = 'delete' }
-    $why = @()
-    foreach ($b in $buttons.Keys) {
-        $a = @($script:Gui.Grids.Firewall.Actions | Where-Object { $_.Id -eq $buttons[$b] })[0]
-        $block = Get-IgwtGridActionBlock -Action $a -Rows $sel
-        if (-not $block -and $sel.Count) {
-            $op = @{ enable = 'Enable'; disable = 'Disable'; allow = 'SetAction'; block = 'SetAction'; edit = 'Edit'; duplicate = 'Duplicate'; delete = 'Delete' }[$buttons[$b]]
-            $settings = @{ Action = $(if ($buttons[$b] -eq 'allow') { 'Allow' } else { 'Block' }) }
-            $refused = @($sel | ForEach-Object { Get-IgwtFirewallChangeBlock -Operation $op -Rule $_.Rule -Settings $settings -RemoteSession (Test-IgwtRemoteSession) } | Where-Object { $_ })
-            if ($refused.Count -eq $sel.Count) { $block = $refused[0] }
-        }
-        $c[$b].IsEnabled = -not $block
-        [System.Windows.Controls.ToolTipService]::SetShowOnDisabled($c[$b], $true)
-        if ($block -and $sel.Count -and $why -notcontains $block) { $why += $block }
-    }
-    $c.FwDetWhy.Text = ($why | Select-Object -First 2) -join ' '
-    if ($sel.Count -eq 0) {
-        $c.FwDetName.Text = 'Select a rule'
-        $c.FwDetMeta.Text = 'Pick a rule to see its details and actions. Select several (Ctrl or Shift) to change them together.'
-        $c.FwDetRiskBox.Visibility = 'Collapsed'; $c.FwDetText.Text = ''; $c.FwDetWhy.Text = ''
-        return
-    }
-    if ($sel.Count -gt 1) {
-        $c.FwDetName.Text = "$($sel.Count) rules selected"
-        $c.FwDetMeta.Text = 'The actions apply to every selected rule that allows them; the others are listed as refused in the summary.'
-        $c.FwDetRiskBox.Visibility = 'Collapsed'; $c.FwDetText.Text = ''
-        return
-    }
-    $r = $sel[0].Rule
-    $c.FwDetName.Text = [string]$r.DisplayName
-    $c.FwDetMeta.Text = "$(if ($r.Enabled) { 'Enabled' } else { 'Disabled' }) | $($r.Direction) | $($r.Action) | $($sel[0].Source)$(if ($r.Locked) { " (locked)" })"
-    $risks = @($r.Risks | Where-Object { $_ -and $_ -ne 'DisabledWindows' })
-    if ($risks.Count -or $r.Locked) {
-        $lines = @($risks | ForEach-Object { "$($script:IgwtFirewallRiskLabel[$_]): $($script:IgwtFirewallRiskHelp[$_])" })
-        if ($r.Locked) { $lines += [string]$r.LockReason }
-        $c.FwDetRisk.Text = $lines -join [Environment]::NewLine
-        $c.FwDetRiskBox.Visibility = 'Visible'
-    } else { $c.FwDetRiskBox.Visibility = 'Collapsed' }
-    $nl = [Environment]::NewLine
-    $c.FwDetText.Text = (@(
-            "Profiles: $($r.Profiles)", "Program: $($r.Program)$(if ($r.ProgramExists -eq 'No') { ' (not found)' })", "Service: $($r.Service)",
-            $(if ($sel[0].Package) { "Package / AppContainer: $($sel[0].Package)" }), "Protocol: $(if ($r.Protocol) { $r.Protocol } else { 'unknown (needs administrator rights)' })",
-            "Local port: $($r.LocalPort)", "Remote port: $($r.RemotePort)", "Local address: $($r.LocalAddress)", "Remote address: $($r.RemoteAddress)",
-            "Interface type: $($r.InterfaceType)", "Edge traversal: $($r.EdgeTraversal)", "Group: $(if ($r.Group) { $r.Group } else { '(none)' })", "Store: $($r.StoreSource)",
-            "Rule name: $($r.Name)", $(if ($r.Description) { "${nl}$($r.Description)" })
-        ) | Where-Object { $_ }) -join $nl
 }
 
 #endregion
@@ -283,10 +215,17 @@ function Invoke-IgwtGuiFirewallChange {
         background (snapshot first) and offers Undo. Only the affected rules are read again.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable', 'SetAction', 'Edit', 'New', 'Duplicate', 'Delete')][string]$Operation, [object[]]$Rows = @(), [hashtable]$Settings = @{})
-    if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { Set-IgwtGuiStatus 'Firewall changes need administrator rights and are off in read-only mode.'; return }
+    param([Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable', 'SetAction', 'Edit', 'New', 'Duplicate', 'Delete')][string]$Operation, [object[]]$Rows = @(), [hashtable]$Settings = @{}, [switch]$NoConfirm)
+    # A change the user starts (not the next batch of a reviewed run) drops whatever is still queued.
+    if (-not $NoConfirm) { $script:Gui.FirewallQueue = $null }
+    if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { $script:Gui.FirewallQueue = $null; Set-IgwtGuiStatus 'Firewall changes need administrator rights and are off in read-only mode.'; return }
     $rules = @($Rows | Where-Object { $_ } | ForEach-Object { if ($_.PSObject.Properties['Rule']) { $_.Rule } else { $_ } })
     $plan = Get-IgwtFirewallChangePlan -Operation $Operation -Rules $rules -Settings $Settings
+    if ($plan.Count -eq 0 -and $NoConfirm) {
+        # A queued batch with nothing left to change: go on with the run (the preview listed it as skipped).
+        if ($script:Gui.FirewallQueue -and $script:Gui.FirewallQueue.Count) { Start-IgwtGuiFirewallQueue -Queue $script:Gui.FirewallQueue }
+        return
+    }
     if ($plan.Count -eq 0) {
         $reason = @($plan.Items | Where-Object { -not $_.Allowed } | Select-Object -First 1).Reason
         $null = Show-IgwtGuiMessage -Text $(if ($reason) { "Nothing can be changed:`n`n$reason" } else { 'Nothing to change: every selected rule is already set.' }) -Title 'iG Windows Tuner - firewall' -Icon 'Information'
@@ -302,14 +241,14 @@ function Invoke-IgwtGuiFirewallChange {
     if ($plan.RemoteSession) { $lines.Add('A remote session is active: you will be asked to keep the change within 60 seconds, otherwise it is reverted automatically.') }
     $title = @{ Enable = 'Enable rules'; Disable = 'Disable rules'; SetAction = "Set rules to $($Settings.Action)"; Edit = 'Edit rule'; New = 'Create rule'; Duplicate = 'Duplicate rule'; Delete = 'Delete rules' }[$Operation]
     $icon = $(if ($plan.Warnings.Count -or $Operation -eq 'Delete') { 'Warning' } else { 'Question' })
-    if ((Show-IgwtGuiMessage -Text "$($plan.Summary).`n`n$($lines -join "`n")" -Title "iG Windows Tuner - $title" -Buttons 'YesNo' -Icon $icon) -ne 'Yes') { return }
+    if (-not $NoConfirm -and (Show-IgwtGuiMessage -Text "$($plan.Summary).`n`n$($lines -join "`n")" -Title "iG Windows Tuner - $title" -Buttons 'YesNo' -Icon $icon) -ne 'Yes') { return }
     $params = @{ Operation = $Operation; Settings = $Settings }
     if ($Operation -ne 'New') { $params.Name = @($plan.Items | Where-Object { $_.Allowed -and -not $_.NoOp } | ForEach-Object { $_.Name }) }
     if ($plan.RemoteSession) { $params.AllowRemoteSession = $true }
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtFirewallChange' -Parameters $params -Blocking -BusyText "$title (snapshot first)..." -OnComplete {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
-        if (-not $res) { Show-IgwtGuiError -Message "The firewall change failed: $(@($errs)[0])"; return }
+        if (-not $res) { $script:Gui.FirewallQueue = $null; Show-IgwtGuiError -Message "The firewall change failed: $(@($errs)[0])"; return }
         Complete-IgwtGuiFirewallChange -Result $res
     }
 }
@@ -325,17 +264,33 @@ function Complete-IgwtGuiFirewallChange {
     foreach ($i in @($Result.Plan.Items | Where-Object { $_.Allowed -and $_.Name })) { $names.Add([string]$i.Name) }
     foreach ($a in $applied) { if ([string]$a.Message -match '^New rule (\S+)') { $names.Add($Matches[1]) } }
     $snapshot = [string]$Result.Snapshot
-    if ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) firewall change(s) failed: $($failed[0].Target): $($failed[0].Message)" -Context 'Firewall' }
+    if ($failed.Count) { $script:Gui.FirewallQueue = $null; Show-IgwtGuiError -Message "$($failed.Count) firewall change(s) failed: $($failed[0].Target): $($failed[0].Message) (the remaining batches were not run)" -Context 'Firewall' }
     if ($applied.Count -and $snapshot) {
         $script:Gui.FirewallLastSnapshot = $snapshot
         Show-IgwtGuiToast -Text "$($applied.Count) firewall rule(s) changed." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument $snapshot
         if ($Result.RemoteSession) {
-            if (-not (Show-IgwtGuiKeepChangesDialog -Seconds 60)) { Invoke-IgwtGuiFirewallUndo -Snapshot $snapshot; return }
+            if (-not (Show-IgwtGuiKeepChangesDialog -Seconds 60)) { $script:Gui.FirewallQueue = $null; Invoke-IgwtGuiFirewallUndo -Snapshot $snapshot; return }
         }
     }
     if ($names.Count) { Update-IgwtGuiFirewallRows -Name $names.ToArray() }
+    if ($script:Gui.FirewallQueue -and $script:Gui.FirewallQueue.Count) { Start-IgwtGuiFirewallQueue -Queue $script:Gui.FirewallQueue }
 }
 
+function Update-IgwtGuiFirewallSummary {
+    <# .SYNOPSIS The one-line status at the top: what needs attention first. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $a = $script:Gui.Firewall
+    if (-not $a -or -not $a.PSObject.Properties['Summary']) { return }
+    $s = $a.Summary
+    $n = [int]$s.NeedsAttention
+    $text = $(if ($n) { "$n rule$(if ($n -ne 1) { 's' }) need$(if ($n -eq 1) { 's' }) attention ($($s.Severity.Critical) critical, $($s.Severity.High) high)." } else { 'Nothing needs attention.' })
+    $c.FwSummaryText.Text = "$text  $($s.Total) rules, $($s.Enabled) enabled, $(@($s.QuickWins).Count) quick win(s)$(if ($s.Locked) { ", $($s.Locked) locked" })$(if ($a.Partial) { '; ports and addresses need administrator rights' })."
+    $c.FwSummaryIcon.Text = $(if ($n) { [string][char]0xE7BA } else { [string][char]0xE73E })
+    $c.FwSummaryIcon.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, $(if ($n) { 'BrushWarning' } else { 'BrushSuccess' }))
+}
 function Update-IgwtGuiFirewallRows {
     <# .SYNOPSIS Reads only these rules again and merges them into the grid (risk flags are recomputed over all rules). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Starts a read-only query.')]
@@ -346,12 +301,15 @@ function Update-IgwtGuiFirewallRows {
         $res = @($out) | Select-Object -Last 1
         if (-not $res -or -not $script:Gui.Firewall) { Start-IgwtGuiFirewallRefresh; return }
         $gone = @{}; foreach ($m in @($res.Missing)) { $gone[$m] = $true }
-        $all = @(Merge-IgwtGridRows -Existing @($script:Gui.Firewall.Rules | Where-Object { -not $gone.ContainsKey($_.Name) }) -Changed @($res.Rows) -RowKey 'Name')
-        Add-IgwtFirewallRisk -Rows $all
+        # Changed rows show their new state at once (classified with the last context); the full
+        # audit (findings, conflicts, counts) runs again in the background.
+        $changed = @($res.Rows)
+        if ($script:Gui.FirewallContext) { Invoke-IgwtFirewallClassification -Rows $changed -Context $script:Gui.FirewallContext }
+        $all = @(Merge-IgwtGridRows -Existing @($script:Gui.Firewall.Rules | Where-Object { -not $gone.ContainsKey($_.Name) }) -Changed $changed -RowKey 'Name')
         $script:Gui.Firewall.Rules = $all
         $script:Gui.Firewall.Count = $all.Count
         Set-IgwtGridRows -Grid $script:Gui.Grids.Firewall -Rows @($all | ForEach-Object { New-IgwtGuiFirewallRow -Rule $_ })
-        Update-IgwtGuiFirewallSummary
+        Start-IgwtGuiFirewallRefresh
     }
 }
 
@@ -359,6 +317,7 @@ function Invoke-IgwtGuiFirewallUndo {
     <# .SYNOPSIS Reverts a firewall snapshot (Undo in the toast, or the remote-session timer). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Snapshot)
+    $script:Gui.FirewallQueue = $null   # an undo ends a queued run
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtRevert' -Parameters @{ SnapshotPath = $Snapshot } -Blocking -BusyText 'Undoing the firewall change...' -OnComplete {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
@@ -782,6 +741,7 @@ function Set-IgwtGuiFirewallProfiles {
             }
         })
     $c.FwProfileNote.Text = $(if (@($Status.Networks).Count) { '' } else { 'No connected network was found.' })
+    Update-IgwtGuiFirewallOverview
 }
 
 function Invoke-IgwtGuiFirewallProfileTag {

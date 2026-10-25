@@ -32,3 +32,45 @@ SPEC-v3.3.md
 
 # Ario's GUI screenshots (contain user names and device details)
 docs/ui-issues/
+SPEC-v3.4-firewall.md
+
+# Captures, policy and firewall exports from a real PC (3.3/3.4 hygiene)
+*.pcap
+*.pcapng
+*.etl
+gpresult*.html
+gpresult*.xml
+secedit*.inf
+secedit*.sdb
+*.wfw
+pfirewall*.log
+firewall-rules*.json
+firewall-rules*.csv
+*firewall-audit*.html
+*firewall-audit*.csv
+*firewall-audit*.json
+firewall-baseline-*.json
+igwt-firewall-choices*.json
+
+# Per-user app state and caches (gui-state, firewall overrides and signatures, network history)
+gui-state.json
+firewall-overrides.json
+firewall-signatures.json
+network-history.json
+
+# Snapshots, backups and Sandbox results
+Backups/
+Snapshots/
+SandboxResults/
+snapshot-*.json
+
+# Certificates, keys and secrets
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+
+# Synthetic test fixtures are always tracked
+!tests/fixtures/**
