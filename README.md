@@ -4,21 +4,27 @@
 
 ![Version](https://img.shields.io/badge/version-3.4-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-924%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-930%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
-## Why this exists
+**Evidence-based Windows 11 tuning. Transparent changes. Reversible by design.**
 
-Most "gaming optimizer" scripts make the same trade: paste a few hundred registry edits from a forum, disable Defender, Windows Update and virtualization-based security, and hope the frame rate goes up. The result is often placebo, sometimes slower, frequently less secure, and increasingly incompatible with kernel anti-cheat (Riot Vanguard, FACEIT, Easy Anti-Cheat, BattlEye, RICOCHET, Javelin), which now *requires* TPM 2.0, Secure Boot, VBS and HVCI.
+iG Windows Tuner is an open-source Windows 11 utility for managing system performance, security, privacy, gaming settings, and advanced Windows configuration.
 
-iG Windows Tuner takes the opposite approach:
+Built with PowerShell and WPF, it combines curated presets with detailed system controls, security auditing, diagnostics, and configuration management.
 
-- **Evidence first.** Every change is documented by Microsoft or the hardware vendor (Tier A), or is real but situational and clearly marked "measure before and after" (Tier B). Popular tweaks that are placebo, obsolete or harmful are not hidden. They are listed with the reason they were rejected, and the reversible ones can be applied at your own risk from the **Risk Zone**, with a clear warning of what each one turns off or on.
-- **Everything is reversible.** Before anything changes, the exact previous value (including its type, or the fact that it did not exist) is written to a JSON snapshot, and a System Restore point is created. Any change can be reverted individually or all at once.
-- **Security goes up, not down.** Defender, the firewall, UAC, SmartScreen, Windows Update, VBS/HVCI and Secure Boot are never weakened. The tool includes hardening such as attack surface reduction rules, LSA protection and encrypted DNS.
-- **Anti-cheat compatible by design.** Nothing that anti-cheat depends on is touched, and readiness for each major anti-cheat is checked and shown.
-- **Transparent.** Every registry path, service, power setting and policy is shown as "current -> target" before you apply anything. Nothing is downloaded, obfuscated or hidden.
+Unlike one-click optimization tools, iG Windows Tuner shows what a change does, why it exists, and how to undo it.
+
+## Why iG Windows Tuner?
+
+- **Evidence-based tuning** — Settings are documented with Microsoft or hardware-vendor sources, or clearly identified as requiring measurement.
+- **Reversible changes** — Previous configuration values are captured before supported changes are applied, with individual and bulk rollback options.
+- **Security-focused** — Security controls are designed to strengthen or preserve protection rather than sacrifice it for speculative performance gains.
+- **Gaming-aware** — Includes competitive gaming presets and checks for important kernel anti-cheat prerequisites.
+- **Full transparency** — Review current and proposed values before applying changes.
+- **Built-in diagnostics** — Inspect system health, security configuration, network performance, and Windows reliability.
+- **No forced changes on launch** — The graphical interface starts in read-only mode.
 
 ## Screenshots
 
@@ -31,115 +37,95 @@ iG Windows Tuner takes the opposite approach:
 
 Screenshots are rendered offscreen from demo data (`tools\Test-GuiRender.ps1`); more in [docs/screenshots/3.4](docs/screenshots/3.4), and the 3.0 interface for comparison in [docs/screenshots/3.3/before](docs/screenshots/3.3/before).
 
-## What it does
+## What can you do?
 
-| Area | Highlights |
-|---|---|
-| **Presets** | Ten presets (Competitive, Balanced, Hardened, Streamer & Creator, Engineer Workstation, Laptop Gamer, Privacy Max, Clean Install / Debloat, Fortress and a temporary Session Mode for match days), adjusted automatically to your hardware. Build your own custom presets, export and import them with an integrity check, and see what drifted since you applied one. |
-| **Tweak catalog** | 127 verified items across Power & CPU, Graphics & Display, Input, Network, Background & Privacy, Security, Storage and System, each with a hint, a description, sources and a revert path. |
-| **Health report** | Read-only checks of firmware, microcode, Secure Boot, VBS/HVCI, GPU (Resizable BAR, refresh rate), network adapter, storage and an anti-cheat readiness score. HTML export. |
-| **Firewall Manager** | Every firewall rule classified (Core Services, Windows Connections, User Installed, Custom Rules) with the reason and a confidence level, risk findings with plain explanations and safe fixes, conflict analysis, an exposure map of open ports, a smart fix wizard, firewall scopes per kind of PC and an audit report. Core Services stay read-only, Windows rules are never deleted, game and anti-cheat rules are never blocked, and every change is previewed, snapshot-backed and undoable. See [docs/FIREWALL.md](docs/FIREWALL.md). |
-| **Interface** | Dark, Light and High Contrast themes, grouped navigation, sortable and filterable lists everywhere, focus mode, a read-only mode for audits, and a calm, predictable layout ([docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md)). |
-| **ASR Center** | All 19 Microsoft Defender attack surface reduction rules with modes, gamer-impact notes, per-rule exclusions and an audit view of what each rule blocked. |
-| **Security score** | 25 weighted checks, each with the exact fix, plus a local accounts audit and a listening-ports report. |
-| **Expert inspectors** | Power plan (hidden processor settings included), interrupts and MSI mode, network queues, kernel and memory values, timer, crash dumps, all next to their Windows defaults. |
-| **Cleaner** | Allow-list rules for temp files, caches and logs with a scan that deletes nothing, plus a disk analyzer and Storage Sense policies. |
-| **Manage** | Services with a safe-to-change rating, scheduled tasks, apps, an Autoruns-style persistence inspector with signature checks, and a firewall rule browser. |
-| **Toolkit** | Inspired by WinUtil and re-implemented with documented sources: a curated winget app installer, Windows features (WSL, Hyper-V, Sandbox, .NET 3.5), previewed repair fixes (SFC, DISM, Windows Update and network reset), classic panels and Windows Update deferrals. |
-| **Diagnostics** | DPC/ISR time, reliability history, crashes and minidumps, boot performance, driver inventory, Windows Update status, DNS benchmark, latency and jitter test, and a full system report. |
-| **Gaming network optimizer** | Measures latency, jitter and loss to your router, your ISP, internet anchors and your game server, applies the Windows network settings and registry values that lower latency and jitter on that connection (with a snapshot), checks that the network still works and reverts automatically if not, then measures again and shows before and after. |
-| **Group Policy engine** | Every installed Administrative Template policy with search, effective state and source (Local GPO, domain, MDM) and tattoo detection. Writes the Local GPO like gpedit (Registry.pol, gpt.ini, gpupdate, verification) with backup, restore and reset. Policy items of the catalog now also land in the Local GPO. |
-| **Security policy & auditing** | Account policies, user rights and security options (secedit) and advanced audit policy (auditpol) with backups and lockout safeguards that refuse anything that would lock you or the administrators out. |
-| **Policy presets & baselines** | 18 category presets (privacy, Windows Update rings, Defender, attack surface, Edge, credentials, remote access, removable media, audit and logging, firewall logging, kiosk, developer, secure gaming), import and compare of Security Compliance Toolkit baselines, and export as LGPO-style GPO folder, .reg, script or JSON. |
-| **Defender & Security Control Center** | Every Microsoft Defender Antivirus setting (all 137, including the hidden ones) and every Defender Group Policy with who manages it, a safe editor that only moves protections toward on (snapshot and revert), an exclusions audit that flags risky exclusions (removal only), threat history, scans, Network Inspection parsers (only ever turned on), web and phishing protection, detection logging and a firewall log analyzer. Coverage: `docs\SECURITY_COVERAGE.md`. |
+### Performance and gaming
 
-The WPF interface follows the Windows 11 design language and starts **read-only**. It asks for administrator rights through the normal UAC prompt only when you choose to apply something.
+Explore CPU, power, graphics, input, and network settings. Compare measured results instead of assuming every tweak improves performance.
+
+### Security and privacy
+
+Audit Windows security settings, review Microsoft Defender configuration, manage privacy policies, and inspect potential security weaknesses.
+
+### Firewall Manager (new in 3.4)
+
+Every firewall rule is classified (Core Services, Windows Connections, User Installed, Custom Rules) with the reason and a confidence level. Risk findings come with plain explanations and safe fixes, alongside conflict analysis, an exposure map of open ports, a smart fix wizard, firewall scopes per kind of PC and an audit report. Core Services stay read-only, Windows rules are never deleted, game and anti-cheat rules are never blocked, and every change is previewed, snapshot-backed and undoable. See [docs/FIREWALL.md](docs/FIREWALL.md).
+
+### Presets and configuration
+
+Choose from curated profiles for different workloads, create custom presets, and review configuration changes before applying them.
+
+### Diagnostics and system management
+
+Generate system health reports, inspect services and scheduled tasks, review firewall rules, troubleshoot Windows, and examine network latency and reliability.
+
+### Advanced Windows administration
+
+Explore Group Policy, security policies, Defender controls, compliance baselines, and configuration exports.
+
+### Interface
+
+Dark, Light and High Contrast themes, grouped navigation, sortable and filterable lists everywhere, focus mode, a read-only mode for audits, and a calm, predictable layout ([docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md)).
 
 ## Quick start
 
-Requirements: Windows 11 Pro 24H2 or newer (build 26100+), and Windows PowerShell 5.1, which is built in. PowerShell 7.4 also works. No installation and no dependencies.
+### Requirements
+
+- Windows 11 Pro 24H2 or newer (build 26100+).
+- Windows PowerShell 5.1, included with Windows. PowerShell 7.4 is also supported.
+- No additional dependencies are required.
+
+### Run the application
 
 1. Download or clone this repository.
-2. Double-click **`Start-iGWindowsTuner.cmd`** to open the GUI. It starts in read-only mode.
+2. Run `Start-iGWindowsTuner.cmd`.
+3. Review the interface and inspect your current settings.
+4. Choose a preset or individual setting.
+5. Review the proposed changes before applying them.
 
-Or use the command line (read-only commands need no elevation):
+The graphical interface starts in read-only mode. Administrator privileges are requested through Windows UAC when needed to apply changes.
 
-```powershell
-.\iGWindowsTuner.ps1 -Report                      # health and anti-cheat readiness
-.\iGWindowsTuner.ps1 -ListTweaks                  # every item with its tier, risk and current state
-.\iGWindowsTuner.ps1 -Preset Competitive -DryRun  # exactly what a preset would change; changes nothing
-.\iGWindowsTuner.ps1 -SecurityScore               # security score with the fix for each finding
-.\iGWindowsTuner.ps1 -NetworkOptimize -DryRun     # measure the connection and show the gaming network plan
-.\iGWindowsTuner.ps1 -DefenderCenter All          # Defender & Security Control Center
-.\iGWindowsTuner.ps1 -DefenderSettings            # every Defender setting, including hidden ones
-```
+## Before applying changes
 
-Optimize the network for gaming (measures, applies, verifies, measures again; add your game server with `-NetTarget`):
+System tuning can affect stability, security, and application compatibility.
 
-```powershell
-.\iGWindowsTuner.ps1 -NetworkOptimize -Duration Standard -NetTarget eu.example-game-server.net
-```
+- Review each proposed change before approving it.
+- Start with read-only reports and `-DryRun` commands.
+- Create a backup and a Windows restore point before significant changes.
+- Measure performance before and after tuning.
+- Verify that your games, applications, and security requirements still work as expected.
 
-Changes are applied and undone like this (each one writes a snapshot first):
-
-```powershell
-.\iGWindowsTuner.ps1 -Preset Balanced
-.\iGWindowsTuner.ps1 -Revert input.pointer-precision-off
-.\iGWindowsTuner.ps1 -RevertAll                   # undo the most recent apply
-```
-
-If you downloaded a zip, Windows marks the files as coming from the internet. Review them, check them against `SHA256SUMS.txt`, and then unblock them (`Get-ChildItem -Recurse | Unblock-File`).
-
-## What it never does
-
-Not even from the Risk Zone:
-
-- Edit BCD, enable test signing, disable driver signature enforcement, or turn off DEP, ASLR or CFG.
-- Touch Secure Boot, TPM, firmware, voltages, power limits or anti-cheat services, or install drivers.
-- Disable Defender, Tamper Protection, AMSI, ETW, the firewall, UAC, SmartScreen or Windows Update, or add antivirus exclusions.
-- Create persistence (scheduled tasks, services, Run keys, WMI subscriptions), hide windows, download anything, or change your execution policy.
-
-These rules are enforced by a static safety test suite that runs against the source code.
-
-## How it is built
-
-- **Data-driven.** The catalog lives in `data\*.json` (tweak files use schema v3). The engine dispatches typed actions (registry, service, power plan, firewall, QoS, scheduled task, and more), and each action type implements detect, snapshot, apply and restore.
-- **Plain PowerShell.** It is readable, modular and has comment-based help on every function. It uses one documented P/Invoke (`SystemParametersInfo`) and no compiled binaries.
-- **Tested.** 782 Pester tests run against Pester's `TestRegistry:` drive and mocks only, so the suite never touches the real system. PSScriptAnalyzer reports zero findings, and a Microsoft Defender scan runs as part of the quality checks (`tools\Invoke-QualityChecks.ps1`).
-- **Safe end-to-end testing.** `tools\New-SandboxConfig.ps1` generates a Windows Sandbox configuration that runs a full apply and revert cycle in a disposable VM.
-
-## Documentation
-
-| Document | Content |
-|---|---|
-| [docs/README.md](docs/README.md) | Full user guide: CLI options, exit codes, GUI, files and troubleshooting |
-| [docs/TWEAKS.md](docs/TWEAKS.md) | Every item with its exact changes, evidence and sources |
-| [docs/PRESETS.md](docs/PRESETS.md) | Preset contents and rules |
-| [docs/REJECTED_TWEAKS.md](docs/REJECTED_TWEAKS.md) | Popular tweaks that were rejected, why, and which ones the Risk Zone offers |
-| [docs/ANTICHEAT.md](docs/ANTICHEAT.md) | Anti-cheat requirements and compatibility |
-| [docs/SECURITY.md](docs/SECURITY.md) | Engineering and safety rules |
-| [docs/ASR_CENTER.md](docs/ASR_CENTER.md), [docs/INSPECTORS.md](docs/INSPECTORS.md), [docs/HARDWARE.md](docs/HARDWARE.md), [docs/CLEANER.md](docs/CLEANER.md) | Module references |
-| [docs/CLI.md](docs/CLI.md), [docs/EXPERT_LAB.md](docs/EXPERT_LAB.md) | Command-line reference; levels, gates and expert controls |
-| [docs/GROUP_POLICY.md](docs/GROUP_POLICY.md) | Group Policy engine, security policy and auditing, policy presets, baselines and exports |
-| [docs/DEFENDER_CENTER.md](docs/DEFENDER_CENTER.md), [docs/SECURITY_COVERAGE.md](docs/SECURITY_COVERAGE.md), [docs/NETWORK_IDS_IPS.md](docs/NETWORK_IDS_IPS.md) | Defender & Security Control Center and settings editor; coverage of every ASR rule, Defender setting and Windows Security feature; what the endpoint adds to a network IDS/IPS |
-| [docs/NETWORK_GAMING.md](docs/NETWORK_GAMING.md) | Gaming network optimizer: what it measures, the rules it follows, and how to undo it |
-| [docs/WINUTIL_MAPPING.md](docs/WINUTIL_MAPPING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | How each WinUtil item was adopted, adapted or rejected; credits |
-| [docs/FIREWALL.md](docs/FIREWALL.md), [docs/FIREWALL_CATEGORIES.md](docs/FIREWALL_CATEGORIES.md) | Firewall Manager guide and audit workflow; how rules are classified |
-| [docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md) | How every page is built (attention first, small chunks, no surprises) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Design decisions and their reasons |
-| [docs/TESTING.md](docs/TESTING.md) | Test suite, Sandbox test and measurement plan |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release notes |
+The built-in snapshots and rollback features help restore supported configuration changes, but they are not a substitute for a complete backup.
 
 ## Project status
 
-This is version **3.4** (preview). It combines the 3.3 quality release (a rebuilt, calmer interface with themes, sortable and filterable lists everywhere, a read-only mode and many fixes) with the 3.4 Firewall Manager (classification, risk findings, conflict analysis, a fix wizard and firewall scopes). The 3.0 features (Group Policy engine, security policy and auditing, policy presets, Defender & Security Control Center, gaming network optimizer) are in the GUI and on the command line. See [docs/CHANGELOG.md](docs/CHANGELOG.md).
+**Version 3.4 — Preview**
 
-Run the read-only commands and `-DryRun` first, and review what a change does before you apply it.
+3.4 combines the 3.3 quality release (a rebuilt, calmer interface with themes, sortable and filterable lists everywhere, a read-only mode and many fixes) with the 3.4 Firewall Manager. The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
+
+Some features and workflows are still evolving. Review the documentation before relying on the tool for production or security-critical systems.
+
+## Documentation
+
+- [User guide](docs/README.md)
+- [Tweak catalog and evidence](docs/TWEAKS.md)
+- [Preset guide](docs/PRESETS.md)
+- [Anti-cheat compatibility](docs/ANTICHEAT.md)
+- [Firewall Manager guide](docs/FIREWALL.md) and [how rules are classified](docs/FIREWALL_CATEGORIES.md)
+- [Security and design principles](docs/SECURITY.md)
+- [Design decisions](docs/DECISIONS.md)
+- [Rejected tweaks and their rationale](docs/REJECTED_TWEAKS.md)
+- [Testing methodology](docs/TESTING.md)
+- [Changelog](docs/CHANGELOG.md)
 
 ## Contributing
 
-Contributions are welcome, provided they follow the evidence rule: a new item needs a current Microsoft or vendor source (or a Tier B "measure" label), a hint, a description, a revert path and tests. Read [CONTRIBUTING.md](CONTRIBUTING.md), then run `tools\Invoke-QualityChecks.ps1` before opening a pull request.
+Contributions are welcome. New tweaks should include supporting evidence, a clear explanation, risk information, a rollback path, and appropriate tests.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
 ## License
 
-[MIT](LICENSE). iG Windows Tuner is provided as is, without warranty. You are responsible for the changes you apply to your system; every change can be reverted with the built-in snapshots.
+Released under the [MIT License](LICENSE).
+
+Provided as-is, without warranty. Review changes carefully and use the tool at your own risk.
