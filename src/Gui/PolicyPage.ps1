@@ -55,7 +55,7 @@ function Start-IgwtGuiPolicyRefresh {
         param($out, $errs)
         $d = @($out) | Select-Object -Last 1
         if (-not $d) { Set-IgwtGridState -Grid $script:Gui.Grids.Policy -State Error -Message $(if (@($errs).Count) { [string]@($errs)[0] } else { 'No data was returned.' }); return }
-        Set-IgwtGuiPolicyData -Data $d
+        Set-IgwtGuiPolicyData -Data $d -Chunked
     }
 }
 
@@ -63,10 +63,23 @@ function Set-IgwtGuiPolicyData {
     <# .SYNOPSIS Shows the policies and builds the category tree. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Data)
-    $c = $script:Gui.C
+    param([Parameter(Mandatory = $true)]$Data, [switch]$Chunked)
     $script:Gui.Policy = $Data
+    if ($Chunked) {
+        Invoke-IgwtGuiChunked -Key 'policy.rows' -Items @($Data.Policies) -Build { param($policy) New-IgwtGuiPolicyRow -Policy $policy } -Done { param($rows) $script:Gui.PolicyRows = $rows; Complete-IgwtGuiPolicyData }
+        return
+    }
     $script:Gui.PolicyRows = @($Data.Policies | ForEach-Object { New-IgwtGuiPolicyRow -Policy $_ })
+    Complete-IgwtGuiPolicyData
+}
+
+function Complete-IgwtGuiPolicyData {
+    <# .SYNOPSIS The category tree, the grid rows and the summary of the policy browser (after the rows are built). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $c = $script:Gui.C
+    $Data = $script:Gui.Policy
     # Category tree: every path segment once, counts in the headers.
     $c.PolTree.Items.Clear()
     $count = @{}

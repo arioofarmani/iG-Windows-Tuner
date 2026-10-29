@@ -176,7 +176,7 @@ function Start-IgwtGuiFirewallRefresh {
         param($out, $errs)
         $inv = @($out) | Select-Object -Last 1
         if (-not $inv) { Set-IgwtGridState -Grid $script:Gui.Grids.Firewall -State Error -Message $(if (@($errs).Count) { [string]@($errs)[0] } else { 'No data was returned.' }); return }
-        Set-IgwtGuiFirewallInventory -Inventory $inv
+        Set-IgwtGuiFirewallInventory -Inventory $inv -Chunked
         Set-IgwtGuiStatus ("Firewall: {0} rules read and checked in {1:N1} s." -f $inv.Count, ($inv.LoadMs / 1000))
     }
     $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallProfileStatus' -Channel 'firewall-profiles' -BusyText 'Reading the firewall profiles (read-only)...' -OnComplete {
@@ -190,18 +190,42 @@ function Set-IgwtGuiFirewallInventory {
     <# .SYNOPSIS Shows an inventory (all rules) on the page. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Inventory)
+    param([Parameter(Mandatory = $true)]$Inventory, [switch]$Chunked)
     $script:Gui.Firewall = $Inventory
     $script:Gui.FirewallContext = $(if ($Inventory.PSObject.Properties['Context']) { $Inventory.Context } else { $null })
+    if ($Chunked) {
+        # The window stays responsive: rows are built in slices, then each summary is applied in its own step.
+        Invoke-IgwtGuiChunked -Key 'firewall.rows' -Items @($Inventory.Rules) -Build { param($rule) New-IgwtGuiFirewallRow -Rule $rule } -Done {
+            param($rows)
+            Set-IgwtGridRows -Grid $script:Gui.Grids.Firewall -Rows $rows
+            Complete-IgwtGuiFirewallInventory -Step 0
+        }
+        return
+    }
     Set-IgwtGridRows -Grid $script:Gui.Grids.Firewall -Rows @($Inventory.Rules | ForEach-Object { New-IgwtGuiFirewallRow -Rule $_ })
-    Update-IgwtGuiFirewallSummary
-    Update-IgwtGuiFirewallGroups
-    Update-IgwtGuiFirewallOverview
-    Update-IgwtGuiFirewallDefaults
+    for ($i = 0; $i -le 4; $i++) { Complete-IgwtGuiFirewallInventory -Step $i -NoSchedule }
+}
+
+function Complete-IgwtGuiFirewallInventory {
+    <# .SYNOPSIS The parts of an inventory that follow its rows (summary, groups, overview, defaults, notice), each in its own UI step. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([int]$Step, [switch]$NoSchedule)
     $c = $script:Gui.C
-    $notes = @($Inventory.Notes | Where-Object { $_ })
-    $c.FwNoticeText.Text = ($notes -join ' ')
-    $c.FwNoticeText.Visibility = $(if ($notes.Count) { 'Visible' } else { 'Collapsed' })
+    switch ($Step) {
+        0 { Update-IgwtGuiFirewallSummary; Update-IgwtGuiFirewallGroups }
+        1 { Update-IgwtGuiFirewallOverview }
+        2 { Update-IgwtGuiFirewallDefaults }
+        3 {
+            $notes = @($script:Gui.Firewall.Notes | Where-Object { $_ })
+            $c.FwNoticeText.Text = ($notes -join ' ')
+            $c.FwNoticeText.Visibility = $(if ($notes.Count) { 'Visible' } else { 'Collapsed' })
+        }
+    }
+    if (-not $NoSchedule -and $Step -lt 3) {
+        $script:Gui.FwNextStep = $Step + 1
+        $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] { Complete-IgwtGuiFirewallInventory -Step $script:Gui.FwNextStep })
+    }
 }
 
 #endregion

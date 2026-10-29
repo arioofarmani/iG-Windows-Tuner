@@ -954,3 +954,48 @@ function New-IgwtGuiDefenderPolicyRow {
     [pscustomobject]$r
 }
 #endregion
+
+function Invoke-IgwtGuiChunked {
+    <#
+    .SYNOPSIS
+        Builds rows from many items in slices between UI frames (Dispatcher Background priority), so
+        a large list never blocks the window for more than one slice. Done receives all rows on the UI
+        thread. A newer call with the same Key replaces an unfinished one (its Done never runs).
+        Without a window (tests, offscreen renders) everything runs at once.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds in-memory rows and hands them to the window.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Key, [object[]]$Items = @(), [Parameter(Mandatory = $true)][scriptblock]$Build, [Parameter(Mandatory = $true)][scriptblock]$Done, [ValidateRange(1, 5000)][int]$Size = 60)
+    if (-not $script:Gui.Runspace -or -not $script:Gui.Window) {
+        & $Done @(foreach ($i in $Items) { & $Build $i })
+        return
+    }
+    # (An empty hashtable is falsy: test for $null, or a second build would wipe the first one's state.)
+    if ($null -eq $script:Gui.Chunks) { $script:Gui.Chunks = @{}; $script:Gui.ChunkQueue = New-Object System.Collections.Generic.Queue[string] }
+    $state = @{ Items = @($Items); Index = 0; Rows = (New-Object System.Collections.Generic.List[object]); Build = $Build; Done = $Done; Size = $Size; Gen = [guid]::NewGuid().ToString('N') }
+    $script:Gui.Chunks[$Key] = $state
+    $script:Gui.ChunkQueue.Enqueue($Key)
+    $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] { Step-IgwtGuiChunk })
+}
+
+function Step-IgwtGuiChunk {
+    <# .SYNOPSIS One slice of Invoke-IgwtGuiChunked (about Size items), then the next slice is queued; the last slice calls Done. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds in-memory rows and hands them to the window.')]
+    [CmdletBinding()]
+    param()
+    if ($null -eq $script:Gui.ChunkQueue -or $script:Gui.ChunkQueue.Count -eq 0) { return }
+    $key = $script:Gui.ChunkQueue.Dequeue()
+    $s = $script:Gui.Chunks[$key]
+    if (-not $s) { return }
+    $end = [Math]::Min($s.Index + $s.Size, $s.Items.Count)
+    try {
+        while ($s.Index -lt $end) { $s.Rows.Add((& $s.Build $s.Items[$s.Index])); $s.Index++ }
+    } catch { $script:Gui.Chunks.Remove($key); Show-IgwtGuiError -Message "The list could not be built: $($_.Exception.Message)" -Details ($_ | Out-String); return }
+    if ($s.Index -lt $s.Items.Count) {
+        $script:Gui.ChunkQueue.Enqueue($key)
+        $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] { Step-IgwtGuiChunk })
+        return
+    }
+    $script:Gui.Chunks.Remove($key)
+    try { & $s.Done $s.Rows.ToArray() } catch { Show-IgwtGuiError -Message "The list could not be shown: $($_.Exception.Message)" -Details ($_ | Out-String) }
+}

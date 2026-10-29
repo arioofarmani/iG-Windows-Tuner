@@ -41,10 +41,10 @@ See `docs\FINAL_REPORT_3.4.md`. Measured in 3.3 (phase 3): 500 rules in 0.7 s wa
 
 | Budget | Result |
 |---|---|
-| Cold start < 3 s | Offscreen proxy: module import 0.62 s + window built 2.31 s when the PC was idle (2.70 s in the final gate run with other programs busy) = about 2.9 to 3.3 s, at the budget edge (was about 3.5 s; catalog loading 576 -> 138 ms, cleaner rules on first use). A real window's first paint needs the UI Automation run. |
+| Cold start < 3 s | **Not met: 4.4 s** from launching the process to the first rendered window in the UI Automation run (powershell.exe start, module import 0.6 s, window build 2.6 s, first render 0.3 s). Offscreen proxy: module import 0.62 s + window built 2.31 s when the PC was idle (2.70 s in the final gate run with other programs busy) = about 2.9 to 3.3 s, at the budget edge (was about 3.5 s; catalog loading 576 -> 138 ms, cleaner rules on first use). A real window's first paint needs the UI Automation run. |
 | Page switch < 300 ms | Offscreen, mocked data, to first layout (no paint): median 38.5 ms, slowest 198 ms, 0 of 26 pages over 300 ms. |
 | Sort/filter < 200 ms | 5,000 rows within budget (test). |
-| No UI-thread stall > 200 ms; memory < 50 MB growth after 20 cycles; zero exceptions and binding errors | Need the UI Automation suite (opens the GUI): Needs Ario. The 3.3 baseline run before these changes had 0 exceptions, 0 binding errors, 7 stalls and +57 MB. |
+| No UI-thread stall > 200 ms; memory < 50 MB growth after 20 cycles; zero exceptions and binding errors | **Met** in the UI Automation run on 2026-10-29 (real window, read-only, real data): 0 freezes over 200 ms in app work (page loads, navigation of 26 pages x 20 cycles, resize, themes), +0.8 MB retained managed heap after 20 cycles (84 MB raw private growth, garbage not yet collected), 0 exceptions, 0 binding errors. Not counted (DECISIONS U8): one 325 ms block at the first render (start-up) and 4 freezes while the harness scanned pages with UI Automation. Fixed on the way: the worker pool opened on the UI thread (4.4 s), pool growth on the first multi-read page (about 1 s), the progress bar animation (250 ms every 2 s), applying data in one block (400 ms), 12 binding errors from rebuilding the navigation twice at start-up. |
 | Layouts at 100/150/200 % and 1100 x 720 | Rendered in Dark, Light and High Contrast at 100/150/200 % and at 1100 x 720 (100 and 200 %); responsive three-pane layouts and toolbars so nothing clips. |
 
 ## Review

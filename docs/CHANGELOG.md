@@ -60,6 +60,10 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 
 - The window starts about half a second faster: the tweak catalog loads in about 0.15 s instead of 0.6 s, and the cleaner rules are read the first time the Cleaner page needs them.
 - The render suite records how long the window takes to build (per startup step) and how long each page takes to switch and lay out.
+- **No more freezes while pages load.** The window opened its background workers on the UI thread (a 4 s freeze at start) and a busy worker grew by another runspace on the first page that read several things at once (about 1 s, for example on ASR Center and Group Policy). The workers now open in the background as three ready runspaces, and the first reads wait for them.
+- The progress bar no longer freezes the window: the built-in animation forced a layout pass every cycle (a 250 ms freeze every 2 s while a page loaded); it now moves with a render transform.
+- Large lists (firewall rules, Group Policy) are built in small slices between frames, and finished background reads are shown one per tick, so the window stays responsive while data arrives.
+- Measured with the UI Automation suite on a real PC (read-only): 0 freezes over 200 ms during page loads, navigation, resizing and theme changes; no memory retained after 20 navigation cycles (+0.8 MB managed heap); 0 binding errors and 0 exceptions.
 
 ### Firewall Manager (Security > Firewall)
 
@@ -95,6 +99,7 @@ Quality release: a rebuilt, calmer interface, a professional Firewall Manager, s
 - Defender settings > Group Policy: *Set policy* could never be enabled; it now follows the selected policy.
 - Reduce motion also stops the moving progress bar; navigation and input boxes have accessible names that match their labels; titles use sentence case; Backups & Logs and Rejected tweaks show a status line.
 - `-Version` prints the version (with `-Json` as an object).
+- The navigation list is only rebuilt when its order changes; rebuilding it twice at start-up could log binding errors at the first render.
 - The dashboard no longer shows an empty "Fix:" link for a security check without a fix target.
 - Lists that select one row at a time (tweaks, Defender settings, power plan) no longer fail when they refresh while a row is selected; the selection is kept.
 - The read-only text views of Diagnostics and Inspect start at the top instead of floating in the middle of the box.

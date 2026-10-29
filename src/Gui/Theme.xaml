@@ -996,6 +996,40 @@
         <Setter Property="Background" Value="{DynamicResource BrushSurfaceAlt}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Height" Value="4"/>
+        <!-- Own template: the default indeterminate animation forces a layout pass on every cycle (a 250 ms UI
+             freeze every 2 s while a page loads). Here the moving part is a render transform: no layout at all. -->
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ProgressBar}">
+                    <Grid ClipToBounds="True">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="2"/>
+                        <Border x:Name="PART_Track"/>
+                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="2"/>
+                        <Border x:Name="Pulse" Width="90" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="2" Visibility="Collapsed">
+                            <Border.RenderTransform>
+                                <TranslateTransform X="-90"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsIndeterminate" Value="True">
+                            <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="Pulse" Property="Visibility" Value="Visible"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="PulseRun">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="Pulse" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="-90" To="420" Duration="0:0:1.6"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="PulseRun"/>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
     <Style TargetType="{x:Type Expander}">
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>

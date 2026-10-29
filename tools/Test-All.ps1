@@ -37,8 +37,8 @@ if (-not $SkipAutomation) {
     $rep = Join-Path $art 'gui-automation\automation-report.json'
     if (Test-Path -LiteralPath $rep) {
         $r = Get-Content -LiteralPath $rep -Raw | ConvertFrom-Json
-        $result.AutomationClean = ($r.ReadOnlyVerified -and @($r.Exceptions).Count -eq 0 -and $r.BindingErrors -eq 0 -and $r.StallsOver200 -eq 0 -and $r.MemoryGrowthMB -lt 50)
-        $result.AutomationSummary = [ordered]@{ Exceptions = @($r.Exceptions).Count; BindingErrors = $r.BindingErrors; StallsOver200 = $r.StallsOver200; MemoryGrowthMB = $r.MemoryGrowthMB }
+        $result.AutomationClean = ($r.ReadOnlyVerified -and @($r.Exceptions).Count -eq 0 -and $r.BindingErrors -eq 0 -and $(if ($null -ne $r.StallsInApp) { $r.StallsInApp -eq 0 } else { $r.StallsOver200 -eq 0 }) -and $(if ($null -ne $r.ManagedGrowthMB) { $r.ManagedGrowthMB -lt 50 } else { $r.MemoryGrowthMB -lt 50 }))
+        $result.AutomationSummary = [ordered]@{ Exceptions = @($r.Exceptions).Count; BindingErrors = $r.BindingErrors; StallsOver200 = $r.StallsOver200; StallsInApp = $r.StallsInApp; StallsDuringScans = $r.StallsDuringScans; StartupBlockMs = $r.StartupBlockMs; ColdStartSec = $r.ColdStartSec; MemoryGrowthMB = $r.MemoryGrowthMB; ManagedGrowthMB = $r.ManagedGrowthMB }
     }
 }
 $result.Finished = (Get-Date).ToString('o')

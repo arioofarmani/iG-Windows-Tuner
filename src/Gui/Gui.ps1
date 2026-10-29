@@ -281,6 +281,7 @@ function Initialize-IgwtGuiDiagnostics {
     [System.Diagnostics.Trace]::AutoFlush = $true
     [System.Diagnostics.PresentationTraceSources]::Refresh()
     $listener = New-Object System.Diagnostics.TextWriterTraceListener((Join-Path $script:Gui.DiagnosticsPath 'binding.log'))
+    $listener.TraceOutputOptions = [System.Diagnostics.TraceOptions]::DateTime   # when a binding error happens (to line it up with what the test was doing)
     $null = [System.Diagnostics.PresentationTraceSources]::DataBindingSource.Listeners.Add($listener)
     [System.Diagnostics.PresentationTraceSources]::DataBindingSource.Switch.Level = [System.Diagnostics.SourceLevels]::Warning
     $script:Gui.BindingListener = $listener
@@ -291,11 +292,23 @@ function Initialize-IgwtGuiDiagnostics {
     Register-IgwtGuiHandler -Control $stall -Event 'Tick' -Handler {
             $ms = $script:Gui.StallWatch.Elapsed.TotalMilliseconds
             $script:Gui.StallWatch.Restart()
-            if ($ms -gt 300) { Write-IgwtGuiDiagnostic -Kind 'stall' -Text ("{0:n0} ms blocked (page {1})" -f ($ms - 100), [string]$script:Gui.CurrentPage) }
+            # Memory sampling for the automation suite: on request, collect garbage and report the managed heap,
+            # so retained memory can be told from garbage that was not collected yet. Diagnostics mode only.
+            $req = Join-Path $script:Gui.DiagnosticsPath 'gc.request'
+            if (Test-Path -LiteralPath $req) {
+                Remove-Item -LiteralPath $req -Force -ErrorAction SilentlyContinue
+                [GC]::Collect(); [GC]::WaitForPendingFinalizers(); [GC]::Collect()
+                [System.IO.File]::WriteAllText((Join-Path $script:Gui.DiagnosticsPath 'gc.done'), ('{0}|{1}' -f [math]::Round([GC]::GetTotalMemory($true) / 1MB, 1), [math]::Round([System.Diagnostics.Process]::GetCurrentProcess().PrivateMemorySize64 / 1MB, 1)))
+                $script:Gui.StallWatch.Restart(); return
+            }
+            # Garbage collections since the last tick: a stall with a full (gen 2) collection is a GC pause.
+            $gc = @([GC]::CollectionCount(0), [GC]::CollectionCount(1), [GC]::CollectionCount(2))
+            $prev = $script:Gui.StallGc; $script:Gui.StallGc = $gc
+            if ($ms -gt 300) { Write-IgwtGuiDiagnostic -Kind 'stall' -Text ("{0:n0} ms blocked (page {1}){2}" -f ($ms - 100), [string]$script:Gui.CurrentPage, $(if ($prev) { "; GC gen0 +{0}, gen1 +{1}, gen2 +{2}" -f ($gc[0] - $prev[0]), ($gc[1] - $prev[1]), ($gc[2] - $prev[2]) } else { '' })) }
         }
     $stall.Start()
     $script:Gui.StallTimer = $stall
-    Register-IgwtGuiHandler -Control $script:Gui.Window -Event 'ContentRendered' -Handler { Write-IgwtGuiDiagnostic -Kind 'ready' -Text "pid $PID read-only $([bool]$script:Gui.ReadOnly)" }
+    Register-IgwtGuiHandler -Control $script:Gui.Window -Event 'ContentRendered' -Handler { Write-IgwtGuiDiagnostic -Kind 'ready' -Text "pid $PID read-only $([bool]$script:Gui.ReadOnly)"; Write-IgwtGuiDiagnostic -Kind 'startup' -Text (($script:IgwtGuiStartupMarks.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ' ') }
     # Who closed the window (the harness expects it to stay open until it closes it itself).
     Register-IgwtGuiHandler -Control $script:Gui.Window -Event 'Closing' -Handler { Write-IgwtGuiDiagnostic -Kind 'close' -Text ("page '$($script:Gui.CurrentPage)'`n" + (Get-PSCallStack | Out-String) + [Environment]::StackTrace) }
 }
@@ -311,7 +324,7 @@ function Initialize-IgwtGuiWorker {
         of different pages run side by side; the UI thread only receives the results.
     #>
     [CmdletBinding()]
-    param()
+    param([switch]$Async)
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     # No host is attached: a prompt in a worker could never be answered and would hang the job.
     # The runspaces inherit the process execution policy of the launcher.
@@ -325,14 +338,75 @@ function Initialize-IgwtGuiWorker {
     # Log and progress entries reach the UI thread through this queue (set once per runspace here;
     # handing the queue to every job as a parameter blocked the job).
     $iss.Variables.Add((New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry('IgwtGuiLogQueue', $script:Gui.Queue, 'GUI log queue')))
-    $pool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool($iss)
-    $null = $pool.SetMinRunspaces(1)
-    $null = $pool.SetMaxRunspaces(3)
-    $pool.ApartmentState = [System.Threading.ApartmentState]::MTA
-    $pool.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
-    $pool.Open()
+    # One pool of up to 3 runspaces (synchronous callers: tests), or in the window (-Async) three pools of one
+    # runspace each, all opened in the background: a pool that has to create another runspace blocks the caller
+    # (BeginInvoke) for about a second.
+    $count = $(if ($Async) { 3 } else { 1 })
+    $pools = New-Object System.Collections.Generic.List[object]
+    foreach ($n in 1..$count) {
+        $p = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool($iss)
+        $null = $p.SetMinRunspaces(1)
+        $null = $p.SetMaxRunspaces($(if ($Async) { 1 } else { 3 }))
+        $p.ApartmentState = [System.Threading.ApartmentState]::MTA
+        $p.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+        $pools.Add($p)
+    }
+    $pool = $pools[0]
+    $script:Gui.Pools = $pools.ToArray()
+    # Opening loads the Windows modules and this module into the first runspace (seconds): the window
+    # opens the pool in the background (-Async) and starts its first reads when the pool is ready.
+    if ($Async) { $script:Gui.PoolOpens = @($pools | ForEach-Object { , @($_, $_.BeginOpen($null, $null)) }) } else { $pool.Open() }
     $script:Gui.Runspace = $pool
     $script:Gui.Jobs = New-Object System.Collections.Generic.List[object]
+    $script:Gui.WhenReady = New-Object System.Collections.Generic.List[scriptblock]
+}
+
+function Test-IgwtGuiWorkerReady {
+    <# .SYNOPSIS True when the background pool has finished opening. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    return [bool](@(Get-IgwtGuiOpenPools).Count)
+}
+
+function Get-IgwtGuiOpenPools {
+    <# .SYNOPSIS The worker pools that have finished opening (only these accept jobs). #>
+    [CmdletBinding()]
+    param()
+    $pools = @($(if ($script:Gui.Pools) { $script:Gui.Pools } elseif ($script:Gui.Runspace) { $script:Gui.Runspace }))
+    return @($pools | Where-Object { [string]$_.RunspacePoolStateInfo.State -eq 'Opened' })
+}
+
+function Complete-IgwtGuiPoolOpens {
+    <# .SYNOPSIS Calls EndOpen for pools that finished opening in the background (once each). #>
+    [CmdletBinding()]
+    param()
+    if (-not $script:Gui.PoolOpens) { return }
+    $left = New-Object System.Collections.Generic.List[object]
+    foreach ($o in $script:Gui.PoolOpens) {
+        if ([string]$o[0].RunspacePoolStateInfo.State -eq 'Opened') { try { $o[0].EndOpen($o[1]) } catch { Write-Verbose "Pool open: $($_.Exception.Message)" } } else { $left.Add($o) }
+    }
+    $script:Gui.PoolOpens = $left.ToArray()
+}
+
+function Wait-IgwtGuiWorkerReady {
+    <# .SYNOPSIS Blocks until the pool is open (only when a read is started before the window's own startup reads: rare, and the same wait the old synchronous open had). #>
+    [CmdletBinding()]
+    param()
+    if (-not $script:Gui.Runspace -or (Test-IgwtGuiWorkerReady)) { return }
+    # Only the first pool is waited for; the others keep opening in the background.
+    $first = @($script:Gui.PoolOpens | Where-Object { [object]::ReferenceEquals($_[0], $script:Gui.Runspace) })
+    if ($first.Count) { $script:Gui.PoolOpens = @($script:Gui.PoolOpens | Where-Object { -not [object]::ReferenceEquals($_[0], $script:Gui.Runspace) }); $script:Gui.Runspace.EndOpen($first[0][1]) }
+}
+
+function Invoke-IgwtGuiWhenWorkerReady {
+    <# .SYNOPSIS Runs an action now when the pool is open, else from the timer tick as soon as it is. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Defers a window action.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][scriptblock]$Action)
+    # (An empty list is falsy: test for $null, not for "not set".)
+    if ((Test-IgwtGuiWorkerReady) -or $null -eq $script:Gui.WhenReady) { & $Action; return }
+    $script:Gui.WhenReady.Add($Action)
 }
 
 function Start-IgwtGuiJob {
@@ -351,17 +425,22 @@ function Start-IgwtGuiJob {
     param([Parameter(Mandatory = $true)][string]$Command, [hashtable]$Parameters = @{}, [scriptblock]$OnComplete, [string]$BusyText = 'Working...', [switch]$Blocking, [string]$Channel, $Context)
     # No worker (offscreen renders, tests): nothing can run in the background.
     if (-not $script:Gui.Runspace) { return $false }
+    Wait-IgwtGuiWorkerReady
     if ($null -eq $script:Gui.Jobs) { $script:Gui.Jobs = New-Object System.Collections.Generic.List[object] }
     if ($Channel) {
         if (@($script:Gui.Jobs | Where-Object { $_.Channel -eq $Channel }).Count) { return $false }
     } elseif ($script:Gui.Job) { Set-IgwtGuiStatus 'Busy - please wait for the current operation to finish.'; return $false }
     if (-not $PSCmdlet.ShouldProcess($Command, 'Run in background')) { return $false }
     $ps = [PowerShell]::Create()
-    $ps.RunspacePool = $script:Gui.Runspace
+    # The idle open pool with the fewest running jobs (a busy one queues the job behind its own).
+    $open = @(Get-IgwtGuiOpenPools)
+    if (-not $open.Count) { $open = @($script:Gui.Runspace) }
+    $pool = @($open | Sort-Object { $p = $_; @($script:Gui.Jobs | Where-Object { [object]::ReferenceEquals($_.Pool, $p) -and -not $_.Handle.IsCompleted }).Count })[0]
+    $ps.RunspacePool = $pool
     $null = $ps.AddCommand($Command)
     foreach ($k in $Parameters.Keys) { $null = $ps.AddParameter($k, $Parameters[$k]) }
     $handle = $ps.BeginInvoke()
-    $job = @{ PS = $ps; Handle = $handle; OnComplete = $OnComplete; Command = $Command; Blocking = [bool]$Blocking; Channel = $Channel; BusyText = $BusyText; Started = (Get-Date); Cancelled = $false; Context = $Context }
+    $job = @{ Pool = $pool; PS = $ps; Handle = $handle; OnComplete = $OnComplete; Command = $Command; Blocking = [bool]$Blocking; Channel = $Channel; BusyText = $BusyText; Started = (Get-Date); Cancelled = $false; Context = $Context }
     $script:Gui.Jobs.Add($job)
     if (-not $Channel) { $script:Gui.Job = $job }
     Update-IgwtGuiBusy
@@ -422,8 +501,17 @@ function Invoke-IgwtGuiTick {
             Set-IgwtGuiStatus ([string]$item.Text)
         }
     }
+    if ($script:Gui.PoolOpens -and $script:Gui.PoolOpens.Count) { Complete-IgwtGuiPoolOpens }
+    # First reads wait for the pool to finish opening (started in the background).
+    if ($script:Gui.WhenReady -and $script:Gui.WhenReady.Count -and (Test-IgwtGuiWorkerReady)) {
+        Complete-IgwtGuiPoolOpens
+        $pending = $script:Gui.WhenReady.ToArray(); $script:Gui.WhenReady.Clear()
+        foreach ($a in $pending) { try { & $a } catch { Show-IgwtGuiError -Message "A startup read could not start: $($_.Exception.Message)" -Details ($_ | Out-String) } }
+    }
     if ($null -eq $script:Gui.Jobs) { return }
-    foreach ($job in @($script:Gui.Jobs | Where-Object { $_.Handle.IsCompleted })) { Complete-IgwtGuiJob -Job $job }
+    # One finished job per tick (150 ms): jobs that finish together do not apply their results in one block.
+    $done = @($script:Gui.Jobs | Where-Object { $_.Handle.IsCompleted } | Select-Object -First 1)
+    foreach ($job in $done) { Complete-IgwtGuiJob -Job $job }
 }
 
 function Complete-IgwtGuiJob {
@@ -453,7 +541,9 @@ function Complete-IgwtGuiJob {
     if ($errs.Count -gt 0) { $script:Gui.C.LogExpander.IsExpanded = $true }
     Update-IgwtGuiButtons
     if ($Job.OnComplete) {
+        $applyWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try { & $Job.OnComplete $out $errs $Job.Context } catch { Show-IgwtGuiError -Message "The result of $($Job.Command) could not be shown: $($_.Exception.Message)" -Details ($_ | Out-String) }
+        if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'apply' -Text ('{0}	{1:N0} ms' -f $Job.Command, $applyWatch.Elapsed.TotalMilliseconds) }
     }
 }
 
@@ -520,12 +610,15 @@ function Update-IgwtGuiFromData {
     foreach ($w in @($Data.Preflight.Warnings)) { if ($w -notlike 'Not elevated*') { $lines.Add([string]$w) } }
     if ($lines.Count -gt 0) { $c.BannerText.Text = ($lines -join '  '); $c.Banner.Visibility = 'Visible' } else { $c.Banner.Visibility = 'Collapsed' }
 
-    # Startup and backups
-    Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) })
-    Update-IgwtGuiSnapshots -Snapshots $Data.Snapshots
-    Update-IgwtGuiPresetCards
-    Update-IgwtGuiTweakList
-    Update-IgwtGuiDashboard -Data $Data
+    # The page updates run one per UI step (together they took about 400 ms, a visible freeze when the data
+    # arrived). They read $script:Gui.Data, never a local of this function: the steps run later.
+    Invoke-IgwtGuiChunked -Key 'data.pages' -Size 1 -Items @(
+        { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
+        { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
+        { Update-IgwtGuiPresetCards }
+        { Update-IgwtGuiTweakList }
+        { Update-IgwtGuiDashboard -Data $script:Gui.Data }
+    ) -Build { param($step) & $step; $null } -Done { param($rows) $null = $rows }
 }
 
 function Set-IgwtGuiTile {
@@ -2609,8 +2702,16 @@ function New-IgwtGuiNavHeader {
     return $h
 }
 
-function Test-IgwtGuiNavHeader {
-    <# .SYNOPSIS True for a navigation group label. #>
+function Get-IgwtGuiNavHeader {
+    <# .SYNOPSIS The group label for the navigation list; one item per group, created once and reused. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Text)
+    if ($null -eq $script:Gui.NavHeaders) { $script:Gui.NavHeaders = @{} }   # (not -not: an empty hashtable is falsy)
+    if (-not $script:Gui.NavHeaders.ContainsKey($Text)) { $script:Gui.NavHeaders[$Text] = New-IgwtGuiNavHeader -Text $Text }
+    return $script:Gui.NavHeaders[$Text]
+}
+
+function Test-IgwtGuiNavHeader {    <# .SYNOPSIS True for a navigation group label. #>
     [CmdletBinding()]
     [OutputType([bool])]
     param($Item)
@@ -2648,19 +2749,25 @@ function Set-IgwtGuiPersona {
         foreach ($s in $subs) { if (-not $rest.Contains($s)) { $rest.Add($s) } }
         $sorted = $rest.ToArray()
     }
-    $nav.Items.Clear()
     foreach ($it in $sorted) { $it.Visibility = $(if (([string]$it.Tag -eq 'Risk Zone' -and -not $p.ShowRiskZone) -or ($script:Gui.FocusMode -and $script:IgwtGuiFocusHidden -contains [string]$it.Tag)) { 'Collapsed' } else { 'Visible' }) }
     # Grouped navigation: groups follow the persona's order (the rank of their first page); a label
-    # starts each group that has a visible page.
+    # starts each group that has a visible page. The new order is planned first, the label items are reused,
+    # and the list is only touched when the order changed (no needless detaching of its items).
     $groupOf = @{}; foreach ($k in $script:IgwtGuiNavGroups.Keys) { foreach ($tag in $script:IgwtGuiNavGroups[$k]) { $groupOf[$tag] = $k } }
     $groups = New-Object System.Collections.Generic.List[string]
     foreach ($it in $sorted) { $k = $(if ($groupOf.ContainsKey([string]$it.Tag)) { $groupOf[[string]$it.Tag] } else { 'More' }); if (-not $groups.Contains($k)) { $groups.Add($k) } }
+    $plan = New-Object System.Collections.Generic.List[object]
     foreach ($k in $groups) {
         $members = @($sorted | Where-Object { $(if ($groupOf.ContainsKey([string]$_.Tag)) { $groupOf[[string]$_.Tag] } else { 'More' }) -eq $k })
-        if (@($members | Where-Object { $_.Visibility -eq 'Visible' }).Count) { $null = $nav.Items.Add((New-IgwtGuiNavHeader -Text $k)) }
-        foreach ($it in $members) { $null = $nav.Items.Add($it) }
+        if (@($members | Where-Object { $_.Visibility -eq 'Visible' }).Count) { $plan.Add((Get-IgwtGuiNavHeader -Text $k)) }
+        foreach ($it in $members) { $plan.Add($it) }
     }
-    if ($selected -and $selected.Visibility -eq 'Visible') { $nav.SelectedItem = $selected } else { $nav.SelectedItem = @($nav.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) -and $_.Visibility -eq 'Visible' })[0] }
+    $same = ($plan.Count -eq $nav.Items.Count)
+    for ($n = 0; $same -and $n -lt $plan.Count; $n++) { if (-not [object]::ReferenceEquals($plan[$n], $nav.Items[$n])) { $same = $false } }
+    if (-not $same) {
+        $nav.Items.Clear()
+        foreach ($x in $plan) { $null = $nav.Items.Add($x) }
+    }    if ($selected -and $selected.Visibility -eq 'Visible') { $nav.SelectedItem = $selected } else { $nav.SelectedItem = @($nav.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) -and $_.Visibility -eq 'Visible' })[0] }
     if ($script:Gui.Data) { Update-IgwtGuiTweakList }
     Set-IgwtGuiStatus "Persona: $($p.Name). $($p.Hint)"
 }
@@ -3121,6 +3228,9 @@ function Show-IgwtGui {
         return
     }
     $script:IgwtGuiStartWatch = [System.Diagnostics.Stopwatch]::StartNew(); $script:IgwtGuiStartupMarks = [ordered]@{}
+    # With a window the process keeps a few hundred MB of data: blocking full collections froze the window for
+    # 200-300 ms. Sustained low latency uses background collections (the setting is ignored where unsupported).
+    if (-not $RenderTo) { try { [System.Runtime.GCSettings]::LatencyMode = [System.Runtime.GCLatencyMode]::SustainedLowLatency } catch { Write-Verbose "GC latency mode not set: $($_.Exception.Message)" } }
     $readOnlyMode = Test-IgwtReadOnly
     Import-IgwtWpf
     $window = New-IgwtMainWindow
@@ -3454,9 +3564,9 @@ function Show-IgwtGui {
     }
 
     # Worker + timer
-    Initialize-IgwtGuiWorker
+    Initialize-IgwtGuiWorker -Async
     # Domain/MDM management is read once in the background; the change dialogs use it.
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtManagementState' -Channel 'mgmt' -BusyText 'Reading how this PC is managed (read-only)...' -OnComplete { param($out, $errs) $null = $errs; $script:Gui.Management = @($out) | Select-Object -Last 1 }
+    Invoke-IgwtGuiWhenWorkerReady -Action { $null = Start-IgwtGuiJob -Command 'Get-IgwtManagementState' -Channel 'mgmt' -BusyText 'Reading how this PC is managed (read-only)...' -OnComplete { param($out, $errs) $null = $errs; $script:Gui.Management = @($out) | Select-Object -Last 1 } }
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromMilliseconds(150)
     Register-IgwtGuiHandler -Control $timer -Event 'Tick' -Handler { Invoke-IgwtGuiTick }
@@ -3471,7 +3581,7 @@ function Show-IgwtGui {
                     }
                 }
             } catch { Write-Verbose "Session check failed: $($_.Exception.Message)" }
-            Start-IgwtGuiRefresh -IncludeHealth
+            Invoke-IgwtGuiWhenWorkerReady -Action { Start-IgwtGuiRefresh -IncludeHealth }
         }
     Update-IgwtGuiButtons
 
@@ -3483,6 +3593,6 @@ function Show-IgwtGui {
         $timer.Stop()
         if ($script:Gui.HcHandler) { [System.Windows.SystemParameters]::remove_StaticPropertyChanged($script:Gui.HcHandler) }
         foreach ($j in $(if ($script:Gui.Jobs) { $script:Gui.Jobs.ToArray() } else { @() })) { try { $null = $j.PS.BeginStop($null, $null) } catch { Write-Verbose "Job not stopped: $($_.Exception.Message)" } }
-        if ($script:Gui.Runspace) { try { $script:Gui.Runspace.Close(); $script:Gui.Runspace.Dispose() } catch { Write-Verbose 'Worker runspace already closed.' } }
+        foreach ($wp in @($(if ($script:Gui.Pools) { $script:Gui.Pools } elseif ($script:Gui.Runspace) { $script:Gui.Runspace }))) { try { $wp.Close(); $wp.Dispose() } catch { Write-Verbose 'Worker runspace already closed.' } }
     }
 }

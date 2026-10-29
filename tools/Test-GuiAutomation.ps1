@@ -39,17 +39,33 @@ function Find-ById($Parent, [string]$Id) { $Parent.FindFirst($TS::Descendants, (
 function Find-AllType($Parent, $Type) { @($Parent.FindAll($TS::Descendants, (Get-Cond $A::ControlTypeProperty $Type))) }
 function Test-OnScreen($El) { try { -not $El.Current.IsOffscreen -and $El.Current.BoundingRectangle.Width -gt 0 } catch { $false } }
 function Wait-Idle([int]$Ms = 250) { Start-Sleep -Milliseconds $Ms }
+$script:BusyBarElement = $null
 function Wait-AppIdle($Window, [int]$TimeoutSec = 90) {
-    # The busy bar is visible while the worker loads data; wait until it is hidden.
+    # The busy bar is visible while the worker loads data; wait until it is hidden. The element is looked up
+    # once: a search of the whole window every 300 ms made the app build automation objects for its entire
+    # control tree on the UI thread (200-280 ms stalls and extra memory that the app did not cause).
     $t0 = Get-Date
+    if (-not $script:BusyBarElement) { $script:BusyBarElement = Find-ById $Window 'BusyBar' }
     do {
         Start-Sleep -Milliseconds 300
-        $bar = Find-ById $Window 'BusyBar'
-        $busy = $bar -and (Test-OnScreen $bar)
+        $busy = $script:BusyBarElement -and (Test-OnScreen $script:BusyBarElement)
     } while ($busy -and ((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec)
     return (-not $busy)
 }
+function Get-AppHeap([string]$DiagDir) {
+    # Asks the app (diagnostics mode) to collect garbage and report its managed heap: "managedMB|privateMB".
+    $req = Join-Path $DiagDir 'gc.request'; $done = Join-Path $DiagDir 'gc.done'
+    Remove-Item -LiteralPath $done -Force -ErrorAction SilentlyContinue
+    Set-Content -LiteralPath $req -Value '1'
+    for ($i = 0; $i -lt 100 -and -not (Test-Path -LiteralPath $done); $i++) { Start-Sleep -Milliseconds 100 }
+    if (-not (Test-Path -LiteralPath $done)) { return $null }
+    $v = (Get-Content -LiteralPath $done -Raw).Trim() -split '\|'
+    [pscustomobject]@{ ManagedMB = [double]$v[0]; PrivateAfterGcMB = [double]$v[1] }
+}
 $log = New-Object System.Collections.Generic.List[string]
+# Time spans in which this harness scans a page with UI Automation (a scan makes the app build automation
+# objects for every control on its UI thread; a stall that overlaps one is caused by the probe, not by app work).
+$scanWindows = New-Object System.Collections.Generic.List[object]
 function Note([string]$Text) { $log.Add(("{0:HH:mm:ss.fff} {1}" -f (Get-Date), $Text)); Write-Verbose $Text }
 
 # 1. Launch the GUI read-only (the harness never targets an instance it did not start read-only).
@@ -94,6 +110,7 @@ try {
         try { ($it.GetCurrentPattern($sel)).Select() } catch { $report.Errors += "select $name"; continue }
         Wait-Idle 500
         if (-not (Wait-AppIdle $win 90)) { Note "page $name still loading after 90 s" }
+        $scanStart = Get-Date
         $page = [ordered]@{ Name = $name; Tabs = 0; Rows = 0; Headers = 0 }
         $tabs = @(Find-AllType $win $CT::TabItem | Where-Object { Test-OnScreen $_ })
         $tabsToVisit = New-Object System.Collections.Generic.List[object]
@@ -119,6 +136,7 @@ try {
                 try { $tp = $cb.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern); $tp.Toggle(); Wait-Idle 200; $tp.Toggle(); Wait-Idle 150; $report.Filters++ } catch { Note "filter toggle failed on $name" }
             }
         }
+        $scanWindows.Add([pscustomobject]@{ Start = $scanStart; End = (Get-Date).AddMilliseconds(600) })
         $report.Pages += [pscustomobject]$page
     }
 
@@ -143,18 +161,22 @@ try {
 
     # 5. Navigation cycles and memory.
     $p0 = Get-Process -Id $proc.Id
-    $memory.Add([pscustomobject]@{ Cycle = 0; PrivateMB = [math]::Round($p0.PrivateMemorySize64 / 1MB, 1); WorkingSetMB = [math]::Round($p0.WorkingSet64 / 1MB, 1) })
+    $heap0 = Get-AppHeap $diag
+    $memory.Add([pscustomobject]@{ Cycle = 0; PrivateMB = [math]::Round($p0.PrivateMemorySize64 / 1MB, 1); WorkingSetMB = [math]::Round($p0.WorkingSet64 / 1MB, 1); ManagedAfterGcMB = $(if ($heap0) { $heap0.ManagedMB } else { $null }) })
     for ($c = 1; $c -le $Cycles; $c++) {
         foreach ($it in $items) { try { ($it.GetCurrentPattern($sel)).Select(); Start-Sleep -Milliseconds 120 } catch { Note "cycle select failed $c" } }
         if ($c -eq 1 -or $c -eq $Cycles -or $c % 5 -eq 0) {
             Start-Sleep -Milliseconds 800
             $p = Get-Process -Id $proc.Id
-            $memory.Add([pscustomobject]@{ Cycle = $c; PrivateMB = [math]::Round($p.PrivateMemorySize64 / 1MB, 1); WorkingSetMB = [math]::Round($p.WorkingSet64 / 1MB, 1) })
+            $heap = Get-AppHeap $diag
+            $memory.Add([pscustomobject]@{ Cycle = $c; PrivateMB = [math]::Round($p.PrivateMemorySize64 / 1MB, 1); WorkingSetMB = [math]::Round($p.WorkingSet64 / 1MB, 1); ManagedAfterGcMB = $(if ($heap) { $heap.ManagedMB } else { $null }) })
         }
     }
     $report.Memory = $memory.ToArray()
     $arr = $memory.ToArray(); $base = @($arr | Where-Object Cycle -EQ 1)[0]; $last = $arr[$arr.Length - 1]
     $report.MemoryGrowthMB = [math]::Round($last.PrivateMB - $base.PrivateMB, 1)
+    # Retained memory: the managed heap after a collection requested from the app (garbage not yet collected excluded).
+    $report.ManagedGrowthMB = $(if ($null -ne $base.ManagedAfterGcMB -and $null -ne $last.ManagedAfterGcMB) { [math]::Round($last.ManagedAfterGcMB - $base.ManagedAfterGcMB, 1) } else { $null })
     $report.StillRunning = -not $proc.HasExited
 } catch {
     $report.Errors += "$($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))"
@@ -176,6 +198,22 @@ $report.BindingSamples = @($binding | Select-Object -Unique -First 15)
 $report.Exceptions = $exceptions
 $report.Stalls = @($stalls | Sort-Object Ms -Descending | Select-Object -First 25)
 $report.StallsOver200 = @($stalls | Where-Object { $_.Ms -gt 200 }).Count
+# Each stall ends at its log time and lasted Ms: classify it as start-up (before the window was ready), during a
+# UI Automation scan by this harness, or app work (page loads, navigation, resize, themes).
+$readyAt = $null
+$readyLog = Join-Path $diag 'ready.log'
+if (Test-Path -LiteralPath $readyLog) { $readyAt = ([datetimeoffset]::Parse((@(Get-Content -LiteralPath $readyLog)[0] -split "`t")[0])).LocalDateTime }
+$classified = @(foreach ($s in @($stalls | Where-Object { $_.Ms -gt 200 })) {
+        $end = ([datetimeoffset]::Parse($s.Time)).LocalDateTime; $start = $end.AddMilliseconds(-$s.Ms)
+        $kind = $(if ($readyAt -and $start -lt $readyAt) { 'Startup' } elseif (@($scanWindows | Where-Object { $start -lt $_.End -and $end -gt $_.Start }).Count) { 'Scan' } else { 'App' })
+        [pscustomobject]@{ Kind = $kind; Ms = $s.Ms; Text = $s.Text }
+    })
+$report.StallsAtStartup = @($classified | Where-Object Kind -EQ 'Startup').Count
+$report.StartupBlockMs = [double](@($classified | Where-Object Kind -EQ 'Startup' | Measure-Object Ms -Maximum).Maximum)
+$report.StallsDuringScans = @($classified | Where-Object Kind -EQ 'Scan').Count
+$report.StallsInApp = @($classified | Where-Object Kind -EQ 'App').Count
+$report.AppStalls = @($classified | Where-Object Kind -EQ 'App' | Sort-Object Ms -Descending | Select-Object -First 15)
+$report.ColdStartSec = $(if ($readyAt) { [math]::Round(($readyAt - [datetime]::Parse($report.Started)).TotalSeconds, 1) } else { $null })
 $report.PageSwitch = @($switches | Group-Object Page | ForEach-Object { [pscustomobject]@{ Page = $_.Name; Count = $_.Count; MaxMs = ($_.Group | Measure-Object Ms -Maximum).Maximum; MedianMs = @($_.Group | Sort-Object Ms)[[int][math]::Floor($_.Count / 2)].Ms } })
 $report.Log = $log.ToArray()
 $report.Finished = (Get-Date).ToString('o')
@@ -192,6 +230,7 @@ $out = Join-Path $OutDir 'automation-report.json'
 [pscustomobject]$report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $out -Encoding UTF8
 Write-Output ("Read-only verified: {0}; pages {1}; tabs {2}; headers {3}; rows {4}; search {5}; filters {6}; resized {7}; themes {8}" -f $report.ReadOnlyVerified, @($report.Pages).Count, $report.Tabs, $report.HeadersInvoked, $report.RowsSelected, $report.SearchBoxes, $report.Filters, $report.Resized, (@($report.Themes) -join ','))
 Write-Output ("Exceptions {0}; binding errors {1}; stalls over 200 ms {2}; memory growth {3} MB after {4} cycles; errors {5}" -f @($exceptions).Count, $binding.Count, $report.StallsOver200, $report.MemoryGrowthMB, $Cycles, @($report.Errors).Count)
+Write-Output ("Stalls over 200 ms: {0} at start-up (longest {1:N0} ms), {2} during UI Automation scans, {3} in app work; retained heap growth {4} MB; cold start {5} s" -f $report.StallsAtStartup, $report.StartupBlockMs, $report.StallsDuringScans, $report.StallsInApp, $report.ManagedGrowthMB, $report.ColdStartSec)
 Write-Output "Report: $out"
 if (-not $report.ReadOnlyVerified -or @($report.Errors).Count) { exit 1 }
 exit 0
