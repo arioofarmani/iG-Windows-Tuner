@@ -375,24 +375,26 @@ function Show-IgwtGuiToast {
     [System.Windows.Automation.AutomationProperties]::SetName($close, 'Close message')
     [System.Windows.Controls.DockPanel]::SetDock($close, 'Right')
     $null = $dock.Children.Add($ic); $null = $dock.Children.Add($close)
-    $state = @{ Toast = $toast; Timer = $null; Action = $Action; Arg = $ActionArgument }
+    # The handlers below are closures (GetNewClosure): inside them $script: is the closure's own scope, not this
+    # module's, so everything they use travels in $state ($script:Gui there is empty; DECISIONS U9).
+    $state = @{ Toast = $toast; Host = $c.ToastHost; Timer = $null; Action = $Action; Arg = $ActionArgument }
     if ($ActionText -and $Action) {
         $act = New-Object System.Windows.Controls.Button
         $act.Content = $ActionText; $act.Style = $script:Gui.Window.FindResource('LinkButton'); $act.Margin = '12,0,0,0'; $act.VerticalAlignment = 'Center'
         [System.Windows.Controls.DockPanel]::SetDock($act, 'Right')
-        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast); & $state.Action $state.Arg }.GetNewClosure()
+        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $state.Host.Children.Remove($state.Toast); & $state.Action $state.Arg }.GetNewClosure()
         $null = $dock.Children.Add($act)
     }
     $tb = New-Object System.Windows.Controls.TextBlock
     $tb.Text = $Text; $tb.TextWrapping = 'Wrap'; $tb.VerticalAlignment = 'Center'
     $null = $dock.Children.Add($tb)
     $toast.Child = $dock
-    Register-IgwtGuiHandler -Control $close -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure()
+    Register-IgwtGuiHandler -Control $close -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $state.Host.Children.Remove($state.Toast) }.GetNewClosure()
     while ($c.ToastHost.Children.Count -ge 3) { $c.ToastHost.Children.RemoveAt(0) }
     $null = $c.ToastHost.Children.Add($toast)
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromSeconds([math]::Max(3, $Seconds))
-    Register-IgwtGuiHandler -Control $timer -Event 'Tick' -Handler { $state.Timer.Stop(); $null = $script:Gui.C.ToastHost.Children.Remove($state.Toast) }.GetNewClosure()
+    Register-IgwtGuiHandler -Control $timer -Event 'Tick' -Handler { $state.Timer.Stop(); $null = $state.Host.Children.Remove($state.Toast) }.GetNewClosure()
     $state.Timer = $timer
     # Keep the toast while the pointer is over it, so it can be read and its button used.
     Register-IgwtGuiHandler -Control $toast -Event 'MouseEnter' -Handler { $state.Timer.Stop() }.GetNewClosure()

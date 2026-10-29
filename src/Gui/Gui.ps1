@@ -240,7 +240,7 @@ function Show-IgwtGuiError {
         $c.ErrorText.Text = "Something went wrong ($Context): $Message The window stays open; copy the details if it happens again."
         $c.ErrorBar.Visibility = 'Visible'
     } catch { Write-Verbose "Error bar unavailable: $($_.Exception.Message)" }
-    try { Write-IgwtLog -Level Error -Message "GUI error ($Context): $Message" } catch { Write-Verbose 'Logging failed.' }
+    try { Write-IgwtLog -Level Error -Message "GUI error ($Context): $Message$(if ($Details) { ' | ' + (($Details -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 6) -join ' / ') })" } catch { Write-Verbose 'Logging failed.' }
     Write-IgwtGuiDiagnostic -Kind 'exception' -Text "$Context | $Message | $Details"
 }
 
@@ -268,7 +268,13 @@ function Initialize-IgwtGuiDiagnostics {
             $e.Handled = $true
             $ex = $e.Exception
             while ($ex.InnerException -and $ex -is [System.Management.Automation.MethodInvocationException]) { $ex = $ex.InnerException }
-            Show-IgwtGuiError -Message $ex.Message -Details ([string]$e.Exception) -Context 'window'
+            # Where in the script it happened: a .NET stack alone does not name the PowerShell line.
+            $where = ''
+            if ($ex -is [System.Management.Automation.IContainsErrorRecord] -and $ex.ErrorRecord) {
+                $er = $ex.ErrorRecord
+                $where = "$(if ($er.InvocationInfo) { $er.InvocationInfo.PositionMessage })`r`n$($er.ScriptStackTrace)"
+            }
+            Show-IgwtGuiError -Message $ex.Message -Details ("$where`r`n$([string]$e.Exception)").Trim() -Context 'window'
         }
     Register-IgwtGuiHandler -Control ([System.AppDomain]::CurrentDomain) -Event 'UnhandledException' -Handler {
             param($eventSource, $e)

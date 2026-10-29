@@ -74,3 +74,4 @@ snapshot-*.json
 
 # Synthetic test fixtures are always tracked
 !tests/fixtures/**
+SPEC-v3.5-firewall-logs.md

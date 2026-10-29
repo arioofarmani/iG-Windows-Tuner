@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.0 (unreleased)
+
+### Fixed
+
+- **"Analyze the firewall log" failed on every real log** with "Cannot bind argument to parameter 'Lines' because it is an empty string": Windows writes an empty line after the `#Fields:` header, and the parser refused empty lines. The log is now read with a streaming reader that opens it shared with the firewall service (read, write and delete sharing), takes the columns from the file's own `#Fields:` header, reads the rotated `.old` file when there is one, skips a last line that is still being written, and reports skipped lines by reason.
+- **Clear messages instead of "not found":** without administrator rights the log was reported as missing ("turn on logging first"), because the existence check returns false for a file you may not read. The analysis now says what is wrong and what to do: administrator rights needed, logging off for a named profile, the log not written yet, a missing custom log folder (with the service account that needs write access), or the file locked by another program.
+- **"Something went wrong (window): You cannot call a method on a null-valued expression"** appeared about 10 seconds after any change that showed a message at the bottom right (for example a firewall or profile change): the message's close timer could not reach the window. Fixed, a test now checks every handler of that kind, and errors of this kind now record the script line in the log.
+- The quality gate now also fails when a test file cannot be loaded (its tests would otherwise be silently missing from the count).
 ## 3.4.0 (2026-10-29)
 
 Firewall Manager 3.4: every rule classified (origin category, direction, blocks, bloat, risks) with the reason and a confidence level, risk findings with plain-language explanations and safe fixes, conflict analysis and an overview dashboard. Includes everything listed under 3.3.0, which was not released separately.

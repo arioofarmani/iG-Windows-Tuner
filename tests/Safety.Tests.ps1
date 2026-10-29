@@ -134,6 +134,27 @@ Describe 'Module structure' {
     It 'never writes $name? in a string (PowerShell reads it as a variable named "name?"; use ${name}?)' {
         Get-Matches '\$[A-Za-z_][A-Za-z0-9_]*\?' | Should -BeNullOrEmpty
     }
+    It 'uses no $script: variable and no private function inside a GetNewClosure block (regression 3.5)' {
+        # A closure runs in a new dynamic module: $script:Gui is empty there and private functions are not
+        # found. The toast handlers did this and every toast threw "You cannot call a method on a
+        # null-valued expression" when it closed (DECISIONS U9).
+        $exported = @((Import-PowerShellDataFile (Join-Path $script:IgwtProjectRoot 'src\iGWindowsTuner.psd1')).FunctionsToExport)
+        $src = @($script:Code | Where-Object { $_.Extension -eq '.ps1' -and $_.FullName -like '*\src\*' })
+        $asts = @{}
+        foreach ($f in $src) { $asts[$f.FullName] = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$null) }
+        $defined = @{}
+        foreach ($a in $asts.Values) { foreach ($fd in $a.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) { $defined[$fd.Name] = $true } }
+        $bad = foreach ($f in $src) {
+            foreach ($call in $asts[$f.FullName].FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'GetNewClosure' }, $true)) {
+                foreach ($v in $call.Expression.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -like 'script:*' }, $true)) { "$($f.Name):$($v.Extent.StartLineNumber) $($v.Extent.Text)" }
+                foreach ($cmd in $call.Expression.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                    $n = $cmd.GetCommandName()
+                    if ($n -and $defined[$n] -and $exported -notcontains $n) { "$($f.Name):$($cmd.Extent.StartLineNumber) private $n" }
+                }
+            }
+        }
+        @($bad) | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Expert inspectors stay read-only (except the power plan editor)' {
