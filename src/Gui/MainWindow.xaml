@@ -101,6 +101,17 @@
                     <TextBlock x:Name="BannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
+            <!-- Forensic logging session: shown while one runs, or when one expired while the app was closed -->
+            <Border x:Name="ForensicBanner" AutomationProperties.AutomationId="ForensicBanner" AutomationProperties.Name="Forensic logging" Visibility="Collapsed" Background="{DynamicResource BrushInfoSoft}" BorderBrush="{DynamicResource BrushInfo}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE9D9;" Foreground="{DynamicResource BrushInfo}" Margin="0,0,10,0"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ForensicBannerOpenButton" Content="Details" ToolTip="Open Security > Firewall > Forensic logging."/>
+                        <Button x:Name="ForensicBannerStopButton" Content="Stop and restore" Margin="0" ToolTip="Restore every setting the session changed, exactly as it was. Collected logs and events stay."/>
+                    </StackPanel>
+                    <TextBlock x:Name="ForensicBannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
             <!-- Error boundary: an error inside the window shows here instead of closing it -->
             <Border x:Name="ErrorBar" AutomationProperties.AutomationId="ErrorBar" Visibility="Collapsed" Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDanger}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
@@ -1012,6 +1023,67 @@
                                     </Border>
                                 </Grid>
                             </DockPanel>
+                        </TabItem>
+                        <TabItem x:Name="FwForensicTab" Header="Forensic logging" ToolTip="Make Windows record every connection for a limited time, with the program behind it, and restore the settings afterwards">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Forensic logging makes Windows record connections for a limited time, so you can see later what connected where and which program did it. Every setting is saved first and restored exactly when the session ends. Event logs are never cleared. Settings set by a policy are shown but not changed."/>
+                                    <ItemsControl x:Name="FwForSources" Margin="0,10,0,0">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource Card}" Width="310" Margin="0,0,12,12" ToolTip="{Binding Tip}">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding State}" FontWeight="SemiBold" Margin="0,4,0,4" TextWrapping="Wrap"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Records}" TextWrapping="Wrap"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Volume}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Managed}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Profile" Margin="0,6,0,4"/>
+                                    <WrapPanel>
+                                        <RadioButton x:Name="FwForBasic" GroupName="FwForProfile" Content="Basic: blocked packets" IsChecked="True" Margin="0,0,16,6" ToolTip="Logs the packets the firewall drops, in every profile. Low volume; no program names."/>
+                                        <RadioButton x:Name="FwForFull" GroupName="FwForProfile" Content="Full forensic: all three sources" Margin="0,0,16,6" ToolTip="Blocked and allowed packets in the firewall log, every connection with its program in the Security log, and DNS queries. High volume: use it for a limited time."/>
+                                        <RadioButton x:Name="FwForCustom" GroupName="FwForProfile" Content="Custom" Margin="0,0,16,6" ToolTip="Choose the sources yourself."/>
+                                    </WrapPanel>
+                                    <WrapPanel x:Name="FwForCustomPanel" Margin="20,0,0,6">
+                                        <CheckBox x:Name="FwForFwBlocked" Content="Firewall log: blocked" IsChecked="True" Margin="0,0,14,4" ToolTip="Log dropped packets in every profile."/>
+                                        <CheckBox x:Name="FwForFwAllowed" Content="Firewall log: allowed" Margin="0,0,14,4" ToolTip="Log allowed connections too (much more volume)."/>
+                                        <CheckBox x:Name="FwForWfpConn" Content="WFP connections (with program)" Margin="0,0,14,4" ToolTip="Audit Filtering Platform Connection, success and failure: Security events 5156 and 5157 with the program path."/>
+                                        <CheckBox x:Name="FwForWfpDrop" Content="WFP packet drops" Margin="0,0,14,4" ToolTip="Audit Filtering Platform Packet Drop, failure: Security event 5152 for every dropped packet (very high volume; Microsoft recommends it for troubleshooting only)."/>
+                                        <CheckBox x:Name="FwForDns" Content="DNS client log" Margin="0,0,14,4" ToolTip="Turns on the DNS client's Operational log: names looked up, with the process id."/>
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <TextBlock Text="Security log size" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                                        <ComboBox x:Name="FwForSizeBox" Width="110" Margin="0,0,18,6" ToolTip="Size of the Security log for WFP auditing. A larger current size is kept. The log is never made smaller during a session.">
+                                            <ComboBoxItem Content="256 MB"/>
+                                            <ComboBoxItem Content="512 MB" IsSelected="True"/>
+                                            <ComboBoxItem Content="1 GB"/>
+                                        </ComboBox>
+                                        <TextBlock Text="Run for" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                                        <ComboBox x:Name="FwForDurationBox" Width="130" Margin="0,0,18,6" ToolTip="The previous settings come back automatically after this time while iG Windows Tuner is open. If it is closed, the next start offers to restore them.">
+                                            <ComboBoxItem Content="30 minutes"/>
+                                            <ComboBoxItem Content="2 hours" IsSelected="True"/>
+                                            <ComboBoxItem Content="8 hours"/>
+                                            <ComboBoxItem Content="Until I stop it"/>
+                                        </ComboBox>
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <Button x:Name="FwForEstimateButton" Content="Estimate the volume (10 s)" Margin="0,0,8,6" ToolTip="Watches new connections for 10 seconds (read-only) and estimates events per hour and how long each Security log size lasts."/>
+                                        <Button x:Name="FwForPreviewButton" Content="Preview" Margin="0,0,8,6" ToolTip="Show every setting this profile would change, from what to what (read-only)."/>
+                                        <Button x:Name="FwForStartButton" Style="{StaticResource AccentButton}" Content="Start forensic logging..." Margin="0,0,8,6" ToolTip="Preview, then save every setting and start the session. Needs administrator rights."/>
+                                        <Button x:Name="FwForStopButton" Content="Stop and restore" Margin="0,0,8,6" ToolTip="End the session and restore every setting exactly."/>
+                                        <Button x:Name="FwForRefreshButton" Content="Read the state" Margin="0,0,8,6" ToolTip="Read the current logging settings again (read-only)."/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="FwForEstimateText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" Text=""/>
+                                    <TextBlock x:Name="FwForStatusText" TextWrapping="Wrap" Margin="0,6,0,0" Text="Not read yet."/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,10,0,0" Text="Gaming: start a time-boxed session when you want to look into something, rather than leaving forensic logging on during competitive play. The firewall log has no program names; WFP auditing adds them; the DNS log adds the names behind addresses."/>
+                                </StackPanel>
+                            </ScrollViewer>
                         </TabItem>
                         <TabItem x:Name="FwDefaultsTab" Header="Compared to Windows defaults" ToolTip="Rules added, removed or changed compared with the default rules of this Windows build">
                             <DockPanel Margin="0,8,0,0">

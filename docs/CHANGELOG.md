@@ -2,6 +2,13 @@
 
 ## 3.5.0 (unreleased)
 
+### Forensic logging
+
+- **Security > Firewall > Forensic logging**: make Windows record connections for a limited time and put everything back afterwards. Three sources, each with what it records, its volume, its current state and whether a policy manages it: the firewall packet log, WFP connection auditing (every connection with the program path, Security events 5156 and 5157, and 5152 for dropped packets) and the DNS client log (names with the process id).
+- Profiles: **Basic** (blocked packets), **Full forensic** (all three sources, allowed and blocked) and **Custom**; every change is previewed (from what to what) before it starts.
+- Time-boxed sessions (30 minutes, 2 hours, 8 hours or until stopped) with a banner "Forensic logging active since ...". The previous settings come back automatically when the session ends while the app is open; if it ended while the app was closed, the next start shows it and offers to restore. No scheduled task or service is created.
+- Before anything changes, every touched setting is saved (firewall profile logging, the audit subcategories with `auditpol /backup`, the Security log size, the DNS client log) and restored exactly. If a step fails, everything applied so far is restored. The Security log is enlarged first (256 MB, 512 MB or 1 GB; never made smaller). Event logs are never cleared, settings set by a policy are not changed, and logs are never written to a network share.
+- **Estimate the volume**: watches new connections for 10 seconds (read-only) and shows the expected events per hour and how long each Security log size lasts.
 ### Firewall log reader
 
 - **Security > Firewall > Log**: the firewall log in a sortable, filterable list. The newest entries show at once while the whole log (and the older `.old` file) is read in the background. Columns: time (local; UTC in the tooltip), action, direction (as the log writes it: SEND or RECEIVE), protocol, source and destination with ports, size, TCP flags, process and note.

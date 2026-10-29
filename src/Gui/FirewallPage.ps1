@@ -164,6 +164,7 @@ function Initialize-IgwtGuiFirewallPage {
     }
     Initialize-IgwtGuiFirewallHome
     Initialize-IgwtGuiFirewallLogPage
+    Initialize-IgwtGuiForensicPage
     Update-IgwtGuiFirewallDetail -Rows @()
 }
 

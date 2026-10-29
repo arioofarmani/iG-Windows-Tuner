@@ -35,6 +35,8 @@ $script:IgwtGuiControlNames = @(
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
     'FwLogTab', 'FwLogFollowButton', 'FwLogNoteButton', 'FwLogReadButton', 'FwLogStatusText', 'FwLogAddressBox', 'FwLogPortBox', 'FwLogProcessBox', 'FwLogFromBox', 'FwLogToBox', 'FwLogApplyButton', 'FwLogFilterError',
     'FwLogGridHost', 'FwLogOverviewPanel', 'FwLogSummaryText', 'FwLogHistogram', 'FwLogTopSources', 'FwLogTopPorts', 'FwLogTopProcesses', 'FwLogTopRemote', 'FwLogRulesButton',
+    'FwForensicTab', 'FwForSources', 'FwForBasic', 'FwForFull', 'FwForCustom', 'FwForCustomPanel', 'FwForFwBlocked', 'FwForFwAllowed', 'FwForWfpConn', 'FwForWfpDrop', 'FwForDns', 'FwForSizeBox', 'FwForDurationBox',
+    'FwForEstimateButton', 'FwForPreviewButton', 'FwForStartButton', 'FwForStopButton', 'FwForRefreshButton', 'FwForEstimateText', 'FwForStatusText', 'ForensicBanner', 'ForensicBannerText', 'ForensicBannerOpenButton', 'ForensicBannerStopButton',
     'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
     'PageToolkit', 'ToolkitRefreshButton', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppListHost', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakListHost', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
@@ -3200,6 +3202,9 @@ function Save-IgwtGuiScreenshots {
                 if (@($script:Gui.Grids.FirewallLog.C.Grid.ItemsSource).Count) { $script:Gui.Grids.FirewallLog.C.Grid.SelectedIndex = 0 }
             } catch { Write-Verbose "Log demo not shown: $($_.Exception.Message)" }
             & $capture 'd'
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwForensicTab
+            try { Set-IgwtGuiForensicState -State (Get-IgwtForensicLoggingState) } catch { Write-Verbose "Forensic demo not shown: $($_.Exception.Message)" }
+            & $capture 'e'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwOverviewTab
         }
         $index++

@@ -456,3 +456,21 @@ function script:Read-IgwtFirewallLogSession {
     [pscustomobject]@{ Entries = $r.Entries; Files = @([pscustomobject]@{ Path = 'C:\WINDOWS\system32\LogFiles\Firewall\pfirewall.log'; Profiles = @('Domain', 'Private', 'Public'); Entries = $r.Entries.Count; Bytes = [long]$sb.Length; EndOffset = $r.EndOffset; Fields = $r.Fields; TimeIsUtc = $false; Skipped = $r.Skipped; ReadMs = 40; Current = $true })
         ProfilesOff = @(); Messages = @(); Quick = [bool]$Quick; ReadMs = 40; ReadAt = $script:MockNow }
 }
+
+function script:Get-IgwtForensicSession {
+    # The render suite never reads a real session record.
+    param([datetime]$Now = (Get-Date))
+    $null = $Now
+    return $null
+}
+
+function script:Get-IgwtForensicLoggingState {
+    # Demo PC: blocked packets logged everywhere, no WFP auditing, DNS client log off.
+    [pscustomobject]@{
+        Firewall = @(foreach ($n in 'Domain', 'Private', 'Public') { [pscustomobject]@{ Profile = $n; LogBlocked = $true; LogAllowed = ($n -eq 'Public'); LogMaxKB = 32767; LogFile = 'C:\WINDOWS\system32\LogFiles\Firewall\pfirewall.log'; ManagedBy = 'Local'; PolicyValues = @(); OnNetworkShare = $false } })
+        Wfp = [pscustomobject]@{ Connection = 'None'; PacketDrop = 'None'; Readable = $true; ManagedBy = 'Local'; Authorities = @() }
+        SecurityLog = [pscustomobject]@{ MaxSizeBytes = 20971520; Retention = $false; AutoBackup = $false; ManagedBy = 'Local' }
+        Dns = [pscustomobject]@{ Enabled = $false; MaxSizeBytes = 1052672; ManagedBy = 'Local' }
+        Session = $null; Notes = @()
+    }
+}

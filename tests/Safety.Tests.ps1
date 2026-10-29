@@ -61,7 +61,7 @@ Describe 'Forbidden techniques are absent from shipped code' {
         $src | Should -Not -Match 'File\.(Write|Append|Create|Delete|Move|Copy|Replace)|FileAccess\.(Write|ReadWrite)|FileMode\.(Create|Append|Truncate|OpenOrCreate|CreateNew)|new\s+StreamWriter'
     }
     It 'runs only the allowed external executables' {
-        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter)\.ps1:' }
+        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter|ForensicLogging)\.ps1:' }
         foreach ($m in @(Get-Matches '(?i)MpCmdRun\.exe')) { $m | Should -Match '^DefenderCenter\.ps1:' }
         foreach ($m in @(Get-Matches '&\s*\$exe\b' | Where-Object { $_ -match '^DefenderCenter\.ps1:' })) { $m | Should -Match "'-Restore' '-Name'" }
         # Security policy: secedit only for /export and /configure, auditpol only for /get, /set, /backup and /restore (checked at run time too).
@@ -69,6 +69,10 @@ Describe 'Forbidden techniques are absent from shipped code' {
         foreach ($m in @(Get-Matches '(?i)auditpol\.exe')) { $m | Should -Match '^AuditPolicy\.ps1:' }
         @(Get-Matches "(?i)-notin '/export', '/configure'").Count | Should -Be 1
         @(Get-Matches "(?i)-notin '/get', '/set', '/backup', '/restore'").Count | Should -Be 1
+        # Event logs: wevtutil only for gl, sl and epl (never cl, clearing a log) from ForensicLogging.ps1 (checked at run time too).
+        foreach ($m in @(Get-Matches '(?i)wevtutil\.exe')) { $m | Should -Match '^ForensicLogging\.ps1:' }
+        @(Get-Matches "(?i)-notin 'gl', 'sl', 'epl'").Count | Should -Be 1
+        Get-Matches "(?i)wevtutil(\.exe)?'?\s+(cl|clear-log)\b|Clear-EventLog|Remove-EventLog" | Should -BeNullOrEmpty
         # Group Policy: gpupdate only for the targeted refresh in GpoStore.ps1, gpresult only to export RSoP XML in PolicyEngine.ps1.
         foreach ($m in @(Get-Matches '(?i)gpupdate\.exe')) { $m | Should -Match '^GpoStore\.ps1:' }
         foreach ($m in @(Get-Matches '(?i)gpresult\.exe')) { $m | Should -Match '^PolicyEngine\.ps1:.*gpresult\.exe''\) /x ' }
@@ -76,7 +80,7 @@ Describe 'Forbidden techniques are absent from shipped code' {
         $literals = foreach ($m in @(Get-Matches "(?i)'[^']*\.exe'")) { foreach ($x in [regex]::Matches($m, "(?i)'([^']*\.exe)'")) { Split-Path $x.Groups[1].Value -Leaf } }
         # The Toolkit's fix programs and panel launchers live only in its allow-lists (Toolkit.ps1).
         $toolkitOnly = @('sfc.exe', 'chkdsk.exe', 'ipconfig.exe', 'winmgmt.exe', 'wsreset.exe', 'control.exe', 'mmc.exe', 'netplwiz.exe', 'resmon.exe', 'perfmon.exe', 'msinfo32.exe', 'rstrui.exe')
-        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe', 'MpCmdRun.exe') + $toolkitOnly) }
+        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe', 'wevtutil.exe', 'MpCmdRun.exe') + $toolkitOnly) }
         foreach ($m in @(Get-Matches "(?i)'(sfc|chkdsk|ipconfig|winmgmt|wsreset|control|mmc|netplwiz|resmon|perfmon|msinfo32|rstrui)\.exe'")) { $m | Should -Match '^Toolkit\.ps1:\d+: +\$script:Igwt(FixExecutables|PanelExecutables) = |^Toolkit\.ps1:.*''(control|mmc)\.exe''\)' }
         foreach ($i in @(Get-Matches '&\s*\$FilePath\b')) { $i | Should -Match '^Toolkit\.ps1:' }
     }
