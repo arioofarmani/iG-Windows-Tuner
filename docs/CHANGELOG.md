@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.4.0 (2026-10-25)
+## 3.4.0 (2026-10-29)
 
 Firewall Manager 3.4: every rule classified (origin category, direction, blocks, bloat, risks) with the reason and a confidence level, risk findings with plain-language explanations and safe fixes, conflict analysis and an overview dashboard. Includes everything listed under 3.3.0, which was not released separately.
 

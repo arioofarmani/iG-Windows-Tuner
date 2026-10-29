@@ -28,10 +28,24 @@ $stage = Join-Path $dist "iGWindowsTuner-$version"
 if (-not $PSCmdlet.ShouldProcess($stage, 'Create release folder')) { return }
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 $null = New-Item -ItemType Directory -Path $stage -Force
-foreach ($item in 'iGWindowsTuner.ps1', 'Start-iGWindowsTuner.cmd', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'PSScriptAnalyzerSettings.psd1', 'src', 'data', 'docs', 'tools', 'tests') {
-    $src = Join-Path $root $item
-    if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination $stage -Recurse -Force }
+$items = @('iGWindowsTuner.ps1', 'Start-iGWindowsTuner.cmd', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'PSScriptAnalyzerSettings.psd1', 'src', 'data', 'docs', 'tools', 'tests')
+# Only files tracked in git go into the package: the working folders also hold git-ignored local files
+# (screenshots with user names and device details, the local Sandbox configuration, logs, reports).
+$tracked = @()
+Push-Location -LiteralPath $root
+try { $tracked = @(git ls-files 2>$null) } catch { $tracked = @() } finally { Pop-Location }
+if (-not $tracked.Count) { throw 'git ls-files returned nothing: the release is built from a git checkout only (so git-ignored local files never reach the package).' }
+$files = @($tracked | Where-Object { $f = $_; @($items | Where-Object { $f -eq $_ -or $f.StartsWith("$_/") }).Count })
+foreach ($f in $files) {
+    $dest = Join-Path $stage ($f -replace '/', '\')
+    $dir = Split-Path -Parent $dest
+    if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+    Copy-Item -LiteralPath (Join-Path $root ($f -replace '/', '\')) -Destination $dest -Force
 }
+# Belt and braces: nothing in the package may match the ignore rules.
+Push-Location -LiteralPath $root
+try { $ignored = @($files | git check-ignore --no-index --stdin 2>$null) } finally { Pop-Location }
+if ($ignored.Count) { throw "Files matching .gitignore would be packaged: $($ignored -join ', ')" }
 $lines = foreach ($f in (Get-ChildItem -LiteralPath $stage -Recurse -File | Sort-Object FullName)) {
     '{0}  {1}' -f (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $f.FullName.Substring($stage.Length + 1).Replace('\', '/')
 }
