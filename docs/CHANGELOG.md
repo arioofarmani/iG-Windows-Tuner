@@ -2,6 +2,15 @@
 
 ## 3.5.0 (unreleased)
 
+### Firewall log reader
+
+- **Security > Firewall > Log**: the firewall log in a sortable, filterable list. The newest entries show at once while the whole log (and the older `.old` file) is read in the background. Columns: time (local; UTC in the tooltip), action, direction (as the log writes it: SEND or RECEIVE), protocol, source and destination with ports, size, TCP flags, process and note.
+- Quick filters (blocked, allowed, inbound, outbound, TCP, UDP, ICMP, last 15 minutes, hour or 24 hours, with a note), full-text search, and a filter row for an address or network (CIDR, IPv4 and IPv6), ports, a process and a time range. Saved views keep these filters.
+- An overview of the current view: counts, events over time, and the top blocked sources, blocked ports (with what the port is used for), processes and remote addresses; click one to filter on it. "Rules for the selected port" opens the Rules tab searching for that port.
+- **Follow live** reads only what the firewall appended since the last read (every 2 seconds) and notices when Windows starts a new log file. **Notes** bookmark entries with your own text; they stay on this PC and are included in exports.
+- Fast on big logs: a full 32 MB log (about 340,000 entries) is read in about 1.2 s, the newest entries show in under 0.1 s, and filters, search and sorting take 6 to 180 ms. A small compiled reader does this work (plain C# source in the project, no downloads; see DECISIONS F11).
+- Exports of any list are protected against spreadsheet formula injection (a cell starting with = + - @ gets a leading apostrophe). Log values come from the network and are only ever shown as plain text.
+- Process names are best effort: the log has only a process id, and the name shown is the process that has that id now.
 ### Fixed
 
 - **"Analyze the firewall log" failed on every real log** with "Cannot bind argument to parameter 'Lines' because it is an empty string": Windows writes an empty line after the `#Fields:` header, and the parser refused empty lines. The log is now read with a streaming reader that opens it shared with the firewall service (read, write and delete sharing), takes the columns from the file's own `#Fields:` header, reads the rotated `.old` file when there is one, skips a last line that is still being written, and reports skipped lines by reason.

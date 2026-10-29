@@ -248,7 +248,7 @@ garbage line
             $e.Count | Should -Be 1
             $e[0].Action | Should -Be 'ALLOW'; $e[0].DestinationPort | Should -Be '443'; $e[0].Source | Should -Be '10.0.0.2'
             $e[0].Time | Should -Be ([datetime]'2026-10-29 20:00:01')
-            $s = InModuleScope iGWindowsTuner { $r = New-Object System.IO.StringReader("2026 data before header`n#Fields: date time action`nbad`n"); ConvertFrom-IgwtFirewallLogText -Reader $r }
+            $s = InModuleScope iGWindowsTuner { ConvertFrom-IgwtFirewallLogText -Text "2026 data before header`n#Fields: date time action`nbad`n" }
             $s.Skipped.NoHeader | Should -Be 1; $s.Skipped.FieldCount | Should -Be 1
         }
         It 'reads the rotated .old file first when asked' {

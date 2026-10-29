@@ -951,6 +951,68 @@
                                 <ContentControl x:Name="FwConnHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
+                        <TabItem x:Name="FwLogTab" Header="Log" ToolTip="Read the firewall log: what was blocked and allowed, by whom and when (read-only)">
+                            <DockPanel Margin="0,8,0,0">
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <ToggleButton x:Name="FwLogFollowButton" Style="{StaticResource Chip}" Content="Follow live" Margin="0,0,8,0" ToolTip="Show new entries as the firewall writes them (reads only the new part of the file every 2 seconds). Click again to pause."/>
+                                        <Button x:Name="FwLogNoteButton" Content="Note..." Margin="0,0,8,0" ToolTip="Bookmark the selected entries with a note. Notes stay on this PC and are included in exports."/>
+                                        <Button x:Name="FwLogReadButton" Content="Read the log" Margin="0" ToolTip="Read the firewall log of every profile that logs (and the older .old file). Read-only; needs administrator rights for the default log."/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="FwLogStatusText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet. The log shows packets the firewall blocked (and allowed, when that is logged). It has no program names: the process id is shown when Windows writes it."/>
+                                </DockPanel>
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <TextBlock Text="Address" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogAddressBox" Width="150" Margin="0,0,12,4" ToolTip="An IP address or a network in CIDR form (for example 192.168.1.0/24 or 2001:db8::/32); matches the source or the destination."/>
+                                    <TextBlock Text="Port" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogPortBox" Width="90" Margin="0,0,12,4" ToolTip="One or more port numbers separated by commas; matches the source or the destination port."/>
+                                    <TextBlock Text="Process" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogProcessBox" Width="120" Margin="0,0,12,4" ToolTip="Process name (part of it) or process id. Names are the process that has that id now (best effort)."/>
+                                    <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogFromBox" Width="130" Margin="0,0,12,4" ToolTip="Start time, local, as yyyy-MM-dd HH:mm (leave empty for no start)."/>
+                                    <TextBlock Text="To" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogToBox" Width="130" Margin="0,0,12,4" ToolTip="End time, local, as yyyy-MM-dd HH:mm (leave empty for no end)."/>
+                                    <Button x:Name="FwLogApplyButton" Content="Apply" Margin="0,0,8,4" ToolTip="Apply the address, port, process and time filters."/>
+                                    <TextBlock x:Name="FwLogFilterError" Foreground="{DynamicResource BrushDanger}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </WrapPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="300"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentControl x:Name="FwLogGridHost" Grid.Column="0" Focusable="False"/>
+                                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="10,0,0,0">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <StackPanel x:Name="FwLogOverviewPanel">
+                                                <TextBlock Style="{StaticResource TextSection}" Text="Overview"/>
+                                                <TextBlock x:Name="FwLogSummaryText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,8" Text="Read the log to see a summary of the current view."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Events over time (blocked / allowed)"/>
+                                                <ItemsControl x:Name="FwLogHistogram" Height="70" Margin="0,4,0,10" ToolTip="Each bar is one time slice of the current view: the lower part (orange) is blocked, the upper part (blue) is allowed; point at a bar for the counts.">
+                                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,1,0" ToolTip="{Binding Tip}">
+                                                                <Border Height="{Binding AllowedHeight}" Background="{DynamicResource BrushAccent}"/>
+                                                                <Border Height="{Binding DroppedHeight}" Background="{DynamicResource BrushWarning}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top blocked sources (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopSources" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The addresses the firewall blocked most often. Click one to show only its entries."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top blocked ports (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopPorts" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The destination ports blocked most often, with what the port is usually used for."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top processes (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopProcesses" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="Processes by process id in the log, named after the process that has that id now (best effort)."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top remote addresses (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopRemote" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The other side of each connection: the destination of outgoing packets and the source of incoming ones."/>
+                                                <Button x:Name="FwLogRulesButton" Content="Rules for the selected port" HorizontalAlignment="Left" Margin="0,4,0,0" ToolTip="Open the Rules tab searching for the destination port of the selected entry."/>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </DockPanel>
+                        </TabItem>
                         <TabItem x:Name="FwDefaultsTab" Header="Compared to Windows defaults" ToolTip="Rules added, removed or changed compared with the default rules of this Windows build">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="FwDefaultsText" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Not read yet."/>
@@ -1018,7 +1080,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                     <TextBlock x:Name="FwProfileNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                    <Button x:Name="FwLogButton" Content="Analyze the firewall log" HorizontalAlignment="Left" Margin="0,10,0,0" ToolTip="Summarize blocked and allowed connections from the firewall log (read-only). Turn on logging above first."/>
+                                    <Button x:Name="FwLogButton" Content="Open the firewall log" HorizontalAlignment="Left" Margin="0,10,0,0" ToolTip="Open the Log tab and read the firewall log: what was blocked and allowed, with filters and an overview (read-only). Turn on logging above first."/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

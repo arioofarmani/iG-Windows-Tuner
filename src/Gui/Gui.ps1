@@ -33,6 +33,8 @@ $script:IgwtGuiControlNames = @(
     'FwOverviewTab', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvRoleBox', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
+    'FwLogTab', 'FwLogFollowButton', 'FwLogNoteButton', 'FwLogReadButton', 'FwLogStatusText', 'FwLogAddressBox', 'FwLogPortBox', 'FwLogProcessBox', 'FwLogFromBox', 'FwLogToBox', 'FwLogApplyButton', 'FwLogFilterError',
+    'FwLogGridHost', 'FwLogOverviewPanel', 'FwLogSummaryText', 'FwLogHistogram', 'FwLogTopSources', 'FwLogTopPorts', 'FwLogTopProcesses', 'FwLogTopRemote', 'FwLogRulesButton',
     'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
     'PageToolkit', 'ToolkitRefreshButton', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppListHost', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakListHost', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
@@ -3190,6 +3192,14 @@ function Save-IgwtGuiScreenshots {
             & $capture 'b'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwDefaultsTab
             & $capture 'c'
+            # The Log tab with a synthetic log (render mocks), newest first, one entry selected.
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwLogTab
+            try {
+                Show-IgwtGuiFirewallLogResult -Result (Read-IgwtFirewallLogSession) -Errors @()
+                Update-IgwtGuiFirewallLogOverview
+                if (@($script:Gui.Grids.FirewallLog.C.Grid.ItemsSource).Count) { $script:Gui.Grids.FirewallLog.C.Grid.SelectedIndex = 0 }
+            } catch { Write-Verbose "Log demo not shown: $($_.Exception.Message)" }
+            & $capture 'd'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwOverviewTab
         }
         $index++

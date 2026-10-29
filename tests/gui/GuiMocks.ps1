@@ -431,3 +431,28 @@ function script:Get-IgwtPolicyBrowserDetail {
         LocalGpo = 'Enabled'; Source = 'Local GPO'; Tattooed = $false; Conflicts = @()
         Choices = @([pscustomobject]@{ State = 'NotConfigured'; Label = 'Not configured'; Values = @{}; Allowed = $true; Reason = '' }, [pscustomobject]@{ State = 'Disabled'; Label = 'Disabled'; Values = @{}; Allowed = $true; Reason = '' }, [pscustomobject]@{ State = 'Enabled'; Label = 'Enabled'; Values = @{}; Allowed = $true; Reason = '' }) }
 }
+
+function script:Read-IgwtFirewallLogSession {
+    # Synthetic firewall log (documentation address ranges, generic process names) parsed by the real engine.
+    param([switch]$Quick, [long]$TailBytes = 1MB, [hashtable]$Notes = @{})
+    Initialize-IgwtFirewallLogEngine
+    $rnd = Get-IgwtMockRandom 'fwlog'
+    $sb = New-Object System.Text.StringBuilder
+    $null = $sb.Append("#Version: 1.5`n#Software: Microsoft Windows Firewall`n#Time Format: Local`n#Fields: date time action protocol src-ip dst-ip src-port dst-port size tcpflags tcpsyn tcpack tcpwin icmptype icmpcode info path pid`n`n")
+    $start = $script:MockNow.AddHours(-6)
+    for ($i = 0; $i -lt 1500; $i++) {
+        $t = $start.AddSeconds($i * 14 + $rnd.Next(0, 10))
+        $out = ($rnd.Next(0, 4) -eq 0)
+        $port = @(3389, 445, 22, 23, 135, 5353, 1900, 443, 80)[$rnd.Next(0, 9)]
+        $src = $(if ($out) { '192.168.1.20' } else { "203.0.113.$($rnd.Next(1, 40))" })
+        $dst = $(if ($out) { "198.51.100.$($rnd.Next(1, 60))" } else { '192.168.1.20' })
+        $proto = $(if ($port -in 5353, 1900) { 'UDP' } else { 'TCP' })
+        $null = $sb.AppendFormat('{0:yyyy-MM-dd HH:mm:ss} {1} {2} {3} {4} {5} {6} {7} {8} - - - - - - {9} {10}', $t, $(if ($out) { 'ALLOW' } else { 'DROP' }), $proto, $src, $dst, $rnd.Next(1024, 65535), $(if ($out) { 443 } else { $port }), $rnd.Next(40, 1400), $(if ($proto -eq 'TCP') { 'S' } else { '-' }), $(if ($out) { 'SEND' } else { 'RECEIVE' }), $(if ($out) { @(4120, 5230, 6644)[$rnd.Next(0, 3)] } else { 4 })).Append("`n")
+    }
+    $r = ConvertFrom-IgwtFirewallLogText -Text $sb.ToString() -File 'C:\WINDOWS\system32\LogFiles\Firewall\pfirewall.log'
+    $names = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+    $names[4] = 'System'; $names[4120] = 'GameLauncher'; $names[5230] = 'Browser'; $names[6644] = 'VoiceChat'
+    $null = [IgwtFirewallLog.Engine]::SetProcessNames($r.Entries, $names, 'pid {0} (ended)')
+    [pscustomobject]@{ Entries = $r.Entries; Files = @([pscustomobject]@{ Path = 'C:\WINDOWS\system32\LogFiles\Firewall\pfirewall.log'; Profiles = @('Domain', 'Private', 'Public'); Entries = $r.Entries.Count; Bytes = [long]$sb.Length; EndOffset = $r.EndOffset; Fields = $r.Fields; TimeIsUtc = $false; Skipped = $r.Skipped; ReadMs = 40; Current = $true })
+        ProfilesOff = @(); Messages = @(); Quick = [bool]$Quick; ReadMs = 40; ReadAt = $script:MockNow }
+}

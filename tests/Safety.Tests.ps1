@@ -7,12 +7,15 @@ BeforeAll {
     $script:Shipped = @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src'), (Join-Path $script:IgwtProjectRoot 'data') -Recurse -File -Include *.ps1, *.psm1, *.psd1, *.json, *.xaml) +
         @(Get-Item (Join-Path $script:IgwtProjectRoot 'iGWindowsTuner.ps1'), (Join-Path $script:IgwtProjectRoot 'Start-iGWindowsTuner.cmd'))
     $script:Code = @($script:Shipped | Where-Object { $_.Extension -in '.ps1', '.psm1', '.psd1', '.cmd' })
+    $script:CSharp = @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -File -Filter *.cs)
+    # The forbidden-technique scans below cover the C# source too.
+    $script:Code += $script:CSharp
     function Get-Matches([string]$Pattern, [object[]]$Files = $script:Code) {
         foreach ($f in $Files) {
             $i = 0
             foreach ($line in (Get-Content -LiteralPath $f.FullName)) {
                 $i++
-                if ($line -match $Pattern -and $line -notmatch '^\s*#') { "$($f.Name):${i}: $($line.Trim())" }
+                if ($line -match $Pattern -and $line -notmatch '^\s*(#|//)') { "$($f.Name):${i}: $($line.Trim())" }
             }
         }
     }
@@ -42,11 +45,20 @@ Describe 'Forbidden techniques are absent from shipped code' {
         Get-Matches '(?i)(fodhelper|eventvwr|ms-settings\\shell|computerdefaults|sdclt|ConsentPromptBehaviorAdmin\s*=\s*0)' | Should -BeNullOrEmpty
         foreach ($h in @(Get-Matches '(?i)-Verb\s+RunAs')) { $h | Should -Match '^Elevation\.ps1:' }
     }
-    It 'contains exactly one Add-Type with C# source (the SystemParametersInfo P/Invoke)' {
+    It 'compiles C# only twice: the SystemParametersInfo P/Invoke and the firewall log engine (DECISIONS F11)' {
         $typeDefs = @(Get-Matches '(?i)Add-Type\s+-TypeDefinition')
         $typeDefs.Count | Should -Be 1
         $typeDefs[0] | Should -Match 'Custom\.ps1'
-        @(Get-Matches '(?i)DllImport').Count | Should -Be 1
+        $paths = @(Get-Matches '(?i)Add-Type\s+-Path')
+        $paths.Count | Should -Be 1
+        $paths[0] | Should -Match 'FirewallLog\.ps1'
+        @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -Filter *.cs | ForEach-Object { $_.Name }) | Should -Be @('FirewallLogEngine.cs')
+        @(Get-Matches '(?i)DllImport' -Files ($script:Code + $script:CSharp)).Count | Should -Be 1
+    }
+    It 'keeps the firewall log engine to managed parsing (no P/Invoke, unsafe code, processes, registry, network or file writes)' {
+        $src = @(Get-Content -LiteralPath $script:CSharp[0].FullName | Where-Object { $_ -notmatch '^\s*//' }) -join "`n"
+        $src | Should -Not -Match '(?i)DllImport|extern\s|unsafe|Marshal\.|System\.Diagnostics\.Process|Microsoft\.Win32|Registry|WebClient|HttpClient|Socket|Dns\.|Assembly\.Load|Activator|Reflection'
+        $src | Should -Not -Match 'File\.(Write|Append|Create|Delete|Move|Copy|Replace)|FileAccess\.(Write|ReadWrite)|FileMode\.(Create|Append|Truncate|OpenOrCreate|CreateNew)|new\s+StreamWriter'
     }
     It 'runs only the allowed external executables' {
         foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter)\.ps1:' }

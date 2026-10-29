@@ -380,12 +380,21 @@ function New-IgwtSmartGrid {
     .PARAMETER OnBeforeQuery
         Runs before every query with the grid: a page can adjust ColumnFilters (for example a
         category that a search lifts).
+    .PARAMETER Engine
+        External query engine for large data (the firewall log): param($grid) returning
+        @{ Items = <IList in display order>; Total = <count before filters> }. The grid then keeps
+        no PowerShell index; search, chips, ColumnFilters and Sort are passed through the grid state.
+    .PARAMETER Exporter
+        With -Engine: param($grid, $rows, $path) writes the export file (CSV or JSON by extension).
+    .PARAMETER SaveFilters
+        Saved views also keep ColumnFilters (the firewall log keeps address, port and time filters there).
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds window objects only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][object[]]$Columns, [object[]]$Chips = @(), [object[]]$Actions = @(),
         [string]$RowKey, [string]$SearchPlaceholder = 'Search', [string]$Noun = 'items', [string]$EmptyTitle = 'Nothing to show yet', [string]$EmptyText = '',
-        [scriptblock]$OnSelectionChanged, [scriptblock]$OnRefresh, [scriptblock]$OnActivate, [scriptblock]$OnBeforeQuery, [System.Windows.Controls.DataGridSelectionMode]$SelectionMode = 'Extended')
+        [scriptblock]$OnSelectionChanged, [scriptblock]$OnRefresh, [scriptblock]$OnActivate, [scriptblock]$OnBeforeQuery, [System.Windows.Controls.DataGridSelectionMode]$SelectionMode = 'Extended',
+        [scriptblock]$Engine, [scriptblock]$Exporter, [switch]$SaveFilters)
     $root = [Windows.Markup.XamlReader]::Parse((Get-IgwtGridShellXaml))
     $cols = @($Columns | ForEach-Object { ConvertTo-IgwtGridColumn -Definition $_ })
     $g = @{
@@ -394,6 +403,7 @@ function New-IgwtSmartGrid {
         Index = (New-IgwtGridIndex -Rows @() -Columns $cols); Order = [int[]]@(); Search = ''; ActiveChips = (New-Object 'System.Collections.Generic.HashSet[string]'); ColumnFilters = @{}; Sort = @()
         State = 'Loading'; StateMessage = ''; LastRefreshed = $null; OnSelectionChanged = $OnSelectionChanged; OnRefresh = $OnRefresh; OnActivate = $OnActivate; OnRetry = $OnRefresh; OnBeforeQuery = $OnBeforeQuery; ScrollViewer = $null; Scope = @{}
         C = @{}; ChipButtons = @{}; MoreButton = $null; DataColumns = @{}; Restoring = $false; Updating = $false; SearchTimer = $null; SaveTimer = $null; LastQueryMs = 0; Default = $null
+        Engine = $Engine; Exporter = $Exporter; EngineItems = @(); SaveFilters = [bool]$SaveFilters
     }
     foreach ($n in 'CountText', 'UpdatedText', 'RefreshLink', 'ClearButton', 'ViewButton', 'SearchBox', 'ChipPanel', 'MoreChipPanel', 'BulkBar', 'BulkText', 'BulkClearButton', 'BulkActions', 'Grid', 'StatePanel', 'SkeletonPanel', 'StateIcon', 'StateTitle', 'StateText', 'StateButton') {
         $g.C[$n] = $root.FindName($n)
@@ -678,8 +688,24 @@ function Get-IgwtGridViewRows {
     <# .SYNOPSIS The rows of the current view (after search, chips, filters and sort). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Grid)
+    if ($Grid.Engine) { return , $Grid.EngineItems }
     $ix = $Grid.Index
     return @(foreach ($i in $Grid.Order) { $ix.Rows[$i] })
+}
+
+function Set-IgwtGridEngineReady {
+    <#
+    .SYNOPSIS
+        For a grid with -Engine: the engine has new data (Count rows); shows it with the current
+        search, chips, filters and sort.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the view only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][hashtable]$Grid, [int]$Count)
+    $Grid.Index = @{ Rows = @(); Count = $Count; Columns = $Grid.Columns; Search = @(); Keys = @{}; Texts = @{}; Ranks = @{}; Chips = @{}; ArrayColumns = @{} }
+    $Grid.LastRefreshed = Get-Date
+    $Grid.State = 'Ready'
+    Update-IgwtGridView -Grid $Grid
 }
 
 function Update-IgwtGridView {
@@ -695,8 +721,29 @@ function Update-IgwtGridView {
     $filters = @{}
     foreach ($k in @($Grid.ColumnFilters.Keys)) { $filters[$k] = $Grid.ColumnFilters[$k] }
     foreach ($k in @($Grid.Scope.Keys)) { $filters[$k] = $Grid.Scope[$k] }
-    $Grid.Order = Invoke-IgwtGridQuery -Index $Grid.Index -Search $Grid.Search -Chips $active -ColumnFilters $filters -Sort $Grid.Sort
     $c = $Grid.C
+    if ($Grid.Engine) {
+        # Large data: the engine filters and sorts (no per-row PowerShell work on the UI thread).
+        $res = & $Grid.Engine $Grid
+        $Grid.EngineItems = $res.Items
+        $Grid.Updating = $true
+        try { $c.Grid.ItemsSource = $res.Items; Update-IgwtGridSortIndicators -Grid $Grid } finally { $Grid.Updating = $false }
+        $total = [int]$res.Total; $shown = [int]$res.Items.Count
+        $filtered = [bool]($Grid.Search -or $Grid.ActiveChips.Count -or @($Grid.ColumnFilters.Keys).Count)
+        $c.CountText.Text = $(if ($filtered) { '{0:N0} of {1:N0} shown' -f $shown, $total } else { '{0:N0} {1}' -f $total, $Grid.Noun })
+        $c.ClearButton.IsEnabled = $filtered
+        Update-IgwtGridUpdatedText -Grid $Grid
+        if ($Grid.State -eq 'Ready') {
+            if ($total -eq 0) { Show-IgwtGridStatePanel -Grid $Grid -Kind 'Empty' }
+            elseif ($shown -eq 0) { Show-IgwtGridStatePanel -Grid $Grid -Kind 'NoMatch' }
+            else { $c.StatePanel.Visibility = 'Collapsed' }
+        }
+        Update-IgwtGridSelection -Grid $Grid
+        $Grid.LastQueryMs = $sw.ElapsedMilliseconds
+        if ($script:Gui -and $script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'grid' -Text ("{0}`t{1}`t{2}`t{3}" -f $Grid.Id, $shown, $total, $Grid.LastQueryMs) }
+        return
+    }
+    $Grid.Order = Invoke-IgwtGridQuery -Index $Grid.Index -Search $Grid.Search -Chips $active -ColumnFilters $filters -Sort $Grid.Sort
     $selectedKeys = $null
     if ($Grid.RowKey -and $c.Grid.SelectedItems.Count) {
         $selectedKeys = New-Object 'System.Collections.Generic.HashSet[string]'
@@ -1004,12 +1051,18 @@ function Get-IgwtGridViewSnapshot {
             $w = $(if ($dc.Width.IsAbsolute) { [math]::Round($dc.Width.Value) } else { 0 })
             @{ Key = $col.Key; Visible = ($dc.Visibility -eq 'Visible'); Width = $w; Order = $dc.DisplayIndex }
         })
-    return @{
+    $view = @{
         Search  = [string]$Grid.Search
         Chips   = @($Grid.ActiveChips)
         Sort    = @($Grid.Sort | ForEach-Object { @{ Key = [string]$_.Key; Descending = [bool]$_.Descending } })
         Columns = $cols
     }
+    if ($Grid.SaveFilters) {
+        $f = @{}
+        foreach ($k in @($Grid.ColumnFilters.Keys)) { $f[[string]$k] = @($Grid.ColumnFilters[$k] | ForEach-Object { [string]$_ }) }
+        $view.Filters = $f
+    }
+    return $view
 }
 
 function Set-IgwtGridViewSnapshot {
@@ -1025,6 +1078,13 @@ function Set-IgwtGridViewSnapshot {
         $Grid.ActiveChips.Clear()
         foreach ($id in @($View.Chips)) { if ($id -and $Grid.ChipButtons.ContainsKey([string]$id)) { $null = $Grid.ActiveChips.Add([string]$id) } }
         foreach ($k in @($Grid.ChipButtons.Keys)) { $Grid.ChipButtons[$k].IsChecked = $Grid.ActiveChips.Contains($k) }
+        if ($Grid.SaveFilters) {
+            $Grid.ColumnFilters = @{}
+            if ($View.Filters) {
+                $pairs = $(if ($View.Filters -is [hashtable]) { @($View.Filters.GetEnumerator() | ForEach-Object { , @($_.Key, $_.Value) }) } else { @($View.Filters.PSObject.Properties | ForEach-Object { , @($_.Name, $_.Value) }) })
+                foreach ($pr in $pairs) { $vals = @(@($pr[1]) | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); if ($vals.Count) { $Grid.ColumnFilters[[string]$pr[0]] = $vals } }
+            }
+        }
         $Grid.Sort = @(@($View.Sort) | Where-Object { $_ -and $Grid.DataColumns.ContainsKey([string]$_.Key) } | ForEach-Object { @{ Key = [string]$_.Key; Descending = [bool]$_.Descending } } | Select-Object -First 3)
         $ordered = @(@($View.Columns) | Where-Object { $_ -and $Grid.DataColumns.ContainsKey([string]$_.Key) } | Sort-Object { [int]$_.Order })
         $n = $Grid.C.Grid.Columns.Count
@@ -1165,16 +1225,26 @@ function Export-IgwtGridView {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes the export file the user chose.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Grid, [ValidateSet('CSV', 'JSON')][string]$Format = 'CSV', [switch]$Selected)
-    $rows = $(if ($Selected) { Get-IgwtGridSelection -Grid $Grid } else { Get-IgwtGridViewRows -Grid $Grid })
+    # No $( ) here: an engine grid can hold hundreds of thousands of rows.
+    if ($Selected) { $rows = Get-IgwtGridSelection -Grid $Grid } else { $rows = Get-IgwtGridViewRows -Grid $Grid }
     $dlg = New-Object Microsoft.Win32.SaveFileDialog
     $dlg.Filter = 'CSV file (*.csv)|*.csv|JSON file (*.json)|*.json'
     $dlg.FilterIndex = $(if ($Format -eq 'JSON') { 2 } else { 1 })
     $dlg.FileName = '{0}-{1}' -f ($Grid.Id -replace '[^A-Za-z0-9\-]', '-'), (Get-Date -Format 'yyyyMMdd-HHmm')
     if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
-    $data = ConvertTo-IgwtGridExport -Grid $Grid -Rows $rows
     try {
+        if ($Grid.Exporter) {
+            $n = & $Grid.Exporter $Grid $rows $dlg.FileName
+            Show-IgwtGuiToast -Text "Exported $n row(s) to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
+            return
+        }
+        $data = ConvertTo-IgwtGridExport -Grid $Grid -Rows $rows
         if ($dlg.FileName -like '*.json') { ConvertTo-Json -InputObject @($data) -Depth 3 | Set-Content -LiteralPath $dlg.FileName -Encoding UTF8 }
-        else { $data | Export-Csv -LiteralPath $dlg.FileName -NoTypeInformation -Encoding UTF8 }
+        else {
+            # Cells starting with = + - @ are protected: a spreadsheet would run them as formulas.
+            $headers = @($Grid.Columns | Where-Object { $Grid.DataColumns[$_.Key].Visibility -eq 'Visible' } | Sort-Object { $Grid.DataColumns[$_.Key].DisplayIndex } | ForEach-Object { $_.Header })
+            [IO.File]::WriteAllLines($dlg.FileName, [string[]](ConvertTo-IgwtSafeCsv -Rows $data -Properties $headers), (New-Object System.Text.UTF8Encoding($true)))
+        }
         Show-IgwtGuiToast -Text "Exported $($data.Count) row(s) to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
     } catch { Show-IgwtGuiError -Message "Export failed: $($_.Exception.Message)" }
 }

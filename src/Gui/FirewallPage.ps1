@@ -148,7 +148,7 @@ function Initialize-IgwtGuiFirewallPage {
     Register-IgwtGuiHandler -Control $c.FwImportButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallImport }
     Register-IgwtGuiHandler -Control $c.FwExportButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallExport }
     Register-IgwtGuiHandler -Control $c.FwExportPolicyButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallExport -Policy }
-    Register-IgwtGuiHandler -Control $c.FwLogButton -Event 'Click' -Handler { Invoke-IgwtGuiFirewallLog }
+    Register-IgwtGuiHandler -Control $c.FwLogButton -Event 'Click' -Handler { $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwLogTab; Start-IgwtGuiFirewallLogRead }
     foreach ($pair in @(@('FwEnableButton', 'enable'), @('FwDisableButton', 'disable'), @('FwAllowButton', 'allow'), @('FwBlockButton', 'block'), @('FwEditButton', 'edit'), @('FwDuplicateButton', 'duplicate'), @('FwDeleteButton', 'delete'))) {
         $c[$pair[0]].Tag = $pair[1]
         Register-IgwtGuiHandler -Control $c[$pair[0]] -Event 'Click' -Handler { param($s, $e) $null = $e; Invoke-IgwtGridAction -Grid $script:Gui.Grids.Firewall -ActionId ([string]$s.Tag) }
@@ -163,6 +163,7 @@ function Initialize-IgwtGuiFirewallPage {
         Invoke-IgwtGuiFirewallProfileTag -Tag $tag -Source $src
     }
     Initialize-IgwtGuiFirewallHome
+    Initialize-IgwtGuiFirewallLogPage
     Update-IgwtGuiFirewallDetail -Rows @()
 }
 
@@ -720,16 +721,6 @@ function Invoke-IgwtGuiFirewallExport {
     }
 }
 
-function Invoke-IgwtGuiFirewallLog {
-    [CmdletBinding()]
-    param()
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallLogReport' -Channel 'firewall-log' -BusyText 'Reading the firewall log (read-only)...' -OnComplete {
-        param($out, $errs)
-        $text = (@($out) -join [Environment]::NewLine)
-        if (-not $text) { $text = "The firewall log could not be read: $(@($errs)[0])" }
-        $null = Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - firewall log analysis' -Text $text
-    }
-}
 
 #endregion
 
