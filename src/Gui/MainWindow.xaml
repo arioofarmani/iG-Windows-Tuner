@@ -101,6 +101,17 @@
                     <TextBlock x:Name="BannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
+            <!-- Forensic logging session: shown while one runs, or when one expired while the app was closed -->
+            <Border x:Name="ForensicBanner" AutomationProperties.AutomationId="ForensicBanner" AutomationProperties.Name="Forensic logging" Visibility="Collapsed" Background="{DynamicResource BrushInfoSoft}" BorderBrush="{DynamicResource BrushInfo}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE9D9;" Foreground="{DynamicResource BrushInfo}" Margin="0,0,10,0"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ForensicBannerOpenButton" Content="Details" ToolTip="Open Security > Firewall > Forensic logging."/>
+                        <Button x:Name="ForensicBannerStopButton" Content="Stop and restore" Margin="0" ToolTip="Restore every setting the session changed, exactly as it was. Collected logs and events stay."/>
+                    </StackPanel>
+                    <TextBlock x:Name="ForensicBannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
             <!-- Error boundary: an error inside the window shows here instead of closing it -->
             <Border x:Name="ErrorBar" AutomationProperties.AutomationId="ErrorBar" Visibility="Collapsed" Background="{DynamicResource BrushDangerSoft}" BorderBrush="{DynamicResource BrushDanger}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
@@ -951,6 +962,149 @@
                                 <ContentControl x:Name="FwConnHost" Focusable="False"/>
                             </DockPanel>
                         </TabItem>
+                        <TabItem x:Name="FwLogTab" Header="Log" ToolTip="Read the firewall log: what was blocked and allowed, by whom and when (read-only)">
+                            <DockPanel Margin="0,8,0,0">
+                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <ToggleButton x:Name="FwLogFollowButton" Style="{StaticResource Chip}" Content="Follow live" Margin="0,0,8,0" ToolTip="Show new entries as the firewall writes them (reads only the new part of the file every 2 seconds). Click again to pause."/>
+                                        <Button x:Name="FwLogNoteButton" Content="Note..." Margin="0,0,8,0" ToolTip="Bookmark the selected entries with a note. Notes stay on this PC and are included in exports."/>
+                                        <Button x:Name="FwLogReadButton" Content="Read the log" Margin="0" ToolTip="Read the firewall log of every profile that logs (and the older .old file). Read-only; needs administrator rights for the default log."/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="FwLogStatusText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" Text="Not read yet. The log shows packets the firewall blocked (and allowed, when that is logged). It has no program names: the process id is shown when Windows writes it."/>
+                                </DockPanel>
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <TextBlock Text="Address" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogAddressBox" Width="150" Margin="0,0,12,4" ToolTip="An IP address or a network in CIDR form (for example 192.168.1.0/24 or 2001:db8::/32); matches the source or the destination."/>
+                                    <TextBlock Text="Port" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogPortBox" Width="90" Margin="0,0,12,4" ToolTip="One or more port numbers separated by commas; matches the source or the destination port."/>
+                                    <TextBlock Text="Process" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogProcessBox" Width="120" Margin="0,0,12,4" ToolTip="Process name (part of it) or process id. Names are the process that has that id now (best effort)."/>
+                                    <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogFromBox" Width="130" Margin="0,0,12,4" ToolTip="Start time, local, as yyyy-MM-dd HH:mm (leave empty for no start)."/>
+                                    <TextBlock Text="To" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="FwLogToBox" Width="130" Margin="0,0,12,4" ToolTip="End time, local, as yyyy-MM-dd HH:mm (leave empty for no end)."/>
+                                    <Button x:Name="FwLogApplyButton" Content="Apply" Margin="0,0,8,4" ToolTip="Apply the address, port, process and time filters."/>
+                                    <TextBlock x:Name="FwLogFilterError" Foreground="{DynamicResource BrushDanger}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </WrapPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="300"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentControl x:Name="FwLogGridHost" Grid.Column="0" Focusable="False"/>
+                                    <Border Grid.Column="1" Style="{StaticResource Card}" Margin="10,0,0,0">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <StackPanel x:Name="FwLogOverviewPanel">
+                                                <TextBlock Style="{StaticResource TextSection}" Text="Overview"/>
+                                                <TextBlock x:Name="FwLogSummaryText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,8" Text="Read the log to see a summary of the current view."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Events over time (blocked / allowed)"/>
+                                                <ItemsControl x:Name="FwLogHistogram" Height="70" Margin="0,4,0,10" ToolTip="Each bar is one time slice of the current view: the lower part (orange) is blocked, the upper part (blue) is allowed; point at a bar for the counts.">
+                                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,1,0" ToolTip="{Binding Tip}">
+                                                                <Border Height="{Binding AllowedHeight}" Background="{DynamicResource BrushAccent}"/>
+                                                                <Border Height="{Binding DroppedHeight}" Background="{DynamicResource BrushWarning}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top blocked sources (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopSources" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The addresses the firewall blocked most often. Click one to show only its entries."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top blocked ports (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopPorts" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The destination ports blocked most often, with what the port is usually used for."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top processes (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopProcesses" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="Processes by process id in the log, named after the process that has that id now (best effort)."/>
+                                                <TextBlock Style="{StaticResource TextCaption}" Text="Top remote addresses (click to filter)"/>
+                                                <ListBox x:Name="FwLogTopRemote" Margin="0,4,0,10" BorderThickness="0" Background="Transparent" ToolTip="The other side of each connection: the destination of outgoing packets and the source of incoming ones."/>
+                                                <Button x:Name="FwLogRulesButton" Content="Rules for the selected port" HorizontalAlignment="Left" Margin="0,4,0,0" ToolTip="Open the Rules tab searching for the destination port of the selected entry."/>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem x:Name="FwForensicTab" Header="Forensic logging" ToolTip="Make Windows record every connection for a limited time, with the program behind it, and restore the settings afterwards">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Forensic logging makes Windows record connections for a limited time, so you can see later what connected where and which program did it. Every setting is saved first and restored exactly when the session ends. Event logs are never cleared. Settings set by a policy are shown but not changed."/>
+                                    <ItemsControl x:Name="FwForSources" Margin="0,10,0,0">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource Card}" Width="310" Margin="0,0,12,12" ToolTip="{Binding Tip}">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding State}" FontWeight="SemiBold" Margin="0,4,0,4" TextWrapping="Wrap"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Records}" TextWrapping="Wrap"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Volume}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                        <TextBlock Style="{StaticResource TextMuted}" Text="{Binding Managed}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Profile" Margin="0,6,0,4"/>
+                                    <WrapPanel>
+                                        <RadioButton x:Name="FwForBasic" GroupName="FwForProfile" Content="Basic: blocked packets" IsChecked="True" Margin="0,0,16,6" ToolTip="Logs the packets the firewall drops, in every profile. Low volume; no program names."/>
+                                        <RadioButton x:Name="FwForFull" GroupName="FwForProfile" Content="Full forensic: all three sources" Margin="0,0,16,6" ToolTip="Blocked and allowed packets in the firewall log, every connection with its program in the Security log, and DNS queries. High volume: use it for a limited time."/>
+                                        <RadioButton x:Name="FwForCustom" GroupName="FwForProfile" Content="Custom" Margin="0,0,16,6" ToolTip="Choose the sources yourself."/>
+                                    </WrapPanel>
+                                    <WrapPanel x:Name="FwForCustomPanel" Margin="20,0,0,6">
+                                        <CheckBox x:Name="FwForFwBlocked" Content="Firewall log: blocked" IsChecked="True" Margin="0,0,14,4" ToolTip="Log dropped packets in every profile."/>
+                                        <CheckBox x:Name="FwForFwAllowed" Content="Firewall log: allowed" Margin="0,0,14,4" ToolTip="Log allowed connections too (much more volume)."/>
+                                        <CheckBox x:Name="FwForWfpConn" Content="WFP connections (with program)" Margin="0,0,14,4" ToolTip="Audit Filtering Platform Connection, success and failure: Security events 5156 and 5157 with the program path."/>
+                                        <CheckBox x:Name="FwForWfpDrop" Content="WFP packet drops" Margin="0,0,14,4" ToolTip="Audit Filtering Platform Packet Drop, failure: Security event 5152 for every dropped packet (very high volume; Microsoft recommends it for troubleshooting only)."/>
+                                        <CheckBox x:Name="FwForDns" Content="DNS client log" Margin="0,0,14,4" ToolTip="Turns on the DNS client's Operational log: names looked up, with the process id."/>
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <TextBlock Text="Security log size" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                                        <ComboBox x:Name="FwForSizeBox" Width="110" Margin="0,0,18,6" ToolTip="Size of the Security log for WFP auditing. A larger current size is kept. The log is never made smaller during a session.">
+                                            <ComboBoxItem Content="256 MB"/>
+                                            <ComboBoxItem Content="512 MB" IsSelected="True"/>
+                                            <ComboBoxItem Content="1 GB"/>
+                                        </ComboBox>
+                                        <TextBlock Text="Run for" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                                        <ComboBox x:Name="FwForDurationBox" Width="130" Margin="0,0,18,6" ToolTip="The previous settings come back automatically after this time while iG Windows Tuner is open. If it is closed, the next start offers to restore them.">
+                                            <ComboBoxItem Content="30 minutes"/>
+                                            <ComboBoxItem Content="2 hours" IsSelected="True"/>
+                                            <ComboBoxItem Content="8 hours"/>
+                                            <ComboBoxItem Content="Until I stop it"/>
+                                        </ComboBox>
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <Button x:Name="FwForEstimateButton" Content="Estimate the volume (10 s)" Margin="0,0,8,6" ToolTip="Watches new connections for 10 seconds (read-only) and estimates events per hour and how long each Security log size lasts."/>
+                                        <Button x:Name="FwForPreviewButton" Content="Preview" Margin="0,0,8,6" ToolTip="Show every setting this profile would change, from what to what (read-only)."/>
+                                        <Button x:Name="FwForStartButton" Style="{StaticResource AccentButton}" Content="Start forensic logging..." Margin="0,0,8,6" ToolTip="Preview, then save every setting and start the session. Needs administrator rights."/>
+                                        <Button x:Name="FwForStopButton" Content="Stop and restore" Margin="0,0,8,6" ToolTip="End the session and restore every setting exactly."/>
+                                        <Button x:Name="FwForRefreshButton" Content="Read the state" Margin="0,0,8,6" ToolTip="Read the current logging settings again (read-only)."/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="FwForEstimateText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" Text=""/>
+                                    <TextBlock x:Name="FwForStatusText" TextWrapping="Wrap" Margin="0,6,0,0" Text="Not read yet."/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,10,0,0" Text="Gaming: start a time-boxed session when you want to look into something, rather than leaving forensic logging on during competitive play. The firewall log has no program names; WFP auditing adds them; the DNS log adds the names behind addresses."/>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Evidence and export" Margin="0,16,0,4"/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Copies only: the original logs are read, never moved, changed or cleared. Nothing is uploaded. Exports contain sensitive data (addresses, programs, names): keep them private. Reading the Security log and the default firewall log needs administrator rights."/>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <TextBox x:Name="FwExpFromBox" Width="130" Margin="0,0,12,6" ToolTip="Start of the time range, local, as yyyy-MM-dd HH:mm (empty: 24 hours ago)."/>
+                                        <TextBlock Text="To" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <TextBox x:Name="FwExpToBox" Width="130" Margin="0,0,12,6" ToolTip="End of the time range, local, as yyyy-MM-dd HH:mm (empty: now)."/>
+                                        <CheckBox x:Name="FwExpZipBox" Content="Also as a zip" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="Adds a zip of the evidence folder with its SHA256 next to it."/>
+                                        <Button x:Name="FwExpEvidenceButton" Content="Collect evidence package..." Margin="0,0,8,6" ToolTip="Pick a folder: copies of the firewall logs, .evtx exports of the WFP and DNS events, the firewall policy and settings, listening ports and processes, your notes, a manifest with SHA256 hashes and a chain-of-custody file."/>
+                                    </WrapPanel>
+                                    <WrapPanel>
+                                        <TextBlock Text="AI export format" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <ComboBox x:Name="FwExpFormatBox" Width="90" Margin="0,0,12,6" ToolTip="JSONL: one event per line. CSV: protected against spreadsheet formulas.">
+                                            <ComboBoxItem Content="JSONL" IsSelected="True"/>
+                                            <ComboBoxItem Content="CSV"/>
+                                        </ComboBox>
+                                        <CheckBox x:Name="FwExpRawBox" Content="Raw (no pseudonyms, local use only)" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="By default internal addresses, local host names, user names and user folders are replaced by consistent pseudonyms. Raw keeps them: never share a raw export."/>
+                                        <Button x:Name="FwExpDatasetButton" Content="Export for AI analysis..." Margin="0,0,8,6" ToolTip="Pick a folder: the firewall log, WFP and DNS events in one schema (files of about 5 MB), a flow summary, SCHEMA.md and ANALYSIS_BRIEF.md."/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="FwExpStatusText" TextWrapping="Wrap" Margin="0,4,0,0" Text=""/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
                         <TabItem x:Name="FwDefaultsTab" Header="Compared to Windows defaults" ToolTip="Rules added, removed or changed compared with the default rules of this Windows build">
                             <DockPanel Margin="0,8,0,0">
                                 <TextBlock x:Name="FwDefaultsText" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6" Text="Not read yet."/>
@@ -1018,7 +1172,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                     <TextBlock x:Name="FwProfileNote" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                    <Button x:Name="FwLogButton" Content="Analyze the firewall log" HorizontalAlignment="Left" Margin="0,10,0,0" ToolTip="Summarize blocked and allowed connections from the firewall log (read-only). Turn on logging above first."/>
+                                    <Button x:Name="FwLogButton" Content="Open the firewall log" HorizontalAlignment="Left" Margin="0,10,0,0" ToolTip="Open the Log tab and read the firewall log: what was blocked and allowed, with filters and an overview (read-only). Turn on logging above first."/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

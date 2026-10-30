@@ -77,3 +77,23 @@ An independent reviewer (read-only file access; ran nothing, changed nothing) ch
 | U5 | UX | Several pages still miss a one-line status and a single primary action at the top (Presets, Diagnostics, Inspect, Toolkit, Manage, Startup), and some pages use more than one accent button. Some results still use dialogs instead of a toast with Undo (startup toggle, Defender setting, toolkit feature). Tab and expander state is not remembered everywhere. Focus mode hides pages, dashboard details and advanced items but does not yet change list columns. | **Open (Low)**, recorded as known UX gaps in `docs\FINAL_REPORT_3.3.md`; none affects safety. |
 
 Open High findings: none.
+
+## 3.5 firewall logs and forensics (29 October 2026)
+
+An independent reviewer (a separate agent with read-only access; it ran nothing that changes the PC) audited parser robustness, the handling of untrusted log and event values, the redaction of exports, and the revert path of forensic logging. It found the parser, the JSON escaping, the keyed pseudonyms and the no-clear/no-persistence rules sound, and reported the issues below. All High and Medium findings were fixed with regression tests (`tests\ForensicLogging.Tests.ps1`, `tests\ForensicEvidence.Tests.ps1`, `tests\FirewallLog.Tests.ps1`).
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| 1 | High | A failure in the second `auditpol /set` left the audit policy half-changed: the backup path was only recorded after Set-IgwtAuditPolicy returned. | **Fixed.** The session takes its own `auditpol /backup` before any change and records it in the snapshot first; test "restores the audit policy when the second auditpol /set fails". |
+| 6 | High | DNS answer lists ("a;b") were not split, so internal addresses in them stayed visible in a pseudonymized export. | **Fixed.** Each address is redacted; IPv4-mapped IPv6 addresses are recognized. |
+| 2 | Medium | A failed rollback after a failed start was reported as "restored". | **Fixed.** An incomplete rollback keeps the session record (rollback-incomplete) and says what was not restored. |
+| 3 | Medium | The session record was written after the changes: a crash in between left changed settings without a record. | **Fixed.** The record is written first (status starting) and set active after the changes. |
+| 4 | Medium | A damaged session record broke the state view and blocked Start and Stop. | **Fixed.** It is reported as damaged; Stop restores from the newest forensic snapshot (only the tool's own Backups\forensic-* folders are accepted). |
+| 5 | Medium | Start used the plan from the preview: a policy that appeared later, or a crafted plan, could change a managed setting or shrink the Security log. | **Fixed.** Start makes the plan again from the current state and only raises sizes. |
+| 7 | Medium | Rule names, notes and the brief's messages were not redacted; reverse-lookup names carried internal addresses. | **Fixed.** Free text goes through the same scrub (user folders and names, computer name, internal addresses); *.in-addr.arpa and *.ip6.arpa names are pseudonymized. Public addresses, including this PC's public IPv6 address, are kept by design (documented in ANALYSIS_BRIEF.md). |
+| 8 | Medium | Turning Follow live off and on again added entries twice. | **Fixed.** The tail readers keep their position until the next full read; results of an older read are dropped (generation counter). |
+| 9 | Medium | A line without a line break could grow in memory without limit; WFP events were all loaded before parsing. | **Fixed.** Lines over 64 KB are skipped and counted (TooLong); events are streamed. |
+| 10 | Low | Two log files with the same name were copied only once; the event window moved by the time the copies took. | **Fixed.** Copies are numbered; the XPath is built right before each export (relative timediff is the documented form). |
+| 11 | Low | The CSV export of the log analysis and copying grid rows to the clipboard had no formula protection. | **Fixed.** Both use the same protection as every export. |
+| 12 | Low | `return $out.ToArray()` unrolls large results through the pipeline in the older reader functions. | **Not changed.** `return , ...` would hand callers that use `@()` one nested array; the GUI and exports use the engine lists directly. |
+| 13 | Low | Network-share checks only looked for a `\\` prefix. | **Fixed.** `//server` paths and drive letters mapped to network drives are refused too. |

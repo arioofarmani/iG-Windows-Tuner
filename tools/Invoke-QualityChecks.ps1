@@ -34,8 +34,9 @@ $cfg.Output.Verbosity = 'Normal'
 $cfg.TestResult.Enabled = $true
 $cfg.TestResult.OutputPath = (Join-Path $artifacts 'pester-results.xml')
 $result = Invoke-Pester -Configuration $cfg
-Write-Output ("Pester: {0} passed, {1} failed, {2} skipped" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount)
-if ($result.FailedCount -gt 0) { $failed = $true }
+Write-Output ("Pester: {0} passed, {1} failed, {2} skipped, {3} test file(s) failed to load" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $result.FailedContainersCount)
+# A test file that fails to load (discovery or BeforeAll error) hides its tests: that fails the gate too.
+if ($result.FailedCount -gt 0 -or $result.FailedContainersCount -gt 0) { $failed = $true }
 
 Write-Output '== PSScriptAnalyzer'
 Import-Module PSScriptAnalyzer -ErrorAction Stop

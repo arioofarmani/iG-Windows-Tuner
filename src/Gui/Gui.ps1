@@ -33,6 +33,11 @@ $script:IgwtGuiControlNames = @(
     'FwOverviewTab', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvRoleBox', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
+    'FwLogTab', 'FwLogFollowButton', 'FwLogNoteButton', 'FwLogReadButton', 'FwLogStatusText', 'FwLogAddressBox', 'FwLogPortBox', 'FwLogProcessBox', 'FwLogFromBox', 'FwLogToBox', 'FwLogApplyButton', 'FwLogFilterError',
+    'FwLogGridHost', 'FwLogOverviewPanel', 'FwLogSummaryText', 'FwLogHistogram', 'FwLogTopSources', 'FwLogTopPorts', 'FwLogTopProcesses', 'FwLogTopRemote', 'FwLogRulesButton',
+    'FwForensicTab', 'FwForSources', 'FwForBasic', 'FwForFull', 'FwForCustom', 'FwForCustomPanel', 'FwForFwBlocked', 'FwForFwAllowed', 'FwForWfpConn', 'FwForWfpDrop', 'FwForDns', 'FwForSizeBox', 'FwForDurationBox',
+    'FwForEstimateButton', 'FwForPreviewButton', 'FwForStartButton', 'FwForStopButton', 'FwForRefreshButton', 'FwForEstimateText', 'FwForStatusText', 'ForensicBanner', 'ForensicBannerText', 'ForensicBannerOpenButton', 'ForensicBannerStopButton',
+    'FwExpFromBox', 'FwExpToBox', 'FwExpZipBox', 'FwExpEvidenceButton', 'FwExpFormatBox', 'FwExpRawBox', 'FwExpDatasetButton', 'FwExpStatusText',
     'PagePolicy', 'PolRefreshButton', 'PolSummaryIcon', 'PolSummaryText', 'PolTree', 'PolGridHost', 'PolDetName', 'PolDetMeta', 'PolDetState', 'PolEditPanel', 'PolStateBox', 'PolHelp', 'PolApplyButton', 'PolDetExplain',
     'PageToolkit', 'ToolkitRefreshButton', 'ToolkitTabs', 'ToolkitAppSummary', 'ToolkitAppListHost', 'ToolkitAppDetail', 'ToolkitAppStateButton', 'ToolkitInstallButton', 'ToolkitUpgradeButton',
     'ToolkitUninstallButton', 'ToolkitUpgradeAllButton', 'ToolkitImportButton', 'ToolkitExportButton', 'ToolkitTweakSummary', 'ToolkitTweakListHost', 'ToolkitTweakDetail', 'ToolkitTweakGoButton',
@@ -240,7 +245,7 @@ function Show-IgwtGuiError {
         $c.ErrorText.Text = "Something went wrong ($Context): $Message The window stays open; copy the details if it happens again."
         $c.ErrorBar.Visibility = 'Visible'
     } catch { Write-Verbose "Error bar unavailable: $($_.Exception.Message)" }
-    try { Write-IgwtLog -Level Error -Message "GUI error ($Context): $Message" } catch { Write-Verbose 'Logging failed.' }
+    try { Write-IgwtLog -Level Error -Message "GUI error ($Context): $Message$(if ($Details) { ' | ' + (($Details -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 6) -join ' / ') })" } catch { Write-Verbose 'Logging failed.' }
     Write-IgwtGuiDiagnostic -Kind 'exception' -Text "$Context | $Message | $Details"
 }
 
@@ -268,7 +273,13 @@ function Initialize-IgwtGuiDiagnostics {
             $e.Handled = $true
             $ex = $e.Exception
             while ($ex.InnerException -and $ex -is [System.Management.Automation.MethodInvocationException]) { $ex = $ex.InnerException }
-            Show-IgwtGuiError -Message $ex.Message -Details ([string]$e.Exception) -Context 'window'
+            # Where in the script it happened: a .NET stack alone does not name the PowerShell line.
+            $where = ''
+            if ($ex -is [System.Management.Automation.IContainsErrorRecord] -and $ex.ErrorRecord) {
+                $er = $ex.ErrorRecord
+                $where = "$(if ($er.InvocationInfo) { $er.InvocationInfo.PositionMessage })`r`n$($er.ScriptStackTrace)"
+            }
+            Show-IgwtGuiError -Message $ex.Message -Details ("$where`r`n$([string]$e.Exception)").Trim() -Context 'window'
         }
     Register-IgwtGuiHandler -Control ([System.AppDomain]::CurrentDomain) -Event 'UnhandledException' -Handler {
             param($eventSource, $e)
@@ -514,6 +525,16 @@ function Invoke-IgwtGuiTick {
     foreach ($job in $done) { Complete-IgwtGuiJob -Job $job }
 }
 
+function Get-IgwtGuiJobErrorText {
+    <# .SYNOPSIS The message of an error thrown in a background job, without the EndInvoke and pipeline-stop wrappers around it. Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][System.Exception]$Exception)
+    $ex = $Exception
+    while ($ex.InnerException -and ($ex -is [System.Management.Automation.MethodInvocationException] -or $ex -is [System.Management.Automation.ActionPreferenceStopException])) { $ex = $ex.InnerException }
+    return [string]$ex.Message
+}
+
 function Complete-IgwtGuiJob {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Hands a finished job to the window.')]
     [CmdletBinding()]
@@ -524,7 +545,11 @@ function Complete-IgwtGuiJob {
         $out = $Job.PS.EndInvoke($Job.Handle)
         $errs = @($Job.PS.Streams.Error)
     } catch {
-        if (-not $Job.Cancelled) { $errs = @($_) }
+        # A command that throws in the worker arrives wrapped ("Exception calling "EndInvoke" with "1"
+        # argument(s): ..."): show its own message.
+        if (-not $Job.Cancelled) {
+            $errs = @(Get-IgwtGuiJobErrorText -Exception $_.Exception)
+        }
     }
     $Job.PS.Dispose()
     $null = $script:Gui.Jobs.Remove($Job)
@@ -3184,6 +3209,17 @@ function Save-IgwtGuiScreenshots {
             & $capture 'b'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwDefaultsTab
             & $capture 'c'
+            # The Log tab with a synthetic log (render mocks), newest first, one entry selected.
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwLogTab
+            try {
+                Show-IgwtGuiFirewallLogResult -Result (Read-IgwtFirewallLogSession) -Errors @()
+                Update-IgwtGuiFirewallLogOverview
+                if (@($script:Gui.Grids.FirewallLog.C.Grid.ItemsSource).Count) { $script:Gui.Grids.FirewallLog.C.Grid.SelectedIndex = 0 }
+            } catch { Write-Verbose "Log demo not shown: $($_.Exception.Message)" }
+            & $capture 'd'
+            $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwForensicTab
+            try { Set-IgwtGuiForensicState -State (Get-IgwtForensicLoggingState) } catch { Write-Verbose "Forensic demo not shown: $($_.Exception.Message)" }
+            & $capture 'e'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwOverviewTab
         }
         $index++

@@ -1063,12 +1063,28 @@ function Get-IgwtFirewallLogReport {
     $status = @()
     try { $status = @(Get-IgwtFirewallLoggingStatus) } catch { $lines.Add("Logging status not readable: $($_.Exception.Message)") }
     foreach ($p in $status) { $lines.Add(("{0,-8} logs blocked: {1,-5} allowed: {2,-5} {3}" -f $p.Profile, $p.LogBlocked, $p.LogAllowed, $p.LogFile)) }
-    if (-not @($status | Where-Object { $_.LogBlocked -eq 'True' -or $_.LogAllowed -eq 'True' }).Count) {
-        $lines.Add(''); $lines.Add('Logging is off for every profile. Turn on "Log blocked connections" on the Profiles and networks tab, use the PC for a while, then analyze again.')
+    if (-not $status.Count) { return $lines.ToArray() }
+    $set = Get-IgwtFirewallLogFiles -Status $status
+    $lines.Add('')
+    foreach ($name in @($set.ProfilesOff)) { $lines.Add("Logging is off for the $name profile. Turn on ""Log blocked connections"" for it on the Profiles and networks tab to see what the firewall blocks there.") }
+    if (-not @($set.Files).Count) {
+        $lines.Add('Nothing is logged, so there is nothing to analyze yet. Turn logging on, use the PC for a while, then analyze again.')
         return $lines.ToArray()
     }
-    try { $entries = @(Read-IgwtFirewallLog) } catch { $lines.Add(''); $lines.Add($_.Exception.Message); return $lines.ToArray() }
-    $an = Get-IgwtFirewallLogAnalysis -Entries $entries -Top $Top
+    $entries = New-Object System.Collections.Generic.List[object]
+    foreach ($f in @($set.Files)) {
+        foreach ($path in @("$($f.Path).old", $f.Path)) {
+            $r = Read-IgwtFirewallLogFile -Path $path
+            if ($r.Reason -eq 'NotFound' -and $path.EndsWith('.old')) { continue }
+            if ($r.Reason -ne 'Ok') { if (-not $lines.Contains($r.Message)) { $lines.Add($r.Message) }; continue }
+            $entries.AddRange([object[]]$r.Entries)
+            $label = @{ NoHeader = 'before the #Fields header'; FieldCount = 'wrong number of fields'; Partial = 'partial last line (still being written)' }
+            $skip = @($r.Skipped.GetEnumerator() | Where-Object { $_.Value -and $label.ContainsKey($_.Key) } | ForEach-Object { "$($_.Value) $($label[$_.Key])" })
+            $lines.Add(("Read {0}: {1} entries, {2:N1} MB in {3:N1} s{4}." -f $path, $r.Entries.Count, ($r.Bytes / 1MB), ($r.ReadMs / 1000), $(if ($skip.Count) { "; lines skipped: $($skip -join ', ')" } else { '' })))
+        }
+    }
+    if (-not $entries.Count) { return $lines.ToArray() }
+    $an = Get-IgwtFirewallLogAnalysis -Entries $entries.ToArray() -Top $Top
     $lines.Add('')
     $lines.Add("$($an.Entries) entries from $($an.From) to $($an.To): $($an.Dropped) blocked, $($an.Allowed) allowed.")
     foreach ($pair in @(@('Top blocked sources', $an.TopBlockedSources), @('Top blocked ports', $an.TopBlockedPorts), @('Top blocked processes', $an.TopBlockedProcesses), @('Top allowed processes', $an.TopAllowedProcesses))) {

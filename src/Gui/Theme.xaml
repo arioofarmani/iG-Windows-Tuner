@@ -419,7 +419,46 @@
                             <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.45"/>
+                            <Setter Property="Opacity" Value="0.6"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!-- Radio button: same look as the check box (without it, WPF's default black text is unreadable on the dark theme) -->
+    <Style TargetType="{x:Type RadioButton}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type RadioButton}">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid>
+                            <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="12" Margin="-3" Visibility="Collapsed"/>
+                            <Border x:Name="Ring" Width="18" Height="18" CornerRadius="9" BorderThickness="1" BorderBrush="{DynamicResource BrushTextMuted}" Background="{DynamicResource BrushSurfaceAlt}" VerticalAlignment="Center">
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{DynamicResource BrushOnAccent}" Visibility="Collapsed"/>
+                            </Border>
+                        </Grid>
+                        <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Background" Value="{DynamicResource BrushAccent}"/>
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrushAccent}"/>
+                            <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource BrushText}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.6"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -464,7 +503,7 @@
                             <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.45"/>
+                            <Setter Property="Opacity" Value="0.6"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

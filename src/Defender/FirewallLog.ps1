@@ -21,69 +21,281 @@ function Get-IgwtFirewallLoggingStatus {
     }
 }
 
+function Initialize-IgwtFirewallLogEngine {
+    <#
+    .SYNOPSIS
+        Loads the compiled firewall log engine (src\Defender\FirewallLogEngine.cs: parser, live
+        tail, query, aggregates; managed code only) once per process. PowerShell alone missed the
+        3.5 budgets several times over (DECISIONS F11). Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    if ('IgwtFirewallLog.Parser' -as [type]) { return }
+    $source = Join-Path $PSScriptRoot 'FirewallLogEngine.cs'
+    # The GUI's background runspaces may ask at the same time: one process-wide lock (an interned
+    # string is the same object in every runspace), so the engine is compiled once.
+    $gate = [string]::Intern('IgwtFirewallLogEngine')
+    [System.Threading.Monitor]::Enter($gate)
+    try {
+        if (-not ('IgwtFirewallLog.Parser' -as [type])) { Add-Type -Path $source -ReferencedAssemblies System, System.Core -ErrorAction Stop }
+    } finally { [System.Threading.Monitor]::Exit($gate) }
+}
+
+function ConvertFrom-IgwtFirewallLogText {
+    <#
+    .SYNOPSIS
+        Parses firewall log text with the engine. The columns come from the text's own #Fields:
+        header (the field list differs between Windows versions; DECISIONS F10), never from a fixed
+        order. Empty lines are allowed (pfirewall.log has one after the header); data lines before
+        a header, lines whose field count does not match the header and a last line without a line
+        break (still being written) are skipped and counted by reason. Pure.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Text = '', [string]$File = '')
+    Initialize-IgwtFirewallLogEngine
+    $ms = New-Object System.IO.MemoryStream(, [System.Text.Encoding]::UTF8.GetBytes($Text))
+    try { return [IgwtFirewallLog.Parser]::Parse($ms, 0, $null, $false, $File, $true, $null) } finally { $ms.Dispose() }
+}
+
 function ConvertFrom-IgwtFirewallLog {
     <#
     .SYNOPSIS
-        Parses W3C firewall log lines (the #Fields header names the columns: date time action
-        protocol src-ip dst-ip src-port dst-port size tcpflags ... info path pid). Pure.
+        Parses W3C firewall log lines (see ConvertFrom-IgwtFirewallLogText; the #Fields header names
+        the columns). Empty lines are allowed. Pure.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Lines)
-    $fields = @('date', 'time', 'action', 'protocol', 'src-ip', 'dst-ip', 'src-port', 'dst-port', 'size', 'tcpflags', 'tcpsyn', 'tcpack', 'tcpwin', 'icmptype', 'icmpcode', 'info', 'path', 'pid')
-    $out = New-Object System.Collections.Generic.List[object]
-    foreach ($l in $Lines) {
-        if (-not $l) { continue }
-        if ($l.StartsWith('#')) { if ($l -match '^#Fields:\s*(.+)$') { $fields = @($Matches[1].Trim() -split '\s+') }; continue }
-        $parts = @($l.Trim() -split '\s+')
-        if ($parts.Count -lt 8) { continue }
-        $h = [ordered]@{}
-        for ($i = 0; $i -lt $fields.Count -and $i -lt $parts.Count; $i++) { $h[$fields[$i]] = $(if ($parts[$i] -eq '-') { '' } else { $parts[$i] }) }
-        $t = $null
-        try { $t = [datetime]::ParseExact("$($h['date']) $($h['time'])", 'yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture) } catch { $t = $null }
-        $out.Add([pscustomobject]@{ Time = $t; Action = [string]$h['action']; Protocol = [string]$h['protocol']; Source = [string]$h['src-ip']; Destination = [string]$h['dst-ip']; SourcePort = [string]$h['src-port']; DestinationPort = [string]$h['dst-port']; Direction = [string]$h['path']; ProcessId = [string]$h['pid'] })
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][AllowNull()][string[]]$Lines)
+    $text = $(if (@($Lines).Count) { (@($Lines) -join "`n") + "`n" } else { '' })
+    return (ConvertFrom-IgwtFirewallLogText -Text $text).Entries.ToArray()
+}
+
+function Open-IgwtFirewallLogStream {
+    <#
+    .SYNOPSIS
+        Opens a firewall log for reading while the firewall service keeps writing (and may rotate) it:
+        FileShare ReadWrite and Delete. Throws the original .NET exception (access denied, not found,
+        sharing violation) for Read-IgwtFirewallLogFile to classify. Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.IO.FileStream])]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    Initialize-IgwtFirewallLogEngine
+    return [IgwtFirewallLog.Parser]::OpenShared($Path)
+}
+
+function Get-IgwtFirewallLogReadProblem {
+    <#
+    .SYNOPSIS
+        Turns an exception from opening a firewall log into a reason and an actionable message:
+        AccessDenied (not elevated), NotFound, FolderNotFound, Locked, Error. Pure.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Exception]$Exception, [Parameter(Mandatory = $true)][string]$Path)
+    $ex = $Exception
+    while ($ex -is [System.Management.Automation.MethodInvocationException] -and $ex.InnerException) { $ex = $ex.InnerException }
+    $folder = Split-Path -Parent $Path
+    if ($ex -is [System.UnauthorizedAccessException] -or $ex -is [System.Security.SecurityException]) {
+        return [pscustomobject]@{ Reason = 'AccessDenied'; Message = "Reading the firewall log needs administrator rights: Windows protects $folder. Use Restart as administrator and analyze again." }
     }
-    return $out.ToArray()
+    if ($ex -is [System.IO.DirectoryNotFoundException]) {
+        return [pscustomobject]@{ Reason = 'FolderNotFound'; Message = "The log folder $folder does not exist. Windows does not create a custom log folder: create it and give the Windows Defender Firewall service (NT SERVICE\mpssvc) write access, or use the default path %windir%\system32\LogFiles\Firewall\pfirewall.log." }
+    }
+    if ($ex -is [System.IO.FileNotFoundException]) {
+        return [pscustomobject]@{ Reason = 'NotFound'; Message = "The log file $Path does not exist yet. Windows writes it once logging is on for a profile and the firewall has logged a packet; use the PC for a while and analyze again. If it stays missing, check that the Windows Defender Firewall service (NT SERVICE\mpssvc) can write to $folder." }
+    }
+    if ($ex -is [System.IO.IOException] -and (($ex.HResult -band 0xFFFF) -in 32, 33)) {
+        return [pscustomobject]@{ Reason = 'Locked'; Message = "The log file $Path is locked by another program (sharing violation). Close programs that have it open and analyze again." }
+    }
+    return [pscustomobject]@{ Reason = 'Error'; Message = "The firewall log $Path could not be read: $($ex.Message)" }
+}
+
+function Read-IgwtFirewallLogFile {
+    <#
+    .SYNOPSIS
+        Reads one firewall log file with the engine (shared open, see Open-IgwtFirewallLogStream) and
+        parses it by its #Fields header. Never throws for a file problem: the result carries Reason
+        (Ok, AccessDenied, NotFound, FolderNotFound, Locked, Error) and an actionable Message. A last
+        line without a line break (still being written) is skipped. Read-only.
+    .PARAMETER MaxLines
+        Keep only the newest entries (0 = all).
+    .PARAMETER TailBytes
+        Read only the newest part of the file (about this many bytes), for showing first rows at once.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path, [int]$MaxLines = 0, [long]$TailBytes = 0)
+    $res = [ordered]@{ Path = $Path; Reason = 'Ok'; Message = ''; Fields = @(); Entries = @(); Skipped = @{}; Bytes = [long]0; EndOffset = [long]0; TimeIsUtc = $false; ReadMs = 0 }
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $fs = $null
+    try { $fs = Open-IgwtFirewallLogStream -Path $Path }
+    catch {
+        $problem = Get-IgwtFirewallLogReadProblem -Exception $_.Exception -Path $Path
+        $res.Reason = $problem.Reason; $res.Message = $problem.Message
+        return [pscustomobject]$res
+    }
+    try {
+        $parsed = $(if ($TailBytes -gt 0) { [IgwtFirewallLog.Parser]::ParseTail($fs, $TailBytes, $Path) } else { [IgwtFirewallLog.Parser]::Parse($fs, 0, $null, $false, $Path, $true, $null) })
+        $all = $parsed.Entries
+        $res.Bytes = $parsed.Length; $res.EndOffset = $parsed.EndOffset; $res.TimeIsUtc = $parsed.TimeIsUtc
+        $res.Fields = $(if ($parsed.Fields) { [string[]]$parsed.Fields } else { @() }); $res.Skipped = $parsed.Skipped
+        # No $( ) here: it would unroll hundreds of thousands of entries through the pipeline.
+        if ($MaxLines -gt 0 -and $all.Count -gt $MaxLines) { $res.Entries = $all.GetRange($all.Count - $MaxLines, $MaxLines).ToArray() } else { $res.Entries = $all.ToArray() }
+        if (-not $res.Fields.Count -and $all.Count -eq 0 -and $parsed.Length -gt 0) { $res.Reason = 'Error'; $res.Message = "$Path has no #Fields: header; it does not look like a Windows Firewall log." }
+    } catch {
+        $problem = Get-IgwtFirewallLogReadProblem -Exception $_.Exception -Path $Path
+        $res.Reason = $problem.Reason; $res.Message = $problem.Message
+    } finally { $fs.Dispose() }
+    $res.ReadMs = [int]$watch.ElapsedMilliseconds
+    return [pscustomobject]$res
+}
+
+function Get-IgwtFirewallLogFiles {
+    <#
+    .SYNOPSIS
+        The log files of the profiles that log something (expanded paths, each once), with the
+        profiles that write to each and the profiles that log nothing. Read-only.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$Status)
+    if ($null -eq $Status) { $Status = @(Get-IgwtFirewallLoggingStatus) }
+    $on = @($Status | Where-Object { $_.LogBlocked -eq 'True' -or $_.LogAllowed -eq 'True' })
+    $off = @($Status | Where-Object { -not ($_.LogBlocked -eq 'True' -or $_.LogAllowed -eq 'True') } | ForEach-Object { [string]$_.Profile })
+    $files = @($on | Where-Object { $_.LogFile } | Group-Object { ([string]$_.LogFile).ToLowerInvariant() } | ForEach-Object { [pscustomobject]@{ Path = [string]$_.Group[0].LogFile; Profiles = @($_.Group | ForEach-Object { [string]$_.Profile }) } })
+    [pscustomobject]@{ Files = $files; ProfilesOff = $off }
 }
 
 function Read-IgwtFirewallLog {
     <#
     .SYNOPSIS
-        Reads the last lines of a firewall log (default: the log file of the active profiles) and
-        parses them. Reading the default log needs administrator rights. Read-only.
+        Reads and parses a firewall log (default: the log file of the profiles that log), newest
+        -MaxLines entries. With -IncludeOld the rotated <file>.old is read first when it exists.
+        Throws an actionable message when the log cannot be read (administrator rights are needed
+        for the default log). Read-only.
     #>
     [CmdletBinding()]
-    param([string]$Path, [int]$MaxLines = 200000)
-    if (-not $Path) { $Path = @(Get-IgwtFirewallLoggingStatus | Where-Object { $_.LogFile } | ForEach-Object { $_.LogFile } | Select-Object -Unique)[0] }
-    if (-not (Test-Path -LiteralPath $Path)) { throw "Firewall log '$Path' not found. Turn on logging first (policy preset policy.firewall-logging)." }
-    $lines = @()
-    try { $lines = @(Get-Content -LiteralPath $Path -Tail $MaxLines -ErrorAction Stop) } catch { throw "The firewall log could not be read (administrator rights are needed for the default log): $($_.Exception.Message)" }
-    # Keep the #Fields header, which -Tail may have cut off.
-    $header = @(Get-Content -LiteralPath $Path -TotalCount 6 -ErrorAction SilentlyContinue | Where-Object { $_ -like '#Fields:*' })
-    return (ConvertFrom-IgwtFirewallLog -Lines @(@($header) + $lines))
+    param([string]$Path, [int]$MaxLines = 200000, [switch]$IncludeOld)
+    if (-not $Path) {
+        $set = Get-IgwtFirewallLogFiles
+        if (-not @($set.Files).Count) { throw "Logging is off for every firewall profile ($(@($set.ProfilesOff) -join ', ')). Turn on 'Log blocked connections' on the Profiles and networks tab, use the PC for a while, then analyze again." }
+        $Path = [string]@($set.Files)[0].Path
+    }
+    $out = New-Object System.Collections.Generic.List[object]
+    if ($IncludeOld) {
+        $old = Read-IgwtFirewallLogFile -Path "$Path.old"
+        if ($old.Reason -eq 'Ok') { $out.AddRange([object[]]$old.Entries) }
+    }
+    $r = Read-IgwtFirewallLogFile -Path $Path
+    if ($r.Reason -ne 'Ok') { throw $r.Message }
+    $out.AddRange([object[]]$r.Entries)
+    if ($MaxLines -gt 0 -and $out.Count -gt $MaxLines) { return $out.GetRange($out.Count - $MaxLines, $MaxLines).ToArray() }
+    return $out.ToArray()
+}
+
+function Read-IgwtFirewallLogSession {
+    <#
+    .SYNOPSIS
+        Reads the firewall logs of every profile that logs (each file once, its rotated .old file
+        first) into one list of engine entries, with process names (best effort: the process that has
+        the id now) and the user's notes, and an actionable message for every problem. -Quick reads
+        only the newest part of each current file, for showing first rows at once. Read-only.
+    .PARAMETER Notes
+        Note key -> text (see [IgwtFirewallLog.Engine]::NoteKey), applied to the entries.
+    #>
+    [CmdletBinding()]
+    param([switch]$Quick, [long]$TailBytes = 1MB, [hashtable]$Notes = @{})
+    Initialize-IgwtFirewallLogEngine
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $messages = New-Object System.Collections.Generic.List[string]
+    $files = New-Object System.Collections.Generic.List[object]
+    $rows = New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Entry]'
+    $status = @()
+    try { $status = @(Get-IgwtFirewallLoggingStatus) } catch { $messages.Add("The firewall profiles could not be read: $($_.Exception.Message)") }
+    $set = Get-IgwtFirewallLogFiles -Status $status
+    foreach ($name in @($set.ProfilesOff)) { $messages.Add("Logging is off for the $name profile. Turn on ""Log blocked connections"" for it on the Profiles and networks tab to see what the firewall blocks there.") }
+    if ($status.Count -and -not @($set.Files).Count) { $messages.Add('Nothing is logged, so there is nothing to read yet. Turn logging on, use the PC for a while, then read again.') }
+    foreach ($f in @($set.Files)) {
+        $paths = $(if ($Quick) { @($f.Path) } else { @("$($f.Path).old", $f.Path) })
+        foreach ($path in $paths) {
+            $r = $(if ($Quick) { Read-IgwtFirewallLogFile -Path $path -TailBytes $TailBytes } else { Read-IgwtFirewallLogFile -Path $path })
+            if ($r.Reason -eq 'NotFound' -and $path.EndsWith('.old')) { continue }
+            if ($r.Reason -ne 'Ok') { if (-not $messages.Contains($r.Message)) { $messages.Add($r.Message) }; continue }
+            $rows.AddRange([IgwtFirewallLog.Entry[]]$r.Entries)
+            $files.Add([pscustomobject]@{ Path = $path; Profiles = @($f.Profiles); Entries = @($r.Entries).Count; Bytes = $r.Bytes; EndOffset = $r.EndOffset; Fields = $r.Fields; TimeIsUtc = $r.TimeIsUtc; Skipped = $r.Skipped; ReadMs = $r.ReadMs; Current = (-not $path.EndsWith('.old')) })
+        }
+    }
+    $names = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+    $ids = [IgwtFirewallLog.Engine]::ProcessIds($rows)
+    if ($ids.Count) { foreach ($p in @(Get-Process -Id $ids -ErrorAction SilentlyContinue)) { $names[[int]$p.Id] = [string]$p.ProcessName } }
+    $null = [IgwtFirewallLog.Engine]::SetProcessNames($rows, $names, 'pid {0} (ended)')
+    if ($Notes.Count) {
+        $d = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        foreach ($k in $Notes.Keys) { $d[[string]$k] = [string]$Notes[$k] }
+        $null = [IgwtFirewallLog.Engine]::ApplyNotes($rows, $d)
+    }
+    [pscustomobject]@{ Entries = $rows; Files = $files.ToArray(); ProfilesOff = @($set.ProfilesOff); Messages = $messages.ToArray(); Quick = [bool]$Quick; ReadMs = [int]$watch.ElapsedMilliseconds; ReadAt = Get-Date }
+}
+
+function New-IgwtFirewallLogTail {
+    <# .SYNOPSIS A live tail of a log file from where a read ended (Read-IgwtFirewallLogSession Files: Path, EndOffset, Fields, TimeIsUtc). Read-only. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates an in-memory reader only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path, [long]$Offset = 0, [string[]]$Fields, [bool]$TimeIsUtc = $false)
+    Initialize-IgwtFirewallLogEngine
+    return (New-Object IgwtFirewallLog.Tail($Path, $Offset, [string[]]$Fields, $TimeIsUtc))
+}
+
+function Invoke-IgwtFirewallLogTail {
+    <#
+    .SYNOPSIS
+        Reads what was appended to the followed logs since the last poll (starting over after a
+        rotation), with process names. Returns the new entries and any problem. Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][object[]]$Tail)
+    $rows = New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Entry]'
+    $messages = New-Object System.Collections.Generic.List[string]
+    $rotated = 0
+    foreach ($t in $Tail) {
+        $before = $t.Rotations
+        try { $r = $t.Poll(); $rows.AddRange([IgwtFirewallLog.Entry[]]$r.Entries) }
+        catch { $messages.Add((Get-IgwtFirewallLogReadProblem -Exception $_.Exception -Path $t.Path).Message) }
+        if ($t.Rotations -ne $before) { $rotated++ }
+    }
+    if ($rows.Count) {
+        $names = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+        $ids = [IgwtFirewallLog.Engine]::ProcessIds($rows)
+        if ($ids.Count) { foreach ($p in @(Get-Process -Id $ids -ErrorAction SilentlyContinue)) { $names[[int]$p.Id] = [string]$p.ProcessName } }
+        $null = [IgwtFirewallLog.Engine]::SetProcessNames($rows, $names, 'pid {0} (ended)')
+    }
+    [pscustomobject]@{ Entries = $rows; Rotated = $rotated; Messages = $messages.ToArray() }
 }
 
 function Get-IgwtFirewallLogAnalysis {
     <#
     .SYNOPSIS
-        Analysis of firewall log entries: counts by action, top blocked sources, top blocked
-        destination ports (with protocol), top processes (by process id, named when the process
-        still runs), and an hourly timeline of blocked and allowed packets. Read-only.
+        Analysis of firewall log entries (from the engine): counts by action, top blocked sources,
+        top blocked destination ports (with protocol), top processes (by process id, named after
+        the process that has that id now; ids reused after a process ends make this best effort),
+        and an hourly timeline of blocked and allowed packets. Read-only.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Entries, [int]$Top = 10)
-    $drop = @($Entries | Where-Object { $_.Action -eq 'DROP' })
-    $allow = @($Entries | Where-Object { $_.Action -eq 'ALLOW' })
-    $proc = @{}
-    foreach ($id in @($Entries | Where-Object { $_.ProcessId } | ForEach-Object { $_.ProcessId } | Select-Object -Unique)) { $p = Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue; $proc[$id] = $(if ($p) { $p.ProcessName } else { "pid $id (ended)" }) }
-    $topOf = { param($set, $sb) @($set | Group-Object -Property $sb | Sort-Object Count -Descending | Select-Object -First $Top | ForEach-Object { [pscustomobject]@{ Value = $_.Name; Count = $_.Count } }) }
+    Initialize-IgwtFirewallLogEngine
+    $rows = New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Entry]'
+    foreach ($e in $Entries) { if ($e -is [IgwtFirewallLog.Entry]) { $rows.Add($e) } }   # a typed list for the engine
+    $names = New-Object 'System.Collections.Generic.Dictionary[int,string]'
+    $ids = [IgwtFirewallLog.Engine]::ProcessIds($rows)
+    if ($ids.Count) { foreach ($p in @(Get-Process -Id $ids -ErrorAction SilentlyContinue)) { $names[[int]$p.Id] = [string]$p.ProcessName } }
+    $null = [IgwtFirewallLog.Engine]::SetProcessNames($rows, $names, 'pid {0} (ended)')
+    $s = [IgwtFirewallLog.Engine]::Summarize($rows)
+    $topOf = { param($key, $action) @([IgwtFirewallLog.Engine]::Top($rows, $key, $action, $Top) | ForEach-Object { [pscustomobject]@{ Value = $_.Value; Count = [int]$_.Hits } }) }
     [pscustomobject]@{
-        Entries = $Entries.Count; Dropped = $drop.Count; Allowed = $allow.Count
-        From = @($Entries | Where-Object Time | Sort-Object Time | Select-Object -First 1).Time; To = @($Entries | Where-Object Time | Sort-Object Time -Descending | Select-Object -First 1).Time
-        TopBlockedSources = (& $topOf $drop { $_.Source })
-        TopBlockedPorts = (& $topOf $drop { "$($_.Protocol)/$($_.DestinationPort)" })
-        TopBlockedProcesses = (& $topOf @($drop | Where-Object ProcessId) { $proc[$_.ProcessId] })
-        TopAllowedProcesses = (& $topOf @($allow | Where-Object ProcessId) { $proc[$_.ProcessId] })
-        Timeline = @($Entries | Where-Object Time | Group-Object { $_.Time.ToString('yyyy-MM-dd HH:00') } | Sort-Object Name | ForEach-Object { [pscustomobject]@{ Hour = $_.Name; Dropped = @($_.Group | Where-Object Action -EQ 'DROP').Count; Allowed = @($_.Group | Where-Object Action -EQ 'ALLOW').Count } })
+        Entries = [int]$s.Entries; Dropped = [int]$s.Dropped; Allowed = [int]$s.Allowed
+        From = $(if ($s.From) { [datetime]$s.From } else { $null }); To = $(if ($s.To) { [datetime]$s.To } else { $null })
+        TopBlockedSources = (& $topOf 'Source' 'DROP')
+        TopBlockedPorts = (& $topOf 'Port' 'DROP')
+        TopBlockedProcesses = (& $topOf 'Process' 'DROP')
+        TopAllowedProcesses = (& $topOf 'Process' 'ALLOW')
+        Timeline = @([IgwtFirewallLog.Engine]::Histogram($rows, 60) | ForEach-Object { [pscustomobject]@{ Hour = $_.Start.ToString('yyyy-MM-dd HH:00'); Dropped = [int]$_.Dropped; Allowed = [int]$_.Allowed } })
     }
 }
 
@@ -93,7 +305,14 @@ function Export-IgwtFirewallLogAnalysis {
     param([Parameter(Mandatory = $true)]$Analysis, [AllowEmptyCollection()][object[]]$Entries = @(), [Parameter(Mandatory = $true)][string]$Path)
     if (-not $PSCmdlet.ShouldProcess($Path, 'Export firewall log analysis')) { return }
     $utf = New-Object System.Text.UTF8Encoding($false)
-    if ($Path -match '\.csv$') { [System.IO.File]::WriteAllText($Path, ((@($Entries | ConvertTo-Csv -NoTypeInformation) -join "`r`n") + "`r`n"), $utf) }
+    if ($Path -match '\.csv$') {
+        # Log values come from the network: cells are protected against spreadsheet formulas.
+        Initialize-IgwtFirewallLogEngine
+        $list = New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Entry]'
+        foreach ($e in $Entries) { if ($e -is [IgwtFirewallLog.Entry]) { $list.Add($e) } }
+        $keys = [string[]]@('TimeText', 'Action', 'Protocol', 'Source', 'Destination', 'SourcePort', 'DestinationPort', 'Size', 'TcpFlags', 'Direction', 'ProcessId', 'Process', 'Note')
+        [System.IO.File]::WriteAllLines($Path, [IgwtFirewallLog.Engine]::CsvLines($list, $keys, $keys), $utf)
+    }
     else { [System.IO.File]::WriteAllText($Path, ($Analysis | ConvertTo-Json -Depth 5), $utf) }
 }
 

@@ -7,12 +7,15 @@ BeforeAll {
     $script:Shipped = @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src'), (Join-Path $script:IgwtProjectRoot 'data') -Recurse -File -Include *.ps1, *.psm1, *.psd1, *.json, *.xaml) +
         @(Get-Item (Join-Path $script:IgwtProjectRoot 'iGWindowsTuner.ps1'), (Join-Path $script:IgwtProjectRoot 'Start-iGWindowsTuner.cmd'))
     $script:Code = @($script:Shipped | Where-Object { $_.Extension -in '.ps1', '.psm1', '.psd1', '.cmd' })
+    $script:CSharp = @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -File -Filter *.cs)
+    # The forbidden-technique scans below cover the C# source too.
+    $script:Code += $script:CSharp
     function Get-Matches([string]$Pattern, [object[]]$Files = $script:Code) {
         foreach ($f in $Files) {
             $i = 0
             foreach ($line in (Get-Content -LiteralPath $f.FullName)) {
                 $i++
-                if ($line -match $Pattern -and $line -notmatch '^\s*#') { "$($f.Name):${i}: $($line.Trim())" }
+                if ($line -match $Pattern -and $line -notmatch '^\s*(#|//)') { "$($f.Name):${i}: $($line.Trim())" }
             }
         }
     }
@@ -42,14 +45,23 @@ Describe 'Forbidden techniques are absent from shipped code' {
         Get-Matches '(?i)(fodhelper|eventvwr|ms-settings\\shell|computerdefaults|sdclt|ConsentPromptBehaviorAdmin\s*=\s*0)' | Should -BeNullOrEmpty
         foreach ($h in @(Get-Matches '(?i)-Verb\s+RunAs')) { $h | Should -Match '^Elevation\.ps1:' }
     }
-    It 'contains exactly one Add-Type with C# source (the SystemParametersInfo P/Invoke)' {
+    It 'compiles C# only twice: the SystemParametersInfo P/Invoke and the firewall log engine (DECISIONS F11)' {
         $typeDefs = @(Get-Matches '(?i)Add-Type\s+-TypeDefinition')
         $typeDefs.Count | Should -Be 1
         $typeDefs[0] | Should -Match 'Custom\.ps1'
-        @(Get-Matches '(?i)DllImport').Count | Should -Be 1
+        $paths = @(Get-Matches '(?i)Add-Type\s+-Path')
+        $paths.Count | Should -Be 1
+        $paths[0] | Should -Match 'FirewallLog\.ps1'
+        @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -Filter *.cs | ForEach-Object { $_.Name }) | Should -Be @('FirewallLogEngine.cs')
+        @(Get-Matches '(?i)DllImport' -Files ($script:Code + $script:CSharp)).Count | Should -Be 1
+    }
+    It 'keeps the firewall log engine to managed parsing (no P/Invoke, unsafe code, processes, registry, network or file writes)' {
+        $src = @(Get-Content -LiteralPath $script:CSharp[0].FullName | Where-Object { $_ -notmatch '^\s*//' }) -join "`n"
+        $src | Should -Not -Match '(?i)DllImport|extern\s|unsafe|Marshal\.|System\.Diagnostics\.Process|Microsoft\.Win32|Registry|WebClient|HttpClient|Socket|Dns\.|Assembly\.Load|Activator|Reflection'
+        $src | Should -Not -Match 'File\.(Write|Append|Create|Delete|Move|Copy|Replace)|FileAccess\.(Write|ReadWrite)|FileMode\.(Create|Append|Truncate|OpenOrCreate|CreateNew)|new\s+StreamWriter'
     }
     It 'runs only the allowed external executables' {
-        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter)\.ps1:' }
+        foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter|ForensicLogging)\.ps1:' }
         foreach ($m in @(Get-Matches '(?i)MpCmdRun\.exe')) { $m | Should -Match '^DefenderCenter\.ps1:' }
         foreach ($m in @(Get-Matches '&\s*\$exe\b' | Where-Object { $_ -match '^DefenderCenter\.ps1:' })) { $m | Should -Match "'-Restore' '-Name'" }
         # Security policy: secedit only for /export and /configure, auditpol only for /get, /set, /backup and /restore (checked at run time too).
@@ -57,6 +69,10 @@ Describe 'Forbidden techniques are absent from shipped code' {
         foreach ($m in @(Get-Matches '(?i)auditpol\.exe')) { $m | Should -Match '^AuditPolicy\.ps1:' }
         @(Get-Matches "(?i)-notin '/export', '/configure'").Count | Should -Be 1
         @(Get-Matches "(?i)-notin '/get', '/set', '/backup', '/restore'").Count | Should -Be 1
+        # Event logs: wevtutil only for gl, sl and epl (never cl, clearing a log) from ForensicLogging.ps1 (checked at run time too).
+        foreach ($m in @(Get-Matches '(?i)wevtutil\.exe')) { $m | Should -Match '^ForensicLogging\.ps1:' }
+        @(Get-Matches "(?i)-notin 'gl', 'sl', 'epl'").Count | Should -Be 1
+        Get-Matches "(?i)wevtutil(\.exe)?'?\s+(cl|clear-log)\b|Clear-EventLog|Remove-EventLog" | Should -BeNullOrEmpty
         # Group Policy: gpupdate only for the targeted refresh in GpoStore.ps1, gpresult only to export RSoP XML in PolicyEngine.ps1.
         foreach ($m in @(Get-Matches '(?i)gpupdate\.exe')) { $m | Should -Match '^GpoStore\.ps1:' }
         foreach ($m in @(Get-Matches '(?i)gpresult\.exe')) { $m | Should -Match '^PolicyEngine\.ps1:.*gpresult\.exe''\) /x ' }
@@ -64,7 +80,7 @@ Describe 'Forbidden techniques are absent from shipped code' {
         $literals = foreach ($m in @(Get-Matches "(?i)'[^']*\.exe'")) { foreach ($x in [regex]::Matches($m, "(?i)'([^']*\.exe)'")) { Split-Path $x.Groups[1].Value -Leaf } }
         # The Toolkit's fix programs and panel launchers live only in its allow-lists (Toolkit.ps1).
         $toolkitOnly = @('sfc.exe', 'chkdsk.exe', 'ipconfig.exe', 'winmgmt.exe', 'wsreset.exe', 'control.exe', 'mmc.exe', 'netplwiz.exe', 'resmon.exe', 'perfmon.exe', 'msinfo32.exe', 'rstrui.exe')
-        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe', 'MpCmdRun.exe') + $toolkitOnly) }
+        foreach ($e in @($literals)) { $e | Should -BeIn (@('powercfg.exe', 'nvidia-smi.exe', 'powershell.exe', 'pwsh.exe', 'explorer.exe', 'dism.exe', 'pnputil.exe', 'winget.exe', 'netsh.exe', 'gpupdate.exe', 'gpresult.exe', 'secedit.exe', 'auditpol.exe', 'wevtutil.exe', 'MpCmdRun.exe') + $toolkitOnly) }
         foreach ($m in @(Get-Matches "(?i)'(sfc|chkdsk|ipconfig|winmgmt|wsreset|control|mmc|netplwiz|resmon|perfmon|msinfo32|rstrui)\.exe'")) { $m | Should -Match '^Toolkit\.ps1:\d+: +\$script:Igwt(FixExecutables|PanelExecutables) = |^Toolkit\.ps1:.*''(control|mmc)\.exe''\)' }
         foreach ($i in @(Get-Matches '&\s*\$FilePath\b')) { $i | Should -Match '^Toolkit\.ps1:' }
     }
@@ -133,6 +149,27 @@ Describe 'Module structure' {
     }
     It 'never writes $name? in a string (PowerShell reads it as a variable named "name?"; use ${name}?)' {
         Get-Matches '\$[A-Za-z_][A-Za-z0-9_]*\?' | Should -BeNullOrEmpty
+    }
+    It 'uses no $script: variable and no private function inside a GetNewClosure block (regression 3.5)' {
+        # A closure runs in a new dynamic module: $script:Gui is empty there and private functions are not
+        # found. The toast handlers did this and every toast threw "You cannot call a method on a
+        # null-valued expression" when it closed (DECISIONS U9).
+        $exported = @((Import-PowerShellDataFile (Join-Path $script:IgwtProjectRoot 'src\iGWindowsTuner.psd1')).FunctionsToExport)
+        $src = @($script:Code | Where-Object { $_.Extension -eq '.ps1' -and $_.FullName -like '*\src\*' })
+        $asts = @{}
+        foreach ($f in $src) { $asts[$f.FullName] = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$null) }
+        $defined = @{}
+        foreach ($a in $asts.Values) { foreach ($fd in $a.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) { $defined[$fd.Name] = $true } }
+        $bad = foreach ($f in $src) {
+            foreach ($call in $asts[$f.FullName].FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'GetNewClosure' }, $true)) {
+                foreach ($v in $call.Expression.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -like 'script:*' }, $true)) { "$($f.Name):$($v.Extent.StartLineNumber) $($v.Extent.Text)" }
+                foreach ($cmd in $call.Expression.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                    $n = $cmd.GetCommandName()
+                    if ($n -and $defined[$n] -and $exported -notcontains $n) { "$($f.Name):$($cmd.Extent.StartLineNumber) private $n" }
+                }
+            }
+        }
+        @($bad) | Should -BeNullOrEmpty
     }
 }
 

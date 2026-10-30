@@ -190,7 +190,8 @@ garbage line
         }
         It 'parses the W3C log and analyzes it' {
             $e = @(InModuleScope iGWindowsTuner -Parameters @{ P = $script:LogFile } { param($P) Read-IgwtFirewallLog -Path $P -MaxLines 3 })
-            $e.Count | Should -Be 2 -Because 'only the last 3 lines are read (one is garbage), and the #Fields header is kept'
+            $e.Count | Should -Be 3 -Because 'MaxLines keeps the newest entries; the garbage line is skipped'
+            $e[0].DestinationPort | Should -Be '445'
             $all = @(InModuleScope iGWindowsTuner -Parameters @{ P = $script:LogFile } { param($P) Read-IgwtFirewallLog -Path $P })
             $all.Count | Should -Be 4
             $all[0].DestinationPort | Should -Be '3389'; $all[3].ProcessId | Should -Be '999999'
@@ -203,6 +204,72 @@ garbage line
             InModuleScope iGWindowsTuner -Parameters @{ A = $a; E = $all; J = $j; C = $c } { param($A, $E, $J, $C) Export-IgwtFirewallLogAnalysis -Analysis $A -Path $J; Export-IgwtFirewallLogAnalysis -Analysis $A -Entries $E -Path $C }
             (Get-Content $j -Raw | ConvertFrom-Json).Dropped | Should -Be 3
             @(Import-Csv $c).Count | Should -Be 4
+        }
+        It 'regression 3.5: reads a real-format log with the empty line after the header (cause A)' {
+            # pfirewall.log has an empty line after #Fields; [string[]]$Lines refused it ("Cannot bind argument
+            # to parameter 'Lines' because it is an empty string").
+            $real = Join-Path $TestDrive 'real.log'
+            [IO.File]::WriteAllText($real, "#Version: 1.5`r`n#Software: Microsoft Windows Firewall`r`n#Time Format: Local`r`n#Fields: date time action protocol src-ip dst-ip src-port dst-port size tcpflags tcpsyn tcpack tcpwin icmptype icmpcode info path pid`r`n`r`n2026-10-29 20:00:01 DROP TCP 203.0.113.5 192.168.1.10 51000 3389 52 S 1 0 64240 - - - RECEIVE 4`r`n")
+            $e = @(InModuleScope iGWindowsTuner -Parameters @{ P = $real } { param($P) Read-IgwtFirewallLog -Path $P })
+            $e.Count | Should -Be 1
+            $e[0].Size | Should -Be '52'; $e[0].Info | Should -Be ''
+            { InModuleScope iGWindowsTuner { ConvertFrom-IgwtFirewallLog -Lines @('#Fields: date time action', '', '2026-10-29 20:00:01 DROP') } } | Should -Not -Throw
+            @(InModuleScope iGWindowsTuner { ConvertFrom-IgwtFirewallLog -Lines @('#Fields: date time action', '', '2026-10-29 20:00:01 DROP') }).Count | Should -Be 1
+        }
+        It 'regression 3.5: access denied says administrator rights, not "not found" (cause B)' {
+            # Test-Path returns $false for a file it may not read, so a non-elevated read said the log did not exist.
+            Mock -ModuleName iGWindowsTuner Open-IgwtFirewallLogStream { throw (New-Object System.UnauthorizedAccessException('Access to the path is denied.')) }
+            $r = InModuleScope iGWindowsTuner { Read-IgwtFirewallLogFile -Path 'C:\Windows\System32\LogFiles\Firewall\pfirewall.log' }
+            $r.Reason | Should -Be 'AccessDenied'
+            $r.Message | Should -Match 'administrator'
+            $r.Message | Should -Not -Match 'not found|does not exist'
+            { InModuleScope iGWindowsTuner { Read-IgwtFirewallLog -Path 'C:\Windows\System32\LogFiles\Firewall\pfirewall.log' } } | Should -Throw '*administrator*'
+        }
+        It 'tells a missing file from a missing folder' {
+            (InModuleScope iGWindowsTuner -Parameters @{ P = (Join-Path $TestDrive 'none.log') } { param($P) Read-IgwtFirewallLogFile -Path $P }).Reason | Should -Be 'NotFound'
+            $r = InModuleScope iGWindowsTuner -Parameters @{ P = (Join-Path $TestDrive 'nofolder\pfirewall.log') } { param($P) Read-IgwtFirewallLogFile -Path $P }
+            $r.Reason | Should -Be 'FolderNotFound'; $r.Message | Should -Match 'mpssvc'
+        }
+        It 'reads while the writer keeps the file open, and skips a partial last line' {
+            $live = Join-Path $TestDrive 'live.log'
+            $w = New-Object System.IO.FileStream($live, 'Create', 'Write', ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+            try {
+                $b = [Text.Encoding]::ASCII.GetBytes("#Fields: date time action protocol src-ip dst-ip src-port dst-port size tcpflags tcpsyn tcpack tcpwin icmptype icmpcode info path`r`n`r`n2026-10-29 20:00:01 DROP UDP 198.51.100.7 192.168.1.10 5353 5353 120 - - - - - - - RECEIVE`r`n2026-10-29 20:00:02 DROP UDP 198.51")
+                $w.Write($b, 0, $b.Length); $w.Flush()
+                $r = InModuleScope iGWindowsTuner -Parameters @{ P = $live } { param($P) Read-IgwtFirewallLogFile -Path $P }
+            } finally { $w.Dispose() }
+            $r.Reason | Should -Be 'Ok'
+            @($r.Entries).Count | Should -Be 1
+            $r.Skipped.Partial | Should -Be 1
+            $r.Entries[0].ProcessId | Should -Be '' -Because 'this header has no pid column'
+        }
+        It 'takes the columns from the #Fields header, not a fixed order' {
+            $e = @(InModuleScope iGWindowsTuner { ConvertFrom-IgwtFirewallLog -Lines @('#Fields: time date dst-port action src-ip', '20:00:01 2026-10-29 443 ALLOW 10.0.0.2', 'too few fields') })
+            $e.Count | Should -Be 1
+            $e[0].Action | Should -Be 'ALLOW'; $e[0].DestinationPort | Should -Be '443'; $e[0].Source | Should -Be '10.0.0.2'
+            $e[0].Time | Should -Be ([datetime]'2026-10-29 20:00:01')
+            $s = InModuleScope iGWindowsTuner { ConvertFrom-IgwtFirewallLogText -Text "2026 data before header`n#Fields: date time action`nbad`n" }
+            $s.Skipped.NoHeader | Should -Be 1; $s.Skipped.FieldCount | Should -Be 1
+        }
+        It 'reads the rotated .old file first when asked' {
+            $dir = Join-Path $TestDrive 'rot'; $null = New-Item -ItemType Directory $dir
+            $hdr = "#Fields: date time action protocol src-ip dst-ip src-port dst-port`r`n"
+            [IO.File]::WriteAllText((Join-Path $dir 'pfirewall.log.old'), $hdr + "2026-10-29 19:00:00 DROP TCP 1.1.1.1 2.2.2.2 1 2`r`n")
+            [IO.File]::WriteAllText((Join-Path $dir 'pfirewall.log'), $hdr + "2026-10-29 20:00:00 DROP TCP 3.3.3.3 2.2.2.2 1 2`r`n")
+            $e = @(InModuleScope iGWindowsTuner -Parameters @{ P = (Join-Path $dir 'pfirewall.log') } { param($P) Read-IgwtFirewallLog -Path $P -IncludeOld })
+            $e.Count | Should -Be 2; $e[0].Source | Should -Be '1.1.1.1'
+        }
+        It 'the report names each profile that does not log, and reads the log of the others' {
+            $f = $script:LogFile
+            Mock -ModuleName iGWindowsTuner Get-NetFirewallProfile {
+                @([pscustomobject]@{ Name = 'Domain'; Enabled = 'True'; LogBlocked = 'True'; LogAllowed = 'False'; LogFileName = $f; LogMaxSizeKilobytes = 32767; DefaultOutboundAction = 'NotConfigured' },
+                    [pscustomobject]@{ Name = 'Public'; Enabled = 'True'; LogBlocked = 'False'; LogAllowed = 'False'; LogFileName = $f; LogMaxSizeKilobytes = 32767; DefaultOutboundAction = 'NotConfigured' })
+            }
+            $text = (@(InModuleScope iGWindowsTuner { Get-IgwtFirewallLogReport }) -join "`n")
+            $text | Should -Match 'Logging is off for the Public profile'
+            $text | Should -Not -Match 'Logging is off for the Domain'
+            $text | Should -Match '4 entries from'
+            $text | Should -Match '1 partial last line' -Because 'the fixture''s last line has no line break'
         }
         It 'reports logging per profile' {
             Mock -ModuleName iGWindowsTuner Get-NetFirewallProfile { @([pscustomobject]@{ Name = 'Public'; Enabled = 'True'; LogBlocked = 'False'; LogAllowed = 'False'; LogFileName = '%systemroot%\system32\LogFiles\Firewall\pfirewall.log'; LogMaxSizeKilobytes = 4096; DefaultOutboundAction = 'NotConfigured' }) }
