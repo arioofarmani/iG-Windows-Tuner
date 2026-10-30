@@ -26,7 +26,7 @@ Describe 'Forensic logging' {
                 foreach ($n in $names) { $f = $script:FakeFw[$n]; [pscustomobject]@{ Name = $n; LogBlocked = $f.LogBlocked; LogAllowed = $f.LogAllowed; LogMaxSizeKilobytes = $f.LogMaxSizeKilobytes; LogFileName = $f.LogFileName } }
             }
             Mock Set-NetFirewallProfile {
-                if ($script:FailOn -eq 'firewall') { throw 'simulated firewall failure' }
+                if ($script:FailOn -eq 'firewall') { $script:FailOn = ''; throw 'simulated firewall failure' }   # fails the first call (the change), not the restore
                 $f = $script:FakeFw[[string]$Name]
                 if ($PesterBoundParameters.ContainsKey('LogBlocked')) { $f.LogBlocked = [string]$LogBlocked }
                 if ($PesterBoundParameters.ContainsKey('LogAllowed')) { $f.LogAllowed = [string]$LogAllowed }
@@ -45,6 +45,7 @@ Describe 'Forensic logging' {
                     '/restore' { $script:FakeAudit = $script:FakeAuditBackup.Clone(); return [pscustomobject]@{ ExitCode = 0; Output = '' } }
                     '/set' {
                         $g = ($Arguments[1] -replace '^/subcategory:\{|\}$', '').ToUpperInvariant()
+                        if ($script:FailOn -eq 'audit' -and $g -eq '0CCE9225-69AE-11D9-BED3-505054503030') { return [pscustomobject]@{ ExitCode = 1; Output = 'simulated audit failure' } }
                         $s = $Arguments[2] -eq '/success:enable'; $f = $Arguments[3] -eq '/failure:enable'
                         $script:FakeAudit[$g] = $(if ($s -and $f) { 'SuccessAndFailure' } elseif ($s) { 'Success' } elseif ($f) { 'Failure' } else { 'None' })
                         return [pscustomobject]@{ ExitCode = 0; Output = '' }
@@ -173,6 +174,48 @@ Describe 'Forensic logging' {
         $src = Get-Content (Join-Path $script:IgwtProjectRoot 'src\Defender\ForensicLogging.ps1') -Raw
         $src | Should -Not -Match "(?i)'cl'|clear-log|Clear-EventLog|Remove-EventLog|Limit-EventLog|Register-ScheduledTask|New-Service"
         { InModuleScope iGWindowsTuner { & ${function:Invoke-IgwtWevtutil} -Arguments @('cl', 'Security') } } | Should -Throw '*not used*' -Because 'the real function, not the mock, refuses to clear a log'
+    }
+    It 'review 3.5 #1: restores the audit policy when the second auditpol /set fails' {
+        InModuleScope iGWindowsTuner {
+            $before = ($script:FakeAudit | ConvertTo-Json)
+            $script:FailOn = 'audit'
+            { Start-IgwtForensicLoggingSession -Plan (Get-IgwtForensicLoggingPlan -LoggingProfile Full) -Confirm:$false } | Should -Throw '*simulated audit failure*'
+            $script:FailOn = ''
+            ($script:FakeAudit | ConvertTo-Json) | Should -Be $before -Because 'the backup was taken before any change and restored'
+            Get-IgwtForensicSession | Should -BeNullOrEmpty
+        }
+    }
+    It 'review 3.5 #2/#3: an incomplete rollback keeps the record (rollback-incomplete) so it can be retried' {
+        InModuleScope iGWindowsTuner {
+            Mock Set-NetFirewallProfile { throw 'simulated firewall failure' }
+            { Start-IgwtForensicLoggingSession -Plan (Get-IgwtForensicLoggingPlan -LoggingProfile Basic) -Confirm:$false } | Should -Throw '*could not be restored*'
+            $s = Get-IgwtForensicSession
+            $s.Status | Should -Be 'rollback-incomplete'
+            $s.Expired | Should -BeTrue -Because 'it needs restoring'
+        }
+    }
+    It 'review 3.5 #4: a damaged session record is reported and restored from the newest forensic snapshot' {
+        InModuleScope iGWindowsTuner {
+            $null = Start-IgwtForensicLoggingSession -Plan (Get-IgwtForensicLoggingPlan -LoggingProfile Basic) -Confirm:$false
+            [IO.File]::WriteAllText((Get-IgwtForensicSessionPath), '{ "kind": "igwt-forensic-session", "started": "not a date" }')
+            $s = Get-IgwtForensicSession
+            $s.Corrupt | Should -BeTrue
+            { Get-IgwtForensicLoggingState } | Should -Not -Throw
+            (Stop-IgwtForensicLoggingSession -Confirm:$false).Stopped | Should -BeTrue
+            $script:FakeFw['Domain'].LogBlocked | Should -Be 'False'
+            Get-IgwtForensicSession | Should -BeNullOrEmpty
+            { Stop-IgwtForensicLoggingSession -SnapshotPath 'C:\Windows' -Confirm:$false } | Should -Not -Throw -Because 'with no session there is nothing to stop'
+        }
+    }
+    It 'review 3.5 #5: Start makes the plan again (a policy that appeared after the preview is respected)' {
+        InModuleScope iGWindowsTuner {
+            $plan = Get-IgwtForensicLoggingPlan -LoggingProfile Basic
+            Mock Get-IgwtRegistryValue { [pscustomobject]@{ Exists = ($Path -like '*DomainProfile\Logging'); Value = 1 } }
+            $null = Start-IgwtForensicLoggingSession -Plan $plan -Confirm:$false
+            $script:FakeFw['Domain'].LogBlocked | Should -Be 'False' -Because 'Domain is now set by a policy'
+            $script:FakeFw['Private'].LogBlocked | Should -Be 'True'
+            (Stop-IgwtForensicLoggingSession -Confirm:$false).Stopped | Should -BeTrue
+        }
     }
     It 'estimates the volume from the connection rate' {
         InModuleScope iGWindowsTuner {

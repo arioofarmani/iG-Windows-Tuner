@@ -1082,6 +1082,26 @@
                                     <TextBlock x:Name="FwForEstimateText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,6,0,0" Text=""/>
                                     <TextBlock x:Name="FwForStatusText" TextWrapping="Wrap" Margin="0,6,0,0" Text="Not read yet."/>
                                     <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,10,0,0" Text="Gaming: start a time-boxed session when you want to look into something, rather than leaving forensic logging on during competitive play. The firewall log has no program names; WFP auditing adds them; the DNS log adds the names behind addresses."/>
+                                    <TextBlock Style="{StaticResource TextSection}" Text="Evidence and export" Margin="0,16,0,4"/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Copies only: the original logs are read, never moved, changed or cleared. Nothing is uploaded. Exports contain sensitive data (addresses, programs, names): keep them private. Reading the Security log and the default firewall log needs administrator rights."/>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <TextBox x:Name="FwExpFromBox" Width="130" Margin="0,0,12,6" ToolTip="Start of the time range, local, as yyyy-MM-dd HH:mm (empty: 24 hours ago)."/>
+                                        <TextBlock Text="To" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <TextBox x:Name="FwExpToBox" Width="130" Margin="0,0,12,6" ToolTip="End of the time range, local, as yyyy-MM-dd HH:mm (empty: now)."/>
+                                        <CheckBox x:Name="FwExpZipBox" Content="Also as a zip" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="Adds a zip of the evidence folder with its SHA256 next to it."/>
+                                        <Button x:Name="FwExpEvidenceButton" Content="Collect evidence package..." Margin="0,0,8,6" ToolTip="Pick a folder: copies of the firewall logs, .evtx exports of the WFP and DNS events, the firewall policy and settings, listening ports and processes, your notes, a manifest with SHA256 hashes and a chain-of-custody file."/>
+                                    </WrapPanel>
+                                    <WrapPanel>
+                                        <TextBlock Text="AI export format" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                        <ComboBox x:Name="FwExpFormatBox" Width="90" Margin="0,0,12,6" ToolTip="JSONL: one event per line. CSV: protected against spreadsheet formulas.">
+                                            <ComboBoxItem Content="JSONL" IsSelected="True"/>
+                                            <ComboBoxItem Content="CSV"/>
+                                        </ComboBox>
+                                        <CheckBox x:Name="FwExpRawBox" Content="Raw (no pseudonyms, local use only)" Margin="0,0,14,6" VerticalAlignment="Center" ToolTip="By default internal addresses, local host names, user names and user folders are replaced by consistent pseudonyms. Raw keeps them: never share a raw export."/>
+                                        <Button x:Name="FwExpDatasetButton" Content="Export for AI analysis..." Margin="0,0,8,6" ToolTip="Pick a folder: the firewall log, WFP and DNS events in one schema (files of about 5 MB), a flow summary, SCHEMA.md and ANALYSIS_BRIEF.md."/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="FwExpStatusText" TextWrapping="Wrap" Margin="0,4,0,0" Text=""/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

@@ -220,10 +220,13 @@ Describe 'Firewall log performance budgets (spec 3.5 section 3.1)' {
             @{ Name = 'search'; Q = { $q = New-Object IgwtFirewallLog.Query; $q.Search = '3389 receive'; $q } }
             @{ Name = 'sort 2 keys'; Q = { $q = New-Object IgwtFirewallLog.Query; $q.SortKeys = [string[]]@('Source', 'TimeText'); $q.SortDescending = [bool[]]@($false, $true); $q } }
         )
-        # Warm-up (first CIDR query parses the addresses once).
-        $null = [IgwtFirewallLog.Engine]::Run($script:BigRows, (& $cases[1].Q))
+        # Warm-up: one untimed run of each case (JIT, and the first CIDR query parses the addresses once).
+        foreach ($case in $cases) { $null = [IgwtFirewallLog.Engine]::Run($script:BigRows, (& $case.Q)) }
         foreach ($case in $cases) {
             $q = & $case.Q
+            # Garbage left by earlier work (parsing 32 MB) is collected first, so a full collection it would
+            # trigger does not land in this measurement; collections the query itself causes still count.
+            [GC]::Collect(); [GC]::WaitForPendingFinalizers()
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $n = @([IgwtFirewallLog.Engine]::Run($script:BigRows, $q)).Count
             $ms = $sw.ElapsedMilliseconds

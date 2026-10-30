@@ -218,7 +218,7 @@ function Initialize-IgwtGuiFirewallLogPage {
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
-    $script:Gui.FwLog = @{ All = $null; View = $null; Files = @(); Tails = @(); Notes = (Read-IgwtGuiFirewallLogNotes); PortInfo = @{}; FullApplied = $false; Timer = $null }
+    $script:Gui.FwLog = @{ All = $null; View = $null; Files = @(); Tails = @(); Notes = (Read-IgwtGuiFirewallLogNotes); PortInfo = @{}; FullApplied = $false; Timer = $null; TailGen = 0 }
     try {
         foreach ($p in @((Get-IgwtFirewallKnowledgeBase).Ports)) { $script:Gui.FwLog.PortInfo["$($p.protocol)/$($p.port)"] = [string]$p.name }
     } catch { Write-Verbose "Port names not loaded: $($_.Exception.Message)" }
@@ -281,7 +281,7 @@ function Show-IgwtGuiFirewallLogResult {
         $c.FwLogStatusText.Text = "The firewall log could not be read: $(@($Errors)[0])"
         return
     }
-    if (-not $Result.Quick) { $log.FullApplied = $true; $log.Files = @($Result.Files) }
+    if (-not $Result.Quick) { $log.FullApplied = $true; $log.Files = @($Result.Files); $log.Tails = @(); $log.TailGen++ }
     $log.All = $Result.Entries
     $parts = New-Object System.Collections.Generic.List[string]
     $label = @{ NoHeader = 'before the #Fields header'; FieldCount = 'wrong number of fields'; Partial = 'partial last line' }
@@ -356,7 +356,8 @@ function Set-IgwtGuiFirewallLogFollow {
     if (-not $On) { $c.FwLogFollowButton.IsChecked = $false; return }
     $current = @($log.Files | Where-Object { $_.Current })
     if (-not $log.FullApplied -or -not $current.Count) { $c.FwLogFollowButton.IsChecked = $false; Set-IgwtGuiStatus 'Read the whole log first, then follow it.'; return }
-    $log.Tails = @(foreach ($f in $current) { New-IgwtFirewallLogTail -Path $f.Path -Offset $f.EndOffset -Fields ([string[]]$f.Fields) -TimeIsUtc ([bool]$f.TimeIsUtc) })
+    # The tail readers keep their position across pause and resume; a new full read starts them again.
+    if (-not @($log.Tails).Count) { $log.Tails = @(foreach ($f in $current) { New-IgwtFirewallLogTail -Path $f.Path -Offset $f.EndOffset -Fields ([string[]]$f.Fields) -TimeIsUtc ([bool]$f.TimeIsUtc) }) }
     if (-not $log.Timer) {
         $t = New-Object System.Windows.Threading.DispatcherTimer
         $t.Interval = [TimeSpan]::FromSeconds(2)
@@ -374,10 +375,13 @@ function Invoke-IgwtGuiFirewallLogPoll {
     param()
     $log = $script:Gui.FwLog
     if (-not @($log.Tails).Count) { return }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtFirewallLogTail' -Parameters @{ Tail = @($log.Tails) } -Channel 'firewall-log-tail' -BusyText 'Following the firewall log...' -OnComplete {
-        param($out, $errs)
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtFirewallLogTail' -Parameters @{ Tail = @($log.Tails) } -Channel 'firewall-log-tail' -BusyText 'Following the firewall log...' -Context @{ Gen = $log.TailGen } -OnComplete {
+        param($out, $errs, $ctx)
         $r = @($out) | Select-Object -Last 1
         $c = $script:Gui.C
+        # The log was read again while this poll ran (the readers were reset): its entries are already in the new read.
+        # A pause keeps the result: the readers moved past these entries, so they are new and appear once.
+        if ($ctx.Gen -ne $script:Gui.FwLog.TailGen) { return }
         if (-not $r) { if (@($errs).Count) { $c.FwLogStatusText.Text = "Following stopped: $(@($errs)[0])"; Set-IgwtGuiFirewallLogFollow -On $false }; return }
         if (@($r.Messages).Count) { $c.FwLogStatusText.Text = "Following stopped: $(@($r.Messages)[0])"; Set-IgwtGuiFirewallLogFollow -On $false; return }
         if ($r.Rotated) { $c.FwLogStatusText.Text = 'The log was rotated by Windows; following the new file. Read the log again to include the older entries.' }

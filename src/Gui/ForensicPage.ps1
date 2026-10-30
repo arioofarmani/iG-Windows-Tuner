@@ -19,6 +19,8 @@ function Initialize-IgwtGuiForensicPage {
     Register-IgwtGuiHandler -Control $c.ForensicBannerStopButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicStop }
     Register-IgwtGuiHandler -Control $c.ForensicBannerOpenButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Firewall'; $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwForensicTab }
     Register-IgwtGuiHandler -Control $c.FwForEstimateButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicEstimate }
+    Register-IgwtGuiHandler -Control $c.FwExpEvidenceButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicExport -Kind Evidence }
+    Register-IgwtGuiHandler -Control $c.FwExpDatasetButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicExport -Kind Dataset }
     foreach ($n in 'FwForBasic', 'FwForFull', 'FwForCustom') { Register-IgwtGuiHandler -Control $c[$n] -Event 'Checked' -Handler { Update-IgwtGuiForensicChoice } }
     Update-IgwtGuiForensicChoice
     $writable = -not (Test-IgwtReadOnly)
@@ -188,7 +190,10 @@ function Update-IgwtGuiForensicBanner {
     $c = $script:Gui.C
     if (-not $Session) { $c.ForensicBanner.Visibility = 'Collapsed'; return }
     $c.ForensicBanner.Visibility = 'Visible'
-    if ($Session.Corrupt) { $c.ForensicBannerText.Text = "$($Session.Message) The snapshot folders are in %ProgramData%\iGWindowsTuner\Backups (forensic-*)."; return }
+    $admin = $(if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { ' (needs administrator rights, not in read-only mode)' } else { '' })
+    if ($Session.Corrupt) { $c.ForensicBannerText.Text = "$($Session.Message) Stop and restore$admin."; return }
+    if ($Session.Status -eq 'starting') { $c.ForensicBannerText.Text = "Starting forensic logging did not finish (the app may have closed). Stop and restore the previous settings$admin."; return }
+    if ($Session.Status -eq 'rollback-incomplete') { $c.ForensicBannerText.Text = "Forensic logging could not be fully undone: $($Session.Message) Stop and restore to try again$admin."; return }
     $since = '{0:HH:mm}' -f $Session.Started
     if ($Session.Expired -and -not $script:Gui.Forensic.Running) {
         $c.ForensicBannerText.Text = "A forensic logging session ended at $('{0:yyyy-MM-dd HH:mm}' -f $Session.Until) while iG Windows Tuner was closed; its settings are still on. Stop and restore them now$(if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { ' (needs administrator rights, not in read-only mode)' })."
@@ -210,5 +215,54 @@ function Invoke-IgwtGuiForensicEstimate {
         $e = Get-IgwtForensicVolumeEstimate -ConnectionsPerHour $m.PerHour
         $ret = (@($e.Retention | ForEach-Object { '{0} MB about {1} h' -f $_.SizeMB, $_.Hours }) -join ', ')
         $script:Gui.C.FwForEstimateText.Text = ('{0} new connections in {1} s: about {2:N0} WFP events per hour. Security log retention: {3}. {4} Use the PC as you normally would while measuring.' -f $m.New, $m.Seconds, $e.EventsPerHour, $ret, $e.Assumption)
+    }
+}
+
+function Invoke-IgwtGuiForensicExport {
+    <#
+    .SYNOPSIS
+        Asks for a folder and collects an evidence package or writes the AI export there in the
+        background. Reads only; writes only into the chosen folder.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes only into the folder the user chooses.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Evidence', 'Dataset')][string]$Kind)
+    $c = $script:Gui.C
+    Initialize-IgwtFirewallLogEngine
+    $check = Test-IgwtGuiFirewallLogFilter -From $c.FwExpFromBox.Text -To $c.FwExpToBox.Text
+    if ($check.Error) { $c.FwExpStatusText.Text = $check.Error; return }
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $from = $(if ($check.Filters['@From']) { [datetime]::ParseExact($check.Filters['@From'][0], 'yyyy-MM-dd HH:mm', $inv) } else { (Get-Date).AddHours(-24) })
+    $to = $(if ($check.Filters['@To']) { [datetime]::ParseExact($check.Filters['@To'][0], 'yyyy-MM-dd HH:mm', $inv).AddSeconds(59) } else { Get-Date })
+    if ($to -le $from) { $c.FwExpStatusText.Text = 'The end of the time range must be after its start.'; return }
+    $raw = ($Kind -eq 'Dataset' -and [bool]$c.FwExpRawBox.IsChecked)
+    if ($raw -and (Show-IgwtGuiMessage -Text "A raw export keeps internal addresses, user names and folder paths.`n`nUse it only on this PC and never share it. Continue?" -Title 'iG Windows Tuner - raw export' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+    Add-Type -AssemblyName System.Windows.Forms
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = 'Pick a local folder for the export (a new subfolder is created). Exports contain sensitive data: keep them private.'
+    if ($dlg.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+    $dest = $dlg.SelectedPath
+    if ($dest -match '^\\\\') { $c.FwExpStatusText.Text = 'Pick a folder on a local disk: exports are not written to network shares.'; return }
+    $notes = $(if ($script:Gui.FwLog) { $script:Gui.FwLog.Notes } else { @{} })
+    if ($Kind -eq 'Evidence') {
+        $c.FwExpStatusText.Text = 'Collecting the evidence package...'
+        $null = Start-IgwtGuiJob -Command 'Export-IgwtEvidencePackage' -Parameters @{ Destination = $dest; From = $from; To = $to; Notes = $notes; Zip = [bool]$c.FwExpZipBox.IsChecked; Confirm = $false } -Channel 'forensic-export' -BusyText 'Collecting the evidence package (read-only for the PC)...' -OnComplete {
+            param($out, $errs)
+            $r = @($out) | Select-Object -Last 1
+            if (-not $r) { $script:Gui.C.FwExpStatusText.Text = "The evidence package was not collected: $(@($errs)[0])"; return }
+            $missing = @($r.Sources | Where-Object { $_.status -notin 'copied', 'exported', 'off' } | ForEach-Object { "$($_.source): $($_.detail)" })
+            $script:Gui.C.FwExpStatusText.Text = "Evidence package: $($r.Folder) ($($r.Files) files, manifest SHA256 $($r.ManifestSha256))$(if ($r.Zip) { "; zip $($r.Zip)" }).$(if ($missing.Count) { ' Not collected: ' + ($missing -join '; ') })"
+            Show-IgwtGuiToast -Text 'The evidence package is ready.' -Tone Success
+        }
+    } else {
+        $format = @('JSONL', 'CSV')[[Math]::Max(0, $c.FwExpFormatBox.SelectedIndex)]
+        $c.FwExpStatusText.Text = 'Writing the AI export...'
+        $null = Start-IgwtGuiJob -Command 'Export-IgwtForensicDataset' -Parameters @{ Destination = $dest; From = $from; To = $to; Notes = $notes; Format = $format; Raw = $raw; Confirm = $false } -Channel 'forensic-export' -BusyText 'Writing the AI export (read-only for the PC)...' -OnComplete {
+            param($out, $errs)
+            $r = @($out) | Select-Object -Last 1
+            if (-not $r) { $script:Gui.C.FwExpStatusText.Text = "The export was not written: $(@($errs)[0])"; return }
+            $script:Gui.C.FwExpStatusText.Text = "AI export: $($r.Folder) ($($r.Rows) events: firewall log $($r.Counts.fwlog), WFP $($r.Counts.wfp), DNS $($r.Counts.dns); $(if ($r.Pseudonymized) { 'pseudonymized' } else { 'RAW, local use only' })). $(@($r.Messages) -join ' ')"
+            Show-IgwtGuiToast -Text 'The AI export is ready. Read ANALYSIS_BRIEF.md first.' -Tone Success
+        }
     }
 }

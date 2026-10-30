@@ -305,7 +305,14 @@ function Export-IgwtFirewallLogAnalysis {
     param([Parameter(Mandatory = $true)]$Analysis, [AllowEmptyCollection()][object[]]$Entries = @(), [Parameter(Mandatory = $true)][string]$Path)
     if (-not $PSCmdlet.ShouldProcess($Path, 'Export firewall log analysis')) { return }
     $utf = New-Object System.Text.UTF8Encoding($false)
-    if ($Path -match '\.csv$') { [System.IO.File]::WriteAllText($Path, ((@($Entries | ConvertTo-Csv -NoTypeInformation) -join "`r`n") + "`r`n"), $utf) }
+    if ($Path -match '\.csv$') {
+        # Log values come from the network: cells are protected against spreadsheet formulas.
+        Initialize-IgwtFirewallLogEngine
+        $list = New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Entry]'
+        foreach ($e in $Entries) { if ($e -is [IgwtFirewallLog.Entry]) { $list.Add($e) } }
+        $keys = [string[]]@('TimeText', 'Action', 'Protocol', 'Source', 'Destination', 'SourcePort', 'DestinationPort', 'Size', 'TcpFlags', 'Direction', 'ProcessId', 'Process', 'Note')
+        [System.IO.File]::WriteAllLines($Path, [IgwtFirewallLog.Engine]::CsvLines($list, $keys, $keys), $utf)
+    }
     else { [System.IO.File]::WriteAllText($Path, ($Analysis | ConvertTo-Json -Depth 5), $utf) }
 }
 

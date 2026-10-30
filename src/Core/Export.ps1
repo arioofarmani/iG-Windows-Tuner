@@ -38,3 +38,21 @@ function ConvertTo-IgwtSafeCsv {
     }
     return $out.ToArray()
 }
+
+function Test-IgwtNetworkPath {
+    <#
+    .SYNOPSIS
+        True for a path on a network share: \\server\share, //server/share, or a drive letter mapped
+        to a network drive. Forensic logs and exports are only written to local disks. Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowEmptyString()][string]$Path)
+    if (-not $Path) { return $false }
+    $p = $Path.Trim().Replace('/', '\')
+    if ($p.StartsWith('\\')) { return $true }
+    if ($p -match '^([A-Za-z]):') {
+        try { return ((New-Object System.IO.DriveInfo($Matches[1])).DriveType -eq [System.IO.DriveType]::Network) } catch { return $false }
+    }
+    return $false
+}

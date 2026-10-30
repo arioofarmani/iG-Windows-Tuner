@@ -94,7 +94,7 @@ function Get-IgwtForensicLoggingState {
                 Profile = $name; LogBlocked = ([string]$p.LogBlocked -eq 'True'); LogAllowed = ([string]$p.LogAllowed -eq 'True'); LogMaxKB = [int]$p.LogMaxSizeKilobytes
                 LogFile = [Environment]::ExpandEnvironmentVariables([string]$p.LogFileName); RawLogBlocked = [string]$p.LogBlocked; RawLogAllowed = [string]$p.LogAllowed
                 ManagedBy = $(if (@($policy.Firewall[$name]).Count) { 'Policy' } else { 'Local' }); PolicyValues = @($policy.Firewall[$name])
-                OnNetworkShare = ([string]$p.LogFileName).StartsWith('\\')
+                OnNetworkShare = (Test-IgwtNetworkPath -Path ([Environment]::ExpandEnvironmentVariables([string]$p.LogFileName)))
             }
         })
     $audit = $null
@@ -179,44 +179,80 @@ function Get-IgwtForensicSessionPath {
 function Get-IgwtForensicSession {
     <#
     .SYNOPSIS
-        The running forensic logging session (or $null): when it started, when it ends, its snapshot,
-        and Expired when the end has passed (for example while iG Windows Tuner was closed: there is
-        no scheduled task, so the next start offers to restore). Read-only.
+        The recorded forensic logging session (or $null): status (starting, active, rollback-incomplete),
+        when it started and ends, its snapshot, and Expired when it needs restoring (the end has passed,
+        for example while iG Windows Tuner was closed, or a start or rollback did not finish). A damaged
+        record comes back with Corrupt (Stop-IgwtForensicLoggingSession can then restore the newest
+        snapshot). There is no scheduled task: the next start of the app checks this. Read-only.
     #>
     [CmdletBinding()]
     param([datetime]$Now = (Get-Date))
     $path = Get-IgwtForensicSessionPath
     if (-not (Test-Path -LiteralPath $path)) { return $null }
-    try { $s = Read-IgwtJsonFile -Path $path } catch { return [pscustomobject]@{ Corrupt = $true; Path = $path; Message = "The forensic session record is unreadable: $($_.Exception.Message)" } }
-    $until = $(if ([string]$s.until) { [datetime]::Parse([string]$s.until, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime() } else { $null })
-    [pscustomobject]@{
-        Corrupt = $false; Path = $path; Profile = [string]$s.profile; Snapshot = [string]$s.snapshot
-        Started = [datetime]::Parse([string]$s.started, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
-        Until = $until; Expired = ($null -ne $until -and $Now -ge $until); Changes = @($s.changes)
+    try {
+        $s = Read-IgwtJsonFile -Path $path
+        $inv = [System.Globalization.CultureInfo]::InvariantCulture
+        $rt = [System.Globalization.DateTimeStyles]::RoundtripKind
+        if ([string]$s.kind -ne 'igwt-forensic-session' -or -not [string]$s.started -or -not [string]$s.snapshot) { throw 'required fields are missing' }
+        $started = [datetime]::Parse([string]$s.started, $inv, $rt).ToLocalTime()
+        $until = $(if ([string]$s.until) { [datetime]::Parse([string]$s.until, $inv, $rt).ToLocalTime() } else { $null })
+        $status = $(if ([string]$s.status) { [string]$s.status } else { 'active' })
+        return [pscustomobject]@{
+            Corrupt = $false; Path = $path; Status = $status; Profile = [string]$s.profile; Snapshot = [string]$s.snapshot
+            Started = $started; Until = $until; Expired = ($status -ne 'active' -or ($null -ne $until -and $Now -ge $until)); Changes = @($s.changes); Message = [string]$s.message
+        }
+    } catch {
+        return [pscustomobject]@{ Corrupt = $true; Path = $path; Status = 'corrupt'; Expired = $true; Snapshot = ''; Message = "The forensic session record is damaged ($($_.Exception.Message)). Stop and restore uses the newest forensic snapshot." }
     }
+}
+
+function Save-IgwtForensicSessionRecord {
+    <# .SYNOPSIS Writes the session record (ProgramData State folder). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes the tool''s own session record; called by the session functions after their ShouldProcess.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Record)
+    $file = Get-IgwtForensicSessionPath
+    $dir = Split-Path -Parent $file
+    if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+    [System.IO.File]::WriteAllText($file, (ConvertTo-IgwtJson -InputObject $Record), (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Get-IgwtForensicSnapshotFolders {
+    <# .SYNOPSIS The forensic snapshot folders in the Backups folder, newest first. Read-only. #>
+    [CmdletBinding()]
+    param()
+    $root = Get-IgwtDataPath -Kind Backups
+    if (-not (Test-Path -LiteralPath $root)) { return @() }
+    @(Get-ChildItem -LiteralPath $root -Directory -Filter 'forensic-*' | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'snapshot.json') } | Sort-Object Name -Descending | ForEach-Object { $_.FullName })
 }
 
 function Start-IgwtForensicLoggingSession {
     <#
     .SYNOPSIS
-        Starts forensic logging: snapshots every setting the plan touches (firewall profile logging,
-        audit subcategories through auditpol /backup, Security log size, DNS client log), applies the
-        plan, and records a session that ends after -Minutes (0 = until stopped). When a step fails,
-        everything applied so far is restored. Revert with Stop-IgwtForensicLoggingSession.
+        Starts forensic logging. The plan is made again from the current state (a policy that appeared
+        after the preview is respected, and settings only ever go up). Then: snapshot of every setting
+        it touches (firewall profile logging, the audit subcategories through auditpol /backup, Security
+        log size, DNS client log), a session record (status starting), the changes, and status active
+        with the end time (-Minutes; 0 = until stopped). When a step fails, everything applied so far is
+        restored; if that restore is incomplete the record stays (rollback-incomplete) so it can be retried.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Plan, [ValidateSet(0, 30, 120, 480)][int]$Minutes = 120)
     Assert-IgwtWritable -Operation 'Start-IgwtForensicLoggingSession'
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Forensic logging needs administrator rights.' }
     $existing = Get-IgwtForensicSession
-    if ($existing) { throw 'A forensic logging session is already recorded. Stop it (or restore an expired one) first.' }
-    $todo = @($Plan.Ops | Where-Object { $_.Changes })
+    if ($existing) { throw 'A forensic logging session is already recorded. Stop and restore it first.' }
+    $options = @{}
+    if ($Plan.Options) { foreach ($k in @($Plan.Options.Keys)) { $options[$k] = $Plan.Options[$k] } }
+    $sizeMB = $(if ([int]$Plan.SecurityLogMB -in 256, 512, 1024) { [int]$Plan.SecurityLogMB } else { 512 })
+    $fresh = Get-IgwtForensicLoggingPlan -LoggingProfile ([string]$Plan.Profile) -Options $options -SecurityLogMB $sizeMB
+    $todo = @($fresh.Ops | Where-Object { $_.Changes })
     if (-not $todo.Count) { throw 'Nothing to change: every setting of this profile is already on (or set by a policy).' }
     if (-not $PSCmdlet.ShouldProcess('Forensic logging', "$($todo.Count) change(s), $(if ($Minutes) { "$Minutes min" } else { 'until stopped' })")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $dir = Join-Path (Get-IgwtDataPath -Kind Backups) ('forensic-{0}' -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
     $null = New-Item -ItemType Directory -Path $dir -Force
-    # Snapshot first: exact previous values of everything this plan can touch.
+    # 1. Snapshot first: exact previous values of everything this plan touches.
     $fw = @(foreach ($name in @($todo | Where-Object Source -EQ 'Firewall' | ForEach-Object { $_.Target } | Select-Object -Unique)) {
             $p = Get-NetFirewallProfile -Name $name -PolicyStore PersistentStore -ErrorAction Stop
             [ordered]@{ profile = $name; logBlocked = [string]$p.LogBlocked; logAllowed = [string]$p.LogAllowed; logMaxKB = [long]$p.LogMaxSizeKilobytes }
@@ -225,15 +261,32 @@ function Start-IgwtForensicLoggingSession {
             $cfg = Get-IgwtEventLogConfig -LogName $ln
             [ordered]@{ log = $ln; enabled = $cfg.Enabled; maxSizeBytes = $cfg.MaxSizeBytes; retention = $cfg.Retention; autoBackup = $cfg.AutoBackup }
         })
-    $snapshot = [ordered]@{ kind = 'igwt-forensic-snapshot'; created = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; profile = $Plan.Profile; firewall = $fw; eventLogs = $events; auditBackup = ''
+    $auditDir = ''
+    if (@($todo | Where-Object Source -EQ 'Wfp').Count) {
+        # The audit policy backup is taken here, before any change, in the format Restore-IgwtAuditPolicy reads.
+        $auditDir = Join-Path $dir 'audit'
+        $null = New-Item -ItemType Directory -Path $auditDir -Force
+        $csv = Join-Path $auditDir 'audit-before.csv'
+        $b = Invoke-IgwtAuditpol -Arguments @('/backup', "/file:$csv")
+        if ($b.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $csv)) { throw "auditpol /backup failed (exit $($b.ExitCode)): $($b.Output). Nothing was changed." }
+        $am = [ordered]@{ kind = 'igwt-audit-backup'; created = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; sha256 = (Get-FileHash -LiteralPath $csv -Algorithm SHA256).Hash; changes = @() }
+        [System.IO.File]::WriteAllText((Join-Path $auditDir 'manifest.json'), (ConvertTo-IgwtJson -InputObject $am), (New-Object System.Text.UTF8Encoding($false)))
+    }
+    $snapshot = [ordered]@{ kind = 'igwt-forensic-snapshot'; created = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; profile = $fresh.Profile; firewall = $fw; eventLogs = $events; auditBackup = $auditDir
         changes = @($todo | ForEach-Object { [ordered]@{ source = $_.Source; target = $_.Target; setting = $_.Setting; before = [string]$_.Current; after = [string]$_.New } }) }
-    $snapFile = Join-Path $dir 'snapshot.json'
-    $save = { [System.IO.File]::WriteAllText($snapFile, (ConvertTo-IgwtJson -InputObject $snapshot), (New-Object System.Text.UTF8Encoding($false))) }
-    & $save
-    $applied = $false
+    [System.IO.File]::WriteAllText((Join-Path $dir 'snapshot.json'), (ConvertTo-IgwtJson -InputObject $snapshot), (New-Object System.Text.UTF8Encoding($false)))
+    # 2. The session record before the first change: a crash from here on still leaves something to restore.
+    $now = Get-Date
+    $record = [ordered]@{ kind = 'igwt-forensic-session'; status = 'starting'; profile = $fresh.Profile; started = $now.ToUniversalTime().ToString('o')
+        until = $(if ($Minutes) { $now.AddMinutes($Minutes).ToUniversalTime().ToString('o') } else { '' }); snapshot = $dir; message = ''
+        changes = @($todo | ForEach-Object { "$($_.Source) $($_.Target) $($_.Setting) -> $($_.New)" }) }
+    Save-IgwtForensicSessionRecord -Record $record
+    # 3. The changes.
+    $failure = $null
     try {
         # The Security log grows before auditing starts, so the new events do not push old ones out.
         foreach ($op in @($todo | Where-Object Source -EQ 'SecurityLog')) {
+            if ([long]$op.New -le [long]$op.Current) { continue }
             $r = Invoke-IgwtWevtutil -Arguments @('sl', 'Security', "/ms:$([long]$op.New)")
             if ($r.ExitCode -ne 0) { throw "wevtutil sl Security failed (exit $($r.ExitCode)): $($r.Output)" }
         }
@@ -245,7 +298,6 @@ function Start-IgwtForensicLoggingSession {
         foreach ($op in @($todo | Where-Object Source -EQ 'Wfp')) { $wfp[$(if ($op.Target -like '*Connection') { $script:IgwtWfpConnectionGuid } else { $script:IgwtWfpPacketDropGuid })] = [string]$op.New }
         if ($wfp.Count) {
             $res = Set-IgwtAuditPolicy -Changes $wfp -Confirm:$false
-            $snapshot.auditBackup = [string]$res.Backup; & $save
             if (-not $res.Verified) { throw "The audit policy did not take effect for: $(@($res.Mismatch) -join ', ')." }
         }
         foreach ($name in @($todo | Where-Object Source -EQ 'Firewall' | ForEach-Object { $_.Target } | Select-Object -Unique)) {
@@ -254,25 +306,28 @@ function Start-IgwtForensicLoggingSession {
                 switch ($op.Setting) {
                     'LogBlocked' { $arg.LogBlocked = 'True' }
                     'LogAllowed' { $arg.LogAllowed = 'True' }
-                    'LogMaxKB' { $arg.LogMaxSizeKilobytes = [uint64]$op.New }
+                    'LogMaxKB' { if ([long]$op.New -gt [long]$op.Current) { $arg.LogMaxSizeKilobytes = [uint64]$op.New } }
                 }
             }
             Set-NetFirewallProfile @arg
         }
-        $applied = $true
-    } finally {
-        if (-not $applied) {
-            try { $null = Restore-IgwtForensicLogging -SnapshotPath $dir -Confirm:$false } catch { Write-IgwtLog -Level Error -Message "Forensic logging: restoring after a failed start failed: $($_.Exception.Message). Snapshot: $dir" }
+    } catch { $failure = $_ }
+    if ($failure) {
+        # Everything applied so far goes back; the record stays when that is incomplete.
+        $restore = $null
+        try { $restore = Restore-IgwtForensicLogging -SnapshotPath $dir -Confirm:$false } catch { $restore = [pscustomobject]@{ Complete = $false; Errors = @($_.Exception.Message) } }
+        if ($restore.Complete) {
+            Remove-Item -LiteralPath (Get-IgwtForensicSessionPath) -Force -ErrorAction SilentlyContinue
+            throw "Forensic logging was not started: $($failure.Exception.Message) Every setting was restored."
         }
+        $record.status = 'rollback-incomplete'; $record.message = "Start failed ($($failure.Exception.Message)); not restored: $(@($restore.Errors) -join '; ')"
+        Save-IgwtForensicSessionRecord -Record $record
+        Write-IgwtLog -Level Error -Message "Forensic logging: $($record.message). Snapshot: $dir"
+        throw "Forensic logging was not started: $($failure.Exception.Message) Some settings could not be restored ($(@($restore.Errors) -join '; ')); use Stop and restore to try again."
     }
-    $now = Get-Date
-    $record = [ordered]@{ kind = 'igwt-forensic-session'; profile = $Plan.Profile; started = $now.ToUniversalTime().ToString('o'); until = $(if ($Minutes) { $now.AddMinutes($Minutes).ToUniversalTime().ToString('o') } else { '' }); snapshot = $dir
-        changes = @($todo | ForEach-Object { "$($_.Source) $($_.Target) $($_.Setting) -> $($_.New)" }) }
-    $sessionFile = Get-IgwtForensicSessionPath
-    $stateDir = Split-Path -Parent $sessionFile
-    if (-not (Test-Path -LiteralPath $stateDir)) { $null = New-Item -ItemType Directory -Path $stateDir -Force }
-    [System.IO.File]::WriteAllText($sessionFile, (ConvertTo-IgwtJson -InputObject $record), (New-Object System.Text.UTF8Encoding($false)))
-    Write-IgwtLog -Message "Forensic logging started ($($Plan.Profile), $(if ($Minutes) { "$Minutes min" } else { 'until stopped' })): $($todo.Count) change(s). Snapshot: $dir"
+    $record.status = 'active'
+    Save-IgwtForensicSessionRecord -Record $record
+    Write-IgwtLog -Message "Forensic logging started ($($fresh.Profile), $(if ($Minutes) { "$Minutes min" } else { 'until stopped' })): $($todo.Count) change(s). Snapshot: $dir"
     return (Get-IgwtForensicSession)
 }
 
@@ -317,19 +372,26 @@ function Restore-IgwtForensicLogging {
 function Stop-IgwtForensicLoggingSession {
     <#
     .SYNOPSIS
-        Ends the forensic logging session (also an expired one): restores its snapshot and removes the
-        session record when everything was restored. Collected logs and events stay.
+        Ends the forensic logging session (also an expired, unfinished or damaged one): restores its
+        snapshot and removes the session record when everything was restored. A damaged record uses the
+        newest forensic snapshot folder (or -SnapshotPath, which must be one of them). Collected logs and
+        events stay.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param()
+    param([string]$SnapshotPath)
     Assert-IgwtWritable -Operation 'Stop-IgwtForensicLoggingSession'
     $s = Get-IgwtForensicSession
-    if (-not $s) { return [pscustomobject]@{ Stopped = $false; Message = 'No forensic logging session is running.' } }
-    if ($s.Corrupt) { throw $s.Message }
-    if (-not $PSCmdlet.ShouldProcess('Forensic logging session', 'Stop and restore the previous settings')) { return $null }
-    $r = Restore-IgwtForensicLogging -SnapshotPath $s.Snapshot -Confirm:$false
+    if (-not $s) { return [pscustomobject]@{ Stopped = $false; Errors = @(); Snapshot = ''; Message = 'No forensic logging session is running.' } }
+    $folders = @(Get-IgwtForensicSnapshotFolders)
+    $snap = $(if ($SnapshotPath) { $SnapshotPath } elseif ($s.Corrupt) { @($folders)[0] } else { $s.Snapshot })
+    if (-not $snap) { throw "$($s.Message) No forensic snapshot folder was found in the Backups folder." }
+    # Only the tool's own snapshot folders are accepted (a session record or an argument cannot point elsewhere).
+    $full = [System.IO.Path]::GetFullPath($snap).TrimEnd('\')
+    if (-not @($folders | Where-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\') -eq $full }).Count) { throw "'$snap' is not a forensic snapshot folder of iG Windows Tuner (Backups\forensic-*)." }
+    if (-not $PSCmdlet.ShouldProcess('Forensic logging session', "Stop and restore the previous settings from $snap")) { return $null }
+    $r = Restore-IgwtForensicLogging -SnapshotPath $snap -Confirm:$false
     if ($r.Complete) { Remove-Item -LiteralPath $s.Path -Force }
-    return [pscustomobject]@{ Stopped = $r.Complete; Errors = $r.Errors; Snapshot = $s.Snapshot; Message = $(if ($r.Complete) { 'Forensic logging stopped; the previous settings are back.' } else { "Some settings were not restored: $($r.Errors -join '; '). The session stays recorded so you can try again." }) }
+    return [pscustomobject]@{ Stopped = $r.Complete; Errors = $r.Errors; Snapshot = $snap; Message = $(if ($r.Complete) { 'Forensic logging stopped; the previous settings are back.' } else { "Some settings were not restored: $($r.Errors -join '; '). The session stays recorded so you can try again." }) }
 }
 
 function Measure-IgwtConnectionRate {

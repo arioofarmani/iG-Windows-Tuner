@@ -1254,7 +1254,9 @@ function Copy-IgwtGridRows {
     param([Parameter(Mandatory = $true)][hashtable]$Grid)
     $data = ConvertTo-IgwtGridExport -Grid $Grid -Rows (Get-IgwtGridSelection -Grid $Grid)
     if (-not $data.Count) { return }
-    $text = ($data | ConvertTo-Csv -NoTypeInformation -Delimiter "`t") -join [Environment]::NewLine
+    # Pasted into a spreadsheet, a cell starting with = + - @ would run as a formula: protect every cell.
+    $safe = @(foreach ($d in $data) { $o = [ordered]@{}; foreach ($pp in $d.PSObject.Properties) { $o[$pp.Name] = Protect-IgwtCsvValue $pp.Value }; [pscustomobject]$o })
+    $text = ($safe | ConvertTo-Csv -NoTypeInformation -Delimiter "`t") -join [Environment]::NewLine
     try { [System.Windows.Clipboard]::SetText($text); Set-IgwtGuiStatus "$($data.Count) row(s) copied." } catch { Set-IgwtGuiStatus 'The clipboard is not available.' }
 }
 
