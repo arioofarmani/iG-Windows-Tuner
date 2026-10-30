@@ -11,6 +11,7 @@ Firewall logs and forensics: the firewall log analysis works again (two bugs fix
 - **"Something went wrong (window): You cannot call a method on a null-valued expression"** appeared about 10 seconds after any change that showed a message at the bottom right (for example a firewall or profile change): the message's close timer could not reach the window. Fixed, a test now checks every handler of that kind, and errors of this kind now record the script line in the log.
 - **Forensic logging, Start while a session runs** (found by Ario on 2026-10-30): the error said the settings were restored and showed a raw "Exception calling EndInvoke" text. Start is now off while a session is recorded (Stop and restore is off when none is), a click explains that only one session runs at a time, and errors from background work show their own message everywhere in the app.
 - **Easier to read:** the profile choices on the Forensic logging tab used Windows' default black text on the dark theme; option buttons now follow the theme everywhere. The Custom sources show only when Custom is chosen, and disabled check boxes, option buttons and switches are drawn at 60 % instead of 45 % opacity.
+- `tools\New-Release.ps1` reported exit code 1 after a successful build (`git check-ignore` exits with 1 when nothing is ignored); it now exits with 0 on success.
 - The quality gate now also fails when a test file cannot be loaded (its tests would otherwise be silently missing from the count).
 
 ### Firewall log reader

@@ -58,3 +58,5 @@ Set-Content -LiteralPath "$zip.sha256" -Value "$hash  iGWindowsTuner-$version.zi
 Write-Output "Release: $zip"
 Write-Output "SHA256:  $hash"
 Write-Output 'Note: files extracted from a downloaded zip carry Mark-of-the-Web; review them, then Unblock-File if you trust them.'
+# git check-ignore exits with 1 when nothing is ignored (the good case): report success explicitly.
+exit 0
