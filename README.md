@@ -51,6 +51,10 @@ Audit Windows security settings, review Microsoft Defender configuration, manage
 
 Every firewall rule is classified (Core Services, Windows Connections, User Installed, Custom Rules) with the reason and a confidence level. Risk findings come with plain explanations and safe fixes, alongside conflict analysis, an exposure map of open ports, a smart fix wizard, firewall scopes per kind of PC and an audit report. Core Services stay read-only, Windows rules are never deleted, game and anti-cheat rules are never blocked, and every change is previewed, snapshot-backed and undoable. See [docs/FIREWALL.md](docs/FIREWALL.md).
 
+### Firewall logs and forensics (new in 3.5)
+
+Read the Windows Firewall log in a fast, filterable list with an overview of what was blocked and allowed (a full 32 MB log loads in about 2 seconds). Turn on forensic logging for a limited time (the firewall log, connection auditing with program names, and the DNS client log) and every setting is restored exactly afterwards. Collect an evidence package with SHA256 hashes and a chain-of-custody file, or export the data for analysis with internal addresses and user names pseudonymized. Nothing is uploaded and no log is ever cleared. See [docs/FIREWALL_LOGS.md](docs/FIREWALL_LOGS.md).
+
 ### Presets and configuration
 
 Choose from curated profiles for different workloads, create custom presets, and review configuration changes before applying them.
@@ -112,6 +116,7 @@ Some features and workflows are still evolving. Review the documentation before 
 - [Preset guide](docs/PRESETS.md)
 - [Anti-cheat compatibility](docs/ANTICHEAT.md)
 - [Firewall Manager guide](docs/FIREWALL.md) and [how rules are classified](docs/FIREWALL_CATEGORIES.md)
+- [Firewall logs, forensic logging and evidence export](docs/FIREWALL_LOGS.md)
 - [Security and design principles](docs/SECURITY.md)
 - [Design decisions](docs/DECISIONS.md)
 - [Rejected tweaks and their rationale](docs/REJECTED_TWEAKS.md)
