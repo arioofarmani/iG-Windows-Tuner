@@ -23,9 +23,6 @@ function Initialize-IgwtGuiForensicPage {
     Register-IgwtGuiHandler -Control $c.FwExpDatasetButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicExport -Kind Dataset }
     foreach ($n in 'FwForBasic', 'FwForFull', 'FwForCustom') { Register-IgwtGuiHandler -Control $c[$n] -Event 'Checked' -Handler { Update-IgwtGuiForensicChoice } }
     Update-IgwtGuiForensicChoice
-    $writable = -not (Test-IgwtReadOnly)
-    $c.FwForStartButton.IsEnabled = $writable; $c.FwForStopButton.IsEnabled = $writable; $c.ForensicBannerStopButton.IsEnabled = $writable
-    if (-not $writable) { $c.FwForStartButton.ToolTip = 'Off in read-only mode.'; $c.FwForStopButton.ToolTip = 'Off in read-only mode.'; $c.ForensicBannerStopButton.ToolTip = 'Off in read-only mode: restart iG Windows Tuner without -ReadOnly, as administrator, to restore.' }
     # The session clock: no scheduled task (no-persistence rule), so the window checks every 30 seconds.
     $t = New-Object System.Windows.Threading.DispatcherTimer
     $t.Interval = [TimeSpan]::FromSeconds(30)
@@ -36,11 +33,33 @@ function Initialize-IgwtGuiForensicPage {
 }
 
 function Update-IgwtGuiForensicChoice {
-    <# .SYNOPSIS Custom source boxes are only active for the Custom profile. #>
+    <# .SYNOPSIS The custom source boxes show only for the Custom profile (hidden, not greyed out: greyed text is hard to read). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
     param()
-    $script:Gui.C.FwForCustomPanel.IsEnabled = [bool]$script:Gui.C.FwForCustom.IsChecked
+    $script:Gui.C.FwForCustomPanel.Visibility = $(if ([bool]$script:Gui.C.FwForCustom.IsChecked) { 'Visible' } else { 'Collapsed' })
+}
+
+function Update-IgwtGuiForensicButtons {
+    <#
+    .SYNOPSIS
+        Start only when no session is recorded, Stop and restore only when one is; both off in read-only
+        mode or without administrator rights. The tooltip says why a button is off.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param($Session)
+    $c = $script:Gui.C
+    # Elevation is checked directly: $script:Gui.IsAdmin is only set when the start-up data arrives.
+    $admin = [bool]$script:Gui.IsAdmin
+    if (-not $admin) { try { $admin = [bool](Test-IgwtIsAdmin) } catch { $admin = $false } }
+    $why = $(if (Test-IgwtReadOnly) { 'Off in read-only mode.' } elseif (-not $admin) { 'Needs administrator rights (Restart as administrator).' } else { '' })
+    $c.FwForStartButton.IsEnabled = (-not $why -and -not $Session)
+    $c.FwForStartButton.ToolTip = $(if ($why) { $why } elseif ($Session) { 'A forensic logging session is running: stop and restore it before starting another.' } else { 'Preview, then save every setting and start the session.' })
+    $c.FwForStopButton.IsEnabled = (-not $why -and [bool]$Session)
+    $c.FwForStopButton.ToolTip = $(if ($why) { $why } elseif (-not $Session) { 'No forensic logging session is running.' } else { 'End the session and restore every setting exactly.' })
+    $c.ForensicBannerStopButton.IsEnabled = (-not $why)
+    $c.ForensicBannerStopButton.ToolTip = $(if ($why) { "$why Restart iG Windows Tuner as administrator, without -ReadOnly, to restore." } else { 'Restore every setting the session changed, exactly as it was. Collected logs and events stay.' })
 }
 
 function Get-IgwtGuiForensicChoice {
@@ -66,8 +85,9 @@ function Start-IgwtGuiForensicRefresh {
     $null = Start-IgwtGuiJob -Command 'Get-IgwtForensicLoggingState' -Channel 'forensic' -BusyText 'Reading the forensic logging settings (read-only)...' -OnComplete {
         param($out, $errs)
         $s = @($out) | Select-Object -Last 1
-        if (-not $s) { $script:Gui.C.FwForStatusText.Text = "The logging settings could not be read: $(@($errs)[0])"; return }
+        if (-not $s) { $script:Gui.C.FwForStatusText.Text = "The logging settings could not be read: $(@($errs)[0])"; Set-IgwtGuiStatus 'The forensic logging settings could not be read.'; return }
         Set-IgwtGuiForensicState -State $s
+        Set-IgwtGuiStatus ('Forensic logging settings read at {0:HH:mm:ss}.' -f (Get-Date))
     }
 }
 
@@ -130,6 +150,17 @@ function Invoke-IgwtGuiForensicPreview {
     [CmdletBinding()]
     param([switch]$Start)
     if ($Start -and ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin)) { Set-IgwtGuiStatus 'Forensic logging needs administrator rights and is off in read-only mode.'; return }
+    if ($Start) {
+        # One session at a time: say so plainly instead of attempting a start that is refused.
+        $running = $null
+        try { $running = Get-IgwtForensicSession } catch { $running = $null }
+        if ($running) {
+            Update-IgwtGuiForensicSession
+            $since = $(if ($running.Started) { ' since {0:HH:mm}' -f $running.Started } else { '' })
+            $null = Show-IgwtGuiMessage -Text "Forensic logging is already running$since.`n`nOnly one session runs at a time. Use Stop and restore to end it (every setting goes back), then start a new one." -Title 'iG Windows Tuner - forensic logging' -Icon 'Information'
+            return
+        }
+    }
     $choice = Get-IgwtGuiForensicChoice
     $null = Start-IgwtGuiJob -Command 'Get-IgwtForensicLoggingPlan' -Parameters @{ LoggingProfile = $choice.Profile; Options = $choice.Options; SecurityLogMB = $choice.SecurityLogMB } -Channel 'forensic-plan' -BusyText 'Preparing the forensic logging preview (read-only)...' -Context @{ Choice = $choice; Start = [bool]$Start } -OnComplete {
         param($out, $errs, $ctx)
@@ -141,8 +172,10 @@ function Invoke-IgwtGuiForensicPreview {
         $null = Start-IgwtGuiJob -Command 'Start-IgwtForensicLoggingSession' -Parameters @{ Plan = $plan; Minutes = $ctx.Choice.Minutes; Confirm = $false } -Blocking -BusyText 'Saving the settings and starting forensic logging...' -OnComplete {
             param($o2, $e2)
             $s = @($o2) | Select-Object -Last 1
-            if (-not $s) { Show-IgwtGuiError -Message "Forensic logging was not started (the settings were restored): $(@($e2)[0])" -Context 'Forensic logging' }
+            # The engine's message says what happened (refused before any change, or restored after a failure).
+            if (-not $s) { Show-IgwtGuiError -Message "$(@($e2)[0])" -Context 'Forensic logging' }
             else { Show-IgwtGuiToast -Text 'Forensic logging started. The previous settings come back when the session ends.' -Tone Success }
+            Update-IgwtGuiForensicSession
             Start-IgwtGuiForensicRefresh
         }
     }
@@ -188,6 +221,7 @@ function Update-IgwtGuiForensicBanner {
     [CmdletBinding()]
     param($Session)
     $c = $script:Gui.C
+    Update-IgwtGuiForensicButtons -Session $Session
     if (-not $Session) { $c.ForensicBanner.Visibility = 'Collapsed'; return }
     $c.ForensicBanner.Visibility = 'Visible'
     $admin = $(if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { ' (needs administrator rights, not in read-only mode)' } else { '' })

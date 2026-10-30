@@ -230,3 +230,29 @@ Describe 'Forensic logging' {
         }
     }
 }
+
+Describe 'Forensic logging window (Ario 2026-10-30: second Start while a session runs)' {
+    It 'shows the job''s own message, not the EndInvoke wrapper' {
+        $ps = [powershell]::Create().AddScript('throw "A forensic logging session is already recorded. Stop and restore it first."')
+        try { $null = $ps.Invoke(); $msg = 'no error' } catch { $msg = InModuleScope iGWindowsTuner -Parameters @{ E = $_.Exception } { param($E) Get-IgwtGuiJobErrorText -Exception $E } } finally { $ps.Dispose() }
+        $msg | Should -Be 'A forensic logging session is already recorded. Stop and restore it first.'
+    }
+    It 'offers Start only without a session and Stop and restore only with one' {
+        InModuleScope iGWindowsTuner {
+            $old = $script:Gui
+            $btn = { [pscustomobject]@{ IsEnabled = $null; ToolTip = $null } }
+            $script:Gui = @{ IsAdmin = $true; C = @{ FwForStartButton = (& $btn); FwForStopButton = (& $btn); ForensicBannerStopButton = (& $btn) } }
+            try {
+                Update-IgwtGuiForensicButtons -Session $null
+                $script:Gui.C.FwForStartButton.IsEnabled | Should -BeTrue
+                $script:Gui.C.FwForStopButton.IsEnabled | Should -BeFalse
+                Update-IgwtGuiForensicButtons -Session ([pscustomobject]@{ Status = 'active' })
+                $script:Gui.C.FwForStartButton.IsEnabled | Should -BeFalse
+                $script:Gui.C.FwForStartButton.ToolTip | Should -Match 'running'
+                $script:Gui.C.FwForStopButton.IsEnabled | Should -BeTrue
+                Set-IgwtEnvironment -ReadOnly
+                try { Update-IgwtGuiForensicButtons -Session $null; $script:Gui.C.FwForStartButton.IsEnabled | Should -BeFalse; $script:Gui.C.FwForStartButton.ToolTip | Should -Match 'read-only' } finally { Set-IgwtEnvironment -ReadOnly:$false }
+            } finally { $script:Gui = $old }
+        }
+    }
+}

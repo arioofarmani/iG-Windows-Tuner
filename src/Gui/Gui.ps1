@@ -525,6 +525,16 @@ function Invoke-IgwtGuiTick {
     foreach ($job in $done) { Complete-IgwtGuiJob -Job $job }
 }
 
+function Get-IgwtGuiJobErrorText {
+    <# .SYNOPSIS The message of an error thrown in a background job, without the EndInvoke and pipeline-stop wrappers around it. Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][System.Exception]$Exception)
+    $ex = $Exception
+    while ($ex.InnerException -and ($ex -is [System.Management.Automation.MethodInvocationException] -or $ex -is [System.Management.Automation.ActionPreferenceStopException])) { $ex = $ex.InnerException }
+    return [string]$ex.Message
+}
+
 function Complete-IgwtGuiJob {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Hands a finished job to the window.')]
     [CmdletBinding()]
@@ -535,7 +545,11 @@ function Complete-IgwtGuiJob {
         $out = $Job.PS.EndInvoke($Job.Handle)
         $errs = @($Job.PS.Streams.Error)
     } catch {
-        if (-not $Job.Cancelled) { $errs = @($_) }
+        # A command that throws in the worker arrives wrapped ("Exception calling "EndInvoke" with "1"
+        # argument(s): ..."): show its own message.
+        if (-not $Job.Cancelled) {
+            $errs = @(Get-IgwtGuiJobErrorText -Exception $_.Exception)
+        }
     }
     $Job.PS.Dispose()
     $null = $script:Gui.Jobs.Remove($Job)

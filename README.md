@@ -2,9 +2,9 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Version](https://img.shields.io/badge/version-3.4-0078D4)
+![Version](https://img.shields.io/badge/version-3.5-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-930%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/Pester-986%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Status](https://img.shields.io/badge/status-preview-orange)
 
@@ -103,9 +103,9 @@ The built-in snapshots and rollback features help restore supported configuratio
 
 ## Project status
 
-**Version 3.4 — Preview**
+**Version 3.5 — Preview**
 
-3.4 combines the 3.3 quality release (a rebuilt, calmer interface with themes, sortable and filterable lists everywhere, a read-only mode and many fixes) with the 3.4 Firewall Manager. The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
+3.5 adds firewall logs and forensics: the firewall log analysis works again, a fast log reader, time-boxed forensic logging that restores every setting, and evidence collection with an AI-ready export. It builds on 3.4 (the 3.3 quality release with a rebuilt, calmer interface, plus the Firewall Manager). The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
 
 Some features and workflows are still evolving. Review the documentation before relying on the tool for production or security-critical systems.
 
