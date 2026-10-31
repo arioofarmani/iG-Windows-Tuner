@@ -317,6 +317,9 @@ function Invoke-IgwtApply {
         Label recorded in the snapshot (Apply, Preset:Competitive, ResetDefault).
     .PARAMETER Mode
         'on' applies the tweak; 'default' resets its settings to the documented Windows default.
+    .PARAMETER ResetId
+        Items reset to the Windows default in the same operation and session (a schema v3 preset
+        change with desired 'default', DECISIONS T16).
     .PARAMETER SkipRestorePoint
         Do not create a System Restore point (the JSON snapshot is always written).
     .PARAMETER EnableSystemProtection
@@ -329,9 +332,10 @@ function Invoke-IgwtApply {
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
-        [Parameter(Mandatory = $true)][string[]]$Id,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Id,
         [string]$Operation = 'Apply',
         [ValidateSet('on', 'default')][string]$Mode = 'on',
+        [string[]]$ResetId = @(),
         [switch]$SkipRestorePoint,
         [switch]$EnableSystemProtection,
         [switch]$AcknowledgeRisk,
@@ -340,7 +344,12 @@ function Invoke-IgwtApply {
         [scriptblock]$OnProgress
     )
     Assert-IgwtWritable -Operation 'Invoke-IgwtApply'
-    $tweaks = Resolve-IgwtTweakSelection -Id $Id -AcknowledgeRisk:$AcknowledgeRisk
+    $resetIds = @($ResetId | Where-Object { $_ -and @($Id) -notcontains $_ })
+    if (-not @($Id).Count -and -not $resetIds.Count) { throw 'Nothing to apply: no item given.' }
+    $tweaks = @(Resolve-IgwtTweakSelection -Id (@($Id) + $resetIds) -AcknowledgeRisk:$AcknowledgeRisk)
+    # The mode per item: -Mode for -Id, the Windows default for -ResetId.
+    $modeOf = @{}
+    foreach ($t in $tweaks) { $modeOf[[string]$t.id] = $(if ($resetIds -contains [string]$t.id) { 'default' } else { $Mode }) }
     if (-not $script:IgwtSettings.TestMode) {
         $pre = Get-IgwtPreflight -ForApply
         if (-not $pre.CanApply) { throw ($pre.Errors -join ' ') }
@@ -353,13 +362,14 @@ function Invoke-IgwtApply {
     $todo = New-Object System.Collections.Generic.List[object]
     $results = New-Object System.Collections.Generic.List[object]
     foreach ($t in $tweaks) {
+        $m = $modeOf[[string]$t.id]
         $s = Get-IgwtTweakState -Tweak $t -Context $Context
         if ($s.State -eq 'NotApplicable') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'NotApplicable'; Message = $s.Reason }); continue }
-        if ($Mode -eq 'on' -and $null -ne $s.PSObject.Properties['Blocked'] -and $s.Blocked -and $s.State -ne 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'NotApplicable'; Message = $s.Reason }); continue }
+        if ($m -eq 'on' -and $null -ne $s.PSObject.Properties['Blocked'] -and $s.Blocked -and $s.State -ne 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'NotApplicable'; Message = $s.Reason }); continue }
         if ($s.State -eq 'ManagedByPolicy') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'ManagedByPolicy'; Message = $s.Reason }); continue }
         if (-not $AcknowledgeManaged -and $null -ne $s.PSObject.Properties['Authority'] -and $s.Authority) { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'ReportOnly'; Message = [string]$s.Authority }); continue }
-        if ($Mode -eq 'on' -and $s.State -eq 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'Unchanged'; Message = 'Already in target state.' }); continue }
-        if ($Mode -eq 'default' -and @($t.actions | Where-Object { $_.type -ne 'check' }).Count -eq 0) { continue }
+        if ($m -eq 'on' -and $s.State -eq 'On') { $results.Add([pscustomobject]@{ Id = $t.id; Result = 'Unchanged'; Message = 'Already in target state.' }); continue }
+        if ($m -eq 'default' -and @($t.actions | Where-Object { $_.type -ne 'check' }).Count -eq 0) { continue }
         $todo.Add($t)
     }
     if ($todo.Count -eq 0) {
@@ -397,7 +407,7 @@ function Invoke-IgwtApply {
         foreach ($t in $todo) {
             $n++
             Send-IgwtProgress -Text "Applying $($t.name)" -Percent ([int](100 * ($n - 1) / $todo.Count)) -Callback $OnProgress
-            $results.Add((Invoke-IgwtTweakChange -Tweak $t -Context $Context -Snapshot $snap -Mode $Mode -Session $session))
+            $results.Add((Invoke-IgwtTweakChange -Tweak $t -Context $Context -Snapshot $snap -Mode $modeOf[[string]$t.id] -Session $session))
         }
     } finally { Complete-IgwtChangeSession -Session $session }
 

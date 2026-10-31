@@ -31,7 +31,8 @@ function Test-IgwtPresetDefinition {
         if (-not $ids.ContainsKey([string]$x)) { $Errors.Add("${label}: exclude lists unknown tweak '$x'.") }
         if (@($p.include) -contains $x) { $Errors.Add("${label}: '$x' is both included and excluded.") }
     }
-    $members = @($p.include | Where-Object { $_ })
+    # Items a v3 preset resets to the Windows default follow the same rules as the items it turns on.
+    $members = @(@($p.include) + @($p.PSObject.Properties['reset'] | ForEach-Object { $_.Value }) | Where-Object { $_ })
     foreach ($m in $members) {
         if (-not $ids.ContainsKey([string]$m)) { $Errors.Add("${label}: unknown tweak '$m'."); continue }
         $t = $ids[[string]$m]
@@ -235,6 +236,17 @@ function Import-IgwtPreset {
     param([Parameter(Mandatory = $true)][string]$Path, [string]$Name, [switch]$Force)
     Assert-IgwtWritable -Operation 'Import-IgwtPreset'
     $doc = Read-IgwtJsonFile -Path $Path
+    # A schema v3 preset (3.6, DECISIONS T16) is untrusted: the strict check replaces the SHA256 field.
+    if ($doc.PSObject.Properties['schemaVersion'] -and [int]$doc.schemaVersion -ge 3) {
+        $errs = New-Object System.Collections.Generic.List[string]
+        Test-IgwtPresetV3Document -Document $doc -CatalogIndex (Get-IgwtPresetCatalogIndex) -Errors $errs
+        if ($errs.Count) { throw "The preset in '$Path' was not imported: $($errs -join ' ')" }
+        $v3 = ConvertFrom-IgwtPresetV3 -Preset $doc
+        if (@($v3.reset).Count) { throw "The preset in '$Path' resets items to the Windows default ($(@($v3.reset) -join ', ')); custom presets can turn items on or leave them unchanged. Reset them on the item pages instead." }
+        $base3 = [pscustomobject]@{ id = [string]$doc.id; name = [string]$doc.name; gaming = [bool]$v3.gaming; levelCeiling = [string]$v3.levelCeiling; antiCheatPolicy = [string]$v3.antiCheatPolicy; guidance = @($doc.guidance | Where-Object { $_ }); basedOn = [string]$doc.id }
+        $new3 = New-IgwtCustomPresetDocument -Name $(if ($Name) { $Name } else { [string]$doc.name }) -Base $base3 -Include @($v3.include) -Exclude @($v3.exclude) -Description ([string]$doc.description)
+        return (Write-IgwtCustomPresetFile -Document $new3 -Force:$Force -WhatIf:$WhatIfPreference)
+    }
     if (-not $doc.PSObject.Properties['sha256'] -or -not $doc.sha256) { throw "'$Path' has no SHA256 integrity field; only presets exported by iG Windows Tuner can be imported." }
     if ((Get-IgwtPresetHash -Preset $doc) -ne [string]$doc.sha256) { throw "The preset in '$Path' does not match its SHA256 field; the file was changed or damaged." }
     if (@($doc.include).Count -eq 0) { throw "'$Path' contains no items." }

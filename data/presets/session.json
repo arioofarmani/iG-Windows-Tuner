@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "session",
   "name": "Session Mode (Tournament / LAN)",
+  "version": "3.6.0",
   "order": 10,
   "code": "M",
   "tagline": "Temporary, reverts when the session ends",
@@ -10,10 +11,15 @@
   "gaming": true,
   "levelCeiling": "Advanced",
   "antiCheatPolicy": "safeOnly",
-  "include": [ "system.session-notifications-off", "system.session-search-paused" ],
-  "exclude": [],
   "session": true,
   "sessionPowerPlan": "highestAllowed",
   "closeApps": [ "OneDrive", "ms-teams", "Teams", "Spotify", "Dropbox", "GoogleDriveFS", "Creative Cloud", "Skype" ],
-  "guidance": [ "Closed apps are not restarted automatically when the session ends; start them again yourself." ]
+  "guidance": [ "Closed apps are not restarted automatically when the session ends; start them again yourself." ],
+  "requires": { "minBuild": 26100 },
+  "changes": [
+    { "item": "system.session-notifications-off", "desired": "on" },
+    { "item": "system.session-search-paused", "desired": "on" }
+  ],
+  "conflicts": [],
+  "notes": ""
 }

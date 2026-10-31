@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "session",
+  "name": "Session Mode (Tournament / LAN)",
+  "order": 10,
+  "code": "M",
+  "tagline": "Temporary, reverts when the session ends",
+  "hint": "For one match day: notifications off, search indexing paused, the highest power plan your hardware allows. Everything reverts at the end.",
+  "description": "A temporary preset, never applied permanently. Starting a session turns app notifications off, pauses Windows Search indexing, switches to the highest power plan the hardware overlays allow (Ultimate on desktops, High performance where Ultimate is blocked, unchanged on laptops) and offers to close listed background apps after you confirm. Ending the session, or closing the app, restores every setting from the session snapshot; if the PC or the app crashed, the next start offers to restore it.",
+  "gaming": true,
+  "levelCeiling": "Advanced",
+  "antiCheatPolicy": "safeOnly",
+  "include": [ "system.session-notifications-off", "system.session-search-paused" ],
+  "exclude": [],
+  "session": true,
+  "sessionPowerPlan": "highestAllowed",
+  "closeApps": [ "OneDrive", "ms-teams", "Teams", "Spotify", "Dropbox", "GoogleDriveFS", "Creative Cloud", "Skype" ],
+  "guidance": [ "Closed apps are not restarted automatically when the session ends; start them again yourself." ]
+}

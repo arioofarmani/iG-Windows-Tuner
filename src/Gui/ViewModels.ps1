@@ -147,7 +147,9 @@ function Get-IgwtGuiPreview {
             if ($p.Plan -ne 'Change' -and $p.Reason) { $null = $sb.AppendLine("      $($p.Reason)") }
         }
     }
-    $resetAll = @($ResetIds)
+    # A preset's resets run in the preset's own session (3.6, DECISIONS T16); other resets on their own.
+    $presetResets = @($(if ($Operation -like 'Preset:*') { $ResetIds }) | Where-Object { $_ })
+    $resetAll = @($ResetIds | Where-Object { $presetResets -notcontains $_ })
     if ($OffIds.Count -gt 0) {
         $null = $sb.AppendLine('')
         $null = $sb.AppendLine('TURN OFF')
@@ -202,7 +204,9 @@ function Invoke-IgwtGuiBatch {
     $rp = $null
     $skip = [bool]$SkipRestorePoint
     $revertIds = @()
-    $resetAll = @($ResetIds)
+    # A preset's resets run in the preset's own session (3.6, DECISIONS T16); other resets on their own.
+    $presetResets = @($(if ($Operation -like 'Preset:*') { $ResetIds }) | Where-Object { $_ })
+    $resetAll = @($ResetIds | Where-Object { $presetResets -notcontains $_ })
     foreach ($id in $OffIds) {
         if (Find-IgwtLatestSnapshotEntry -TweakId $id) { $revertIds += $id } else { $resetAll += $id }
     }
@@ -213,8 +217,8 @@ function Invoke-IgwtGuiBatch {
         if ($r.Snapshot) { $snapshots.Add([string]$r.Snapshot) }
     }
     try {
-        if ($ApplyIds.Count -gt 0) {
-            $r = Invoke-IgwtApply -Id $ApplyIds -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
+        if ($ApplyIds.Count -gt 0 -or $presetResets.Count -gt 0) {
+            $r = Invoke-IgwtApply -Id $ApplyIds -ResetId $presetResets -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
             $rp = $r.RestorePoint
             & $merge $r
             $skip = $true

@@ -148,3 +148,7 @@ from the file.
   (or `"unknown"`). `appliesTo.hardware` checks move to `appliesTo.conditions`. v1 presets become
   intent presets with `levelCeiling: Advanced` and `antiCheatPolicy: safeOnly`.
 - **Renamed ids:** `data\migration\id-map.json` maps old ids to new ones for snapshots and presets.
+
+## Presets, schema v3 (3.6)
+
+`data\presets\*.json` and imported user presets (DECISIONS T9, T16): `schemaVersion` 3, `id` (lower case, hyphens), `name`, `version`, texts (`tagline`, `hint`, `description`), `order`, `code`, `gaming`, `levelCeiling`, `antiCheatPolicy`, optional `firewallScope`, `guidance`, the session fields of the Session Mode preset, `requires` {`minBuild`, `maxBuild`, `editions` (Home, Professional, Enterprise, Education, Server), `hardware` {`tags`, `excludeTags`, `battery`, `hybridCpu`, `gpuVendor`}}, `changes` [{`item`, `desired`: `on`, `default` or `unchanged`}], `conflicts` [{`item` or `feature`, `reason`, `source`}] and `notes`. Nothing else: a preset names catalog items, never paths, values or commands. Validated by `Test-IgwtPresetV3Document` and the preset rules (`Test-IgwtPresetDefinition`).

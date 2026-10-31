@@ -129,7 +129,8 @@ function ConvertTo-IgwtNormalizedPreset {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Preset, [string]$SourceFile, [int]$SourceSchema = 2)
-    $p = ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV2Preset -Preset $Preset -IdMap (Get-IgwtIdMap))
+    # Schema v3 (3.6, DECISIONS T16): changes with a desired value, read into include/exclude/reset.
+    $p = $(if ([int]$Preset.schemaVersion -ge 3) { ConvertFrom-IgwtPresetV3 -Preset $Preset } else { ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV2Preset -Preset $Preset -IdMap (Get-IgwtIdMap)) })
     $excluded = @($p.exclude | Where-Object { $_ })
     $p | Add-Member -NotePropertyName tweaks -NotePropertyValue @(@($p.include) | Where-Object { $_ -and $excluded -notcontains $_ }) -Force
     $p | Add-Member -NotePropertyName sourceFile -NotePropertyValue $SourceFile -Force
@@ -473,6 +474,7 @@ function Test-IgwtCatalog {
     foreach ($p in @(Get-IgwtPreset -Builtin)) {
         if ([int]$p.sourceSchema -lt $script:IgwtSchemaVersion) { $errors.Add("presets\$($p.sourceFile): schemaVersion $($p.sourceSchema); run tools\Convert-IgwtV1Data.ps1 to migrate it.") }
         Test-IgwtPresetDefinition -Preset $p -CatalogIndex $ids -RejectedIds $rejectedIds -Errors $errors
+        if ([int]$p.sourceSchema -ge 3) { Test-IgwtPresetV3Document -Document (Read-IgwtJsonFile -Path (Join-Path (Join-Path (Get-IgwtDataFolder) 'presets') $p.sourceFile)) -CatalogIndex $ids -Errors $errors }
     }
     $sessionPresets = @(Get-IgwtPreset -Builtin | Where-Object { $_.PSObject.Properties['session'] -and $_.session })
     if ($sessionPresets.Count -gt 1) { $errors.Add('presets: only one Session Mode preset (session: true) is allowed.') }

@@ -2036,12 +2036,17 @@ try {
     $ids = @()
     $operation = 'Apply'
     $mode = 'on'
+    $resetIds = @()
     switch ($modes[0]) {
         'Preset' {
             try { $presetObj = Get-IgwtPreset -Name $Preset } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
             if ($presetObj.PSObject.Properties['session'] -and $presetObj.session) { Write-IgwtCliLine 'Session Mode is temporary: start it with -Session Start (and end it with -Session Stop).' ([ConsoleColor]::Yellow); exit 2 }
             $presetSelection = Resolve-IgwtPresetSelection -Preset $presetObj -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem)
             $ids = @($presetSelection.Ids); $operation = "Preset:$($presetObj.id)"
+            # Schema v3 (3.6): items the preset resets to the Windows default, in the same session.
+            $resetIds = @($presetObj.reset | Where-Object { $_ })
+            $why = Test-IgwtPresetRequirement -Preset $presetObj
+            if ($why) { Write-IgwtCliLine "$($presetObj.name) does not apply to this PC: $why" ([ConsoleColor]::Yellow); exit 2 }
         }
         'Apply' { $ids = Split-IgwtIdList $Apply }
         'ResetDefault' { $ids = Split-IgwtIdList $ResetDefault; $operation = 'ResetDefault'; $mode = 'default' }
@@ -2078,6 +2083,9 @@ try {
             $plan = @(Get-IgwtPresetPlan -Preset $presetObj.id -Context $ctx -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem))
             foreach ($gl in @($presetObj.guidance | Where-Object { $_ })) { Write-IgwtCliLine "Guidance: $gl" ([ConsoleColor]::Cyan) }
             Write-IgwtPlan -Plan $plan -Title $title -Selection $presetSelection
+            $pv = Get-IgwtPresetPreview -Preset $presetObj -Context $ctx -AddIds (Split-IgwtIdList $AddItem) -RemoveIds (Split-IgwtIdList $RemoveItem)
+            Write-IgwtCliLine "Preview: $($pv.Summary)" ([ConsoleColor]::White)
+            foreach ($r in @($pv.Rows | Where-Object { $_.Class -in 'Conflict', 'ManagedByPolicy' })) { Write-IgwtCliLine ("  {0,-16} {1}: {2}" -f $r.Class, $r.Id, $r.Reason) ([ConsoleColor]::Yellow) }
         } else {
             $plan = @(Get-IgwtPlan -Id $ids -Mode $mode)
             Write-IgwtPlan -Plan $plan -Title $title
@@ -2095,7 +2103,7 @@ try {
             else { $result = Invoke-IgwtRevert -Last }
         }
         default {
-            $result = Invoke-IgwtApply -Id $ids -Operation $operation -Mode $mode -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
+            $result = Invoke-IgwtApply -Id $ids -ResetId $resetIds -Operation $operation -Mode $mode -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
         }
     }
     if ($modes[0] -in 'Revert', 'RevertAll' -and @($result.Results).Count -eq 0) {

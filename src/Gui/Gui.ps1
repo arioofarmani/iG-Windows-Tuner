@@ -3398,15 +3398,8 @@ function Show-IgwtGui {
             if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text ((Get-IgwtGuiChangeBlockReason -What 'stage and apply presets') + ' You can still compare presets and preview tweaks.'); return }
             $preset = $script:Gui.Presets | Where-Object { $_.id -eq $tag } | Select-Object -First 1
             if (-not $preset -or -not $script:Gui.Data) { return }
-            $script:Gui.Staged.Clear()
-            $count = 0
-            foreach ($id in @(Get-IgwtGuiPresetMembers -Preset $preset)) {
-                $s = $script:Gui.Data.States[$id]
-                if ($s -and $s.State -in 'Off', 'Partial') { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
-            }
-            $script:Gui.PresetOperation = "Preset:$($preset.id)"
-            Update-IgwtGuiPending
-            Set-IgwtGuiStatus "Staged $count change(s) from the $($preset.name) preset. Review them on the category pages (marked 'Pending'), then Preview or Apply."
+            # 3.6: the preview first (will change, already set, not applicable, conflict, managed by policy).
+            Start-IgwtGuiPresetPreview -Preset $preset
         }
     Register-IgwtGuiHandler -Control $c.PresetPickBox -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
     Register-IgwtGuiHandler -Control $c.PresetCustomizeButton -Event 'Click' -Handler { Invoke-IgwtGuiPresetAction -Action Customize }
