@@ -32,6 +32,85 @@ namespace IgwtJournal
         public bool NeedsBreak;
     }
 
+    // Canonical JSON for comparing values (ConvertTo-IgwtCanonicalJson): object keys sorted
+    // ordinally, every number in invariant decimal form without trailing zeros, dates in UTC
+    // round-trip form, anything else as its string. The same value captured live (hashtables,
+    // PSCustomObject) and read back from the journal (dictionaries) gives the same text.
+    public static class Canonical
+    {
+        public static string ToJson(object value)
+        {
+            StringBuilder sb = new StringBuilder();
+            Write(sb, value, 0);
+            return sb.ToString();
+        }
+
+        static void Write(StringBuilder sb, object v, int depth)
+        {
+            if (depth > 40) { sb.Append("null"); return; }
+            System.Management.Automation.PSObject pso = v as System.Management.Automation.PSObject;
+            if (pso != null && !(pso.BaseObject is System.Management.Automation.PSCustomObject)) { v = pso.BaseObject; pso = null; }
+            if (v == null) { sb.Append("null"); return; }
+            if (v is string) { Str(sb, (string)v); return; }
+            if (v is char) { Str(sb, v.ToString()); return; }
+            if (v is bool) { sb.Append((bool)v ? "true" : "false"); return; }
+            if (v is DateTime) { Str(sb, ((DateTime)v).ToUniversalTime().ToString("o", CultureInfo.InvariantCulture)); return; }
+            if (v is byte || v is sbyte || v is short || v is ushort || v is int || v is uint || v is long || v is ulong || v is decimal)
+            {
+                sb.Append(Convert.ToDecimal(v, CultureInfo.InvariantCulture).ToString("G29", CultureInfo.InvariantCulture)); return;
+            }
+            if (v is double || v is float)
+            {
+                double d = Convert.ToDouble(v, CultureInfo.InvariantCulture);
+                if (double.IsNaN(d) || double.IsInfinity(d) || Math.Abs(d) > 7.9e27) { Str(sb, d.ToString("R", CultureInfo.InvariantCulture)); return; }
+                sb.Append(((decimal)d).ToString("G29", CultureInfo.InvariantCulture)); return;
+            }
+            if (pso != null)
+            {
+                SortedDictionary<string, object> props = new SortedDictionary<string, object>(StringComparer.Ordinal);
+                foreach (System.Management.Automation.PSPropertyInfo p in pso.Properties) { props[p.Name] = p.Value; }
+                Obj(sb, props, depth); return;
+            }
+            System.Collections.IDictionary dict = v as System.Collections.IDictionary;
+            if (dict != null)
+            {
+                SortedDictionary<string, object> keys = new SortedDictionary<string, object>(StringComparer.Ordinal);
+                foreach (System.Collections.DictionaryEntry de in dict) { keys[Convert.ToString(de.Key, CultureInfo.InvariantCulture)] = de.Value; }
+                Obj(sb, keys, depth); return;
+            }
+            System.Collections.IEnumerable list = v as System.Collections.IEnumerable;
+            if (list != null)
+            {
+                sb.Append('[');
+                bool first = true;
+                foreach (object x in list) { if (!first) { sb.Append(','); } first = false; Write(sb, x, depth + 1); }
+                sb.Append(']'); return;
+            }
+            Str(sb, Convert.ToString(v, CultureInfo.InvariantCulture));
+        }
+
+        static void Obj(StringBuilder sb, SortedDictionary<string, object> map, int depth)
+        {
+            sb.Append('{');
+            bool first = true;
+            foreach (KeyValuePair<string, object> kv in map) { if (!first) { sb.Append(','); } first = false; Str(sb, kv.Key); sb.Append(':'); Write(sb, kv.Value, depth + 1); }
+            sb.Append('}');
+        }
+
+        static void Str(StringBuilder sb, string s)
+        {
+            sb.Append('"');
+            foreach (char c in s)
+            {
+                if (c == '"') { sb.Append("\\\""); }
+                else if (c == '\\') { sb.Append("\\\\"); }
+                else if (c < (char)0x20 || c == (char)0x2028 || c == (char)0x2029) { sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture)); }
+                else { sb.Append(c); }
+            }
+            sb.Append('"');
+        }
+    }
+
     public static class Verifier
     {
         static readonly string[] LastKinds = new string[] { "committed", "reverted", "retired", "adopted", "rolledBack" };

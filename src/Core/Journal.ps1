@@ -104,7 +104,8 @@ function ConvertFrom-IgwtJournalLine {
 function Initialize-IgwtJournalEngine {
     <#
     .SYNOPSIS
-        Loads the compiled journal verifier (src\Core\JournalEngine.cs: chain, parse and index;
+        Loads the compiled journal engine (src\Core\JournalEngine.cs: chain, parse, index and the
+        canonical comparison;
         managed code only) once per process. Read-only.
     #>
     [CmdletBinding()]
@@ -115,7 +116,7 @@ function Initialize-IgwtJournalEngine {
     $gate = [string]::Intern('IgwtJournalEngine')
     [System.Threading.Monitor]::Enter($gate)
     try {
-        if (-not ('IgwtJournal.Verifier' -as [type])) { Add-Type -Path $source -ReferencedAssemblies System, System.Core, System.Web.Extensions -ErrorAction Stop }
+        if (-not ('IgwtJournal.Verifier' -as [type])) { Add-Type -Path $source -ReferencedAssemblies System, System.Core, System.Web.Extensions, ([psobject].Assembly.Location) -ErrorAction Stop }
     } finally { [System.Threading.Monitor]::Exit($gate) }
 }
 

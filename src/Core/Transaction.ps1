@@ -20,26 +20,9 @@ function ConvertTo-IgwtCanonicalJson {
     [CmdletBinding()]
     [OutputType([string])]
     param([AllowNull()]$Value)
-    $norm = {
-        param($v)
-        if ($null -eq $v) { return $null }
-        if ($v -is [string] -or $v -is [bool] -or $v -is [char]) { return $v }
-        if ($v -is [datetime]) { return $v.ToUniversalTime().ToString('o') }
-        if ($v -is [byte] -or $v -is [int16] -or $v -is [int] -or $v -is [long] -or $v -is [uint16] -or $v -is [uint32] -or $v -is [uint64] -or $v -is [decimal] -or $v -is [double] -or $v -is [single]) { return [decimal]$v }
-        if ($v -is [System.Collections.IDictionary]) {
-            $o = [ordered]@{}
-            foreach ($k in @($v.Keys | ForEach-Object { [string]$_ } | Sort-Object)) { $o[$k] = & $norm $v[$k] }
-            return $o
-        }
-        if ($v -is [System.Management.Automation.PSCustomObject]) {
-            $o = [ordered]@{}
-            foreach ($k in @($v.PSObject.Properties.Name | Sort-Object)) { $o[$k] = & $norm $v.$k }
-            return $o
-        }
-        if ($v -is [System.Collections.IEnumerable]) { return , @(foreach ($x in $v) { & $norm $x }) }
-        return [string]$v
-    }
-    return (ConvertTo-Json -InputObject (& $norm $Value) -Compress -Depth 20)
+    # Compiled (src\Core\JournalEngine.cs): every read-back, revert plan and drift row compares values.
+    Initialize-IgwtJournalEngine
+    return [IgwtJournal.Canonical]::ToJson($Value)
 }
 
 function Remove-IgwtVolatileSnapshotKey {

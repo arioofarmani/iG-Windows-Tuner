@@ -400,7 +400,7 @@ function Invoke-IgwtApply {
     Write-IgwtLog -Message "$Operation started: $(@($todo | ForEach-Object { $_.id }) -join ', '). Snapshot: $($snap.Path)"
 
     # One journaled change session for the whole operation (3.6, DECISIONS T2).
-    $origin = $(if ($Operation -like 'Preset:*') { [ordered]@{ type = 'preset'; ref = $Operation.Substring(7) } } elseif ($Mode -eq 'default') { [ordered]@{ type = 'resetDefault'; ref = $Operation } } else { [ordered]@{ type = 'tweak'; ref = $Operation } })
+    $origin = $(if ($Operation -like 'Preset:*') { [ordered]@{ type = 'preset'; ref = $Operation.Substring(7) } } elseif ($Operation -eq 'DriftFix') { [ordered]@{ type = 'driftFix'; ref = 'drift' } } elseif ($Mode -eq 'default') { [ordered]@{ type = 'resetDefault'; ref = $Operation } } else { [ordered]@{ type = 'tweak'; ref = $Operation } })
     $session = Start-IgwtChangeSession -Origin $origin -Title "$Operation ($($todo.Count) item(s))" -Confirm:$false
     try {
         $n = 0
