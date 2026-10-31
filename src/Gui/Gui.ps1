@@ -804,7 +804,7 @@ function Update-IgwtGuiTweakList {
             $st = $script:Gui.Data.States[$t.id]
             $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
             if ($personaOk -and $script:Gui.FocusMode -and [string]$t.level -ne 'Standard' -and -not $script:Gui.Staged.ContainsKey($t.id)) { $personaOk = $false }
-            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin }
+            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin -Confidence $(if ($script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] }) }
         })
     $grid = $script:Gui.Grids.Tweaks
     Set-IgwtGridRows -Grid $grid -Rows $rows
@@ -1211,9 +1211,10 @@ function Update-IgwtGuiDetails {
     $t = $script:Gui.Catalog | Where-Object { $_.id -eq $row.Id } | Select-Object -First 1
     $s = $script:Gui.Data.States[$row.Id]
     $c.DetName.Text = [string]$t.name
-    $c.DetMeta.Text = ("{0}  |  {1}{2}  |  {3} level  |  Tier {4}  |  risk {5}  |  {6}  |  {7}  |  revert: {8}" -f $t.id, $t.category, $(if ($t.group) { " / $($t.group)" } else { '' }), $t.level, $t.evidence.tier, $t.risk,
+    $badge = $(if ($script:Gui.Data -and $script:Gui.Data.Confidence -and $script:Gui.Data.Confidence[[string]$t.id]) { "  |  " + [string]$script:Gui.Data.Confidence[[string]$t.id].Label } else { '' })
+    $c.DetMeta.Text = ("{0}  |  {1}{2}  |  {3} level  |  Tier {4}{9}  |  risk {5}  |  {6}  |  {7}  |  revert: {8}" -f $t.id, $t.category, $(if ($t.group) { " / $($t.group)" } else { '' }), $t.level, $t.evidence.tier, $t.risk,
         $(switch ($t.requires) { 'reboot' { 'reboot required' } 'logoff' { 'sign-out required' } default { 'applies immediately' } }),
-        [string]$t.antiCheatText, [string]$t.reversible)
+        [string]$t.antiCheatText, [string]$t.reversible, $badge)
     if ([string]$t.evidence.tier -eq 'R') { $c.DetWarningText.Text = 'RISK ZONE (rejected tweak). ' + (Get-IgwtRiskZoneSummary -Tweak $t); $c.DetWarning.Visibility = 'Visible' }
     elseif ($t.warning) { $c.DetWarningText.Text = [string]$t.warning; $c.DetWarning.Visibility = 'Visible' } else { $c.DetWarning.Visibility = 'Collapsed' }
     $desc = [string]$t.description
@@ -1223,7 +1224,9 @@ function Update-IgwtGuiDetails {
     if ($s) { $items = @($s.Items | ForEach-Object { [pscustomobject]@{ Target = (Format-IgwtGuiChangeTarget -Target ([string]$_.Target)); Current = [string]$_.Current; Desired = [string]$_.Desired; Note = [string]$_.Note } }) }
     $c.DetChanges.ItemsSource = $items
     $c.DetSources.ItemsSource = @($t.evidence.sources)
-    $c.DetEvidence.Text = [string]$t.evidence.notes
+    # Confidence badge first (3.6), then the catalog's evidence notes.
+    $conf = $(if ($script:Gui.Data -and $script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] })
+    $c.DetEvidence.Text = ((@($(if ($conf) { [string]$conf.Tip }), [string]$t.evidence.notes) | Where-Object { $_ }) -join [Environment]::NewLine)
     $c.DetRevert.Text = Get-IgwtTweakRevertDescription -Tweak $t
     $hasConfig = @($t.actions | Where-Object { $_.type -ne 'check' }).Count -gt 0
     $c.DetResetButton.IsEnabled = $script:Gui.IsAdmin -and $hasConfig -and $row.State -in 'On', 'Off', 'Partial' -and -not [bool]$script:Gui.Job

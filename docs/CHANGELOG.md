@@ -12,6 +12,7 @@ Transactions: every change iG makes is a journaled transaction with an exact res
 - **Revert from the journal** per change, per session or everything, with the value before, the value iG set and the value now; when something else changed a value since, you choose: restore anyway, keep the current value or skip. Reverts are journaled too.
 - **Backups & Logs > Change journal:** the timeline by session with filters and the revert buttons.
 - **Upgrade from 3.5:** the 3.x snapshots are imported once, so the original values of changes made before 3.6 are known and can be restored.
+- **Confidence badges** (DECISIONS T8, T15): every tweak shows Verified (documented, and applied and read back correctly on this Windows build), Best effort (documented, not yet read back on this build) or Unverified (no Microsoft or hardware-vendor documentation), with a tooltip that says what was tested where. A Confidence column and filters in the tweak lists.
 - Every writer runs on the change engine: catalog tweaks and presets, forensic logging, and the firewall, ASR, Defender, policy, audit, security policy, power, startup, management, toolkit and cleaner modules (one-way changes are journaled and marked "cannot be undone"). A parser-based test fails when anything else calls a state-changing command.
 ## 3.5.0 (2026-10-30)
 

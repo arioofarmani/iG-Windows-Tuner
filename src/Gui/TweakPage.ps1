@@ -17,6 +17,7 @@ function Initialize-IgwtGuiTweakGrid {
         @{ Key = 'Name'; Header = 'Tweak'; MinWidth = 220; Tip = 'Hint' }
         @{ Key = 'StateCol'; Header = 'Current'; Width = 130; Template = 'Status'; SortKey = 'State' }
         @{ Key = 'PendingCol'; Header = 'Pending'; Width = 100; Template = 'Status' }
+        @{ Key = 'ConfidenceCol'; Header = 'Confidence'; Width = 130; Template = 'Status'; Kind = 'Number'; SortKey = 'ConfidenceRank'; Tip = 'ConfidenceTip' }
         @{ Key = 'Group'; Header = 'Group'; Width = 150 }
         @{ Key = 'TierText'; Header = 'Evidence'; Width = 90 }
         @{ Key = 'RiskCol'; Header = 'Risk'; Width = 90; Template = 'Status'; Kind = 'Number'; SortKey = 'RiskRank' }
@@ -32,6 +33,9 @@ function Initialize-IgwtGuiTweakGrid {
         @{ Id = 'changed'; Label = 'Changed from default'; Group = 'changed'; Field = 'ChangedText'; Values = @('Changed'); Tip = 'Current values differ from the Windows default' }
         @{ Id = 'tier-a'; Label = 'Tier A'; Group = 'tier'; Field = 'Tier'; Values = @('A'); Tip = 'Documented by Microsoft or the vendor' }
         @{ Id = 'tier-b'; Label = 'Tier B'; Group = 'tier'; Field = 'Tier'; Values = @('B'); Tip = 'Situational: measure before and after' }
+        @{ Id = 'conf-verified'; Label = 'Verified'; Group = 'confidence'; Field = 'ConfidenceKey'; Values = @('Verified'); More = $true; Tip = 'Documented, and applied and read back correctly on this Windows build' }
+        @{ Id = 'conf-best'; Label = 'Best effort'; Group = 'confidence'; Field = 'ConfidenceKey'; Values = @('BestEffort'); More = $true; Tip = 'Documented, not yet read back on this Windows build' }
+        @{ Id = 'conf-unverified'; Label = 'Unverified'; Group = 'confidence'; Field = 'ConfidenceKey'; Values = @('Unverified'); More = $true; Tip = 'No Microsoft or hardware-vendor documentation' }
         @{ Id = 'risk-low'; Label = 'Low risk'; Group = 'risk'; Field = 'Risk'; Values = @('low'); More = $true }
         @{ Id = 'risk-medium'; Label = 'Medium risk'; Group = 'risk'; Field = 'Risk'; Values = @('medium'); More = $true }
         @{ Id = 'risk-high'; Label = 'High risk'; Group = 'risk'; Field = 'Risk'; Values = @('high'); More = $true }

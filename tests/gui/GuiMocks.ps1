@@ -96,12 +96,16 @@ function script:Get-IgwtGuiData {
         @('HKLM', 'SecurityHealth', '%windir%\system32\SecurityHealthSystray.exe', $true), @('HKCU', 'OneDrive', '"C:\Program Files\Microsoft OneDrive\OneDrive.exe" /background', $false),
         @('HKLM', 'NVIDIA App', '"C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe" --minimized', $true), @('HKCU', 'Spotify', '"C:\Users\Player\AppData\Roaming\Spotify\Spotify.exe" --autostart', $false)
     ) | ForEach-Object { [pscustomobject]@{ Scope = $_[0]; Name = $_[1]; Command = $_[2]; Enabled = $_[3]; Machine = ($_[0] -eq 'HKLM'); Location = "$($_[0])\Software\Microsoft\Windows\CurrentVersion\Run" } }
+    $confCtx = [pscustomobject]@{ Build = '26200'; Passed = (New-Object 'System.Collections.Generic.HashSet[string]'); Failed = (New-Object 'System.Collections.Generic.HashSet[string]') }
+    foreach ($k in @($states.Keys)) { if ($states[$k].State -eq 'On') { $null = $confCtx.Passed.Add([string]$k) } }
     $os = [pscustomobject]@{ Caption = 'Microsoft Windows 11 Pro'; EditionId = 'Professional'; DisplayVersion = '25H2'; Build = 26200; Ubr = 6584; FullBuild = '26200.6584'; LastBootUpTime = $script:MockNow.AddDays(-2); Uptime = [timespan]::FromDays(2) }
     [pscustomobject]@{
         Hardware = [pscustomobject]@{ Tags = $tags; Overlays = $overlays }; PresetSelections = $selections; IsAdmin = $true
         Preflight = [pscustomobject]@{ IsAdmin = $true; Os = $os; Build = 26200; EditionId = 'Professional'; IsPro = $true; SupportedBuild = $true; PendingReboot = @(); Power = [pscustomobject]@{ IsPortable = $false; HasBattery = $false; OnBattery = $false }; IsRdpSession = $false; Warnings = @(); Errors = @(); CanApply = $true }
         Summary = $summary; Pending = $null; States = $states; Changed = $changed; Health = $health; AntiCheat = $ac; Snapshots = $snaps; Startup = $startup
         Games = @([pscustomobject]@{ Id = 'cs2'; Name = 'Counter-Strike 2'; ExePath = 'D:\Games\cs2.exe'; AntiCheat = 'VAC' })
+        # Demo badges: the items shown as on read back correctly on the demo build.
+        Confidence = (Get-IgwtConfidenceMap -Context $confCtx)
     }
 }
 

@@ -369,7 +369,11 @@ function Test-IgwtCatalog {
         if ($t.evidence) {
             $sources = @($t.evidence.sources | Where-Object { $_ })
             if ($sources.Count -lt 1) { $errors.Add("${tid}: Tier $($t.evidence.tier) needs at least one source URL.") }
-            foreach ($s in $sources) { if ([string]$s -notmatch '^https://') { $errors.Add("${tid}: source '$s' must be an https URL.") } }
+            if (@($t.evidence.sources | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) }).Count) { $errors.Add("${tid}: a source is empty.") }
+            # A source is an https URL or a DECISIONS ID ("DECISIONS T8", 3.6 confidence badges).
+            foreach ($s in $sources) { if ([string]$s -notmatch '^https://' -and [string]$s -notmatch '^DECISIONS [A-Z]{1,3}\d{1,3}[a-z]?$') { $errors.Add("${tid}: source '$s' must be an https URL or a DECISIONS ID.") } }
+            foreach ($b in @($t.evidence.testedBuilds)) { if ($null -ne $b -and "$b" -notmatch '^\d{5}$') { $errors.Add("${tid}: evidence.testedBuilds entry '$b' must be a Windows build number.") } }
+            if ($null -ne $t.evidence.PSObject.Properties['partialSource'] -and $t.evidence.partialSource -isnot [bool]) { $errors.Add("${tid}: evidence.partialSource must be true or false.") }
             if ([string]$t.evidence.tier -eq 'B' -and ([string]$t.hint + ' ' + [string]$t.description) -notmatch '(?i)measure') {
                 $errors.Add("${tid}: Tier B hint/description must tell the user to measure before/after.")
             }
