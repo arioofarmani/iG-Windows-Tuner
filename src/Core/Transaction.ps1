@@ -232,7 +232,7 @@ function Invoke-IgwtChangeStep {
         throws for a provider failure (the caller decides on rollback).
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)]$Session, [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Target, [string]$Desired, $RestoreData, [string]$Group, [string]$Kind = 'change')
+    param([Parameter(Mandatory = $true)]$Session, [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Target, $Desired, $RestoreData, [string]$Group, [string]$Kind = 'change')
     Assert-IgwtWritable -Operation 'Invoke-IgwtChangeStep'
     if (-not $PSCmdlet.ShouldProcess([string]$Target['key'], "Change step ($Kind)")) { return $null }
     if (-not $Session.Context) { $Session.Context = New-IgwtContext }
