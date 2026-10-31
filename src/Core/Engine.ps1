@@ -126,12 +126,14 @@ function Invoke-IgwtTweakChange {
         [Parameter(Mandatory = $true)]$Tweak,
         [Parameter(Mandatory = $true)]$Context,
         [Parameter(Mandatory = $true)]$Snapshot,
-        [ValidateSet('on', 'default')][string]$Mode = 'on'
+        [ValidateSet('on', 'default')][string]$Mode = 'on',
+        $Session
     )
     $id = [string]$Tweak.id
     $actions = @($Tweak.actions)
     $captured = New-Object System.Collections.Generic.List[object]
     if (-not $PSCmdlet.ShouldProcess($id, "Apply ($Mode)")) { return [pscustomobject]@{ Id = $id; Result = 'Skipped'; Message = 'WhatIf' } }
+    if ($Session) { return (Invoke-IgwtTweakTransaction -Tweak $Tweak -Context $Context -Snapshot $Snapshot -Mode $Mode -Session $Session) }
     try {
         for ($i = 0; $i -lt $actions.Count; $i++) {
             $data = Get-IgwtActionSnapshot -Action $actions[$i] -Context $Context
@@ -182,6 +184,54 @@ function Invoke-IgwtTweakChange {
     }
     Write-IgwtLog -TweakId $id -Message "Applied ($Mode). Requires: $($Tweak.requires)."
     return [pscustomobject]@{ Id = $id; Result = 'Applied'; Verified = $verified; Message = $note; Requires = [string]$Tweak.requires }
+}
+
+function Invoke-IgwtTweakTransaction {
+    <#
+    .SYNOPSIS
+        Applies one tweak as a group of journaled steps (3.6, DECISIONS T2): one step per action
+        (intent, Set, read-back, committed). A failed step rolls back the tweak's steps in reverse
+        order. The 3.x snapshot file gets the same entry as before, so older reverts still work.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)]$Tweak, [Parameter(Mandatory = $true)]$Context, [Parameter(Mandatory = $true)]$Snapshot,
+        [ValidateSet('on', 'default')][string]$Mode = 'on', [Parameter(Mandatory = $true)]$Session)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtTweakTransaction'
+    $id = [string]$Tweak.id
+    if (-not $PSCmdlet.ShouldProcess($id, "Apply ($Mode)")) { return [pscustomobject]@{ Id = $id; Result = 'Skipped'; Message = 'WhatIf' } }
+    $actions = @($Tweak.actions)
+    $Session.Context = $Context
+    # The 3.x snapshot entry (Pending first, so a crash still leaves the previous values on disk).
+    $captured = New-Object System.Collections.Generic.List[object]
+    try {
+        for ($i = 0; $i -lt $actions.Count; $i++) {
+            $captured.Add([ordered]@{ index = $i; type = [string]$actions[$i].type; fingerprint = (Get-IgwtActionFingerprint $actions[$i]); data = (Get-IgwtActionSnapshot -Action $actions[$i] -Context $Context) })
+        }
+    } catch {
+        Write-IgwtLog -Level Error -TweakId $id -Message "Snapshot failed, nothing changed: $($_.Exception.Message)"
+        return [pscustomobject]@{ Id = $id; Result = 'Failed'; Message = "Snapshot failed: $($_.Exception.Message)" }
+    }
+    Add-IgwtSnapshotEntry -Snapshot $Snapshot -TweakId $id -Actions $captured.ToArray() -Result 'Pending' -Level ([string]$Tweak.level)
+    $failure = $null
+    for ($i = 0; $i -lt $actions.Count; $i++) {
+        if ([string]$actions[$i].type -eq 'check') { continue }
+        $target = Get-IgwtActionTarget -ItemId $id -Index $i -Action $actions[$i]
+        $sr = Invoke-IgwtChangeStep -Session $Session -Target $target -Desired $Mode -Group $id -Confirm:$false
+        if ($sr.Applied -is [System.Collections.IDictionary]) { $captured[$i].data['applied'] = $sr.Applied }
+        if ($sr.Result -ne 'Committed') { $failure = "action ${i}: $($sr.Message)"; break }
+    }
+    if ($failure) {
+        Write-IgwtLog -Level Error -TweakId $id -Message "Apply failed at $failure; rolling back this tweak."
+        $rollbackErrors = @(Undo-IgwtChangeGroup -Session $Session -Group $id -Confirm:$false)
+        $msg = "Failed: $failure"
+        if ($rollbackErrors.Count -gt 0) { $msg += " | Rollback problems: $($rollbackErrors -join '; ')" }
+        Add-IgwtSnapshotEntry -Snapshot $Snapshot -TweakId $id -Actions $captured.ToArray() -Result 'RolledBack' -Message $msg -Level ([string]$Tweak.level)
+        return [pscustomobject]@{ Id = $id; Result = 'Failed'; Message = $msg }
+    }
+    Add-IgwtSnapshotEntry -Snapshot $Snapshot -TweakId $id -Actions $captured.ToArray() -Result 'Applied' -Level ([string]$Tweak.level)
+    if ($Tweak.postApply) { Invoke-IgwtPostApplyHook -Hook ([string]$Tweak.postApply) }
+    Write-IgwtLog -TweakId $id -Message "Applied ($Mode), read back. Requires: $($Tweak.requires)."
+    return [pscustomobject]@{ Id = $id; Result = 'Applied'; Verified = $true; Message = ''; Requires = [string]$Tweak.requires }
 }
 
 #endregion
@@ -339,12 +389,17 @@ function Invoke-IgwtApply {
     Save-IgwtSnapshot -Snapshot $snap
     Write-IgwtLog -Message "$Operation started: $(@($todo | ForEach-Object { $_.id }) -join ', '). Snapshot: $($snap.Path)"
 
-    $n = 0
-    foreach ($t in $todo) {
-        $n++
-        Send-IgwtProgress -Text "Applying $($t.name)" -Percent ([int](100 * ($n - 1) / $todo.Count)) -Callback $OnProgress
-        $results.Add((Invoke-IgwtTweakChange -Tweak $t -Context $Context -Snapshot $snap -Mode $Mode))
-    }
+    # One journaled change session for the whole operation (3.6, DECISIONS T2).
+    $origin = $(if ($Operation -like 'Preset:*') { [ordered]@{ type = 'preset'; ref = $Operation.Substring(7) } } elseif ($Mode -eq 'default') { [ordered]@{ type = 'resetDefault'; ref = $Operation } } else { [ordered]@{ type = 'tweak'; ref = $Operation } })
+    $session = Start-IgwtChangeSession -Origin $origin -Title "$Operation ($($todo.Count) item(s))" -Confirm:$false
+    try {
+        $n = 0
+        foreach ($t in $todo) {
+            $n++
+            Send-IgwtProgress -Text "Applying $($t.name)" -Percent ([int](100 * ($n - 1) / $todo.Count)) -Callback $OnProgress
+            $results.Add((Invoke-IgwtTweakChange -Tweak $t -Context $Context -Snapshot $snap -Mode $Mode -Session $session))
+        }
+    } finally { Complete-IgwtChangeSession -Session $session }
 
     $applied = @($results | Where-Object { $_.Result -eq 'Applied' })
     $requires = 'none'
