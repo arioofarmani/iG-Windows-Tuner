@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.6.0 (unreleased)
+
+Transactions: every change iG makes is a journaled transaction with an exact restore.
+
+### Added
+
+- **Change journal** (DECISIONS T2-T5, T14): every change is recorded before it is made (intent), read back after it (committed or failed) and rolled back in reverse order when a step fails. The journal is append-only, hash-chained (an edited, removed or reordered entry makes it read-only and names the line), survives a write cut off by a crash, keeps the first value of every target forever ("value before iG") and is compacted into a checkpoint that keeps those baselines.
+- **One change at a time:** a machine-wide lock; a second change gets "Another change is running since HH:MM (title)".
+- **Unfinished changes** (app or PC stopped mid-change) are found and can be rolled back.
+- **Revert from the journal** per change, per session or everything, with the value before, the value iG set and the value now; when something else changed a value since, you choose: restore anyway, keep the current value or skip. Reverts are journaled too.
+- **Backups & Logs > Change journal:** the timeline by session with filters and the revert buttons.
+- **Upgrade from 3.5:** the 3.x snapshots are imported once, so the original values of changes made before 3.6 are known and can be restored.
+- Every writer runs on the change engine: catalog tweaks and presets, forensic logging, and the firewall, ASR, Defender, policy, audit, security policy, power, startup, management, toolkit and cleaner modules (one-way changes are journaled and marked "cannot be undone"). A parser-based test fails when anything else calls a state-changing command.
 ## 3.5.0 (2026-10-30)
 
 Firewall logs and forensics: the firewall log analysis works again (two bugs fixed), a fast log reader with filters and an overview, time-boxed forensic connection logging that restores every setting exactly, and evidence collection with an AI-ready export. Verification sources: DECISIONS F10 to F13; independent review: docs\REVIEW.md.

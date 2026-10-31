@@ -223,6 +223,7 @@ function Invoke-IgwtManagedChange {
     param([Parameter(Mandatory = $true)][ValidateSet('service', 'task', 'appx', 'feature', 'capability', 'firewallRule')][string]$Kind,
         [Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][string]$Value, [switch]$Provisioned)
     Assert-IgwtWritable -Operation 'Invoke-IgwtManagedChange'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtManagedChange' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Management changes need administrator rights.' }
         Initialize-IgwtDataRoot

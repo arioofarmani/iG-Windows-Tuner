@@ -259,6 +259,7 @@ function Invoke-IgwtToolkitApp {
     param([Parameter(Mandatory = $true)][ValidateSet('Install', 'Upgrade', 'Uninstall')][string]$Operation,
         [Parameter(Mandatory = $true)][string[]]$Id, [switch]$AcceptAgreements, [scriptblock]$OnProgress)
     Assert-IgwtWritable -Operation 'Invoke-IgwtToolkitApp'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtToolkitApp' -Parameters $PSBoundParameters) }
     $ids = @($Id | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -Unique)
     foreach ($i in $ids) { Test-IgwtToolkitAppId -Id $i }
     $accepted = ([bool]$AcceptAgreements -or (Test-IgwtWingetConsent))
@@ -295,6 +296,7 @@ function Invoke-IgwtWingetUpgradeAll {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([switch]$AcceptAgreements)
     Assert-IgwtWritable -Operation 'Invoke-IgwtWingetUpgradeAll'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtWingetUpgradeAll' -Parameters $PSBoundParameters) }
     if (-not ([bool]$AcceptAgreements -or (Test-IgwtWingetConsent))) { throw "winget's package and source agreements have not been accepted; pass -AcceptAgreements after reviewing them." }
     if (-not $PSCmdlet.ShouldProcess('all winget packages', 'winget upgrade --all')) { return $null }
     $r = Invoke-IgwtWinget -Arguments @('upgrade', '--all', '--source', 'winget', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
@@ -385,6 +387,7 @@ function Invoke-IgwtToolkitFeature {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][ValidateSet('Enabled', 'Disabled')][string]$State)
     Assert-IgwtWritable -Operation 'Invoke-IgwtToolkitFeature'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtToolkitFeature' -Parameters $PSBoundParameters) }
     $f = Get-IgwtToolkitEntry -Section Features -Id $Id
     $edition = [string](Get-IgwtOsInfo).EditionId
     $editions = @($f.editions | Where-Object { $_ })
@@ -546,6 +549,7 @@ function Invoke-IgwtToolkitFix {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Id, [scriptblock]$OnProgress)
     Assert-IgwtWritable -Operation 'Invoke-IgwtToolkitFix'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtToolkitFix' -Parameters $PSBoundParameters) }
     $x = Get-IgwtToolkitEntry -Section Fixes -Id $Id
     if ([bool]$x.admin -and -not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw "'$($x.name)' needs administrator rights." }
     if ([bool]$x.refuseInRdp -and (Test-IgwtRdpSession)) { throw "'$($x.name)' is refused in a Remote Desktop session because it can cut the connection." }

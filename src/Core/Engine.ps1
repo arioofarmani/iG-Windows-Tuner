@@ -430,6 +430,7 @@ function Invoke-IgwtRevert {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string[]]$Id, [string]$SnapshotPath, [switch]$Last, $Context, [scriptblock]$OnProgress)
     Assert-IgwtWritable -Operation 'Invoke-IgwtRevert'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtRevert' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         $pre = Get-IgwtPreflight -ForApply
         if (-not $pre.CanApply) { throw ($pre.Errors -join ' ') }
@@ -470,7 +471,8 @@ function Invoke-IgwtRevert {
         if ([string]$doc.operation -eq 'FirewallProfile') {
             $fp = Restore-IgwtFirewallProfileSnapshot -SnapshotPath $SnapshotPath
             return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $fp.Snapshot; Results = @($fp.Results); Requires = 'none' }
-        }        if ([string]$doc.operation -eq 'Defender') {
+        }
+        if ([string]$doc.operation -eq 'Defender') {
             $df = Restore-IgwtDefenderSettingSnapshot -SnapshotPath $SnapshotPath
             return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $df.Snapshot; Results = @($df.Results); Requires = 'none' }
         }

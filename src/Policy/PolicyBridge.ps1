@@ -162,6 +162,7 @@ function Invoke-IgwtTattooAdoption {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][ValidateSet('Adopt', 'Remove')][string]$Action, [Parameter(Mandatory = $true)][string[]]$Select)
     Assert-IgwtWritable -Operation 'Invoke-IgwtTattooAdoption'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtTattooAdoption' -Parameters $PSBoundParameters) }
     $plan = Get-IgwtTattooAdoptionPlan -Action $Action -Select $Select
     $ok = @($plan.Ops | Where-Object { -not $_.Refusal })
     if (-not $ok.Count) { throw 'Nothing to do: no selected tattooed value can be changed.' }
@@ -193,6 +194,7 @@ function Restore-IgwtTattooRemoval {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Path)
     Assert-IgwtWritable -Operation 'Restore-IgwtTattooRemoval'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtTattooRemoval' -Parameters $PSBoundParameters) }
     $doc = Read-IgwtJsonFile -Path $Path
     if ([string]$doc.kind -ne 'igwt-tattoo-removal') { throw "'$Path' is not a tattoo removal file." }
     $n = 0

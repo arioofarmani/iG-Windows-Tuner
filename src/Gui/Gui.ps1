@@ -15,7 +15,7 @@ $script:IgwtGuiControlNames = @(
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
     'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
-    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
+    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
@@ -640,6 +640,7 @@ function Update-IgwtGuiFromData {
     Invoke-IgwtGuiChunked -Key 'data.pages' -Size 1 -Items @(
         { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
         { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
+        { if ($script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         { Update-IgwtGuiPresetCards }
         { Update-IgwtGuiTweakList }
         { Update-IgwtGuiDashboard -Data $script:Gui.Data }
@@ -858,6 +859,7 @@ function Update-IgwtGuiButtons {
     $c.DiscardButton.IsEnabled = (-not $busy) -and $n -gt 0
     $c.RefreshButton.IsEnabled = -not $busy
     foreach ($b in 'RevertLastButton', 'RevertSnapshotButton', 'BackupRevertLastButton', 'BackupRevertSelectedButton') { $c[$b].IsEnabled = (-not $busy) -and $script:Gui.IsAdmin }
+    Update-IgwtGuiJournalButtons
     $jobCommand = ''
     if ($busy) { $jobCommand = [string]$script:Gui.Job.Command }
     $c.CleanScanButton.IsEnabled = -not $busy
@@ -3081,7 +3083,7 @@ function Show-IgwtGuiPage {
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
-        'Backups' { $c.PageBackups.Visibility = 'Visible' }
+        'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         'Rejected' { $c.PageRejected.Visibility = 'Visible' }
         'About' { $c.PageAbout.Visibility = 'Visible' }
     }
@@ -3111,6 +3113,8 @@ function Save-IgwtGuiScreenshots {
     Update-IgwtGuiFromData -Data $data
     # Read-only data for the cleaner and disk analyzer pages (scan deletes nothing).
     Set-IgwtGuiCleanerScan -Scan (Invoke-IgwtCleanerScan -Level Standard)
+    # The change journal (read-only).
+    Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
     $script:Gui.C.DiskPathBox.Text = $script:IgwtProjectRoot
     Update-IgwtGuiDiskLists -Usage (Get-IgwtDiskUsage -Path $script:IgwtProjectRoot -Top 12)
     # Read-only data for the expert inspectors.
@@ -3295,6 +3299,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiListGrids
     Add-IgwtGuiStartupMark -Name 'listGrids'
     Initialize-IgwtGuiDiagGrids
+    Initialize-IgwtGuiJournalGrid
     Add-IgwtGuiStartupMark -Name 'diagGrids'
     Initialize-IgwtGuiFirewallPage
     Add-IgwtGuiStartupMark -Name 'firewall'
@@ -3436,6 +3441,9 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.ElevateButton -Event 'Click' -Handler { Invoke-IgwtGuiElevate }
     Register-IgwtGuiHandler -Control $c.RevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
     Register-IgwtGuiHandler -Control $c.BackupRevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
+    Register-IgwtGuiHandler -Control $c.JournalRevertEntryButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Entry }
+    Register-IgwtGuiHandler -Control $c.JournalRevertSessionButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Session }
+    Register-IgwtGuiHandler -Control $c.JournalRevertAllButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope All }
     Register-IgwtGuiHandler -Control $c.BackupRevertSelectedButton -Event 'Click' -Handler {
             $sel = (Get-IgwtGuiGridItem -Name SnapshotList)
             if ($sel) { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path } else { Set-IgwtGuiStatus 'Select a snapshot first.' }

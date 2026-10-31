@@ -474,3 +474,17 @@ function script:Get-IgwtForensicLoggingState {
         Session = $null; Notes = @()
     }
 }
+
+function script:Get-IgwtJournalTimeline {
+    # Demo journal: one preset session still in effect, one module change, one reverted change.
+    param($Journal)
+    $null = $Journal
+    $t0 = '2026-10-30T18:02:11.0000000Z'; $t1 = '2026-10-30T20:15:40.0000000Z'; $t2 = '2026-10-31T09:01:05.0000000Z'
+    $rows = @(
+        [pscustomobject]@{ Key = 's1|1'; Session = 's1'; SessionTitle = 'Preset:competitive (3 item(s))'; Origin = 'preset'; When = $t0; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'gfx.game-mode'; Target = 'action|gfx.game-mode|0|registry'; Result = 'Committed'; Error = ''; Before = 'DWord 0'; After = 'DWord 1'; EntryId = 'e1'; InEffect = $true; OneWay = $false }
+        [pscustomobject]@{ Key = 's1|2'; Session = 's1'; SessionTitle = 'Preset:competitive (3 item(s))'; Origin = 'preset'; When = $t0; Outcome = 'ok'; Step = 2; Op = 'change'; Item = 'sec.autorun-off'; Target = 'action|sec.autorun-off|0|registry'; Result = 'Committed'; Error = ''; Before = 'absent'; After = 'DWord 255'; EntryId = 'e2'; InEffect = $true; OneWay = $false }
+        [pscustomobject]@{ Key = 's2|1'; Session = 's2'; SessionTitle = 'Invoke-IgwtManagedChange service Fax Disabled'; Origin = 'module'; When = $t1; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'backup snapshot-20261030-201540.json'; EntryId = 'e3'; InEffect = $false; OneWay = $false }
+        [pscustomobject]@{ Key = 's3|1'; Session = 's3'; SessionTitle = 'Revert session: Invoke-IgwtManagedChange'; Origin = 'revert'; When = $t2; Outcome = 'ok'; Step = 1; Op = 'restore'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = ''; EntryId = 'e4'; InEffect = $false; OneWay = $false }
+    )
+    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Rows = $rows }
+}

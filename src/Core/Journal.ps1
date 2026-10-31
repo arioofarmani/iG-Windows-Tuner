@@ -55,7 +55,36 @@ function Get-IgwtJournalSegments {
     param()
     $dir = Get-IgwtJournalFolder
     if (-not (Test-Path -LiteralPath $dir)) { return @() }
-    return @(Get-ChildItem -LiteralPath $dir -File -Filter 'journal-*.jsonl' | Where-Object { $_.Name -match '^journal-\d{4}\.jsonl$' } | Sort-Object Name | ForEach-Object { $_.FullName })
+    # Segments folded into the checkpoint are skipped (compaction deletes them after writing it).
+    $cp = Read-IgwtJournalCheckpoint
+    $after = $(if ($cp) { [string]$cp['folded'] } else { '' })
+    return @(Get-ChildItem -LiteralPath $dir -File -Filter 'journal-*.jsonl' | Where-Object { $_.Name -match '^journal-\d{4}\.jsonl$' -and (-not $after -or [string]::CompareOrdinal($_.Name, $after) -gt 0) } | Sort-Object Name | ForEach-Object { $_.FullName })
+}
+
+function Get-IgwtJournalCheckpointHash {
+    <# .SYNOPSIS SHA256 of a checkpoint's content (every field but "hash"), to detect a damaged checkpoint file. Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Checkpoint)
+    $copy = [ordered]@{}
+    foreach ($k in @($Checkpoint.Keys | Sort-Object)) { if ($k -ne 'hash') { $copy[$k] = $Checkpoint[$k] } }
+    return (Get-IgwtJournalHash -Line (ConvertTo-IgwtCanonicalJson $copy))
+}
+
+function Read-IgwtJournalCheckpoint {
+    <#
+    .SYNOPSIS
+        The compaction checkpoint (Journal\checkpoint.json) as a dictionary, or $null when there is
+        none: the sequence and hash of the last folded line, the last folded segment, and every
+        baseline and last state of the folded entries (DECISIONS T4). Throws when it is damaged. Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    $p = Join-Path (Get-IgwtJournalFolder) 'checkpoint.json'
+    if (-not (Test-Path -LiteralPath $p)) { return $null }
+    $cp = ConvertFrom-IgwtJournalLine -Line ([System.IO.File]::ReadAllText($p))
+    if ($null -eq $cp -or [string]$cp['hash'] -ne (Get-IgwtJournalCheckpointHash -Checkpoint $cp)) { throw 'The journal checkpoint (checkpoint.json) is damaged or was edited.' }
+    return $cp
 }
 
 function ConvertFrom-IgwtJournalLine {
@@ -70,6 +99,24 @@ function ConvertFrom-IgwtJournalLine {
     try { $o = $script:IgwtJsonSerializer.DeserializeObject($Line) } catch { return $null }
     if ($o -is [System.Collections.Generic.Dictionary[string, object]]) { return $o }
     return $null
+}
+
+function Initialize-IgwtJournalEngine {
+    <#
+    .SYNOPSIS
+        Loads the compiled journal verifier (src\Core\JournalEngine.cs: chain, parse and index;
+        managed code only) once per process. Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    if ('IgwtJournal.Verifier' -as [type]) { return }
+    $source = Join-Path $PSScriptRoot 'JournalEngine.cs'
+    # One process-wide lock (an interned string is the same object in every runspace), so it compiles once.
+    $gate = [string]::Intern('IgwtJournalEngine')
+    [System.Threading.Monitor]::Enter($gate)
+    try {
+        if (-not ('IgwtJournal.Verifier' -as [type])) { Add-Type -Path $source -ReferencedAssemblies System, System.Core, System.Web.Extensions -ErrorAction Stop }
+    } finally { [System.Threading.Monitor]::Exit($gate) }
 }
 
 function Read-IgwtJournal {
@@ -89,55 +136,43 @@ function Read-IgwtJournal {
     $last = New-Object 'System.Collections.Generic.Dictionary[string,object]'
     $res = [ordered]@{ Status = 'Empty'; Reason = ''; BadFile = ''; BadLine = 0; Seq = 0; Hash = $script:IgwtJournalZeroHash; Segment = ''; SegmentLines = 0; TornPending = $false; TornHash = ''; NeedsBreak = $false; Count = 0 }
     $hash = $script:IgwtJournalZeroHash
-    $torn = $null
+    # After a compaction the chain continues from the checkpoint, which carries the folded indexes.
+    try { $cp = Read-IgwtJournalCheckpoint } catch { $res.Status = 'Broken'; $res.Reason = $_.Exception.Message; $res.BadFile = 'checkpoint.json'; return [pscustomobject]$res }
+    if ($cp) {
+        $hash = [string]$cp['head']; $res.Seq = [long]$cp['seq']
+        foreach ($k in @($cp['baselines'].Keys)) { $baselines[$k] = $cp['baselines'][$k] }
+        foreach ($k in @($cp['last'].Keys)) { $last[$k] = $cp['last'][$k] }
+    }
     $segments = @(Get-IgwtJournalSegments)
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        foreach ($file in $segments) {
-            $lineNo = 0; $segLines = 0
-            $bytes = [System.IO.File]::ReadAllBytes($file)
-            $text = [System.Text.Encoding]::UTF8.GetString($bytes)
-            $endsWithBreak = ($text.Length -eq 0 -or $text[$text.Length - 1] -eq "`n")
-            $lines = $text.Split([char]10)
-            $count = $lines.Length; if ($endsWithBreak) { $count-- }
-            for ($i = 0; $i -lt $count; $i++) {
-                $line = $lines[$i].TrimEnd([char]13)
-                $lineNo++
-                $isLast = ($file -eq $segments[-1] -and $i -eq $count - 1)
-                $prefix = '{"prev":"' + $hash + '"'
-                if (-not $line.StartsWith($prefix, [System.StringComparison]::Ordinal)) {
-                    # A torn write: an unterminated last line, or a malformed line that the next line's chainNote names.
-                    $lh = [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($line))).Replace('-', '').ToLowerInvariant()
-                    if ($isLast -and -not $endsWithBreak) { $res.TornPending = $true; $res.TornHash = $lh; continue }
-                    if ($null -eq $torn -and $null -eq (ConvertFrom-IgwtJournalLine -Line $line)) { $torn = @{ Hash = $lh; Line = $lineNo; File = $file }; continue }
-                    $res.Status = 'Broken'; $res.Reason = "The chain is broken at $([IO.Path]::GetFileName($file)) line ${lineNo}: it does not continue from the line before (an entry was changed, removed or reordered)."; $res.BadFile = $file; $res.BadLine = $lineNo
-                    return [pscustomobject]$res
-                }
-                $e = ConvertFrom-IgwtJournalLine -Line $line
-                if ($null -eq $e) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($file)) line $lineNo is not a valid entry."; $res.BadFile = $file; $res.BadLine = $lineNo; return [pscustomobject]$res }
-                if ($null -ne $torn) {
-                    if ([string]$e['kind'] -ne 'chainNote' -or [string]$e['torn'] -ne $torn.Hash) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($torn.File)) line $($torn.Line) is not a valid entry."; $res.BadFile = $torn.File; $res.BadLine = $torn.Line; return [pscustomobject]$res }
-                    $torn = $null
-                }
-                $expectSeq = $res.Seq + 1
-                if ([long]$e['seq'] -ne $expectSeq) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($file)) line ${lineNo}: sequence $($e['seq']) where $expectSeq was expected."; $res.BadFile = $file; $res.BadLine = $lineNo; return [pscustomobject]$res }
-                $res.Seq = $expectSeq
-                $hash = [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($line))).Replace('-', '').ToLowerInvariant()
-                $segLines++
-                $key = $(if ($e.ContainsKey('target') -and $e['target'] -is [System.Collections.IDictionary]) { [string]$e['target']['key'] } else { '' })
-                if ($key) {
-                    $kind = [string]$e['kind']
-                    if ($kind -eq 'baseline' -and -not $baselines.ContainsKey($key)) { $baselines[$key] = $e }
-                    if ($kind -in 'committed', 'reverted', 'retired', 'adopted', 'rolledBack') { $last[$key] = $e }
-                }
-                if (-not $NoEntries) { $entries.Add($e) }
+    Initialize-IgwtJournalEngine
+    $st = New-Object IgwtJournal.ChainState
+    $st.Hash = $hash; $st.Seq = [long]$res.Seq
+    $tornFile = ''
+    # The list itself, never unrolled: $null means verify and index only.
+    $collect = $null
+    if (-not $NoEntries) { $collect = $entries }
+    foreach ($file in $segments) {
+        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($file))
+        $hadTorn = $st.HasTorn
+        $ok = [IgwtJournal.Verifier]::VerifySegment($text, ($file -eq $segments[-1]), $st, $collect, $baselines, $last)
+        if ($st.HasTorn -and -not $hadTorn) { $tornFile = $file }
+        if (-not $ok) {
+            $name = [IO.Path]::GetFileName($file)
+            $res.Status = 'Broken'; $res.BadFile = $file; $res.BadLine = $st.BadLine
+            $res.Reason = switch ($st.Reason) {
+                'chain' { "The chain is broken at $name line $($st.BadLine): it does not continue from the line before (an entry was changed, removed or reordered)." }
+                'seq' { "$name line $($st.BadLine): sequence $($st.FoundSeq) where $($st.Seq + 1) was expected." }
+                'torn' { $res.BadFile = $tornFile; "$([IO.Path]::GetFileName($tornFile)) line $($st.BadLine) is not a valid entry." }
+                default { "$name line $($st.BadLine) is not a valid entry." }
             }
-            $res.Segment = $file; $res.SegmentLines = $segLines
-            # A complete last line without its line break (cut off right after it): the next append adds the break first.
-            if ($file -eq $segments[-1]) { $res.NeedsBreak = (-not $endsWithBreak -and -not $res.TornPending) }
+            return [pscustomobject]$res
         }
-        if ($null -ne $torn) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($torn.File)) line $($torn.Line) is not a valid entry."; $res.BadFile = $torn.File; $res.BadLine = $torn.Line; return [pscustomobject]$res }
-    } finally { $sha.Dispose() }
+        $res.Segment = $file; $res.SegmentLines = $st.SegmentLines
+    }
+    if ($st.HasTorn) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($tornFile)) line $($st.TornLine) is not a valid entry."; $res.BadFile = $tornFile; $res.BadLine = $st.TornLine; return [pscustomobject]$res }
+    # A complete last line without its line break (cut off right after it): the next append adds the break first.
+    $res.TornPending = $st.TornPending; $res.TornHash = $st.PendingHash; $res.NeedsBreak = $st.NeedsBreak
+    $res.Seq = $st.Seq; $hash = $st.Hash
     if ($res.Seq -gt 0) { $res.Status = 'Ok' }
     $res.Hash = $hash; $res.Count = $res.Seq
     $o = [pscustomobject]$res
@@ -145,6 +180,53 @@ function Read-IgwtJournal {
     $o | Add-Member -NotePropertyName Baselines -NotePropertyValue $baselines
     $o | Add-Member -NotePropertyName Last -NotePropertyValue $last
     return $o
+}
+
+function Invoke-IgwtJournalCompaction {
+    <#
+    .SYNOPSIS
+        Folds the oldest full segments into the checkpoint (DECISIONS T4): every baseline, the last
+        state of every target, and the sequence and hash of the last folded line are kept, so the
+        chain stays verifiable and "Reset everything iG changed" keeps working; the folded segments
+        are deleted after the checkpoint is written. Only when the journal is intact and no session
+        is unfinished. Called under the change lock (Compress-IgwtJournal, or the start of a session).
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([ValidateRange(1, 1000)][int]$KeepSegments = 2)
+    $j = Read-IgwtJournal
+    if ($j.Status -ne 'Ok') { return [pscustomobject]@{ Folded = 0; Message = "Not compacted: the journal is $($j.Status.ToLowerInvariant())." } }
+    if (@(Get-IgwtIncompleteChangeSession -Journal $j | Where-Object { @($_.Steps).Count }).Count) { return [pscustomobject]@{ Folded = 0; Message = 'Not compacted: a change session is unfinished.' } }
+    $segs = @(Get-IgwtJournalSegments)
+    if ($segs.Count -le $KeepSegments) { return [pscustomobject]@{ Folded = 0; Message = 'Nothing to compact.' } }
+    $fold = @($segs | Select-Object -First ($segs.Count - $KeepSegments))
+    $lastFolded = $fold[-1]
+    # The head of the folded part: the last entry of the last folded segment.
+    $lines = @([System.IO.File]::ReadAllText($lastFolded).Split([char]10) | ForEach-Object { $_.TrimEnd([char]13) } | Where-Object { $_ })
+    $headLine = $lines[-1]
+    $head = ConvertFrom-IgwtJournalLine -Line $headLine
+    if ($null -eq $head) { return [pscustomobject]@{ Folded = 0; Message = 'Not compacted: the last folded line is not an entry.' } }
+    $headSeq = [long]$head['seq']
+    if (-not $PSCmdlet.ShouldProcess("$($fold.Count) segment(s)", 'Fold into the journal checkpoint')) { return $null }
+    $base = [ordered]@{}; $lastIdx = [ordered]@{}
+    $old = $null; try { $old = Read-IgwtJournalCheckpoint } catch { $old = $null }
+    if ($old) { foreach ($k in $old['baselines'].Keys) { $base[$k] = $old['baselines'][$k] }; foreach ($k in $old['last'].Keys) { $lastIdx[$k] = $old['last'][$k] } }
+    foreach ($e in $j.Entries) {
+        if ([long]$e['seq'] -gt $headSeq) { break }
+        $t = $e['target']
+        if (-not ($t -is [System.Collections.IDictionary])) { continue }
+        $key = [string]$t['key']; $kind = [string]$e['kind']
+        if ($kind -eq 'baseline' -and -not $base.Contains($key)) { $base[$key] = $e }
+        if ($kind -in 'committed', 'reverted', 'retired', 'adopted', 'rolledBack') { $lastIdx[$key] = $e }
+    }
+    $cp = [ordered]@{ schema = 1; seq = $headSeq; head = (Get-IgwtJournalHash -Line $headLine); folded = [IO.Path]::GetFileName($lastFolded); createdUtc = [DateTime]::UtcNow.ToString('o'); baselines = $base; last = $lastIdx }
+    $cp.hash = Get-IgwtJournalCheckpointHash -Checkpoint $cp
+    $p = Join-Path (Get-IgwtJournalFolder) 'checkpoint.json'
+    [System.IO.File]::WriteAllText("$p.tmp", (ConvertTo-Json -InputObject $cp -Compress -Depth 14), (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath "$p.tmp" -Destination $p -Force
+    foreach ($f in $fold) { Remove-Item -LiteralPath $f -Force }
+    $script:IgwtJournal = $null
+    $check = Get-IgwtJournalState -Refresh
+    return [pscustomobject]@{ Folded = $fold.Count; Message = "Folded $($fold.Count) segment(s) up to entry $headSeq into the checkpoint; the journal is $($check.Status.ToLowerInvariant())." }
 }
 
 function Get-IgwtJournalState {
@@ -184,7 +266,8 @@ function Add-IgwtJournalEntry {
     $segLines = [int]$j.SegmentLines
     # A cut-off or unterminated last line is finished in its own segment before any rollover.
     if (-not $segment -or ($segLines -ge $script:IgwtJournalSegmentLines -and -not $j.TornPending -and -not $j.NeedsBreak)) {
-        $n = @(Get-IgwtJournalSegments).Count + 1
+        # The next number after every segment file present (folded ones may already be deleted).
+        $n = 1 + [int](@(Get-ChildItem -LiteralPath $dir -File -Filter 'journal-*.jsonl' | Where-Object { $_.Name -match '^journal-(\d{4})\.jsonl$' } | ForEach-Object { [int]$_.Name.Substring(8, 4) }) + @(0) | Measure-Object -Maximum).Maximum
         $segment = Join-Path $dir ('journal-{0:0000}.jsonl' -f $n); $segLines = 0
     }
     $bi = Get-IgwtWindowsBuildInfo

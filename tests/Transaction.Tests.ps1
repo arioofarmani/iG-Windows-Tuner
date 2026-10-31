@@ -32,6 +32,26 @@ BeforeAll {
 Describe 'Change engine' {
     BeforeEach { Initialize-TestState }
 
+    It 'imports the 3.x snapshots once (originals as baselines) and reverts them from the journal' {
+        InModuleScope iGWindowsTuner { $b = Get-IgwtDataPath -Kind Backups; if (Test-Path -LiteralPath $b) { Remove-Item -LiteralPath $b -Recurse -Force } }
+        $null = Invoke-IgwtApply -Id 'sec.autorun-off', 'gfx.game-mode' -Context $script:Ctx
+        (Get-TestValue -Path $script:Explorer -Name 'NoDriveTypeAutoRun').Exists | Should -BeTrue
+        # A 3.5 installation: snapshots, no journal.
+        InModuleScope iGWindowsTuner { Remove-Item -LiteralPath (Get-IgwtJournalFolder) -Recurse -Force; $script:IgwtJournal = $null }
+        $u = InModuleScope iGWindowsTuner { Invoke-IgwtJournalUpgrade -Confirm:$false }
+        $u.Imported | Should -Be 3 -Because 'two autorun actions and Game Mode are still applied'
+        $u.Baselines | Should -Be 3
+        $j = Get-TestJournal
+        @($j.Entries | Where-Object { $_['kind'] -eq 'sessionStart' })[0]['origin']['type'] | Should -Be 'upgrade'
+        $j.Baselines.Count | Should -Be 3
+        (InModuleScope iGWindowsTuner { Invoke-IgwtJournalUpgrade -Confirm:$false }).Message | Should -Be 'Already imported.'
+        $plan = @(Get-IgwtRevertPlan -All)
+        @($plan | Where-Object Status -EQ 'Ready').Count | Should -Be 3
+        $null = Invoke-IgwtJournalRevert -Plan $plan -Title 'Reset everything' -Confirm:$false
+        (Get-TestValue -Path $script:Explorer -Name 'NoDriveTypeAutoRun').Exists | Should -BeFalse -Because 'the value did not exist before iG'
+        (Get-TestValue -Path $script:GameBar -Name 'AutoGameModeEnabled').Value | Should -Be 0
+    }
+
     It 'journals an apply: session, baseline, intent and committed with the exact previous value' {
         $r = Invoke-IgwtApply -Id 'sec.autorun-off', 'gfx.game-mode' -Context $script:Ctx
         @($r.Results | Where-Object Result -EQ 'Applied').Count | Should -Be 2
@@ -62,7 +82,7 @@ Describe 'Change engine' {
     It 'refuses a second change while one runs, with a readable message' {
         $name = InModuleScope iGWindowsTuner { Get-IgwtChangeLockName }
         $ps = [powershell]::Create().AddScript({ param($n) $m = New-Object System.Threading.Mutex($false, $n); $null = $m.WaitOne(); Start-Sleep -Seconds 20; $m.ReleaseMutex() }).AddArgument($name)
-        $h = $ps.BeginInvoke()
+        $null = $ps.BeginInvoke()
         try {
             Start-Sleep -Milliseconds 700
             InModuleScope iGWindowsTuner { [IO.File]::WriteAllText((Join-Path (Get-IgwtDataPath -Kind State) 'change-lock.json'), '{"title":"Preset Competitive","startedUtc":"2026-10-31T10:00:00.0000000Z"}') }

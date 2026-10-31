@@ -451,6 +451,7 @@ function Restore-IgwtForensicLogging {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtForensicLogging'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtForensicLogging' -Parameters $PSBoundParameters) }
     $file = Join-Path $SnapshotPath 'snapshot.json'
     if (-not (Test-Path -LiteralPath $file)) { throw "'$SnapshotPath' is not a forensic logging snapshot (snapshot.json missing)." }
     $s = Read-IgwtJsonFile -Path $file

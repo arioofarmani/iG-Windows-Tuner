@@ -108,6 +108,7 @@ function Remove-IgwtDefenderExclusion {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param([Parameter(Mandatory = $true)][ValidateSet('Path', 'Process', 'Extension', 'IpAddress')][string]$Kind, [Parameter(Mandatory = $true)][string]$Value)
     Assert-IgwtWritable -Operation 'Remove-IgwtDefenderExclusion'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Remove-IgwtDefenderExclusion' -Parameters $PSBoundParameters) }
     $audit = Get-IgwtDefenderExclusionAudit
     if (-not $audit.Readable) { throw 'Exclusions are hidden from non-administrators; run elevated.' }
     $row = @($audit.Exclusions | Where-Object { $_.Kind -eq $Kind -and [string]::Equals([string]$_.Value, $Value, [System.StringComparison]::OrdinalIgnoreCase) }) | Select-Object -First 1

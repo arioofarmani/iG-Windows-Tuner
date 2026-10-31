@@ -50,15 +50,18 @@ Describe 'Forbidden techniques are absent from shipped code' {
         $typeDefs.Count | Should -Be 1
         $typeDefs[0] | Should -Match 'Custom\.ps1'
         $paths = @(Get-Matches '(?i)Add-Type\s+-Path')
-        $paths.Count | Should -Be 1
-        $paths[0] | Should -Match 'FirewallLog\.ps1'
-        @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -Filter *.cs | ForEach-Object { $_.Name }) | Should -Be @('FirewallLogEngine.cs')
+        $paths.Count | Should -Be 2
+        $paths[0] | Should -Match '^(FirewallLog|Journal)\.ps1:'
+        $paths[1] | Should -Match '^(FirewallLog|Journal)\.ps1:'
+        @(Get-ChildItem -Path (Join-Path $script:IgwtProjectRoot 'src') -Recurse -Filter *.cs | ForEach-Object { $_.Name }) | Sort-Object | Should -Be @('FirewallLogEngine.cs', 'JournalEngine.cs')
         @(Get-Matches '(?i)DllImport' -Files ($script:Code + $script:CSharp)).Count | Should -Be 1
     }
-    It 'keeps the firewall log engine to managed parsing (no P/Invoke, unsafe code, processes, registry, network or file writes)' {
-        $src = @(Get-Content -LiteralPath $script:CSharp[0].FullName | Where-Object { $_ -notmatch '^\s*//' }) -join "`n"
+    It 'keeps the compiled engines to managed parsing (no P/Invoke, unsafe code, processes, registry, network or file writes)' {
+        foreach ($cs in $script:CSharp) {
+        $src = @(Get-Content -LiteralPath $cs.FullName | Where-Object { $_ -notmatch '^\s*//' }) -join "`n"
         $src | Should -Not -Match '(?i)DllImport|extern\s|unsafe|Marshal\.|System\.Diagnostics\.Process|Microsoft\.Win32|Registry|WebClient|HttpClient|Socket|Dns\.|Assembly\.Load|Activator|Reflection'
-        $src | Should -Not -Match 'File\.(Write|Append|Create|Delete|Move|Copy|Replace)|FileAccess\.(Write|ReadWrite)|FileMode\.(Create|Append|Truncate|OpenOrCreate|CreateNew)|new\s+StreamWriter'
+        $src | Should -Not -Match 'File\.(Write|Append|Create|Delete|Move|Copy|Replace)|FileAccess\.(Write|ReadWrite)|FileMode\.(Create|Append|Truncate|OpenOrCreate|CreateNew)|new\s+StreamWriter' -Because $cs.Name
+        }
     }
     It 'runs only the allowed external executables' {
         foreach ($i in @(Get-Matches '&\s*\$exe\b')) { $i | Should -Match '^(PowerCfg|Gpu|CleanerEngine|Apps|NetworkQuality|GpoStore|SecurityPolicy|AuditPolicy|DefenderCenter|ForensicLogging)\.ps1:' }
