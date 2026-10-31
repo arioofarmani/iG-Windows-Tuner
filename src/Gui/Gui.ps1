@@ -15,7 +15,7 @@ $script:IgwtGuiControlNames = @(
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
     'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
-    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
+    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
@@ -641,6 +641,8 @@ function Update-IgwtGuiFromData {
         { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
         { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
         { if ($script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
+        # The home card inputs (journal, unfinished changes, drift): at start and after every refresh.
+        { if ($script:Gui.Runspace) { Start-IgwtGuiHomeCard } }
         { Update-IgwtGuiPresetCards }
         { Update-IgwtGuiTweakList }
         { Update-IgwtGuiDashboard -Data $script:Gui.Data }
@@ -1361,7 +1363,8 @@ function Complete-IgwtGuiApply {
         if ($a -eq 'Yes') { $enableSp = $true } else { $skipRp = $true }
     }
     $operation = 'Apply'
-    if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and $sets.Reset.Count -eq 0) { $operation = $script:Gui.PresetOperation }
+    # A preset's resets belong to the preset's own session (3.6, DECISIONS T16); turn-offs do not.
+    if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and ($sets.Reset.Count -eq 0 -or [string]$script:Gui.PresetOperation -like 'Preset:*')) { $operation = $script:Gui.PresetOperation }
     $ackManaged = $false
     $authority = @($sets.Apply | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.PSObject.Properties['Authority'] -and $s.Authority })
     if ($authority.Count) {
@@ -3118,6 +3121,9 @@ function Save-IgwtGuiScreenshots {
     Set-IgwtGuiCleanerScan -Scan (Invoke-IgwtCleanerScan -Level Standard)
     # The change journal (read-only).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
+    # The home card (read-only inputs).
+    $script:Gui.HomeInput = Get-IgwtHomeCardInput
+    Update-IgwtGuiHomeCard
     $script:Gui.C.DiskPathBox.Text = $script:IgwtProjectRoot
     Update-IgwtGuiDiskLists -Usage (Get-IgwtDiskUsage -Path $script:IgwtProjectRoot -Top 12)
     # Read-only data for the expert inspectors.
@@ -3354,13 +3360,12 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.AsrDefenderButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Defender' }
     Register-IgwtGuiHandler -Control $c.DefHardeningButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Security' }
     Register-IgwtGuiHandler -Control $c.DefAsrButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Asr' }
-    # Focus mode and the last page from the previous session (the Dashboard when the page is hidden now).
+    # Focus mode from the previous session.
     Set-IgwtGuiFocusMode -On ([bool]$script:Gui.ViewState.FocusMode) -NoSave
     Register-IgwtGuiHandler -Control $c.FocusModeBox -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On ([bool]$script:Gui.C.FocusModeBox.IsChecked) }
     Register-IgwtGuiHandler -Control $c.FocusPill -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On $false }
-    $last = [string]$script:Gui.ViewState.LastPage
-    $lastItem = $(if ($last) { @($c.NavList.Items | Where-Object { [string]$_.Tag -eq $last -and $_.Visibility -eq 'Visible' -and -not (Test-IgwtGuiNavHeader -Item $_) })[0] } else { $null })
-    Select-IgwtGuiNavPage -Tag $(if ($lastItem) { $last } else { 'Dashboard' })
+    # 3.6 (DECISIONS T18): the Dashboard with the home card is the landing page; lists still remember their views.
+    Select-IgwtGuiNavPage -Tag 'Dashboard'
     Initialize-IgwtGuiTweakGrid
     Add-IgwtGuiStartupMark -Name 'tweakGrid'
     Update-IgwtGuiNetHistory
@@ -3438,6 +3443,12 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.RevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
     Register-IgwtGuiHandler -Control $c.BackupRevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
     Register-IgwtGuiHandler -Control $c.JournalRevertEntryButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Entry }
+    # Home card (3.6): Do it opens a preview or a page; Not now for 1 or 7 days; Why?; the list of every page.
+    Register-IgwtGuiHandler -Control $c.HomeCardDoButton -Event 'Click' -Handler { Invoke-IgwtGuiHomeAction }
+    Register-IgwtGuiHandler -Control $c.HomeCardSnoozeButton -Event 'Click' -Handler { Set-IgwtGuiHomeSnooze -Days 1 }
+    Register-IgwtGuiHandler -Control $c.HomeCardSnoozeWeekButton -Event 'Click' -Handler { Set-IgwtGuiHomeSnooze -Days 7 }
+    Register-IgwtGuiHandler -Control $c.HomeCardWhyButton -Event 'Click' -Handler { Show-IgwtGuiHomeWhy }
+    Register-IgwtGuiHandler -Control $c.HomeCardPagesButton -Event 'Click' -Handler { Show-IgwtGuiAllPages }
     Register-IgwtGuiHandler -Control $c.JournalRevertSessionButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Session }
     Register-IgwtGuiHandler -Control $c.JournalRevertAllButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope All }
     Register-IgwtGuiHandler -Control $c.BackupRevertSelectedButton -Event 'Click' -Handler {

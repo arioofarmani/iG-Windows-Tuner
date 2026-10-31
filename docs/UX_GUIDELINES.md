@@ -50,7 +50,7 @@ The checklist at the end is verified for every page in `docs\FINAL_REPORT_3.3.md
 
 ## 7. Keep my place
 
-- The app remembers the last page, and per list the search, filters, sort, column layout, selection and scroll position, and which sections are expanded (`%LOCALAPPDATA%\iGWindowsTuner\gui-state.json`).
+- The app starts on the Dashboard with the home card (3.6, DECISIONS T18) and remembers, per list, the search, filters, sort, column layout, selection and scroll position, and which sections are expanded (`%LOCALAPPDATA%\iGWindowsTuner\gui-state.json`).
 - Breadcrumbs show where you are. "Recently changed" on the Dashboard lists the last changes with Undo links.
 
 ## 8. Calm visuals

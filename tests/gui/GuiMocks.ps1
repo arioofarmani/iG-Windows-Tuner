@@ -492,3 +492,16 @@ function script:Get-IgwtJournalTimeline {
     )
     [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Rows = $rows }
 }
+
+function script:Get-IgwtHomeCardInput {
+    # Demo: Windows changed one setting iG set after a cumulative update; nothing else needs attention.
+    param($Context)
+    $null = $Context
+    [pscustomobject]@{
+        Journal = [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19 }; Incomplete = @(); Forensic = $null
+        Drift = [pscustomobject]@{ Status = 'Ok'; Build = '26200'; Ubr = '6584'; Summary = '41 still applied, 1 drifted, 0 missing, 0 cannot be read. 1 Windows update(s) were installed in between (they may or may not be related).'
+            Updates = @([pscustomobject]@{ Time = $script:MockNow.AddDays(-1); Title = '2026-10 Cumulative Update for Windows 11 Version 25H2 (KB5099999)' })
+            Rows = @([pscustomobject]@{ Key = 'action|gfx.background-recording-off|0|registry'; Item = 'gfx.background-recording-off'; Name = 'Background recording (Game DVR capture) off'; Status = 'Drifted'; Target = @{ provider = 'action' }; WeSet = 'DWord 0'; Now = 'DWord 1'; Message = 'The value is different from the one iG set.' }) }
+        Preset = [pscustomobject]@{ Id = 'competitive'; Name = 'Competitive' }; Unverified = @()
+    }
+}

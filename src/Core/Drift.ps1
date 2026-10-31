@@ -57,11 +57,12 @@ function Get-IgwtDriftReport {
         $target = $e['target']
         $def = $script:IgwtChangeProviders[[string]$target['provider']]
         if (-not $def -or $def.NoCompare) { continue }
-        $row = [ordered]@{ Key = $key; Item = [string]$e['item']; Target = $target; Session = [string]$e['session']; EntryId = [string]$e['id']; WeSet = $e['after']; Now = $null
+        $row = [ordered]@{ Key = $key; Item = [string]$e['item']; Name = [string]$e['item']; Target = $target; Session = [string]$e['session']; EntryId = [string]$e['id']; WeSet = $e['after']; Now = $null
             Status = ''; Message = ''; SetUtc = [string]$e['tsUtc']; SetBuild = [string]$e['build']; SetUbr = [string]$e['ubr'] }
         try {
             if (-not $catalog) { $catalog = Get-IgwtCatalog }
             $r = Resolve-IgwtChangeTarget -Target $target -Catalog $catalog
+            if ($r.PSObject.Properties['Item'] -and $r.Item -and $r.Item.name) { $row.Name = [string]$r.Item.name }
             if (-not $ctx -and [string]$target['provider'] -eq 'action') { $ctx = New-IgwtContext }
             $now = & $def.Get $r $ctx
             $row.Now = $now
