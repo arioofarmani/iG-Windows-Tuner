@@ -1,8 +1,8 @@
 # Changelog
 
-## 3.6.0 (unreleased)
+## 3.6.0 (2026-11-01)
 
-Transactions: every change iG makes is a journaled transaction with an exact restore.
+Transactions: every change iG makes is a journaled, read-back-checked transaction with an exact restore, plus confidence badges, declarative presets, an update drift guardian and a home card. Design: DECISIONS T1 to T18; independent review: docs\REVIEW.md (3.6 section).
 
 ### Added
 

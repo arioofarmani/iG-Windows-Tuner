@@ -2,7 +2,7 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Version](https://img.shields.io/badge/version-3.5-0078D4)
+![Version](https://img.shields.io/badge/version-3.6-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
 ![Tests](https://img.shields.io/badge/Pester-986%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -55,6 +55,10 @@ Every firewall rule is classified (Core Services, Windows Connections, User Inst
 
 Read the Windows Firewall log in a fast, filterable list with an overview of what was blocked and allowed (a full 32 MB log loads in about 2 seconds). Turn on forensic logging for a limited time (the firewall log, connection auditing with program names, and the DNS client log) and every setting is restored exactly afterwards. Collect an evidence package with SHA256 hashes and a chain-of-custody file, or export the data for analysis with internal addresses and user names pseudonymized. Nothing is uploaded and no log is ever cleared. See [docs/FIREWALL_LOGS.md](docs/FIREWALL_LOGS.md).
 
+### Transactions and undo (new in 3.6)
+
+Every change is recorded before it is made, read back after it, and rolled back automatically if part of it fails. Backups & Logs > Change journal shows every change by session; revert one change, one session or everything iG changed, with the value before, the value iG set and the value now. The Dashboard's home card shows the one thing that needs attention (an unfinished change, settings Windows changed back, Unverified items), every tweak has a confidence badge, and presets show a preview of what they would change on this PC. See [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
 ### Presets and configuration
 
 Choose from curated profiles for different workloads, create custom presets, and review configuration changes before applying them.
@@ -103,9 +107,9 @@ The built-in snapshots and rollback features help restore supported configuratio
 
 ## Project status
 
-**Version 3.5 — Preview**
+**Version 3.6 — Preview**
 
-3.5 adds firewall logs and forensics: the firewall log analysis works again, a fast log reader, time-boxed forensic logging that restores every setting, and evidence collection with an AI-ready export. It builds on 3.4 (the 3.3 quality release with a rebuilt, calmer interface, plus the Firewall Manager). The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
+3.6 makes every change a recorded, checked and reversible transaction: a tamper-evident change journal, exact undo per change, session or everything, confidence badges, previewed declarative presets, an update drift guardian and a home card. It builds on 3.5 (firewall logs and forensics) and 3.4 (the 3.3 quality release with a rebuilt, calmer interface, plus the Firewall Manager). The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
 
 Some features and workflows are still evolving. Review the documentation before relying on the tool for production or security-critical systems.
 

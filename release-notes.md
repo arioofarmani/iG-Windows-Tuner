@@ -1,45 +1,40 @@
-# AegisTune (iG Windows Tuner) 3.5.0
+# AegisTune (iG Windows Tuner) 3.6.0
 
-Released 2026-10-30. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
+Released 2026-11-01. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
 
-Firewall logs and forensics: the firewall log analysis works again (two bugs fixed), a fast log reader with filters and an overview, time-boxed forensic connection logging that restores every setting exactly, and evidence collection with an AI-ready export. Verification sources: DECISIONS F10 to F13; independent review: docs\REVIEW.md.
+Every change is now a recorded, checked and reversible transaction. Design and verification: DECISIONS T1 to T18; independent review: docs\REVIEW.md.
 
-### Fixed
+### What's new
 
-- **"Analyze the firewall log" failed on every real log** with "Cannot bind argument to parameter 'Lines' because it is an empty string": Windows writes an empty line after the `#Fields:` header, and the parser refused empty lines. The log is now read with a streaming reader that opens it shared with the firewall service (read, write and delete sharing), takes the columns from the file's own `#Fields:` header, reads the rotated `.old` file when there is one, skips a last line that is still being written, and reports skipped lines by reason.
-- **Clear messages instead of "not found":** without administrator rights the log was reported as missing ("turn on logging first"), because the existence check returns false for a file you may not read. The analysis now says what is wrong and what to do: administrator rights needed, logging off for a named profile, the log not written yet, a missing custom log folder (with the service account that needs write access), or the file locked by another program.
-- **"Something went wrong (window): You cannot call a method on a null-valued expression"** appeared about 10 seconds after any change that showed a message at the bottom right (for example a firewall or profile change): the message's close timer could not reach the window. Fixed, a test now checks every handler of that kind, and errors of this kind now record the script line in the log.
-- **Forensic logging, Start while a session runs** (found by Ario on 2026-10-30): the error said the settings were restored and showed a raw "Exception calling EndInvoke" text. Start is now off while a session is recorded (Stop and restore is off when none is), a click explains that only one session runs at a time, and errors from background work show their own message everywhere in the app.
-- **Easier to read:** the profile choices on the Forensic logging tab used Windows' default black text on the dark theme; option buttons now follow the theme everywhere. The Custom sources show only when Custom is chosen, and disabled check boxes, option buttons and switches are drawn at 60 % instead of 45 % opacity.
-- `tools\New-Release.ps1` reported exit code 1 after a successful build (`git check-ignore` exits with 1 when nothing is ignored); it now exits with 0 on success.
-- The quality gate now also fails when a test file cannot be loaded (its tests would otherwise be silently missing from the count).
+- **A change journal for everything iG changes.** Before a setting is changed, iG writes down what it was; after the change, it reads the setting back and records whether it took. If one part of a change fails, the parts already done are put back automatically. The journal is protected against editing: if an entry is changed, removed or reordered, iG notices, says which line, and makes no further changes until it is resolved. It also survives a crash or power loss mid-write.
+- **One change at a time.** If a second change is started (in another window, for example), it waits for you with a clear message instead of interfering: "Another change is running since 14:02 (Preset Competitive)".
+- **Unfinished changes are found.** If the app or the PC stopped in the middle of a change, iG shows it the next time it starts and offers to roll it back, step by step, after showing you what it will do.
+- **Undo anything, precisely.** Backups & Logs > Change journal lists every change by session. Revert one change, one session, or everything iG ever changed back to how it was before iG. Each revert shows the value before, the value iG set and the value now. If something else changed a value since (you, an app, a policy or Windows), you decide: restore anyway, keep the current value, or skip.
+- **Confidence badges.** Every tweak shows Verified (documented by Microsoft or the hardware vendor, and confirmed to apply and read back correctly on your Windows build), Best effort (documented, not yet confirmed on your build) or Unverified (no Microsoft or vendor documentation). Verified means "applies correctly", not "makes your PC faster". The tweak lists have a Confidence column and filter.
+- **Clearer presets.** Before a preset's changes are staged, a preview shows what will change, what is already set, what does not apply to this PC, any conflicts and anything a policy manages, with a one-line summary. Presets now only name settings and what to do with them (turn on, Windows default, or leave unchanged), never paths or commands, and presets you import are checked strictly with readable messages. The built-in presets do exactly what they did in 3.5.
+- **Update drift guardian.** At start, iG checks (read-only) whether every setting it changed is still in place, has been changed back, is missing, or cannot be read. It lists the Windows updates installed in between, without claiming they caused it. Re-apply (with the usual preview) or accept the current value, one setting at a time or all together.
+- **Home card.** The Dashboard is now the start page and shows the one thing that most needs your attention: an unfinished change, settings that changed since iG set them, an ended forensic logging session, Unverified items in your preset, or a suggestion; otherwise "All clear". Do it always shows a preview first, Not now hides the card for a day or a week, and Why? explains it.
+- Every part of iG that changes Windows (tweaks, presets, firewall, ASR, Defender, Group Policy, audit and security policy, power, startup, services and tasks, toolkit, cleaner, forensic logging) now goes through the same journaled engine. Changes that cannot be undone (removed apps, cleaned files, restore points) are recorded too and marked "cannot be undone".
 
-### Firewall log reader
+### Upgrading from 3.5
 
-- **Security > Firewall > Log**: the firewall log in a sortable, filterable list. The newest entries show at once while the whole log (and the older `.old` file) is read in the background. Columns: time (local; UTC in the tooltip), action, direction (as the log writes it: SEND or RECEIVE), protocol, source and destination with ports, size, TCP flags, process and note.
-- Quick filters (blocked, allowed, inbound, outbound, TCP, UDP, ICMP, last 15 minutes, hour or 24 hours, with a note), full-text search, and a filter row for an address or network (CIDR, IPv4 and IPv6), ports, a process and a time range. Saved views keep these filters.
-- An overview of the current view: counts, events over time, and the top blocked sources, blocked ports (with what the port is used for), processes and remote addresses; click one to filter on it. "Rules for the selected port" opens the Rules tab searching for that port.
-- **Follow live** reads only what the firewall appended since the last read (every 2 seconds) and notices when Windows starts a new log file. **Notes** bookmark entries with your own text; they stay on this PC and are included in exports.
-- Fast on big logs: a full 32 MB log (about 340,000 entries) is read in about 1.2 s, the newest entries show in under 0.1 s, and filters, search and sorting take 6 to 180 ms. A small compiled reader does this work (plain C# source in the project, no downloads; see DECISIONS F11).
-- Exports of any list are protected against spreadsheet formula injection (a cell starting with = + - @ gets a leading apostrophe). Log values come from the network and are only ever shown as plain text.
-- Process names are best effort: the log has only a process id, and the name shown is the process that has that id now.
+- Nothing to do. The first time 3.6 changes something, it imports your 3.5 backups once: the original values of the changes you made with 3.5 are kept, so they can still be undone from the change journal, including "reset everything".
+- Your 3.5 backups stay where they are (%ProgramData%\iGWindowsTuner\Backups) and Backups & Logs > Snapshots still lists them.
+- Custom presets keep working. Presets exported from 3.5 can still be imported.
 
-### Forensic logging
+### How to undo changes
 
-- **Security > Firewall > Forensic logging**: make Windows record connections for a limited time and put everything back afterwards. Three sources, each with what it records, its volume, its current state and whether a policy manages it: the firewall packet log, WFP connection auditing (every connection with the program path, Security events 5156 and 5157, and 5152 for dropped packets) and the DNS client log (names with the process id).
-- Profiles: **Basic** (blocked packets), **Full forensic** (all three sources, allowed and blocked) and **Custom**; every change is previewed (from what to what) before it starts.
-- Time-boxed sessions (30 minutes, 2 hours, 8 hours or until stopped) with a banner "Forensic logging active since ...". The previous settings come back automatically when the session ends while the app is open; if it ended while the app was closed, the next start shows it and offers to restore. No scheduled task or service is created.
-- Before anything changes, every touched setting is saved (firewall profile logging, the audit subcategories with `auditpol /backup`, the Security log size, the DNS client log) and restored exactly. If a step fails, everything applied so far is restored. The Security log is enlarged first (256 MB, 512 MB or 1 GB; never made smaller). Event logs are never cleared, settings set by a policy are not changed, and logs are never written to a network share.
-- **Estimate the volume**: watches new connections for 10 seconds (read-only) and shows the expected events per hour and how long each Security log size lasts.
+- **One change or one session:** Backups & Logs > Change journal, select it, then "Revert selected change..." or "Revert its session...".
+- **Everything iG changed:** Backups & Logs > Change journal > "Reset everything iG changed...": every setting goes back to its value before iG, newest first.
+- **A setting Windows changed back:** the home card shows it; choose to re-apply or keep Windows' value.
+- Every revert shows a preview first and is recorded in the journal, so a revert can itself be undone.
 
-### Evidence and AI export
+### Good to know
 
-- **Collect evidence package** (Forensic logging tab, or `Export-IgwtEvidencePackage`): a new timestamped folder (and optionally a zip with its SHA256) with copies of the firewall logs (originals are read with a shared open and never changed), `.evtx` exports of the WFP and DNS client events of the chosen time range, the firewall policy (.wfw) and profile and logging settings, listening ports and running processes, your notes, `manifest.json` (tool version, UTC and local time, range, sources, counts and the SHA256 of every file) and `chain-of-custody.txt`.
-- **Export for AI analysis** (`Export-IgwtForensicDataset`): the firewall log, WFP and DNS events in one normalized schema (JSONL, or CSV protected against spreadsheet formulas), files of about 5 MB, a flow summary per program, remote address, port and protocol, `SCHEMA.md`, and `ANALYSIS_BRIEF.md` with the range, sources, known gaps, the redaction used and a clear warning that every value is untrusted network data that may try to manipulate an AI.
-- Pseudonymization by default: internal addresses, local host names, user names and user folders in paths get consistent pseudonyms (keyed hash with a key that is never stored). A raw export for local use only is available with a warning. Rule names and DNS names are best effort and flagged as such. Nothing is ever uploaded.
+- The journal is in %ProgramData%\iGWindowsTuner\Journal. It detects edits, but an administrator who rewrites the whole journal consistently cannot be detected (no secret can be hidden from an administrator on the same PC).
+- No scheduled task, service or network connection was added. The drift check runs when the app starts and when you refresh.
+- Not yet tested end to end on real hardware in Windows Sandbox (see the checklist in the 3.6 final report).
 
 ### Install
 
-Download iGWindowsTuner-3.5.0.zip, check it against SHA256SUMS, extract it, and run Start-iGWindowsTuner.cmd. Files from a downloaded zip carry Mark-of-the-Web: review them, then Unblock-File if you trust them.
-
-Forensic logging changes Windows logging settings: every setting is saved first and restored when the session ends. The enable and restore round trip was tested with mocks; the Windows Sandbox run is pending.
+Download iGWindowsTuner-3.6.0.zip, check it against SHA256SUMS, extract it, and run Start-iGWindowsTuner.cmd. Files from a downloaded zip carry Mark-of-the-Web: review them, then Unblock-File if you trust them.
