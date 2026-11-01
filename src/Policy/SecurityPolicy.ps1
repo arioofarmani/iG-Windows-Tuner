@@ -369,6 +369,7 @@ function Set-IgwtSecurityPolicy {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][object[]]$Changes, [switch]$AcknowledgeManaged)
     Assert-IgwtWritable -Operation 'Set-IgwtSecurityPolicy'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtSecurityPolicy' -Parameters $PSBoundParameters) }
     $before = Export-IgwtSecurityPolicy
     $plan = Get-IgwtSecurityChangePlan -Changes $Changes -Current $before
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
@@ -377,6 +378,8 @@ function Set-IgwtSecurityPolicy {
     if (-not $PSCmdlet.ShouldProcess('Local security policy', "Set $(@($plan.Rows).Count) setting(s)")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $dir = Join-Path (Get-IgwtDataPath -Kind Backups) ("secpol-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $dir
     $null = New-Item -ItemType Directory -Path $dir -Force
     $beforeFile = Join-Path $dir 'before.inf'
     Write-IgwtSecurityInfFile -Path $beforeFile -Sections $before -WhatIf:$false
@@ -410,6 +413,7 @@ function Restore-IgwtSecurityPolicy {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtSecurityPolicy'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtSecurityPolicy' -Parameters $PSBoundParameters) }
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not a security policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf

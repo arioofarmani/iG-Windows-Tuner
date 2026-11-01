@@ -35,6 +35,8 @@ function New-IgwtSnapshot {
     $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss-fff')
     $safeOp = ($Operation -replace '[^A-Za-z0-9\-]', '')
     $path = Join-Path $dir ("snapshot-{0}-{1}-{2}.json" -f $stamp, $safeOp, [guid]::NewGuid().ToString('N').Substring(0, 6))
+    # Inside a journaled module writer: record the snapshot's path before anything changes (DECISIONS T14).
+    Set-IgwtModuleOperationRef -Path $path
     $os = Get-IgwtOsInfo
     $doc = [ordered]@{
         schema        = $script:IgwtSnapshotSchema

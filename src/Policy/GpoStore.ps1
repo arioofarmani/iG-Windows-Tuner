@@ -136,6 +136,8 @@ function Backup-IgwtLocalGpo {
     param([string]$Reason = 'before a Group Policy change')
     Assert-IgwtWritable -Operation 'Backup-IgwtLocalGpo'
     $dest = Join-Path (Get-IgwtDataPath -Kind Backups) ("gpo-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $dest
     if (-not $PSCmdlet.ShouldProcess($dest, 'Back up the Local Group Policy')) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $null = New-Item -ItemType Directory -Path $dest -Force
@@ -167,6 +169,7 @@ function Restore-IgwtLocalGpo {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath, [switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Restore-IgwtLocalGpo'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtLocalGpo' -Parameters $PSBoundParameters) }
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not a Group Policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf
@@ -213,6 +216,7 @@ function Reset-IgwtLocalGpo {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Reset-IgwtLocalGpo'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Reset-IgwtLocalGpo' -Parameters $PSBoundParameters) }
     if (-not $PSCmdlet.ShouldProcess('Local Group Policy', 'Reset to default (backup first)')) { return $null }
     $backup = Backup-IgwtLocalGpo -Reason 'before a reset of the Local Group Policy'
     foreach ($r in @((Get-IgwtGpoRoot), (Get-IgwtGpoRoot -Users))) {

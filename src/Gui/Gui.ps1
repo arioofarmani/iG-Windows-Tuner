@@ -15,7 +15,7 @@ $script:IgwtGuiControlNames = @(
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
     'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
-    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
+    'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
@@ -640,6 +640,9 @@ function Update-IgwtGuiFromData {
     Invoke-IgwtGuiChunked -Key 'data.pages' -Size 1 -Items @(
         { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
         { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
+        { if ($script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
+        # The home card inputs (journal, unfinished changes, drift): at start and after every refresh.
+        { if ($script:Gui.Runspace) { Start-IgwtGuiHomeCard } }
         { Update-IgwtGuiPresetCards }
         { Update-IgwtGuiTweakList }
         { Update-IgwtGuiDashboard -Data $script:Gui.Data }
@@ -803,7 +806,7 @@ function Update-IgwtGuiTweakList {
             $st = $script:Gui.Data.States[$t.id]
             $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
             if ($personaOk -and $script:Gui.FocusMode -and [string]$t.level -ne 'Standard' -and -not $script:Gui.Staged.ContainsKey($t.id)) { $personaOk = $false }
-            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin }
+            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin -Confidence $(if ($script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] }) }
         })
     $grid = $script:Gui.Grids.Tweaks
     Set-IgwtGridRows -Grid $grid -Rows $rows
@@ -858,6 +861,7 @@ function Update-IgwtGuiButtons {
     $c.DiscardButton.IsEnabled = (-not $busy) -and $n -gt 0
     $c.RefreshButton.IsEnabled = -not $busy
     foreach ($b in 'RevertLastButton', 'RevertSnapshotButton', 'BackupRevertLastButton', 'BackupRevertSelectedButton') { $c[$b].IsEnabled = (-not $busy) -and $script:Gui.IsAdmin }
+    Update-IgwtGuiJournalButtons
     $jobCommand = ''
     if ($busy) { $jobCommand = [string]$script:Gui.Job.Command }
     $c.CleanScanButton.IsEnabled = -not $busy
@@ -1209,9 +1213,10 @@ function Update-IgwtGuiDetails {
     $t = $script:Gui.Catalog | Where-Object { $_.id -eq $row.Id } | Select-Object -First 1
     $s = $script:Gui.Data.States[$row.Id]
     $c.DetName.Text = [string]$t.name
-    $c.DetMeta.Text = ("{0}  |  {1}{2}  |  {3} level  |  Tier {4}  |  risk {5}  |  {6}  |  {7}  |  revert: {8}" -f $t.id, $t.category, $(if ($t.group) { " / $($t.group)" } else { '' }), $t.level, $t.evidence.tier, $t.risk,
+    $badge = $(if ($script:Gui.Data -and $script:Gui.Data.Confidence -and $script:Gui.Data.Confidence[[string]$t.id]) { "  |  " + [string]$script:Gui.Data.Confidence[[string]$t.id].Label } else { '' })
+    $c.DetMeta.Text = ("{0}  |  {1}{2}  |  {3} level  |  Tier {4}{9}  |  risk {5}  |  {6}  |  {7}  |  revert: {8}" -f $t.id, $t.category, $(if ($t.group) { " / $($t.group)" } else { '' }), $t.level, $t.evidence.tier, $t.risk,
         $(switch ($t.requires) { 'reboot' { 'reboot required' } 'logoff' { 'sign-out required' } default { 'applies immediately' } }),
-        [string]$t.antiCheatText, [string]$t.reversible)
+        [string]$t.antiCheatText, [string]$t.reversible, $badge)
     if ([string]$t.evidence.tier -eq 'R') { $c.DetWarningText.Text = 'RISK ZONE (rejected tweak). ' + (Get-IgwtRiskZoneSummary -Tweak $t); $c.DetWarning.Visibility = 'Visible' }
     elseif ($t.warning) { $c.DetWarningText.Text = [string]$t.warning; $c.DetWarning.Visibility = 'Visible' } else { $c.DetWarning.Visibility = 'Collapsed' }
     $desc = [string]$t.description
@@ -1221,7 +1226,9 @@ function Update-IgwtGuiDetails {
     if ($s) { $items = @($s.Items | ForEach-Object { [pscustomobject]@{ Target = (Format-IgwtGuiChangeTarget -Target ([string]$_.Target)); Current = [string]$_.Current; Desired = [string]$_.Desired; Note = [string]$_.Note } }) }
     $c.DetChanges.ItemsSource = $items
     $c.DetSources.ItemsSource = @($t.evidence.sources)
-    $c.DetEvidence.Text = [string]$t.evidence.notes
+    # Confidence badge first (3.6), then the catalog's evidence notes.
+    $conf = $(if ($script:Gui.Data -and $script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] })
+    $c.DetEvidence.Text = ((@($(if ($conf) { [string]$conf.Tip }), [string]$t.evidence.notes) | Where-Object { $_ }) -join [Environment]::NewLine)
     $c.DetRevert.Text = Get-IgwtTweakRevertDescription -Tweak $t
     $hasConfig = @($t.actions | Where-Object { $_.type -ne 'check' }).Count -gt 0
     $c.DetResetButton.IsEnabled = $script:Gui.IsAdmin -and $hasConfig -and $row.State -in 'On', 'Off', 'Partial' -and -not [bool]$script:Gui.Job
@@ -1356,7 +1363,8 @@ function Complete-IgwtGuiApply {
         if ($a -eq 'Yes') { $enableSp = $true } else { $skipRp = $true }
     }
     $operation = 'Apply'
-    if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and $sets.Reset.Count -eq 0) { $operation = $script:Gui.PresetOperation }
+    # A preset's resets belong to the preset's own session (3.6, DECISIONS T16); turn-offs do not.
+    if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and ($sets.Reset.Count -eq 0 -or [string]$script:Gui.PresetOperation -like 'Preset:*')) { $operation = $script:Gui.PresetOperation }
     $ackManaged = $false
     $authority = @($sets.Apply | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.PSObject.Properties['Authority'] -and $s.Authority })
     if ($authority.Count) {
@@ -3081,7 +3089,7 @@ function Show-IgwtGuiPage {
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
-        'Backups' { $c.PageBackups.Visibility = 'Visible' }
+        'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         'Rejected' { $c.PageRejected.Visibility = 'Visible' }
         'About' { $c.PageAbout.Visibility = 'Visible' }
     }
@@ -3111,6 +3119,11 @@ function Save-IgwtGuiScreenshots {
     Update-IgwtGuiFromData -Data $data
     # Read-only data for the cleaner and disk analyzer pages (scan deletes nothing).
     Set-IgwtGuiCleanerScan -Scan (Invoke-IgwtCleanerScan -Level Standard)
+    # The change journal (read-only).
+    Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
+    # The home card (read-only inputs).
+    $script:Gui.HomeInput = Get-IgwtHomeCardInput
+    Update-IgwtGuiHomeCard
     $script:Gui.C.DiskPathBox.Text = $script:IgwtProjectRoot
     Update-IgwtGuiDiskLists -Usage (Get-IgwtDiskUsage -Path $script:IgwtProjectRoot -Top 12)
     # Read-only data for the expert inspectors.
@@ -3295,6 +3308,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiListGrids
     Add-IgwtGuiStartupMark -Name 'listGrids'
     Initialize-IgwtGuiDiagGrids
+    Initialize-IgwtGuiJournalGrid
     Add-IgwtGuiStartupMark -Name 'diagGrids'
     Initialize-IgwtGuiFirewallPage
     Add-IgwtGuiStartupMark -Name 'firewall'
@@ -3346,13 +3360,12 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.AsrDefenderButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Defender' }
     Register-IgwtGuiHandler -Control $c.DefHardeningButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Security' }
     Register-IgwtGuiHandler -Control $c.DefAsrButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Asr' }
-    # Focus mode and the last page from the previous session (the Dashboard when the page is hidden now).
+    # Focus mode from the previous session.
     Set-IgwtGuiFocusMode -On ([bool]$script:Gui.ViewState.FocusMode) -NoSave
     Register-IgwtGuiHandler -Control $c.FocusModeBox -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On ([bool]$script:Gui.C.FocusModeBox.IsChecked) }
     Register-IgwtGuiHandler -Control $c.FocusPill -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On $false }
-    $last = [string]$script:Gui.ViewState.LastPage
-    $lastItem = $(if ($last) { @($c.NavList.Items | Where-Object { [string]$_.Tag -eq $last -and $_.Visibility -eq 'Visible' -and -not (Test-IgwtGuiNavHeader -Item $_) })[0] } else { $null })
-    Select-IgwtGuiNavPage -Tag $(if ($lastItem) { $last } else { 'Dashboard' })
+    # 3.6 (DECISIONS T18): the Dashboard with the home card is the landing page; lists still remember their views.
+    Select-IgwtGuiNavPage -Tag 'Dashboard'
     Initialize-IgwtGuiTweakGrid
     Add-IgwtGuiStartupMark -Name 'tweakGrid'
     Update-IgwtGuiNetHistory
@@ -3390,15 +3403,8 @@ function Show-IgwtGui {
             if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text ((Get-IgwtGuiChangeBlockReason -What 'stage and apply presets') + ' You can still compare presets and preview tweaks.'); return }
             $preset = $script:Gui.Presets | Where-Object { $_.id -eq $tag } | Select-Object -First 1
             if (-not $preset -or -not $script:Gui.Data) { return }
-            $script:Gui.Staged.Clear()
-            $count = 0
-            foreach ($id in @(Get-IgwtGuiPresetMembers -Preset $preset)) {
-                $s = $script:Gui.Data.States[$id]
-                if ($s -and $s.State -in 'Off', 'Partial') { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
-            }
-            $script:Gui.PresetOperation = "Preset:$($preset.id)"
-            Update-IgwtGuiPending
-            Set-IgwtGuiStatus "Staged $count change(s) from the $($preset.name) preset. Review them on the category pages (marked 'Pending'), then Preview or Apply."
+            # 3.6: the preview first (will change, already set, not applicable, conflict, managed by policy).
+            Start-IgwtGuiPresetPreview -Preset $preset
         }
     Register-IgwtGuiHandler -Control $c.PresetPickBox -Event 'SelectionChanged' -Handler { Update-IgwtGuiButtons }
     Register-IgwtGuiHandler -Control $c.PresetCustomizeButton -Event 'Click' -Handler { Invoke-IgwtGuiPresetAction -Action Customize }
@@ -3436,6 +3442,15 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.ElevateButton -Event 'Click' -Handler { Invoke-IgwtGuiElevate }
     Register-IgwtGuiHandler -Control $c.RevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
     Register-IgwtGuiHandler -Control $c.BackupRevertLastButton -Event 'Click' -Handler { Invoke-IgwtGuiRevert -Last }
+    Register-IgwtGuiHandler -Control $c.JournalRevertEntryButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Entry }
+    # Home card (3.6): Do it opens a preview or a page; Not now for 1 or 7 days; Why?; the list of every page.
+    Register-IgwtGuiHandler -Control $c.HomeCardDoButton -Event 'Click' -Handler { Invoke-IgwtGuiHomeAction }
+    Register-IgwtGuiHandler -Control $c.HomeCardSnoozeButton -Event 'Click' -Handler { Set-IgwtGuiHomeSnooze -Days 1 }
+    Register-IgwtGuiHandler -Control $c.HomeCardSnoozeWeekButton -Event 'Click' -Handler { Set-IgwtGuiHomeSnooze -Days 7 }
+    Register-IgwtGuiHandler -Control $c.HomeCardWhyButton -Event 'Click' -Handler { Show-IgwtGuiHomeWhy }
+    Register-IgwtGuiHandler -Control $c.HomeCardPagesButton -Event 'Click' -Handler { Show-IgwtGuiAllPages }
+    Register-IgwtGuiHandler -Control $c.JournalRevertSessionButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope Session }
+    Register-IgwtGuiHandler -Control $c.JournalRevertAllButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope All }
     Register-IgwtGuiHandler -Control $c.BackupRevertSelectedButton -Event 'Click' -Handler {
             $sel = (Get-IgwtGuiGridItem -Name SnapshotList)
             if ($sel) { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path } else { Set-IgwtGuiStatus 'Select a snapshot first.' }

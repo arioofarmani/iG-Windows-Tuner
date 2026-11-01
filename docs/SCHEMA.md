@@ -20,6 +20,9 @@ Tweaks and cleaner rules also have:
 |---|---|---|
 | `level` | `Standard`, `Advanced`, `Expert`, `Lab` | Who should use the item and how it is gated. Separate from the evidence tier. |
 | tier | `A`, `B`, `R` | Evidence tier: `evidence.tier` for tweaks, top-level `tier` for cleaner rules. `R` (rejected) is only for Risk Zone items. |
+| `evidence.sources` | https URLs or DECISIONS IDs (`"DECISIONS T8"`) | At least one; none empty. The confidence badge (3.6, DECISIONS T8 and T13) counts Microsoft documentation, hardware-vendor documentation (intel.com) and DECISIONS IDs; anything else leaves the item Unverified. |
+| `evidence.testedBuilds` | Windows build numbers, optional | Builds on which the item applied and read back correctly in Windows Sandbox; one equal to the PC's build makes the badge Verified. |
+| `evidence.partialSource` | `true` / `false`, optional | The sources cover only part of what the item changes: the badge stays Best effort. |
 | `antiCheat` | `"safe"`, `"unknown"`, `{ "breaks": ["FACEIT", ...] }` | Anything other than `safe` is shown as a badge and kept out of gaming presets. `breaks` requires level `Lab`; `unknown` requires `Expert` or `Lab`. |
 | `reversible` | `full`, `partial`, `none` | `full`: the snapshot restores everything. Anything else must be explained in `sideEffects`. Cleaner deletions are `none` (Recycle Bin rules `partial`). |
 | `sideEffects` | text | Empty when there are none. |
@@ -145,3 +148,7 @@ from the file.
   (or `"unknown"`). `appliesTo.hardware` checks move to `appliesTo.conditions`. v1 presets become
   intent presets with `levelCeiling: Advanced` and `antiCheatPolicy: safeOnly`.
 - **Renamed ids:** `data\migration\id-map.json` maps old ids to new ones for snapshots and presets.
+
+## Presets, schema v3 (3.6)
+
+`data\presets\*.json` and imported user presets (DECISIONS T9, T16): `schemaVersion` 3, `id` (lower case, hyphens), `name`, `version`, texts (`tagline`, `hint`, `description`), `order`, `code`, `gaming`, `levelCeiling`, `antiCheatPolicy`, optional `firewallScope`, `guidance`, the session fields of the Session Mode preset, `requires` {`minBuild`, `maxBuild`, `editions` (Home, Professional, Enterprise, Education, Server), `hardware` {`tags`, `excludeTags`, `battery`, `hybridCpu`, `gpuVendor`}}, `changes` [{`item`, `desired`: `on`, `default` or `unchanged`}], `conflicts` [{`item` or `feature`, `reason`, `source`}] and `notes`. Nothing else: a preset names catalog items, never paths, values or commands. Validated by `Test-IgwtPresetV3Document` and the preset rules (`Test-IgwtPresetDefinition`).

@@ -16,6 +16,111 @@ $script:IgwtWfpPacketDropGuid = '0CCE9225-69AE-11D9-BED3-505054503030'
 $script:IgwtDnsClientLog = 'Microsoft-Windows-DNS-Client/Operational'
 $script:IgwtFirewallProfiles = @('Domain', 'Private', 'Public')
 
+#region Change providers (3.6, DECISIONS T7): forensic targets on the change engine
+
+# The forensic targets are a fixed set (DECISIONS T4: a restore only touches targets a catalog owns).
+$script:IgwtChangeProviders['forensicFirewall'] = @{
+    Reversible = { param($r) $null = $r; 'exact' }
+    Resolve    = {
+        param($t, $catalog)
+        $null = $catalog
+        $name = [string]$t['profile']
+        if ($name -notin $script:IgwtFirewallProfiles -or [string]$t['key'] -ne "forensic|firewall|$name") { throw "'$($t['key'])' is not a forensic logging target." }
+        return [pscustomobject]@{ Profile = $name }
+    }
+    Get        = { param($r, $ctx) $null = $ctx; $p = Get-NetFirewallProfile -Name $r.Profile -PolicyStore PersistentStore -ErrorAction Stop; [ordered]@{ logBlocked = [string]$p.LogBlocked; logAllowed = [string]$p.LogAllowed; logMaxKB = [long]$p.LogMaxSizeKilobytes } }
+    Set        = {
+        param($r, $desired, $ctx)
+        $null = $ctx
+        $arg = @{ Name = $r.Profile; ErrorAction = 'Stop' }
+        if ($desired['logBlocked']) { $arg.LogBlocked = [string]$desired['logBlocked'] }
+        if ($desired['logAllowed']) { $arg.LogAllowed = [string]$desired['logAllowed'] }
+        if ($desired['logMaxKB']) { $arg.LogMaxSizeKilobytes = [uint64]$desired['logMaxKB'] }
+        Set-NetFirewallProfile @arg
+    }
+    Restore    = { param($r, $data, $ctx) $null = $ctx; Set-NetFirewallProfile -Name $r.Profile -LogBlocked ([string]$data['logBlocked']) -LogAllowed ([string]$data['logAllowed']) -LogMaxSizeKilobytes ([uint64]$data['logMaxKB']) -ErrorAction Stop }
+    TestSet    = {
+        param($r, $desired, $ctx)
+        $now = & $script:IgwtChangeProviders['forensicFirewall'].Get $r $ctx
+        foreach ($k in 'logBlocked', 'logAllowed', 'logMaxKB') { if ($desired[$k] -and [string]$now[$k] -ne [string]$desired[$k]) { return [pscustomobject]@{ Ok = $false; State = "$k=$($now[$k])"; Note = "Read back $($r.Profile) $k = $($now[$k]) after setting $($desired[$k])." } } }
+        return [pscustomobject]@{ Ok = $true; State = 'set'; Note = '' }
+    }
+}
+
+$script:IgwtChangeProviders['forensicAudit'] = @{
+    Reversible = { param($r) $null = $r; 'exact' }
+    Resolve    = {
+        param($t, $catalog)
+        $null = $catalog
+        $g = ([string]$t['guid']).ToUpperInvariant()
+        if ($g -notin $script:IgwtWfpConnectionGuid, $script:IgwtWfpPacketDropGuid -or [string]$t['key'] -ne "forensic|audit|$g") { throw "'$($t['key'])' is not a forensic logging target." }
+        return [pscustomobject]@{ Guid = $g; Backup = [string]$t['backup'] }
+    }
+    Get        = {
+        param($r, $ctx)
+        $null = $ctx
+        $row = @((Get-IgwtAuditPolicy).Subcategories | Where-Object { ([string]$_.Guid).Trim('{}') -eq $r.Guid }) | Select-Object -First 1
+        [ordered]@{ setting = $(if ($row) { [string]$row.Setting } else { 'Unknown' }) }
+    }
+    Set        = {
+        param($r, $desired, $ctx)
+        $null = $ctx
+        $new = [string]$desired['setting']
+        $s = $(if ($new -in 'Success', 'SuccessAndFailure') { 'enable' } else { 'disable' })
+        $f = $(if ($new -in 'Failure', 'SuccessAndFailure') { 'enable' } else { 'disable' })
+        $res = Invoke-IgwtAuditpol -Arguments @('/set', "/subcategory:{$($r.Guid)}", "/success:$s", "/failure:$f")
+        if ($res.ExitCode -ne 0) { throw "auditpol /set failed (exit $($res.ExitCode)): $($res.Output)" }
+    }
+    # As in 3.5: the audit policy comes back from the backup taken before the session's first change.
+    Restore    = {
+        param($r, $data, $ctx)
+        $null = $data; $null = $ctx
+        if (-not $r.Backup) { throw 'No audit policy backup was recorded for this session.' }
+        $null = Restore-IgwtAuditPolicy -BackupPath $r.Backup -Confirm:$false
+    }
+    TestSet    = {
+        param($r, $desired, $ctx)
+        $now = & $script:IgwtChangeProviders['forensicAudit'].Get $r $ctx
+        $ok = ([string]$now['setting'] -eq [string]$desired['setting'])
+        return [pscustomobject]@{ Ok = $ok; State = [string]$now['setting']; Note = $(if ($ok) { '' } else { "The audit policy did not take effect for $($r.Guid) (reads $($now['setting']))." }) }
+    }
+}
+
+$script:IgwtChangeProviders['forensicEventLog'] = @{
+    Reversible = { param($r) $null = $r; 'exact' }
+    Resolve    = {
+        param($t, $catalog)
+        $null = $catalog
+        $ln = [string]$t['log']
+        if ($ln -notin 'Security', $script:IgwtDnsClientLog -or [string]$t['key'] -ne "forensic|eventlog|$ln") { throw "'$($t['key'])' is not a forensic logging target." }
+        return [pscustomobject]@{ Log = $ln }
+    }
+    Get        = { param($r, $ctx) $null = $ctx; $c = Get-IgwtEventLogConfig -LogName $r.Log; [ordered]@{ enabled = [bool]$c.Enabled; maxSizeBytes = [long]$c.MaxSizeBytes } }
+    Set        = {
+        param($r, $desired, $ctx)
+        $null = $ctx
+        $a = @('sl', $r.Log)
+        if ($desired.Contains('maxSizeBytes')) { $a += "/ms:$([long]$desired['maxSizeBytes'])" }
+        if ($desired.Contains('enabled')) { $a += "/e:$(([string][bool]$desired['enabled']).ToLowerInvariant())" }
+        $res = Invoke-IgwtWevtutil -Arguments $a
+        if ($res.ExitCode -ne 0) { throw "wevtutil sl $($r.Log) failed (exit $($res.ExitCode)): $($res.Output)" }
+    }
+    Restore    = {
+        param($r, $data, $ctx)
+        $null = $ctx
+        $res = Invoke-IgwtWevtutil -Arguments @('sl', $r.Log, "/ms:$([long]$data['maxSizeBytes'])", "/e:$(([string][bool]$data['enabled']).ToLowerInvariant())")
+        if ($res.ExitCode -ne 0) { throw "wevtutil sl $($r.Log) failed (exit $($res.ExitCode)): $($res.Output)" }
+    }
+    TestSet    = {
+        param($r, $desired, $ctx)
+        $now = & $script:IgwtChangeProviders['forensicEventLog'].Get $r $ctx
+        foreach ($k in 'maxSizeBytes', 'enabled') { if ($desired.Contains($k) -and [string]$now[$k] -ne [string]$desired[$k]) { return [pscustomobject]@{ Ok = $false; State = "$k=$($now[$k])"; Note = "Read back $($r.Log) $k = $($now[$k]) after setting $($desired[$k])." } } }
+        return [pscustomobject]@{ Ok = $true; State = 'set'; Note = '' }
+    }
+}
+
+#endregion
+
 function Invoke-IgwtWevtutil {
     <#
     .SYNOPSIS
@@ -200,6 +305,7 @@ function Get-IgwtForensicSession {
         return [pscustomobject]@{
             Corrupt = $false; Path = $path; Status = $status; Profile = [string]$s.profile; Snapshot = [string]$s.snapshot
             Started = $started; Until = $until; Expired = ($status -ne 'active' -or ($null -ne $until -and $Now -ge $until)); Changes = @($s.changes); Message = [string]$s.message
+            EngineSession = [string]$s.engineSession
         }
     } catch {
         return [pscustomobject]@{ Corrupt = $true; Path = $path; Status = 'corrupt'; Expired = $true; Snapshot = ''; Message = "The forensic session record is damaged ($($_.Exception.Message)). Stop and restore uses the newest forensic snapshot." }
@@ -281,49 +387,54 @@ function Start-IgwtForensicLoggingSession {
         until = $(if ($Minutes) { $now.AddMinutes($Minutes).ToUniversalTime().ToString('o') } else { '' }); snapshot = $dir; message = ''
         changes = @($todo | ForEach-Object { "$($_.Source) $($_.Target) $($_.Setting) -> $($_.New)" }) }
     Save-IgwtForensicSessionRecord -Record $record
-    # 3. The changes.
-    $failure = $null
-    try {
+    # 3. The changes: journaled steps of one change session (3.6, DECISIONS T7), in the 3.5 order.
+    $steps = New-Object System.Collections.Generic.List[object]
+    foreach ($op in @($todo | Where-Object Source -EQ 'SecurityLog')) {
         # The Security log grows before auditing starts, so the new events do not push old ones out.
-        foreach ($op in @($todo | Where-Object Source -EQ 'SecurityLog')) {
-            if ([long]$op.New -le [long]$op.Current) { continue }
-            $r = Invoke-IgwtWevtutil -Arguments @('sl', 'Security', "/ms:$([long]$op.New)")
-            if ($r.ExitCode -ne 0) { throw "wevtutil sl Security failed (exit $($r.ExitCode)): $($r.Output)" }
-        }
-        foreach ($op in @($todo | Where-Object Source -EQ 'Dns')) {
-            $r = Invoke-IgwtWevtutil -Arguments @('sl', $script:IgwtDnsClientLog, '/e:true')
-            if ($r.ExitCode -ne 0) { throw "wevtutil sl $($script:IgwtDnsClientLog) failed (exit $($r.ExitCode)): $($r.Output)" }
-        }
-        $wfp = @{}
-        foreach ($op in @($todo | Where-Object Source -EQ 'Wfp')) { $wfp[$(if ($op.Target -like '*Connection') { $script:IgwtWfpConnectionGuid } else { $script:IgwtWfpPacketDropGuid })] = [string]$op.New }
-        if ($wfp.Count) {
-            $res = Set-IgwtAuditPolicy -Changes $wfp -Confirm:$false
-            if (-not $res.Verified) { throw "The audit policy did not take effect for: $(@($res.Mismatch) -join ', ')." }
-        }
-        foreach ($name in @($todo | Where-Object Source -EQ 'Firewall' | ForEach-Object { $_.Target } | Select-Object -Unique)) {
-            $arg = @{ Name = $name; ErrorAction = 'Stop' }
-            foreach ($op in @($todo | Where-Object { $_.Source -eq 'Firewall' -and $_.Target -eq $name })) {
-                switch ($op.Setting) {
-                    'LogBlocked' { $arg.LogBlocked = 'True' }
-                    'LogAllowed' { $arg.LogAllowed = 'True' }
-                    'LogMaxKB' { if ([long]$op.New -gt [long]$op.Current) { $arg.LogMaxSizeKilobytes = [uint64]$op.New } }
-                }
+        if ([long]$op.New -le [long]$op.Current) { continue }
+        $steps.Add(@{ Target = [ordered]@{ provider = 'forensicEventLog'; key = 'forensic|eventlog|Security'; log = 'Security' }; Desired = [ordered]@{ maxSizeBytes = [long]$op.New } })
+    }
+    foreach ($op in @($todo | Where-Object Source -EQ 'Dns')) {
+        $steps.Add(@{ Target = [ordered]@{ provider = 'forensicEventLog'; key = "forensic|eventlog|$($script:IgwtDnsClientLog)"; log = $script:IgwtDnsClientLog }; Desired = [ordered]@{ enabled = $true } })
+    }
+    foreach ($op in @($todo | Where-Object Source -EQ 'Wfp')) {
+        $g = $(if ($op.Target -like '*Connection') { $script:IgwtWfpConnectionGuid } else { $script:IgwtWfpPacketDropGuid })
+        $steps.Add(@{ Target = [ordered]@{ provider = 'forensicAudit'; key = "forensic|audit|$g"; guid = $g; backup = $auditDir }; Desired = [ordered]@{ setting = [string]$op.New } })
+    }
+    foreach ($name in @($todo | Where-Object Source -EQ 'Firewall' | ForEach-Object { $_.Target } | Select-Object -Unique)) {
+        $d = [ordered]@{}
+        foreach ($op in @($todo | Where-Object { $_.Source -eq 'Firewall' -and $_.Target -eq $name })) {
+            switch ($op.Setting) {
+                'LogBlocked' { $d.logBlocked = 'True' }
+                'LogAllowed' { $d.logAllowed = 'True' }
+                'LogMaxKB' { if ([long]$op.New -gt [long]$op.Current) { $d.logMaxKB = [long]$op.New } }
             }
-            Set-NetFirewallProfile @arg
         }
-    } catch { $failure = $_ }
+        if ($d.Count) { $steps.Add(@{ Target = [ordered]@{ provider = 'forensicFirewall'; key = "forensic|firewall|$name"; profile = $name }; Desired = $d }) }
+    }
+    # If no change can start (another change runs, a read-only journal), nothing was changed: the record goes (review 3.6 R15).
+    try { $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'forensic'; ref = $dir; profile = $fresh.Profile }) -Title "Forensic logging ($($fresh.Profile))" -Confirm:$false }
+    catch { Remove-Item -LiteralPath (Get-IgwtForensicSessionPath) -Force -ErrorAction SilentlyContinue; throw }
+    $record.engineSession = $session.Id
+    Save-IgwtForensicSessionRecord -Record $record
+    $failure = $null; $rollbackErrors = @()
+    try {
+        foreach ($s in $steps) {
+            $sr = Invoke-IgwtChangeStep -Session $session -Target $s.Target -Desired $s.Desired -Group 'forensic' -Confirm:$false
+            if ($sr.Result -ne 'Committed') { $failure = $sr.Message; break }
+        }
+        # Everything applied so far goes back (reverse order, read back); the record stays when that is incomplete.
+        if ($failure) { $rollbackErrors = @(Undo-IgwtChangeGroup -Session $session -Group 'forensic' -Confirm:$false) }
+    } finally { Complete-IgwtChangeSession -Session $session }
     if ($failure) {
-        # Everything applied so far goes back; the record stays when that is incomplete.
-        $restore = $null
-        try { $restore = Restore-IgwtForensicLogging -SnapshotPath $dir -Confirm:$false } catch { $restore = [pscustomobject]@{ Complete = $false; Errors = @($_.Exception.Message) } }
-        if ($restore.Complete) {
+        if (-not $rollbackErrors.Count) {
             Remove-Item -LiteralPath (Get-IgwtForensicSessionPath) -Force -ErrorAction SilentlyContinue
-            throw "Forensic logging was not started: $($failure.Exception.Message) Every setting was restored."
+            throw "Forensic logging was not started: $failure Every setting was restored."
         }
-        $record.status = 'rollback-incomplete'; $record.message = "Start failed ($($failure.Exception.Message)); not restored: $(@($restore.Errors) -join '; ')"
+        $record.status = 'rollback-incomplete'; $record.message = "Start failed ($failure); not restored: $($rollbackErrors -join '; ')"
         Save-IgwtForensicSessionRecord -Record $record
         Write-IgwtLog -Level Error -Message "Forensic logging: $($record.message). Snapshot: $dir"
-        throw "Forensic logging was not started: $($failure.Exception.Message) Some settings could not be restored ($(@($restore.Errors) -join '; ')); use Stop and restore to try again."
+        throw "Forensic logging was not started: $failure Some settings could not be restored ($($rollbackErrors -join '; ')); use Stop and restore to try again."
     }
     $record.status = 'active'
     Save-IgwtForensicSessionRecord -Record $record
@@ -342,6 +453,7 @@ function Restore-IgwtForensicLogging {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtForensicLogging'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtForensicLogging' -Parameters $PSBoundParameters) }
     $file = Join-Path $SnapshotPath 'snapshot.json'
     if (-not (Test-Path -LiteralPath $file)) { throw "'$SnapshotPath' is not a forensic logging snapshot (snapshot.json missing)." }
     $s = Read-IgwtJsonFile -Path $file
@@ -389,7 +501,18 @@ function Stop-IgwtForensicLoggingSession {
     $full = [System.IO.Path]::GetFullPath($snap).TrimEnd('\')
     if (-not @($folders | Where-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\') -eq $full }).Count) { throw "'$snap' is not a forensic snapshot folder of iG Windows Tuner (Backups\forensic-*)." }
     if (-not $PSCmdlet.ShouldProcess('Forensic logging session', "Stop and restore the previous settings from $snap")) { return $null }
-    $r = Restore-IgwtForensicLogging -SnapshotPath $snap -Confirm:$false
+    if (-not $s.Corrupt -and -not $SnapshotPath -and $s.EngineSession) {
+        # 3.6: revert the session's journaled steps (each read back). Forensic logging restores its own
+        # values unconditionally, as in 3.5, so a value changed since is restored too.
+        $plan = @(Get-IgwtRevertPlan -SessionId $s.EngineSession)
+        $decisions = @{}; foreach ($p in $plan) { $decisions[$p.Key] = 'Restore' }
+        $rv = Invoke-IgwtJournalRevert -Plan $plan -Decisions $decisions -Title "Stop forensic logging ($($s.Profile))" -Confirm:$false
+        $bad = @($rv.Results | Where-Object { $_.Result -notin 'Reverted', 'Already' })
+        $r = [pscustomobject]@{ Complete = ($bad.Count -eq 0); Errors = @($bad | ForEach-Object { "$($_.Key): $($_.Message)" }) }
+    } else {
+        # A 3.5 session, or a damaged record: the snapshot-based restore.
+        $r = Restore-IgwtForensicLogging -SnapshotPath $snap -Confirm:$false
+    }
     if ($r.Complete) { Remove-Item -LiteralPath $s.Path -Force }
     return [pscustomobject]@{ Stopped = $r.Complete; Errors = $r.Errors; Snapshot = $snap; Message = $(if ($r.Complete) { 'Forensic logging stopped; the previous settings are back.' } else { "Some settings were not restored: $($r.Errors -join '; '). The session stays recorded so you can try again." }) }
 }

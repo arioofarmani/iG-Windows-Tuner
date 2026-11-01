@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "debloat",
+  "name": "Clean Install / Debloat",
+  "order": 8,
+  "code": "D",
+  "tagline": "A fresh Windows without the extras",
+  "hint": "WinUtil's standard tweaks, mapped to safe documented items, plus removal of six consumer inbox apps (reinstallable from the Store).",
+  "description": "The safe equivalent of WinUtil's Standard preset for a freshly installed PC: activity history, location, consumer experiences, telemetry tasks, DiagTrack and Delivery Optimization peer-to-peer off, End task on the taskbar, file extensions shown, Widgets and Bing results off, no automatic vendor companion apps, and six consumer inbox apps removed through the protected list (Store, Xbox identity, Gaming Services and Windows Security are never removed). WinUtil's rejected items (service changes, Explorer folder discovery reset, WPBT) are not included.",
+  "gaming": true,
+  "levelCeiling": "Advanced",
+  "antiCheatPolicy": "safeOnly",
+  "include": [
+    "privacy.activity-history-off",
+    "privacy.consumer-features-off",
+    "privacy.location-off",
+    "privacy.diagnostic-data-required",
+    "privacy.ads-suggestions-off",
+    "privacy.telemetry-tasks-off",
+    "privacy.diagtrack-disabled",
+    "privacy.powershell-telemetry-off",
+    "privacy.widgets-off",
+    "privacy.bing-search-off",
+    "privacy.device-metadata-off",
+    "privacy.edge-background-off",
+    "privacy.inbox-apps-consumer-off",
+    "net.delivery-optimization-p2p-off",
+    "system.end-task-taskbar",
+    "system.show-file-extensions"
+  ],
+  "exclude": [],
+  "guidance": [
+    "Afterwards, run the Cleaner with the Standard rules to remove setup leftovers.",
+    "Install your apps from Toolkit > Install (winget) instead of downloading installers by hand."
+  ]
+}

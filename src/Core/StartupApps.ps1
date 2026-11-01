@@ -74,6 +74,7 @@ function Set-IgwtStartupItemEnabled {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Scope, [Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)][bool]$Enabled)
     Assert-IgwtWritable -Operation 'Set-IgwtStartupItemEnabled'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtStartupItemEnabled' -Parameters $PSBoundParameters) }
     $src = Get-IgwtStartupSource -Scope $Scope
     if ($src.Approved.StartsWith('HKLM') -and -not (Test-IgwtIsAdmin) -and -not $script:IgwtSettings.TestMode) { throw 'Machine-wide startup entries require administrator rights.' }
     if (-not $PSCmdlet.ShouldProcess("$Scope\$Name", $(if ($Enabled) { 'Enable startup entry' } else { 'Disable startup entry' }))) { return }

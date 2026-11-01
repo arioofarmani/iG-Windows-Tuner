@@ -651,6 +651,7 @@ function Invoke-IgwtFirewallChange {
     param([Parameter(Mandatory = $true)][ValidateSet('Enable', 'Disable', 'SetAction', 'Edit', 'New', 'Duplicate', 'Delete')][string]$Operation,
         [string[]]$Name = @(), [hashtable]$Settings = @{}, [switch]$AllowRemoteSession)
     Assert-IgwtWritable -Operation 'Invoke-IgwtFirewallChange'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtFirewallChange' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Firewall changes need administrator rights.' }
         Initialize-IgwtDataRoot
@@ -744,6 +745,7 @@ function Restore-IgwtFirewallSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtFirewallSnapshot'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtFirewallSnapshot' -Parameters $PSBoundParameters) }
     $doc = Read-IgwtSnapshot -Path $SnapshotPath
     if ([string]$doc.operation -ne 'Firewall') { throw 'This is not a firewall snapshot.' }
     $seen = @{}
@@ -891,6 +893,7 @@ function Import-IgwtFirewallRules {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Path)
     Assert-IgwtWritable -Operation 'Import-IgwtFirewallRules'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Import-IgwtFirewallRules' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Firewall changes need administrator rights.' }
         Initialize-IgwtDataRoot
@@ -954,6 +957,7 @@ function Set-IgwtFirewallProfileSetting {
         [Parameter(Mandatory = $true)][ValidateSet('Enabled', 'DefaultInboundAction', 'DefaultOutboundAction', 'Notifications', 'UnicastResponse', 'LogAllowed', 'LogBlocked', 'LogMaxKB')][string]$Setting,
         [Parameter(Mandatory = $true)]$Value)
     Assert-IgwtWritable -Operation 'Set-IgwtFirewallProfileSetting'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtFirewallProfileSetting' -Parameters $PSBoundParameters) }
     $why = Get-IgwtFirewallProfileChangeBlock -Setting $Setting -Value $Value
     if ($why) { throw $why }
     if ($Setting -in 'Enabled', 'DefaultInboundAction', 'DefaultOutboundAction' -and (Test-IgwtRemoteSession)) { throw 'A remote session (Remote Desktop or WinRM) is active: this profile change could cut it off. Change it from the local console.' }
@@ -987,6 +991,7 @@ function Set-IgwtNetworkCategory {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][int]$InterfaceIndex, [Parameter(Mandatory = $true)][ValidateSet('Private', 'Public')][string]$Category)
     Assert-IgwtWritable -Operation 'Set-IgwtNetworkCategory'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtNetworkCategory' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Changing the network category needs administrator rights.' }
         Initialize-IgwtDataRoot
@@ -1014,6 +1019,7 @@ function Restore-IgwtFirewallProfileSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtFirewallProfileSnapshot'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtFirewallProfileSnapshot' -Parameters $PSBoundParameters) }
     $doc = Read-IgwtSnapshot -Path $SnapshotPath
     if ([string]$doc.operation -ne 'FirewallProfile') { throw 'This is not a firewall profile snapshot.' }
     $results = New-Object System.Collections.Generic.List[object]

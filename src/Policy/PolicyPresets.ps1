@@ -206,6 +206,7 @@ function Invoke-IgwtPolicyBatch {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Plan, [switch]$AcknowledgeManaged, [switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Invoke-IgwtPolicyBatch'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtPolicyBatch' -Parameters $PSBoundParameters) }
     $plan = $Plan
     $refused = @($plan.Rows | Where-Object { $_.Status -eq 'Refused' })
     if ($plan.Refusals.Count -or $refused.Count) { throw "Refused: $(@($plan.Refusals) + @($refused | ForEach-Object { "$($_.Name): $($_.Reason)" }) -join ' ')" }
@@ -242,6 +243,8 @@ function Invoke-IgwtPolicyBatch {
     $stateDir = Get-IgwtDataPath -Kind State
     if (-not (Test-Path -LiteralPath $stateDir)) { $null = New-Item -ItemType Directory -Path $stateDir -Force }
     $recFile = Join-Path $stateDir ("policy-preset-{0}.json" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $recFile
     [System.IO.File]::WriteAllText($recFile, (ConvertTo-IgwtJson -InputObject $record), (New-Object System.Text.UTF8Encoding($false)))
     Write-IgwtLog -Message "Policy preset $($plan.Preset.id): $($todo.Count) setting(s). Record: $recFile"
     $mismatch = @()
@@ -264,6 +267,7 @@ function Restore-IgwtPolicyPreset {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Record, [switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Restore-IgwtPolicyPreset'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtPolicyPreset' -Parameters $PSBoundParameters) }
     $r = Read-IgwtJsonFile -Path $Record
     if ([string]$r.kind -ne 'igwt-policy-preset') { throw "'$Record' is not a policy preset record." }
     if (-not $PSCmdlet.ShouldProcess([string]$r.preset, 'Revert policy preset')) { return $null }

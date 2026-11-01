@@ -129,7 +129,8 @@ function ConvertTo-IgwtNormalizedPreset {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Preset, [string]$SourceFile, [int]$SourceSchema = 2)
-    $p = ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV2Preset -Preset $Preset -IdMap (Get-IgwtIdMap))
+    # Schema v3 (3.6, DECISIONS T16): changes with a desired value, read into include/exclude/reset.
+    $p = $(if ([int]$Preset.schemaVersion -ge 3) { ConvertFrom-IgwtPresetV3 -Preset $Preset } else { ConvertTo-IgwtPSObject -InputObject (ConvertTo-IgwtV2Preset -Preset $Preset -IdMap (Get-IgwtIdMap)) })
     $excluded = @($p.exclude | Where-Object { $_ })
     $p | Add-Member -NotePropertyName tweaks -NotePropertyValue @(@($p.include) | Where-Object { $_ -and $excluded -notcontains $_ }) -Force
     $p | Add-Member -NotePropertyName sourceFile -NotePropertyValue $SourceFile -Force
@@ -369,7 +370,11 @@ function Test-IgwtCatalog {
         if ($t.evidence) {
             $sources = @($t.evidence.sources | Where-Object { $_ })
             if ($sources.Count -lt 1) { $errors.Add("${tid}: Tier $($t.evidence.tier) needs at least one source URL.") }
-            foreach ($s in $sources) { if ([string]$s -notmatch '^https://') { $errors.Add("${tid}: source '$s' must be an https URL.") } }
+            if (@($t.evidence.sources | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) }).Count) { $errors.Add("${tid}: a source is empty.") }
+            # A source is an https URL or a DECISIONS ID ("DECISIONS T8", 3.6 confidence badges).
+            foreach ($s in $sources) { if ([string]$s -notmatch '^https://' -and [string]$s -notmatch '^DECISIONS [A-Z]{1,3}\d{1,3}[a-z]?$') { $errors.Add("${tid}: source '$s' must be an https URL or a DECISIONS ID.") } }
+            foreach ($b in @($t.evidence.testedBuilds)) { if ($null -ne $b -and "$b" -notmatch '^\d{5}$') { $errors.Add("${tid}: evidence.testedBuilds entry '$b' must be a Windows build number.") } }
+            if ($null -ne $t.evidence.PSObject.Properties['partialSource'] -and $t.evidence.partialSource -isnot [bool]) { $errors.Add("${tid}: evidence.partialSource must be true or false.") }
             if ([string]$t.evidence.tier -eq 'B' -and ([string]$t.hint + ' ' + [string]$t.description) -notmatch '(?i)measure') {
                 $errors.Add("${tid}: Tier B hint/description must tell the user to measure before/after.")
             }
@@ -469,6 +474,7 @@ function Test-IgwtCatalog {
     foreach ($p in @(Get-IgwtPreset -Builtin)) {
         if ([int]$p.sourceSchema -lt $script:IgwtSchemaVersion) { $errors.Add("presets\$($p.sourceFile): schemaVersion $($p.sourceSchema); run tools\Convert-IgwtV1Data.ps1 to migrate it.") }
         Test-IgwtPresetDefinition -Preset $p -CatalogIndex $ids -RejectedIds $rejectedIds -Errors $errors
+        if ([int]$p.sourceSchema -ge 3) { Test-IgwtPresetV3Document -Document (Read-IgwtJsonFile -Path (Join-Path (Join-Path (Get-IgwtDataFolder) 'presets') $p.sourceFile)) -CatalogIndex $ids -Errors $errors }
     }
     $sessionPresets = @(Get-IgwtPreset -Builtin | Where-Object { $_.PSObject.Properties['session'] -and $_.session })
     if ($sessionPresets.Count -gt 1) { $errors.Add('presets: only one Session Mode preset (session: true) is allowed.') }

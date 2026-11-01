@@ -235,6 +235,23 @@
                             </StackPanel>
                         </DockPanel>
 
+                        <!-- Home card (3.6, DECISIONS T11, T18): one next best action, chosen by priority. -->
+                        <Border x:Name="HomeCard" Style="{StaticResource Card}" Margin="0,18,0,0" AutomationProperties.AutomationId="HomeCard" AutomationProperties.Name="Next best action" KeyboardNavigation.TabNavigation="Local">
+                            <DockPanel>
+                                <WrapPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                                    <Button x:Name="HomeCardDoButton" Style="{StaticResource AccentButton}" Content="Do it" TabIndex="0" AutomationProperties.AutomationId="HomeCardDoButton" AutomationProperties.Name="Do it" ToolTip="Opens a preview first; nothing changes until you confirm."/>
+                                    <Button x:Name="HomeCardSnoozeButton" Content="Not now" TabIndex="1" AutomationProperties.AutomationId="HomeCardSnoozeButton" AutomationProperties.Name="Not now, hide for 1 day" ToolTip="Hide this card for 1 day."/>
+                                    <Button x:Name="HomeCardSnoozeWeekButton" Content="Not this week" TabIndex="2" AutomationProperties.AutomationId="HomeCardSnoozeWeekButton" AutomationProperties.Name="Not now, hide for 7 days" ToolTip="Hide this card for 7 days."/>
+                                    <Button x:Name="HomeCardWhyButton" Content="Why?" TabIndex="3" AutomationProperties.AutomationId="HomeCardWhyButton" AutomationProperties.Name="Why" ToolTip="Show the details behind this card."/>
+                                    <Button x:Name="HomeCardPagesButton" Style="{StaticResource LinkButton}" Content="All pages" TabIndex="4" Margin="12,0,0,0" VerticalAlignment="Center" AutomationProperties.AutomationId="HomeCardPagesButton" AutomationProperties.Name="All pages" ToolTip="Go to the list of every page (the navigation on the left)."/>
+                                </WrapPanel>
+                                <StackPanel>
+                                    <TextBlock x:Name="HomeCardOverline" Style="{StaticResource TextOverline}" Margin="0,0,0,4" Text="CHECKING" AutomationProperties.AutomationId="HomeCardOverline"/>
+                                    <TextBlock x:Name="HomeCardTitle" Style="{StaticResource TextSection}" TextWrapping="Wrap" Text="Checking what needs your attention..." AutomationProperties.AutomationId="HomeCardTitle"/>
+                                    <TextBlock x:Name="HomeCardText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0" Text="The change journal and the settings iG set are being checked (read-only). The window stays usable meanwhile." AutomationProperties.AutomationId="HomeCardText"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
                         <UniformGrid Columns="4" Margin="0,18,0,0">
                             <Border x:Name="DashTileAc" Style="{StaticResource Tile}">
                                 <StackPanel>
@@ -1774,6 +1791,24 @@
                         </WrapPanel>
                     </StackPanel>
                     <TabControl x:Name="BackupTabs" Grid.Row="1">
+                        <TabItem x:Name="BackupJournalTab" Header="Change journal" AutomationProperties.AutomationId="BackupJournalTab" ToolTip="Every change iG made, grouped by session: the value before, the value set, and a revert per change, per session or for everything">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock x:Name="JournalStatusText" AutomationProperties.AutomationId="JournalStatusText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4" Text="Not read yet."/>
+                                    <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="The journal records every change before it is made and checks it after. A revert shows the value before, the value iG set and the value now; when something else changed it since, you choose."/>
+                                    <WrapPanel Margin="0,8,0,8">
+                                        <Button x:Name="JournalRevertEntryButton" AutomationProperties.AutomationId="JournalRevertEntryButton" Content="Revert selected change..." ToolTip="Preview, then restore the value from before the selected change."/>
+                                        <Button x:Name="JournalRevertSessionButton" AutomationProperties.AutomationId="JournalRevertSessionButton" Content="Revert its session..." ToolTip="Preview, then restore every change of the selected change's session, newest first."/>
+                                        <Button x:Name="JournalRevertAllButton" AutomationProperties.AutomationId="JournalRevertAllButton" Content="Reset everything iG changed..." ToolTip="Preview, then restore every value iG still has changed to its value before iG."/>
+                                    </WrapPanel>
+                                </StackPanel>
+                                <ContentControl x:Name="JournalListHost" Grid.Row="1" Focusable="False"/>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="Snapshots" ToolTip="Every change, newest first: what changed, when, and whether anything failed">
                             <ContentControl x:Name="SnapshotListHost" Margin="0,8,0,0" Focusable="False"/>
                         </TabItem>

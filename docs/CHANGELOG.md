@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.6.0 (2026-11-01)
+
+Transactions: every change iG makes is a journaled, read-back-checked transaction with an exact restore, plus confidence badges, declarative presets, an update drift guardian and a home card. Design: DECISIONS T1 to T18; independent review: docs\REVIEW.md (3.6 section).
+
+### Added
+
+- **Change journal** (DECISIONS T2-T5, T14): every change is recorded before it is made (intent), read back after it (committed or failed) and rolled back in reverse order when a step fails. The journal is append-only, hash-chained (an edited, removed or reordered entry makes it read-only and names the line), survives a write cut off by a crash, keeps the first value of every target forever ("value before iG") and is compacted into a checkpoint that keeps those baselines.
+- **One change at a time:** a machine-wide lock; a second change gets "Another change is running since HH:MM (title)".
+- **Unfinished changes** (app or PC stopped mid-change) are found and can be rolled back.
+- **Revert from the journal** per change, per session or everything, with the value before, the value iG set and the value now; when something else changed a value since, you choose: restore anyway, keep the current value or skip. Reverts are journaled too.
+- **Backups & Logs > Change journal:** the timeline by session with filters and the revert buttons.
+- **Upgrade from 3.5:** the 3.x snapshots are imported once, so the original values of changes made before 3.6 are known and can be restored.
+- **Confidence badges** (DECISIONS T8, T15): every tweak shows Verified (documented, and applied and read back correctly on this Windows build), Best effort (documented, not yet read back on this build) or Unverified (no Microsoft or hardware-vendor documentation), with a tooltip that says what was tested where. A Confidence column and filters in the tweak lists.
+- **Declarative presets (schema v3)** (DECISIONS T16): presets list catalog items with the desired value (on, Windows default, or left unchanged), what they require and what they conflict with; no paths or commands. Before a preset's changes are staged, a preview shows what will change, what is already set, what does not apply, conflicts and policy-managed items, with a summary line. Presets you import are checked strictly and refused with readable messages. The built-in presets were converted and plan exactly the same changes as before on every tested hardware profile.
+- **Update drift guardian** (DECISIONS T17): checks, read-only, whether every value iG set is still applied, has drifted, is missing or cannot be read, and lists the Windows updates installed in between (without claiming they caused it). You can re-apply (with a preview, as one journaled change) or accept the current value (journaled).
+- **Home card** (DECISIONS T18): the Dashboard, now the start page, shows the one thing that most needs your attention (an unfinished change, settings that changed since iG set them, an ended forensic logging session, Unverified items in your preset, or a suggestion), or All clear. Do it always shows a preview first; Not now hides the card for a day or a week; Why? explains it.
+- Every writer runs on the change engine: catalog tweaks and presets, forensic logging, and the firewall, ASR, Defender, policy, audit, security policy, power, startup, management, toolkit and cleaner modules (one-way changes are journaled and marked "cannot be undone"). A parser-based test fails when anything else calls a state-changing command.
 ## 3.5.0 (2026-10-30)
 
 Firewall logs and forensics: the firewall log analysis works again (two bugs fixed), a fast log reader with filters and an overview, time-boxed forensic connection logging that restores every setting exactly, and evidence collection with an AI-ready export. Verification sources: DECISIONS F10 to F13; independent review: docs\REVIEW.md.

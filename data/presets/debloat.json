@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "debloat",
   "name": "Clean Install / Debloat",
+  "version": "3.6.0",
   "order": 8,
   "code": "D",
   "tagline": "A fresh Windows without the extras",
@@ -10,27 +11,29 @@
   "gaming": true,
   "levelCeiling": "Advanced",
   "antiCheatPolicy": "safeOnly",
-  "include": [
-    "privacy.activity-history-off",
-    "privacy.consumer-features-off",
-    "privacy.location-off",
-    "privacy.diagnostic-data-required",
-    "privacy.ads-suggestions-off",
-    "privacy.telemetry-tasks-off",
-    "privacy.diagtrack-disabled",
-    "privacy.powershell-telemetry-off",
-    "privacy.widgets-off",
-    "privacy.bing-search-off",
-    "privacy.device-metadata-off",
-    "privacy.edge-background-off",
-    "privacy.inbox-apps-consumer-off",
-    "net.delivery-optimization-p2p-off",
-    "system.end-task-taskbar",
-    "system.show-file-extensions"
-  ],
-  "exclude": [],
   "guidance": [
     "Afterwards, run the Cleaner with the Standard rules to remove setup leftovers.",
     "Install your apps from Toolkit > Install (winget) instead of downloading installers by hand."
-  ]
+  ],
+  "requires": { "minBuild": 26100 },
+  "changes": [
+    { "item": "privacy.activity-history-off", "desired": "on" },
+    { "item": "privacy.consumer-features-off", "desired": "on" },
+    { "item": "privacy.location-off", "desired": "on" },
+    { "item": "privacy.diagnostic-data-required", "desired": "on" },
+    { "item": "privacy.ads-suggestions-off", "desired": "on" },
+    { "item": "privacy.telemetry-tasks-off", "desired": "on" },
+    { "item": "privacy.diagtrack-disabled", "desired": "on" },
+    { "item": "privacy.powershell-telemetry-off", "desired": "on" },
+    { "item": "privacy.widgets-off", "desired": "on" },
+    { "item": "privacy.bing-search-off", "desired": "on" },
+    { "item": "privacy.device-metadata-off", "desired": "on" },
+    { "item": "privacy.edge-background-off", "desired": "on" },
+    { "item": "privacy.inbox-apps-consumer-off", "desired": "on" },
+    { "item": "net.delivery-optimization-p2p-off", "desired": "on" },
+    { "item": "system.end-task-taskbar", "desired": "on" },
+    { "item": "system.show-file-extensions", "desired": "on" }
+  ],
+  "conflicts": [],
+  "notes": ""
 }

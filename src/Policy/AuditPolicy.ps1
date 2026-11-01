@@ -150,6 +150,7 @@ function Set-IgwtAuditPolicy {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][hashtable]$Changes, [switch]$AcknowledgeManaged)
     Assert-IgwtWritable -Operation 'Set-IgwtAuditPolicy'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtAuditPolicy' -Parameters $PSBoundParameters) }
     $current = Get-IgwtAuditPolicy
     $plan = Get-IgwtAuditChangePlan -Changes $Changes -Current $current
     $m = Get-IgwtManagementState
@@ -159,6 +160,8 @@ function Set-IgwtAuditPolicy {
     if (-not $PSCmdlet.ShouldProcess('Audit policy', "Set $($todo.Count) subcategory setting(s)")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $dir = Join-Path (Get-IgwtDataPath -Kind Backups) ("audit-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $dir
     $null = New-Item -ItemType Directory -Path $dir -Force
     $file = Join-Path $dir 'audit-before.csv'
     $b = Invoke-IgwtAuditpol -Arguments @('/backup', "/file:$file")
@@ -183,6 +186,7 @@ function Restore-IgwtAuditPolicy {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$BackupPath)
     Assert-IgwtWritable -Operation 'Restore-IgwtAuditPolicy'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtAuditPolicy' -Parameters $PSBoundParameters) }
     $mf = Join-Path $BackupPath 'manifest.json'
     if (-not (Test-Path -LiteralPath $mf)) { throw "'$BackupPath' is not an audit policy backup (manifest.json missing)." }
     $m = Read-IgwtJsonFile -Path $mf

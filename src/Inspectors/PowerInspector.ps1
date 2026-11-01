@@ -345,6 +345,7 @@ function Invoke-IgwtPowerSettingChange {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Setting, [Nullable[long]]$AC, [Nullable[long]]$DC, [switch]$Default, [switch]$AcknowledgeRisk)
     Assert-IgwtWritable -Operation 'Invoke-IgwtPowerSettingChange'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtPowerSettingChange' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         if (-not (Test-IgwtIsAdmin)) { throw 'Power plan changes need administrator rights.' }
         Initialize-IgwtDataRoot

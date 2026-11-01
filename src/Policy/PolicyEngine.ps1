@@ -431,6 +431,7 @@ function Set-IgwtLocalPolicy {
     param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][ValidateSet('Enabled', 'Disabled', 'NotConfigured')][string]$State,
         [hashtable]$Values = @{}, [ValidateSet('Machine', 'User')][string]$Class, [switch]$AcknowledgeManaged, [switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Set-IgwtLocalPolicy'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtLocalPolicy' -Parameters $PSBoundParameters) }
     $classArg = @{}; if ($Class) { $classArg.Class = $Class }
     $plan = Get-IgwtPolicyChangePlan -Id $Id -State $State -Values $Values @classArg
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }

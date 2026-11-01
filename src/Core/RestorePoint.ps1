@@ -43,6 +43,7 @@ function New-IgwtRestorePoint {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string]$Description = 'iG Windows Tuner: before applying changes', [switch]$EnableSystemProtection)
     Assert-IgwtWritable -Operation 'New-IgwtRestorePoint'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'New-IgwtRestorePoint' -Parameters $PSBoundParameters) }
     if (-not (Test-IgwtSystemProtectionEnabled)) {
         if (-not $EnableSystemProtection) {
             return [pscustomobject]@{ Created = $false; Reason = 'SystemProtectionDisabled' }

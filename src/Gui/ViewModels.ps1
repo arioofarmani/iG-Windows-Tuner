@@ -120,6 +120,8 @@ function Get-IgwtGuiData {
         Snapshots  = @(Get-IgwtSnapshotList | Select-Object Path, File, Created, Operation, Detail, Applied, @{ n = 'Count'; e = { @($_.Entries).Count } }, @{ n = 'Failed'; e = { @($_.Entries | Where-Object { $_.result -in 'Failed', 'RolledBack' }).Count } })
         Startup    = $startup
         Games      = @($ctx.Games)
+        # Confidence badges (3.6, DECISIONS T8): sources, this PC's journal and the tested builds.
+        Confidence = $(try { Get-IgwtConfidenceMap } catch { @{} })
     }
 }
 
@@ -145,7 +147,9 @@ function Get-IgwtGuiPreview {
             if ($p.Plan -ne 'Change' -and $p.Reason) { $null = $sb.AppendLine("      $($p.Reason)") }
         }
     }
-    $resetAll = @($ResetIds)
+    # A preset's resets run in the preset's own session (3.6, DECISIONS T16); other resets on their own.
+    $presetResets = @($(if ($Operation -like 'Preset:*') { $ResetIds }) | Where-Object { $_ })
+    $resetAll = @($ResetIds | Where-Object { $presetResets -notcontains $_ })
     if ($OffIds.Count -gt 0) {
         $null = $sb.AppendLine('')
         $null = $sb.AppendLine('TURN OFF')
@@ -200,7 +204,9 @@ function Invoke-IgwtGuiBatch {
     $rp = $null
     $skip = [bool]$SkipRestorePoint
     $revertIds = @()
-    $resetAll = @($ResetIds)
+    # A preset's resets run in the preset's own session (3.6, DECISIONS T16); other resets on their own.
+    $presetResets = @($(if ($Operation -like 'Preset:*') { $ResetIds }) | Where-Object { $_ })
+    $resetAll = @($ResetIds | Where-Object { $presetResets -notcontains $_ })
     foreach ($id in $OffIds) {
         if (Find-IgwtLatestSnapshotEntry -TweakId $id) { $revertIds += $id } else { $resetAll += $id }
     }
@@ -211,8 +217,8 @@ function Invoke-IgwtGuiBatch {
         if ($r.Snapshot) { $snapshots.Add([string]$r.Snapshot) }
     }
     try {
-        if ($ApplyIds.Count -gt 0) {
-            $r = Invoke-IgwtApply -Id $ApplyIds -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
+        if ($ApplyIds.Count -gt 0 -or $presetResets.Count -gt 0) {
+            $r = Invoke-IgwtApply -Id $ApplyIds -ResetId $presetResets -Operation $Operation -SkipRestorePoint:$skip -EnableSystemProtection:$EnableSystemProtection -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
             $rp = $r.RestorePoint
             & $merge $r
             $skip = $true
@@ -430,7 +436,7 @@ function New-IgwtGuiTweakRow {
     <# .SYNOPSIS Bindable row for one tweak (state + staging). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Tweak, $State, [bool]$Changed, [string]$Staged, [bool]$IsAdmin)
+    param([Parameter(Mandatory = $true)]$Tweak, $State, [bool]$Changed, [string]$Staged, [bool]$IsAdmin, $Confidence)
     $stateName = 'Unknown'
     if ($State) { $stateName = [string]$State.State }
     $isOn = ($stateName -eq 'On')
@@ -503,6 +509,12 @@ function New-IgwtGuiTweakRow {
     $r.ChangedText = $(if ($Changed) { 'Changed' } else { 'Default' })
     $r.RestartKey = $(if ($Tweak.requires -in 'reboot', 'logoff') { 'Yes' } else { 'No' })
     $r.StagedKey = $(if ($Staged) { 'Yes' } else { 'No' })
+    # Confidence badge (3.6): Verified, Best effort or Unverified, with what was tested where.
+    $level = $(if ($Confidence) { [string]$Confidence.Level } else { '' })
+    $r.ConfidenceKey = $level
+    $r.ConfidenceTip = $(if ($Confidence) { [string]$Confidence.Tip } else { 'Not computed yet.' })
+    Add-IgwtGuiStatusField -Row $r -Name 'ConfidenceCol' -Text $(if ($Confidence) { [string]$Confidence.Label } else { '' }) -Tone $(switch ($level) { 'Verified' { 'Pass' } 'BestEffort' { 'Info' } 'Unverified' { 'Warn' } default { 'Muted' } })
+    $r.ConfidenceRank = $(switch ($level) { 'Verified' { 1 } 'BestEffort' { 2 } 'Unverified' { 3 } default { 4 } })
     return [pscustomobject]$r
 }
 

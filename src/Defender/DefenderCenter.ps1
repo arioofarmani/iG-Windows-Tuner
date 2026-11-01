@@ -211,6 +211,7 @@ function Set-IgwtDefenderParsersOn {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string[]]$Name, [switch]$AcknowledgeManaged)
     Assert-IgwtWritable -Operation 'Set-IgwtDefenderParsersOn'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Set-IgwtDefenderParsersOn' -Parameters $PSBoundParameters) }
     $m = Get-IgwtManagementState
     if ($m.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($(@($m.Authorities) -join ', ')); Defender settings may come from your organization. Pass -AcknowledgeManaged to change them locally." }
     $pref = Get-IgwtMpPreferenceSafe
@@ -282,6 +283,7 @@ function Restore-IgwtQuarantineItem {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param([Parameter(Mandatory = $true)][string]$ThreatName, [switch]$IUnderstandTheRisk)
     Assert-IgwtWritable -Operation 'Restore-IgwtQuarantineItem'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtQuarantineItem' -Parameters $PSBoundParameters) }
     if (-not $IUnderstandTheRisk) { throw 'Restoring a quarantined file can reintroduce malware. Pass -IUnderstandTheRisk to confirm.' }
     if ($ThreatName -notmatch '^[\w.:/!\-]+$') { throw "Unexpected threat name '$ThreatName'." }
     if ($script:IgwtSettings.TestMode) { throw 'TestMode safety: MpCmdRun must not run in tests.' }
@@ -297,6 +299,7 @@ function Remove-IgwtDefenderThreat {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param()
     Assert-IgwtWritable -Operation 'Remove-IgwtDefenderThreat'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Remove-IgwtDefenderThreat' -Parameters $PSBoundParameters) }
     if (-not $PSCmdlet.ShouldProcess('Active threats', 'Remove')) { return $null }
     Remove-MpThreat -ErrorAction Stop
     Write-IgwtLog -Message 'Active threats removed (Remove-MpThreat).'
@@ -312,6 +315,7 @@ function Start-IgwtDefenderScan {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param([Parameter(Mandatory = $true)][ValidateSet('Quick', 'Full', 'Custom', 'Offline')][string]$Type, [string]$Path, [switch]$ConfirmRestart, [switch]$AsJob)
     Assert-IgwtWritable -Operation 'Start-IgwtDefenderScan'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Start-IgwtDefenderScan' -Parameters $PSBoundParameters) }
     if ($Type -eq 'Custom' -and -not $Path) { throw 'A custom scan needs -Path.' }
     if ($Type -eq 'Custom' -and -not (Test-Path -LiteralPath $Path)) { throw "Path '$Path' not found." }
     if ($Type -eq 'Offline') {

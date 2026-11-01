@@ -470,6 +470,7 @@ function Invoke-IgwtCleanerClean {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param($Scan, [string[]]$RuleId, $CancelToken)
     Assert-IgwtWritable -Operation 'Invoke-IgwtCleanerClean'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtCleanerClean' -Parameters $PSBoundParameters) }
     if (-not $Scan) { $Scan = $script:IgwtLastCleanerScan }
     if (-not $Scan) { throw 'Run a scan first (Invoke-IgwtCleanerScan); the cleaner only deletes what a scan found.' }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
