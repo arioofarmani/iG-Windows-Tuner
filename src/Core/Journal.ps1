@@ -49,6 +49,41 @@ function Get-IgwtWindowsBuildInfo {
     return $script:IgwtBuildInfo
 }
 
+function Read-IgwtJournalText {
+    <#
+    .SYNOPSIS
+        A journal file's text, read with read, write and delete sharing so a reader never blocks
+        the writer (and the other way round); a short retry covers a sharing violation. Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    for ($try = 1; ; $try++) {
+        try {
+            $fs = New-Object System.IO.FileStream($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+            try { $ms = New-Object System.IO.MemoryStream; $fs.CopyTo($ms); return [System.Text.Encoding]::UTF8.GetString($ms.ToArray()) } finally { $fs.Dispose() }
+        } catch [System.IO.IOException] { if ($try -ge 5 -or $_.Exception -is [System.IO.FileNotFoundException]) { throw }; Start-Sleep -Milliseconds (40 * $try) }
+    }
+}
+
+function Test-IgwtJournalTrusted {
+    <#
+    .SYNOPSIS
+        '' when the journal folder and its files are protected (owned by Administrators or SYSTEM,
+        not writable by standard users: Test-IgwtTrustedFile), else the reason. A journal that a
+        standard user could have written is never used for a restore (review 3.6 R4). Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    $dir = Get-IgwtJournalFolder
+    if (-not (Test-Path -LiteralPath $dir)) { return '' }
+    foreach ($p in @($dir) + @(Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(journal-\d{4}\.jsonl|checkpoint\.json|head\.json)$' } | ForEach-Object { $_.FullName })) {
+        if (-not (Test-IgwtTrustedFile -Path $p)) { return "'$([IO.Path]::GetFileName($p))' is not protected (it must be owned by Administrators or SYSTEM and not writable by standard users)." }
+    }
+    return ''
+}
+
 function Get-IgwtJournalSegments {
     <# .SYNOPSIS The journal segment files in order (oldest first). Read-only. #>
     [CmdletBinding()]
@@ -82,7 +117,7 @@ function Read-IgwtJournalCheckpoint {
     param()
     $p = Join-Path (Get-IgwtJournalFolder) 'checkpoint.json'
     if (-not (Test-Path -LiteralPath $p)) { return $null }
-    $cp = ConvertFrom-IgwtJournalLine -Line ([System.IO.File]::ReadAllText($p))
+    $cp = ConvertFrom-IgwtJournalLine -Line (Read-IgwtJournalText -Path $p)
     if ($null -eq $cp -or [string]$cp['hash'] -ne (Get-IgwtJournalCheckpointHash -Checkpoint $cp)) { throw 'The journal checkpoint (checkpoint.json) is damaged or was edited.' }
     return $cp
 }
@@ -137,6 +172,8 @@ function Read-IgwtJournal {
     $last = New-Object 'System.Collections.Generic.Dictionary[string,object]'
     $res = [ordered]@{ Status = 'Empty'; Reason = ''; BadFile = ''; BadLine = 0; Seq = 0; Hash = $script:IgwtJournalZeroHash; Segment = ''; SegmentLines = 0; TornPending = $false; TornHash = ''; NeedsBreak = $false; Count = 0 }
     $hash = $script:IgwtJournalZeroHash
+    $why = Test-IgwtJournalTrusted
+    if ($why) { $res.Status = 'Broken'; $res.Reason = "The journal is not protected: $why"; return [pscustomobject]$res }
     # After a compaction the chain continues from the checkpoint, which carries the folded indexes.
     try { $cp = Read-IgwtJournalCheckpoint } catch { $res.Status = 'Broken'; $res.Reason = $_.Exception.Message; $res.BadFile = 'checkpoint.json'; return [pscustomobject]$res }
     if ($cp) {
@@ -153,7 +190,7 @@ function Read-IgwtJournal {
     $collect = $null
     if (-not $NoEntries) { $collect = $entries }
     foreach ($file in $segments) {
-        $text = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($file))
+        $text = Read-IgwtJournalText -Path $file
         $hadTorn = $st.HasTorn
         $ok = [IgwtJournal.Verifier]::VerifySegment($text, ($file -eq $segments[-1]), $st, $collect, $baselines, $last)
         if ($st.HasTorn -and -not $hadTorn) { $tornFile = $file }
@@ -174,6 +211,14 @@ function Read-IgwtJournal {
     # A complete last line without its line break (cut off right after it): the next append adds the break first.
     $res.TornPending = $st.TornPending; $res.TornHash = $st.PendingHash; $res.NeedsBreak = $st.NeedsBreak
     $res.Seq = $st.Seq; $hash = $st.Hash
+    # The head record (head.json, written after every append) makes removed entries at the end visible (review 3.6 R13).
+    $hp = Join-Path (Get-IgwtJournalFolder) 'head.json'
+    if (Test-Path -LiteralPath $hp) {
+        $hd = ConvertFrom-IgwtJournalLine -Line (Read-IgwtJournalText -Path $hp)
+        if ($null -eq $hd) { $res.Status = 'Broken'; $res.Reason = 'The journal head record (head.json) is damaged.'; $res.BadFile = $hp; return [pscustomobject]$res }
+        if ([long]$hd['seq'] -gt $res.Seq) { $res.Status = 'Broken'; $res.Reason = "Entries were removed from the end of the journal: it ends at entry $($res.Seq), the head record says $($hd['seq'])."; $res.BadFile = $hp; return [pscustomobject]$res }
+        if ([long]$hd['seq'] -eq $res.Seq -and [string]$hd['hash'] -ne $hash) { $res.Status = 'Broken'; $res.Reason = "The last journal entry ($($res.Seq)) is not the one the head record names."; $res.BadFile = $hp; return [pscustomobject]$res }
+    }
     if ($res.Seq -gt 0) { $res.Status = 'Ok' }
     $res.Hash = $hash; $res.Count = $res.Seq
     $o = [pscustomobject]$res
@@ -202,7 +247,7 @@ function Invoke-IgwtJournalCompaction {
     $fold = @($segs | Select-Object -First ($segs.Count - $KeepSegments))
     $lastFolded = $fold[-1]
     # The head of the folded part: the last entry of the last folded segment.
-    $lines = @([System.IO.File]::ReadAllText($lastFolded).Split([char]10) | ForEach-Object { $_.TrimEnd([char]13) } | Where-Object { $_ })
+    $lines = @((Read-IgwtJournalText -Path $lastFolded).Split([char]10) | ForEach-Object { $_.TrimEnd([char]13) } | Where-Object { $_ })
     $headLine = $lines[-1]
     $head = ConvertFrom-IgwtJournalLine -Line $headLine
     if ($null -eq $head) { return [pscustomobject]@{ Folded = 0; Message = 'Not compacted: the last folded line is not an entry.' } }
@@ -228,6 +273,16 @@ function Invoke-IgwtJournalCompaction {
     $script:IgwtJournal = $null
     $check = Get-IgwtJournalState -Refresh
     return [pscustomobject]@{ Folded = $fold.Count; Message = "Folded $($fold.Count) segment(s) up to entry $headSeq into the checkpoint; the journal is $($check.Status.ToLowerInvariant())." }
+}
+
+function Write-IgwtJournalHead {
+    <# .SYNOPSIS Records the journal head (sequence and hash of the last entry) in Journal\head.json, replaced atomically. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes the tool''s own journal head record.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][long]$Seq, [Parameter(Mandatory = $true)][string]$Hash)
+    $p = Join-Path (Get-IgwtJournalFolder) 'head.json'
+    [System.IO.File]::WriteAllText("$p.tmp", (ConvertTo-Json -InputObject ([ordered]@{ seq = $Seq; hash = $Hash }) -Compress), (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath "$p.tmp" -Destination $p -Force
 }
 
 function Get-IgwtJournalState {
@@ -261,14 +316,22 @@ function Add-IgwtJournalEntry {
     if ($j.Status -eq 'Broken') { throw "The change journal is read-only: $($j.Reason)" }
     $key = $(if ($Entry.Contains('target') -and $Entry['target']) { [string]$Entry['target']['key'] } else { '' })
     if ([string]$Entry['kind'] -eq 'baseline' -and $key -and $j.Baselines.ContainsKey($key)) { return $j.Baselines[$key] }
+    # Journal writes need administrator rights; the folder gets the protected ACL when it is created (review 3.6 R4).
+    if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'The change journal is written with administrator rights only.' }
     $dir = Get-IgwtJournalFolder
-    if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
+    if (-not (Test-Path -LiteralPath $dir)) {
+        $null = New-Item -ItemType Directory -Path $dir -Force
+        if (-not $script:IgwtSettings.TestMode) { Protect-IgwtDataRoot -Path $dir -Confirm:$false }
+    }
     $segment = $j.Segment
     $segLines = [int]$j.SegmentLines
     # A cut-off or unterminated last line is finished in its own segment before any rollover.
     if (-not $segment -or ($segLines -ge $script:IgwtJournalSegmentLines -and -not $j.TornPending -and -not $j.NeedsBreak)) {
         # The next number after every segment file present (folded ones may already be deleted).
-        $n = 1 + [int](@(Get-ChildItem -LiteralPath $dir -File -Filter 'journal-*.jsonl' | Where-Object { $_.Name -match '^journal-(\d{4})\.jsonl$' } | ForEach-Object { [int]$_.Name.Substring(8, 4) }) + @(0) | Measure-Object -Maximum).Maximum
+        # After a compaction the numbering continues after the folded segments too (review 3.6 R13).
+        $folded = 0
+        try { $cpx = Read-IgwtJournalCheckpoint; if ($cpx -and [string]$cpx['folded'] -match '^journal-(\d{4})\.jsonl$') { $folded = [int]$Matches[1] } } catch { $folded = 0 }
+        $n = 1 + [int](@(Get-ChildItem -LiteralPath $dir -File -Filter 'journal-*.jsonl' | Where-Object { $_.Name -match '^journal-(\d{4})\.jsonl$' } | ForEach-Object { [int]$_.Name.Substring(8, 4) }) + @($folded) | Measure-Object -Maximum).Maximum
         $segment = Join-Path $dir ('journal-{0:0000}.jsonl' -f $n); $segLines = 0
     }
     $bi = Get-IgwtWindowsBuildInfo
@@ -292,10 +355,15 @@ function Add-IgwtJournalEntry {
     $text = (($prefix.ToArray() + @($line)) -join "`n") + "`n"
     if ($prefix.Count -eq 0 -and $j.NeedsBreak -and $segment -eq $j.Segment) { $text = "`n" + $text }
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
-    $fs = New-Object System.IO.FileStream($segment, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read, 4096, [System.IO.FileOptions]::WriteThrough)
+    # Readers share read and write, so an open reader never makes the append fail; a short retry covers the rest (review 3.6 R6).
+    for ($try = 1; ; $try++) {
+        try { $fs = New-Object System.IO.FileStream($segment, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete), 4096, [System.IO.FileOptions]::WriteThrough); break }
+        catch [System.IO.IOException] { if ($try -ge 5) { throw }; Start-Sleep -Milliseconds (40 * $try) }
+    }
     try { $fs.Write($bytes, 0, $bytes.Length); $fs.Flush($true) } finally { $fs.Dispose() }
     $j.Hash = Get-IgwtJournalHash -Line $line; $j.Seq = [long]$o.seq; $j.Count = $j.Seq; $j.Status = 'Ok'
     $j.Segment = $segment; $j.SegmentLines = $segLines + $prefix.Count + 1; $j.NeedsBreak = $false
+    Write-IgwtJournalHead -Seq $j.Seq -Hash $j.Hash
     $e = ConvertFrom-IgwtJournalLine -Line $line
     if ($key) {
         $kind = [string]$o.kind

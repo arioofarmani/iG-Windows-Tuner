@@ -412,7 +412,9 @@ function Start-IgwtForensicLoggingSession {
         }
         if ($d.Count) { $steps.Add(@{ Target = [ordered]@{ provider = 'forensicFirewall'; key = "forensic|firewall|$name"; profile = $name }; Desired = $d }) }
     }
-    $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'forensic'; ref = $dir; profile = $fresh.Profile }) -Title "Forensic logging ($($fresh.Profile))" -Confirm:$false
+    # If no change can start (another change runs, a read-only journal), nothing was changed: the record goes (review 3.6 R15).
+    try { $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'forensic'; ref = $dir; profile = $fresh.Profile }) -Title "Forensic logging ($($fresh.Profile))" -Confirm:$false }
+    catch { Remove-Item -LiteralPath (Get-IgwtForensicSessionPath) -Force -ErrorAction SilentlyContinue; throw }
     $record.engineSession = $session.Id
     Save-IgwtForensicSessionRecord -Record $record
     $failure = $null; $rollbackErrors = @()

@@ -237,7 +237,8 @@ function Import-IgwtPreset {
     Assert-IgwtWritable -Operation 'Import-IgwtPreset'
     $doc = Read-IgwtJsonFile -Path $Path
     # A schema v3 preset (3.6, DECISIONS T16) is untrusted: the strict check replaces the SHA256 field.
-    if ($doc.PSObject.Properties['schemaVersion'] -and [int]$doc.schemaVersion -ge 3) {
+    $sv = 0; if ($doc.PSObject.Properties['schemaVersion'] -and -not [int]::TryParse([string]$doc.schemaVersion, [ref]$sv)) { throw "The preset in '$Path' has an invalid schemaVersion '$($doc.schemaVersion)'." }
+    if ($sv -ge 3) {
         $errs = New-Object System.Collections.Generic.List[string]
         Test-IgwtPresetV3Document -Document $doc -CatalogIndex (Get-IgwtPresetCatalogIndex) -Errors $errs
         if ($errs.Count) { throw "The preset in '$Path' was not imported: $($errs -join ' ')" }

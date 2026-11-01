@@ -46,7 +46,7 @@ Describe 'Change journal' {
             [IO.File]::WriteAllLines($file, @($orig[0], $orig[2], $orig[1], $orig[3])); $script:IgwtJournal = $null
             (Read-IgwtJournal).Status | Should -Be 'Broken'
             [IO.File]::WriteAllLines($file, @($orig[0], $orig[1], $orig[2])); $script:IgwtJournal = $null
-            (Read-IgwtJournal).Status | Should -Be 'Ok' -Because 'cutting entries off the end cannot be told from a shorter journal; the head hash is what a later check compares'
+            $cut = Read-IgwtJournal; $cut.Status | Should -Be 'Broken' -Because 'the head record shows entries were removed from the end (review 3.6 R13)'; $cut.Reason | Should -BeLike '*removed from the end*'
         }
     }
     It 'survives a write cut off by a crash: the next append records it and the chain stays valid' {

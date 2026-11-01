@@ -490,7 +490,7 @@ function script:Get-IgwtJournalTimeline {
         [pscustomobject]@{ Key = 's2|1'; Session = 's2'; SessionTitle = 'Invoke-IgwtManagedChange service Fax Disabled'; Origin = 'module'; When = $t1; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'backup snapshot-20261030-201540.json'; EntryId = 'e3'; InEffect = $false; OneWay = $false }
         [pscustomobject]@{ Key = 's3|1'; Session = 's3'; SessionTitle = 'Revert session: Invoke-IgwtManagedChange'; Origin = 'revert'; When = $t2; Outcome = 'ok'; Step = 1; Op = 'restore'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = ''; EntryId = 'e4'; InEffect = $false; OneWay = $false }
     )
-    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Rows = $rows }
+    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Tracked = 2; Rows = $rows }
 }
 
 function script:Get-IgwtHomeCardInput {

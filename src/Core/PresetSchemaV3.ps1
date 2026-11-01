@@ -46,7 +46,8 @@ function Test-IgwtPresetV3Document {
     $d = $Document
     $label = "preset $(if ($d.id) { [string]$d.id } else { '(no id)' })"
     foreach ($k in @($d.PSObject.Properties.Name)) { if ($script:IgwtPresetV3Keys -notcontains $k) { $Errors.Add("${label}: unknown field '$k'.") } }
-    if ([int]$d.schemaVersion -ne 3) { $Errors.Add("${label}: schemaVersion must be 3.") }
+    $sv = 0
+    if (-not [int]::TryParse([string]$d.schemaVersion, [ref]$sv) -or $sv -ne 3) { $Errors.Add("${label}: schemaVersion must be 3.") }
     if ([string]$d.id -notmatch '^[a-z0-9][a-z0-9\-]{1,39}$') { $Errors.Add("${label}: id must be 2-40 lower-case letters, digits or hyphens.") }
     if (-not [string]$d.name -or ([string]$d.name).Length -gt 60) { $Errors.Add("${label}: name is required (60 characters or fewer).") }
     if ($d.PSObject.Properties['version'] -and [string]$d.version -notmatch '^\d+\.\d+(\.\d+)?$') { $Errors.Add("${label}: version must look like 1.0 or 1.0.0.") }

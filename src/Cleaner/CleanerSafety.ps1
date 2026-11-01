@@ -81,7 +81,9 @@ function Test-IgwtPathUnder {
     [CmdletBinding()]
     [OutputType([bool])]
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Parent, [switch]$Strict)
-    $p = $Path.TrimEnd('\'); $q = $Parent.TrimEnd('\')
+    # Resolve "..", "." and repeated separators first, so "<parent>\..\x" is not taken for a child (review 3.6 R14).
+    $norm = { param($x) $y = [string]$x; if ($y -match '^[A-Za-z]:\\|^\\\\') { try { $y = [System.IO.Path]::GetFullPath($y) } catch { $y = [string]$x } }; $y.TrimEnd('\') }
+    $p = & $norm $Path; $q = & $norm $Parent
     if ([string]::Equals($p, $q, [System.StringComparison]::OrdinalIgnoreCase)) { return (-not $Strict) }
     return $p.StartsWith($q + '\', [System.StringComparison]::OrdinalIgnoreCase)
 }

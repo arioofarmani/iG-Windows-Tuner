@@ -89,7 +89,8 @@ function Update-IgwtGuiJournalButtons {
     $sel = Get-IgwtGuiGridItem -Name JournalList
     $c.JournalRevertEntryButton.IsEnabled = $ok -and $sel -and $sel.InEffect -and -not $sel.OneWay
     $c.JournalRevertSessionButton.IsEnabled = $ok -and $sel
-    $c.JournalRevertAllButton.IsEnabled = $ok -and @($script:Gui.Journal.Rows | Where-Object { $_.InEffect }).Count -gt 0
+    # From the engine's count, which also covers changes folded into the checkpoint (review 3.6 R18).
+    $c.JournalRevertAllButton.IsEnabled = $ok -and [int]$script:Gui.Journal.Tracked -gt 0
 }
 
 function Start-IgwtGuiJournalLoad {

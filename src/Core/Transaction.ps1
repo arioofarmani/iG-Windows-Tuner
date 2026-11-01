@@ -26,16 +26,30 @@ function ConvertTo-IgwtCanonicalJson {
 }
 
 function Remove-IgwtVolatileSnapshotKey {
-    <# .SYNOPSIS A copy of snapshot data without the keys that describe the apply itself ("applied"), for read-back comparison. Pure. #>
+    <#
+    .SYNOPSIS
+        A copy of snapshot data without what describes the change rather than the value, for
+        read-back comparison: "applied" (data from the apply) at the top, and "missingDepth" (how
+        many key levels iG created, which the restore uses) at any depth. A 3.x snapshot records it
+        for all of an item's actions before the first one, the journal before each step, so it can
+        differ for the same value. Pure.
+    #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Returns a filtered copy; changes nothing.')]
     [CmdletBinding()]
-    param([AllowNull()]$Data)
-    if ($Data -isnot [System.Collections.IDictionary]) { return $Data }
-    $o = [ordered]@{}
-    foreach ($k in $Data.Keys) { if ([string]$k -ne 'applied') { $o[[string]$k] = $Data[$k] } }
-    return $o
+    param([AllowNull()]$Data, [switch]$Nested)
+    if ($Data -is [System.Collections.IDictionary]) {
+        $o = [ordered]@{}
+        foreach ($k in $Data.Keys) { if (([string]$k -ne 'applied' -or $Nested) -and [string]$k -ne 'missingDepth') { $o[[string]$k] = Remove-IgwtVolatileSnapshotKey -Data $Data[$k] -Nested } }
+        return $o
+    }
+    if ($Data -is [System.Management.Automation.PSCustomObject]) {
+        $o = [ordered]@{}
+        foreach ($p in $Data.PSObject.Properties) { if (($p.Name -ne 'applied' -or $Nested) -and $p.Name -ne 'missingDepth') { $o[$p.Name] = Remove-IgwtVolatileSnapshotKey -Data $p.Value -Nested } }
+        return $o
+    }
+    if ($Data -is [System.Collections.IEnumerable] -and $Data -isnot [string]) { return , @(foreach ($x in $Data) { Remove-IgwtVolatileSnapshotKey -Data $x -Nested }) }
+    return $Data
 }
-
 #endregion
 
 #region Providers
@@ -127,9 +141,12 @@ $script:IgwtModuleOperations = @{
     'Invoke-IgwtManagedChange'         = 'snapshot'
     'Invoke-IgwtPowerSettingChange'    = 'snapshot'
     'Set-IgwtStartupItemEnabled'       = 'snapshot'
-    'Invoke-IgwtRevert'                = 'snapshot'
+    # A revert's own snapshot holds Reverted entries, which Invoke-IgwtRevert does not restore (review 3.6 R3):
+    # one-way in the journal; its targets are recorded as reverted, and each can be changed again normally.
+    'Invoke-IgwtRevert'                = ''
     'Restore-IgwtFirewallSnapshot'     = 'snapshot'
-    'Restore-IgwtFirewallProfileSnapshot' = 'snapshot'
+    # It snapshots one setting at a time (no single undo snapshot): one-way (review 3.6 R7).
+    'Restore-IgwtFirewallProfileSnapshot' = ''
     'Restore-IgwtDefenderSettingSnapshot' = 'snapshot'
     'Set-IgwtLocalPolicy'              = 'gpo'
     'Reset-IgwtLocalGpo'               = 'gpo'
@@ -244,7 +261,8 @@ $script:IgwtChangeProviders['module'] = @{
                 'policyPreset' { Restore-IgwtPolicyPreset -Record $ref -Confirm:$false }
                 'audit' { Restore-IgwtAuditPolicy -BackupPath $ref -Confirm:$false }
                 'secpol' { Restore-IgwtSecurityPolicy -BackupPath $ref -Confirm:$false }
-                'tattoo' { if ($ap -and [string]$ap['action'] -eq 'Adopt') { Restore-IgwtLocalGpo -BackupPath $ref -Confirm:$false } else { Restore-IgwtTattooRemoval -Path $ref -Confirm:$false } }
+                # Adopt backs up the Local Group Policy (a folder); Remove writes a tattoo backup file.
+                'tattoo' { if (Test-Path -LiteralPath $ref -PathType Container) { Restore-IgwtLocalGpo -BackupPath $ref -Confirm:$false } else { Restore-IgwtTattooRemoval -Path $ref -Confirm:$false } }
             }
         } finally { $script:IgwtModuleDepth-- }
         if (Test-IgwtModuleOperationFailed -Result $res) { throw "The restore from '$ref' reported a failure." }
@@ -257,6 +275,22 @@ $script:IgwtChangeProviders['module'] = @{
     }
     # The module's restore reads its own values back; the revert plan cannot compare values (T14).
     NoCompare  = $true
+}
+
+function Set-IgwtModuleOperationRef {
+    <#
+    .SYNOPSIS
+        Inside a journaled module writer: records the path of its snapshot or backup as the step's
+        undo reference the moment it exists (journal entry moduleRef), so a crash before the commit
+        can still be rolled back (DECISIONS T14, review 3.6 R8). Outside a writer it does nothing.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Appends to the tool''s own journal only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $m = $script:IgwtModuleStep
+    if (-not $m -or $m.Ref) { return }
+    $m.Ref = $Path
+    $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'moduleRef'; session = $m.Session; step = $m.Step; ref = $Path })
 }
 
 function Test-IgwtModuleOperationDirect {
@@ -327,7 +361,9 @@ function Enter-IgwtChangeLock {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Title)
     if ($script:IgwtChangeLock) { throw "Another change is already running in this window ($($script:IgwtChangeLock.Title))." }
-    $m = New-Object System.Threading.Mutex($false, (Get-IgwtChangeLockName))
+    # Opening a lock that an elevated process created can be refused to a standard process: a readable message (review 3.6 Q1).
+    try { $m = New-Object System.Threading.Mutex($false, (Get-IgwtChangeLockName)) }
+    catch [System.UnauthorizedAccessException] { throw 'Another change is running in a process with other rights. Only one change runs at a time; try again when it has finished.' }
     $got = $false
     try { $got = $m.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $got = $true }
     if (-not $got) {
@@ -375,6 +411,8 @@ function Start-IgwtChangeSession {
     param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Origin, [Parameter(Mandatory = $true)][string]$Title)
     Assert-IgwtWritable -Operation 'Start-IgwtChangeSession'
     if (-not $PSCmdlet.ShouldProcess($Title, 'Start a change session')) { return $null }
+    # Changes and the journal need administrator rights (review 3.6 R21).
+    if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changes need administrator rights: restart iG Windows Tuner as administrator.' }
     # The first change after an upgrade from 3.x imports the old snapshots first (T6). Tests call the import directly.
     if (-not $script:IgwtSettings.TestMode -and [string]$Origin['type'] -ne 'upgrade' -and -not $script:IgwtChangeLock -and (Get-IgwtJournalState).Status -eq 'Empty') {
         try { $null = Invoke-IgwtJournalUpgrade -Confirm:$false } catch { Write-IgwtLog -Level Warn -Message "The 3.x snapshots were not imported into the change journal: $($_.Exception.Message)" }
@@ -399,7 +437,10 @@ function Complete-IgwtChangeSession {
     try {
         $res = @($Session.Results.ToArray())
         $failed = @($res | Where-Object { $_.Result -notin 'Committed', 'Unchanged' }).Count
-        $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'sessionEnd'; session = $Session.Id; outcome = $(if ($failed) { 'partial' } else { 'ok' }); steps = $res.Count; failed = $failed })
+        # A step that wrote its intent but returned no result was interrupted (Ctrl+C, an exception): the session
+        # stays visible to recovery (review 3.6 R5).
+        $outcome = $(if ($Session.Step -gt $res.Count) { 'interrupted' } elseif ($failed) { 'partial' } else { 'ok' })
+        $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'sessionEnd'; session = $Session.Id; outcome = $outcome; steps = $res.Count; failed = $failed })
     } finally { Exit-IgwtChangeLock }
 }
 
@@ -515,11 +556,11 @@ function Get-IgwtJournalSessions {
     foreach ($e in $Journal.Entries) {
         $sid = [string]$e['session']
         if (-not $sid) { continue }
-        if (-not $map.Contains($sid)) { $map[$sid] = [pscustomobject]@{ Id = $sid; Origin = $null; Title = ''; StartedUtc = ''; EndedUtc = ''; Outcome = ''; Ended = $false; Steps = [ordered]@{} } }
+        if (-not $map.Contains($sid)) { $map[$sid] = [pscustomobject]@{ Id = $sid; Origin = $null; Title = ''; StartedUtc = ''; EndedUtc = ''; Outcome = ''; Ended = $false; Recovered = $false; Steps = [ordered]@{} } }
         $s = $map[$sid]
         switch ([string]$e['kind']) {
             'sessionStart' { $s.Origin = $e['origin']; $s.Title = [string]$e['title']; $s.StartedUtc = [string]$e['tsUtc'] }
-            'sessionEnd' { $s.Ended = $true; $s.EndedUtc = [string]$e['tsUtc']; $s.Outcome = [string]$e['outcome'] }
+            'sessionEnd' { $s.Ended = $true; $s.EndedUtc = [string]$e['tsUtc']; $s.Outcome = [string]$e['outcome']; if ($e.ContainsKey('by')) { $s.Recovered = $true } }
             'intent' { $s.Steps[[string]$e['step']] = [pscustomobject]@{ Step = [int]$e['step']; Group = [string]$e['group']; Op = [string]$e['op']; Item = [string]$e['item']; Target = $e['target']; Desired = [string]$e['desired']; Before = $e['before']; Applied = $null; After = $null; Result = 'InDoubt'; Error = ''; EntryId = [string]$e['id'] } }
             'committed' { $st = $s.Steps[[string]$e['step']]; if ($st) { $st.Result = 'Committed'; $st.Applied = $e['applied']; $st.After = $e['after']; $st.EntryId = [string]$e['id'] } }
             'failed' { $st = $s.Steps[[string]$e['step']]; if ($st) { $st.Result = 'Failed'; $st.Error = [string]$e['error'] } }
@@ -535,15 +576,18 @@ function Get-IgwtJournalSessions {
 function Get-IgwtIncompleteChangeSession {
     <#
     .SYNOPSIS
-        Sessions that started but never ended (the app or PC stopped mid-change). Each lists the steps
-        that may have changed something (committed, in doubt or with a failed rollback). The home
-        card offers to roll them back (DECISIONS T2, T11). Read-only.
+        Sessions that need a rollback, not yet recovered: sessions that never ended (the app or PC
+        stopped mid-change), with every step that may have changed something (committed, in doubt or
+        with a failed rollback), and ended sessions with a step in doubt (interrupted after its
+        intent: review 3.6 R5), with those steps. The home card offers to roll them back (DECISIONS
+        T2, T11). Read-only.
     #>
     [CmdletBinding()]
     param($Journal)
     foreach ($s in @(Get-IgwtJournalSessions -Journal $Journal)) {
-        if ($s.Ended) { continue }
-        $open = @($s.Steps.Values | Where-Object { $_.Result -in 'Committed', 'InDoubt', 'RollbackFailed', 'Failed' })
+        if ($s.Recovered) { continue }
+        $open = @(if ($s.Ended) { @($s.Steps.Values | Where-Object { $_.Result -eq 'InDoubt' }) } else { @($s.Steps.Values | Where-Object { $_.Result -in 'Committed', 'InDoubt', 'RollbackFailed', 'Failed' }) })
+        if ($s.Ended -and -not $open.Count) { continue }
         [pscustomobject]@{ Id = $s.Id; Title = $s.Title; Origin = $s.Origin; StartedUtc = $s.StartedUtc; Steps = $open }
     }
 }
@@ -563,8 +607,27 @@ function Invoke-IgwtChangeRecovery {
     if (-not $PSCmdlet.ShouldProcess($inc.Title, 'Roll back the unfinished change')) { return $null }
     $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'recovery'; ref = $SessionId }) -Title "Roll back: $($inc.Title)" -Confirm:$false
     $errors = New-Object System.Collections.Generic.List[string]
+    $skippedSteps = New-Object System.Collections.Generic.List[string]
     try {
+        # Read again under the lock: the session may have finished meanwhile in another process (review 3.6 R12).
+        $inc = @(Get-IgwtIncompleteChangeSession -Journal (Read-IgwtJournal) | Where-Object { $_.Id -eq $SessionId }) | Select-Object -First 1
+        if (-not $inc) { return [pscustomobject]@{ Session = $SessionId; Complete = $true; Errors = @(); Skipped = @(); Message = 'It finished meanwhile; nothing to roll back.' } }
+        $ctx = New-IgwtContext
         foreach ($st in @($inc.Steps | Sort-Object Step -Descending)) {
+            # A value changed since iG set it (by you, an app, a policy or Windows) is left as it is (review 3.6 R12).
+            if ($null -ne $st.After) {
+                try {
+                    $def = $script:IgwtChangeProviders[[string]$st.Target['provider']]
+                    if (-not $def.NoCompare) {
+                        $now = & $def.Get (Resolve-IgwtChangeTarget -Target $st.Target) $ctx
+                        $nowJ = ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $now)
+                        if ($nowJ -ne (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $st.After))) {
+                            if ($nowJ -ne (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $st.Before))) { $skippedSteps.Add("$($st.Target['key']): changed since iG set it; left as it is.") }
+                            continue
+                        }
+                    }
+                } catch { Write-Verbose "Recovery read of $($st.Target['key']) failed: $($_.Exception.Message)" }
+            }
             $data = $st.Before
             if ($st.Applied -is [System.Collections.IDictionary] -and $data -is [System.Collections.IDictionary]) { $copy = @{}; foreach ($k in $data.Keys) { $copy[$k] = $data[$k] }; $copy['applied'] = $st.Applied; $data = $copy }
             $r = Invoke-IgwtChangeStep -Session $session -Target $st.Target -Kind 'restore' -RestoreData $data -Group "recovery:$($st.Step)" -Confirm:$false
@@ -572,7 +635,7 @@ function Invoke-IgwtChangeRecovery {
         }
         $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'sessionEnd'; session = $SessionId; outcome = $(if ($errors.Count) { 'recovery-incomplete' } else { 'recovered' }); by = $session.Id })
     } finally { Complete-IgwtChangeSession -Session $session }
-    return [pscustomobject]@{ Session = $SessionId; Complete = ($errors.Count -eq 0); Errors = $errors.ToArray() }
+    return [pscustomobject]@{ Session = $SessionId; Complete = ($errors.Count -eq 0); Errors = $errors.ToArray(); Skipped = $skippedSteps.ToArray(); Message = '' }
 }
 
 function Get-IgwtRevertPlan {
@@ -636,13 +699,14 @@ function Invoke-IgwtJournalRevert {
         Refused and unreadable rows change nothing. Every restore is read back.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)][object[]]$Plan, [hashtable]$Decisions = @{}, [string]$Title = 'Revert')
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Plan, [hashtable]$Decisions = @{}, [string]$Title = 'Revert')
     Assert-IgwtWritable -Operation 'Invoke-IgwtJournalRevert'
     $todo = @($Plan | Where-Object { $_.Status -in 'Ready', 'Conflict' })
     if (-not $todo.Count) { return [pscustomobject]@{ Results = @($Plan | ForEach-Object { [pscustomobject]@{ Key = $_.Key; Item = $_.Item; Result = $_.Status; Message = $_.Message } }) } }
     if (-not $PSCmdlet.ShouldProcess("$($todo.Count) value(s)", $Title)) { return $null }
     $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'revert'; ref = $Title }) -Title $Title -Confirm:$false
     $results = New-Object System.Collections.Generic.List[object]
+    $ctxR = New-IgwtContext
     try {
         foreach ($p in $Plan) {
             if ($p.Status -notin 'Ready', 'Conflict') { $results.Add([pscustomobject]@{ Key = $p.Key; Item = $p.Item; Result = $p.Status; Message = $p.Message }); continue }
@@ -652,6 +716,18 @@ function Invoke-IgwtJournalRevert {
                 $results.Add([pscustomobject]@{ Key = $p.Key; Item = $p.Item; Result = 'Kept'; Message = 'The current value is kept.' }); continue
             }
             if ($choice -ne 'Restore') { $results.Add([pscustomobject]@{ Key = $p.Key; Item = $p.Item; Result = $(if ($choice -eq 'Skip') { 'Skipped' } else { 'NeedsDecision' }); Message = $p.Message }); continue }
+            # Read again under the lock: a value changed between the preview and now needs a decision too (review 3.6 R22).
+            if ($p.Status -eq 'Ready' -and $null -ne $p.WeSet) {
+                $def = $script:IgwtChangeProviders[[string]$p.Target['provider']]
+                if ($def -and -not $def.NoCompare) {
+                    try {
+                        $nowJ = ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey (& $def.Get (Resolve-IgwtChangeTarget -Target $p.Target) $ctxR))
+                        if ($nowJ -ne (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $p.WeSet)) -and $nowJ -ne (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $p.Before))) {
+                            $results.Add([pscustomobject]@{ Key = $p.Key; Item = $p.Item; Result = 'NeedsDecision'; Message = 'Changed since the preview: choose to restore anyway, keep or skip.' }); continue
+                        }
+                    } catch { Write-Verbose "Re-read of $($p.Key) failed: $($_.Exception.Message)" }
+                }
+            }
             $data = $p.Before
             if ($p.Applied -is [System.Collections.IDictionary] -and $data -is [System.Collections.IDictionary]) { $copy = @{}; foreach ($k in $data.Keys) { $copy[$k] = $data[$k] }; $copy['applied'] = $p.Applied; $data = $copy }
             $r = Invoke-IgwtChangeStep -Session $session -Target $p.Target -Kind 'restore' -RestoreData $data -Group "revert:$($p.Key)" -Confirm:$false
@@ -679,6 +755,20 @@ function Compress-IgwtJournal {
 
 #region Timeline (Journal page)
 
+function Test-IgwtMapKey {
+    <#
+    .SYNOPSIS
+        True when a dictionary has a key: works for journal entries (Dictionary[string,object], whose
+        Contains Windows PowerShell 5.1 cannot call) and for hashtables and ordered dictionaries. Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param($Map, [Parameter(Mandatory = $true)][string]$Key)
+    if ($Map -is [System.Collections.Generic.IDictionary[string, object]]) { return $Map.ContainsKey($Key) }
+    if ($Map -is [System.Collections.IDictionary]) { return $Map.Contains($Key) }
+    return $false
+}
+
 function Format-IgwtJournalValue {
     <# .SYNOPSIS A short one-line text for a journal value (before, after, now), for lists and previews. Pure. #>
     [CmdletBinding()]
@@ -688,11 +778,11 @@ function Format-IgwtJournalValue {
     $v = $Value
     if ($v -is [System.Collections.IDictionary]) {
         # Registry snapshots: the value or "absent"; module steps: the snapshot or backup file.
-        if ($v.Contains('ref')) { return "backup $(Split-Path -Leaf ([string]$v['ref']))" }
-        if ($v.Contains('op') -and $v.Count -eq 1) { return '(in its snapshot)' }
-        if ($v.Contains('exists') -and -not $v['exists']) { return 'absent' }
-        if ($v.Contains('exists')) { return '{0} {1}' -f $v['kind'], (@($v['value']) -join ',') }
-        if ($v.Contains('items') -and @($v['items']).Count -and @(@($v['items']) | Where-Object { $_ -isnot [System.Collections.IDictionary] -or -not $_.Contains('exists') }).Count -eq 0) {
+        if ((Test-IgwtMapKey $v 'ref')) { return "backup $(Split-Path -Leaf ([string]$v['ref']))" }
+        if ((Test-IgwtMapKey $v 'op') -and $v.Count -eq 1) { return '(in its snapshot)' }
+        if ((Test-IgwtMapKey $v 'exists') -and -not $v['exists']) { return 'absent' }
+        if ((Test-IgwtMapKey $v 'exists')) { return '{0} {1}' -f $v['kind'], (@($v['value']) -join ',') }
+        if ((Test-IgwtMapKey $v 'items') -and @($v['items']).Count -and @(@($v['items']) | Where-Object { $_ -isnot [System.Collections.IDictionary] -or -not (Test-IgwtMapKey $_ 'exists') }).Count -eq 0) {
             $t = (@($v['items']) | ForEach-Object { Format-IgwtJournalValue -Value $_ -Max $Max }) -join '; '
             return $(if ($t.Length -gt $Max) { $t.Substring(0, $Max - 3) + '...' } else { $t })
         }
@@ -725,12 +815,14 @@ function Get-IgwtJournalTimeline {
             $rows.Add([pscustomobject]@{
                     Key = "$($s.Id)|$($st.Step)"; Session = $s.Id; SessionTitle = $s.Title; Origin = $otype; When = $s.StartedUtc
                     Outcome = $(if ($s.Ended) { $s.Outcome } else { 'unfinished' }); Step = $st.Step; Op = $st.Op; Item = $st.Item; Target = $key
-                    Result = $st.Result; Error = $st.Error; Before = (Format-IgwtJournalValue $st.Before); After = (Format-IgwtJournalValue $(if ($st.Applied -is [System.Collections.IDictionary] -and $st.Applied.Contains('ref')) { $st.Applied } else { $st.After }))
+                    Result = $st.Result; Error = $st.Error; Before = (Format-IgwtJournalValue $st.Before); After = (Format-IgwtJournalValue $(if ($st.Applied -is [System.Collections.IDictionary] -and (Test-IgwtMapKey $st.Applied 'ref')) { $st.Applied } else { $st.After }))
                     EntryId = $st.EntryId; InEffect = $current; OneWay = $oneWay
                 })
         }
     }
-    return [pscustomobject]@{ Status = $Journal.Status; Reason = $Journal.Reason; Count = $Journal.Count; Sessions = $sessions.Count; Baselines = $Journal.Baselines.Count; Rows = $rows.ToArray() }
+    # Values iG still tracks (last state = its change), from the index compaction keeps (review 3.6 R18).
+    $tracked = @($Journal.Last.Keys | Where-Object { $e = $Journal.Last[$_]; [string]$e['kind'] -eq 'committed' -and [string]$e['op'] -eq 'change' }).Count
+    return [pscustomobject]@{ Status = $Journal.Status; Reason = $Journal.Reason; Count = $Journal.Count; Sessions = $sessions.Count; Baselines = $Journal.Baselines.Count; Tracked = $tracked; Rows = $rows.ToArray() }
 }
 
 #endregion
@@ -747,7 +839,10 @@ function Get-IgwtLegacySnapshotImport {
     [CmdletBinding()]
     param()
     $byKey = [ordered]@{}
-    $list = @(Get-IgwtSnapshotList)
+    # Only the tool's own Backups folder, and only files a restore would trust (owner Administrators or SYSTEM, not
+    # writable by standard users, a known tool and schema): a planted file never becomes a baseline (review 3.6 R1).
+    $own = Get-IgwtDataPath -Kind Backups
+    $list = @(Get-IgwtSnapshotList | Where-Object { (Test-IgwtPathUnder -Path $_.Path -Parent $own) -and (Test-IgwtTrustedFile -Path $_.Path) -and $script:IgwtSnapshotToolNames -contains [string]$_.Document.tool -and $script:IgwtSupportedSnapshotSchemas -contains [int]$_.Document.schema })
     [array]::Reverse($list)
     foreach ($s in $list) {
         $op = (([string]$s.Operation) -split ':')[0]
@@ -758,8 +853,8 @@ function Get-IgwtLegacySnapshotImport {
                 if (-not $a -or $null -eq $a.data -or -not $a.fingerprint) { continue }
                 $key = "action|$($e.tweakId)|$([int]$a.index)|$($a.fingerprint)"
                 if ($op -eq 'Revert' -or [string]$e.result -eq 'Reverted') { if ($byKey.Contains($key)) { $byKey[$key].Applied = $false }; continue }
-                if (-not $byKey.Contains($key)) { $byKey[$key] = [pscustomobject]@{ Key = $key; Item = [string]$e.tweakId; Index = [int]$a.index; Fingerprint = [string]$a.fingerprint; Type = [string]$a.type; Original = $a.data; Before = $a.data; ApplyData = $a.applied; Snapshot = $s.Path; Applied = $true } }
-                else { $byKey[$key].Before = $a.data; $byKey[$key].ApplyData = $a.applied; $byKey[$key].Snapshot = $s.Path; $byKey[$key].Applied = $true }
+                if (-not $byKey.Contains($key)) { $byKey[$key] = [pscustomobject]@{ Key = $key; Item = [string]$e.tweakId; Index = [int]$a.index; Fingerprint = [string]$a.fingerprint; Type = [string]$a.type; Original = $a.data; Before = $a.data; ApplyData = $a.applied; Snapshot = $s.Path; Applied = $true; Op = $op } }
+                else { $byKey[$key].Before = $a.data; $byKey[$key].ApplyData = $a.applied; $byKey[$key].Snapshot = $s.Path; $byKey[$key].Applied = $true; $byKey[$key].Op = $op }
             }
         }
     }
@@ -781,12 +876,15 @@ function Invoke-IgwtJournalUpgrade {
     if ($j.Status -eq 'Broken') { return [pscustomobject]@{ Imported = 0; Baselines = 0; Skipped = @(); Message = "The change journal is read-only: $($j.Reason)" } }
     if (@((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'sessionStart' -and $_['origin'] -and [string]$_['origin']['type'] -eq 'upgrade' }).Count) { return [pscustomobject]@{ Imported = 0; Baselines = 0; Skipped = @(); Message = 'Already imported.' } }
     $rows = @(Get-IgwtLegacySnapshotImport)
-    if (-not $rows.Count) { return [pscustomobject]@{ Imported = 0; Baselines = 0; Skipped = @(); Message = 'No 3.x snapshots to import.' } }
+    # Without 3.x snapshots the import still records the adopted values (T6).
     if (-not $PSCmdlet.ShouldProcess("$($rows.Count) recorded value(s)", 'Import the 3.x snapshots into the change journal')) { return $null }
-    $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'upgrade'; ref = 'snapshots'; version = $script:IgwtVersion }) -Title "Imported from the 3.x snapshots ($($rows.Count) value(s))" -Confirm:$false
+    $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'upgrade'; ref = 'snapshots'; version = $script:IgwtVersion }) -Title "Upgrade to 3.6: imported the 3.x snapshots ($($rows.Count) value(s))" -Confirm:$false
     $imported = 0; $baselines = 0
     $skipped = New-Object System.Collections.Generic.List[string]
+    $adopted = 0
     try {
+        # Under the lock: another window may have imported meanwhile (review 3.6 R16).
+        if (@((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'sessionStart' -and $_['origin'] -and [string]$_['origin']['type'] -eq 'upgrade' -and [string]$_['session'] -ne $session.Id }).Count) { return [pscustomobject]@{ Imported = 0; Baselines = 0; Adopted = 0; Skipped = @(); Message = 'Already imported.' } }
         $ctx = New-IgwtContext
         $j = Get-IgwtJournalState
         foreach ($row in $rows) {
@@ -795,9 +893,13 @@ function Invoke-IgwtJournalUpgrade {
                 $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'baseline'; session = $session.Id; item = $row.Item; target = $target; before = $row.Original; origin = 'upgrade'; snapshot = $row.Snapshot })
                 $baselines++
             }
-            if (-not $row.Applied) { continue }
+            # Only a change still in effect becomes iG's change; a reset to the default, or a value changed since,
+            # stays a baseline only, so a revert never overwrites it silently (review 3.6 R10).
+            if (-not $row.Applied -or $row.Op -eq 'ResetDefault') { continue }
             try {
                 $r = Resolve-IgwtChangeTarget -Target $target
+                $roll = Get-IgwtStateRollup -States @(Get-IgwtActionState -Action $r.Action -Context $ctx | ForEach-Object { [string]$_.State })
+                if ($roll -ne 'On') { $skipped.Add("$($row.Key): no longer in the state iG set ($roll); kept as the original only."); continue }
                 $now = & $script:IgwtChangeProviders['action'].Get $r $ctx
             } catch { $skipped.Add("$($row.Key): $($_.Exception.Message)"); continue }
             $session.Step++
@@ -806,8 +908,30 @@ function Invoke-IgwtJournalUpgrade {
             $session.Results.Add([pscustomobject]@{ Step = $session.Step; Result = 'Committed' })
             $imported++
         }
+        # Items on now with no snapshot at all (T6): recorded as adopted, original unknown, with the documented
+        # Windows default where the catalog has one (review 3.6 R11). Not offered for revert; reset them to the default instead.
+        $known = @{}; foreach ($row in $rows) { $known[[string]$row.Key] = $true }
+        $j = Get-IgwtJournalState
+        foreach ($t in @(Get-IgwtCatalog)) {
+            $acts = @($t.actions)
+            for ($i = 0; $i -lt $acts.Count; $i++) {
+                $a = $acts[$i]
+                if ([string]$a.type -eq 'check') { continue }
+                $tg = Get-IgwtActionTarget -ItemId ([string]$t.id) -Index $i -Action $a
+                if ($known.ContainsKey($tg['key']) -or $j.Baselines.ContainsKey($tg['key']) -or $j.Last.ContainsKey($tg['key'])) { continue }
+                try {
+                    $roll = Get-IgwtStateRollup -States @(Get-IgwtActionState -Action $a -Context $ctx | ForEach-Object { [string]$_.State })
+                    if ($roll -ne 'On') { continue }
+                    # A Windows default that already equals the on value is not a change by anyone.
+                    if ($null -ne $a.default -and $null -ne $a.on -and [string]$a.default -eq [string]$a.on) { continue }
+                    $now = Get-IgwtActionSnapshot -Action $a -Context $ctx
+                } catch { continue }
+                $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'adopted'; session = $session.Id; item = [string]$t.id; target = $tg; now = $now; original = 'unknown'; windowsDefault = $(if ($null -ne $a.default) { [string]$a.default } else { '' }); note = 'On when 3.6 was installed, with no 3.x snapshot: the value before is not known. Reset it to the Windows default on its page if you want.' })
+                $adopted++
+            }
+        }
     } finally { Complete-IgwtChangeSession -Session $session }
-    return [pscustomobject]@{ Imported = $imported; Baselines = $baselines; Skipped = $skipped.ToArray(); Message = "Imported $imported change(s) and $baselines original value(s) from the 3.x snapshots." }
+    return [pscustomobject]@{ Imported = $imported; Baselines = $baselines; Adopted = $adopted; Skipped = $skipped.ToArray(); Message = "Imported $imported change(s) and $baselines original value(s) from the 3.x snapshots; $adopted value(s) adopted with the original unknown." }
 }
 
 #endregion

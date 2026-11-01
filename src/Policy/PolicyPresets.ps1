@@ -243,6 +243,8 @@ function Invoke-IgwtPolicyBatch {
     $stateDir = Get-IgwtDataPath -Kind State
     if (-not (Test-Path -LiteralPath $stateDir)) { $null = New-Item -ItemType Directory -Path $stateDir -Force }
     $recFile = Join-Path $stateDir ("policy-preset-{0}.json" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $recFile
     [System.IO.File]::WriteAllText($recFile, (ConvertTo-IgwtJson -InputObject $record), (New-Object System.Text.UTF8Encoding($false)))
     Write-IgwtLog -Message "Policy preset $($plan.Preset.id): $($todo.Count) setting(s). Record: $recFile"
     $mismatch = @()

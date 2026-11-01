@@ -160,6 +160,8 @@ function Set-IgwtAuditPolicy {
     if (-not $PSCmdlet.ShouldProcess('Audit policy', "Set $($todo.Count) subcategory setting(s)")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $dir = Join-Path (Get-IgwtDataPath -Kind Backups) ("audit-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $dir
     $null = New-Item -ItemType Directory -Path $dir -Force
     $file = Join-Path $dir 'audit-before.csv'
     $b = Invoke-IgwtAuditpol -Arguments @('/backup', "/file:$file")

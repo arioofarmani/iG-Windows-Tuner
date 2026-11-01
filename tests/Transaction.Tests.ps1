@@ -32,6 +32,16 @@ BeforeAll {
 Describe 'Change engine' {
     BeforeEach { Initialize-TestState }
 
+    It 'compares values without the change details (applied, missingDepth at any depth)' {
+        InModuleScope iGWindowsTuner {
+            # A 3.x snapshot records missingDepth before an item's first action; the journal before each step.
+            $snap = [pscustomobject]@{ items = @([pscustomobject]@{ exists = $false; kind = $null; missingDepth = 6; name = 'NoAutorun'; value = $null }) }
+            $now = [ordered]@{ items = @([ordered]@{ exists = $false; kind = $null; missingDepth = 0; name = 'NoAutorun'; value = $null }); applied = @{ x = 1 } }
+            (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $snap)) | Should -Be (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $now))
+            $set = [ordered]@{ items = @([ordered]@{ exists = $true; kind = 'DWord'; missingDepth = 0; name = 'NoAutorun'; value = 1 }) }
+            (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $set)) | Should -Not -Be (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $now)) -Because 'the value itself still counts'
+        }
+    }
     It 'imports the 3.x snapshots once (originals as baselines) and reverts them from the journal' {
         InModuleScope iGWindowsTuner { $b = Get-IgwtDataPath -Kind Backups; if (Test-Path -LiteralPath $b) { Remove-Item -LiteralPath $b -Recurse -Force } }
         $null = Invoke-IgwtApply -Id 'sec.autorun-off', 'gfx.game-mode' -Context $script:Ctx

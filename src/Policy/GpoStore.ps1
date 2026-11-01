@@ -136,6 +136,8 @@ function Backup-IgwtLocalGpo {
     param([string]$Reason = 'before a Group Policy change')
     Assert-IgwtWritable -Operation 'Backup-IgwtLocalGpo'
     $dest = Join-Path (Get-IgwtDataPath -Kind Backups) ("gpo-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
+    Set-IgwtModuleOperationRef -Path $dest
     if (-not $PSCmdlet.ShouldProcess($dest, 'Back up the Local Group Policy')) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $null = New-Item -ItemType Directory -Path $dest -Force

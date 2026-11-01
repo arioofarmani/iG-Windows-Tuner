@@ -174,7 +174,15 @@ namespace IgwtJournal
                         Fail(st, "chain", lineNo); return false;
                     }
                     Dictionary<string, object> e = Parse(ser, line);
-                    if (e == null) { Fail(st, "invalid", lineNo); return false; }
+                    if (e == null)
+                    {
+                        // A real power-loss tear keeps the line's first bytes (the right prefix) and loses
+                        // its tail: torn too, handled exactly like a torn line with any other start.
+                        string th = Hex(sha.ComputeHash(Encoding.UTF8.GetBytes(line)));
+                        if (isLast && !endsWithBreak) { st.TornPending = true; st.PendingHash = th; continue; }
+                        if (!st.HasTorn) { st.HasTorn = true; st.TornHash = th; st.TornLine = lineNo; continue; }
+                        Fail(st, "invalid", lineNo); return false;
+                    }
                     string kind = Str(e, "kind");
                     if (st.HasTorn)
                     {

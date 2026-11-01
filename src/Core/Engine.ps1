@@ -217,7 +217,11 @@ function Invoke-IgwtTweakTransaction {
         if ([string]$actions[$i].type -eq 'check') { continue }
         $target = Get-IgwtActionTarget -ItemId $id -Index $i -Action $actions[$i]
         $sr = Invoke-IgwtChangeStep -Session $Session -Target $target -Desired $Mode -Group $id -Confirm:$false
-        if ($sr.Applied -is [System.Collections.IDictionary]) { $captured[$i].data['applied'] = $sr.Applied }
+        if ($sr.Applied -is [System.Collections.IDictionary]) {
+            # A custom handler's snapshot data may be an object rather than a dictionary (review 3.6 Q3).
+            if ($captured[$i].data -is [System.Collections.IDictionary]) { $captured[$i].data['applied'] = $sr.Applied }
+            elseif ($null -ne $captured[$i].data) { $captured[$i].data | Add-Member -NotePropertyName applied -NotePropertyValue $sr.Applied -Force }
+        }
         if ($sr.Result -ne 'Committed') { $failure = "action ${i}: $($sr.Message)"; break }
     }
     if ($failure) {
@@ -557,6 +561,15 @@ function Invoke-IgwtRevert {
             Write-IgwtLog -Level Error -TweakId $tid -Message "Revert had errors: $($errs -join '; ')"
         } else {
             Add-IgwtSnapshotEntry -Snapshot $revSnap -TweakId $tid -Actions $captured.ToArray() -Result 'Reverted' -Level ([string]$w.Tweak.level)
+            # Journal (review 3.6 R9): the targets this revert restored are no longer iG's change, so drift and the journal stop tracking them.
+            if ($script:IgwtModuleStep) {
+                foreach ($ea in $entryActions) {
+                    try {
+                        $a = $actions[[int]$ea.index]
+                        $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'reverted'; session = [string]$script:IgwtModuleStep.Session; item = $tid; target = (Get-IgwtActionTarget -ItemId $tid -Index ([int]$ea.index) -Action $a); after = (Get-IgwtActionSnapshot -Action $a -Context $Context); note = 'Restored from a snapshot by Invoke-IgwtRevert.' })
+                    } catch { Write-IgwtLog -Level Warn -TweakId $tid -Message "Revert not recorded per target in the journal: $($_.Exception.Message)" }
+                }
+            }
             $results.Add([pscustomobject]@{ Id = $tid; Result = 'Reverted'; Message = ''; Requires = [string]$w.Tweak.requires })
             Write-IgwtLog -TweakId $tid -Message "Reverted from $(Split-Path $w.Source -Leaf)."
         }
