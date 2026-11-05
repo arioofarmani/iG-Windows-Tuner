@@ -1803,6 +1803,7 @@
                                     <WrapPanel Margin="0,8,0,8">
                                         <Button x:Name="JournalRevertEntryButton" AutomationProperties.AutomationId="JournalRevertEntryButton" Content="Revert selected change..." ToolTip="Preview, then restore the value from before the selected change."/>
                                         <Button x:Name="JournalRevertSessionButton" AutomationProperties.AutomationId="JournalRevertSessionButton" Content="Revert its session..." ToolTip="Preview, then restore every change of the selected change's session, newest first."/>
+                                        <Button x:Name="JournalResetButton" AutomationProperties.AutomationId="JournalResetButton" AutomationProperties.Name="Set this journal aside and start a new one" Visibility="Collapsed" Content="Set this journal aside..." ToolTip="The journal failed its check, so no change can run. This moves it aside (nothing is deleted) and the next change starts a new one."/>
                                         <Button x:Name="JournalRevertAllButton" AutomationProperties.AutomationId="JournalRevertAllButton" Content="Reset everything iG changed..." ToolTip="Preview, then restore every value iG still has changed to its value before iG."/>
                                     </WrapPanel>
                                 </StackPanel>

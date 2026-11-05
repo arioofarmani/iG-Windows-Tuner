@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.6.5 (2026-11-05)
+
+Fixes the bug that blocked every change on real PCs in 3.6.0 (found by Ario).
+
+### Fixed
+
+- **"The change journal is read-only ... 'Journal' is not protected"** stopped every change although the folder was correctly protected. The protection check counted read access for standard users as write access: its mask was built from Modify and FullControl, which also contain the read bits. It now checks the exact write rights, on security identifiers (independent of the Windows language). The same check guards snapshot restores, so reverting from a snapshot benefits too.
+- **"Get-IgwtJournalTimeline: Cannot index into a null array"** repeated in the log when the journal failed its check: a failed check now still returns its (empty) indexes, so the journal tab, drift, revert previews and the home card keep working and say what is wrong.
+- The journal tab failed on a one-way change without a backup (for example a restore point); it now shows "(no backup)".
+
+### Added
+
+- **Set this journal aside** (Backups & Logs > Change journal, shown only when the journal failed its check): a failed journal used to block every change with no way out. It is now moved aside after a confirmation, nothing is deleted, and the next change starts a new protected journal.
+- Regression tests that run the protection check on real security descriptors instead of skipping it in test mode.
+- The firewall precedence budget test runs in a clean process (the budget is unchanged; the analysis takes about 0.9 s).
+
 ## 3.6.0 (2026-11-01)
 
 Transactions: every change iG makes is a journaled, read-back-checked transaction with an exact restore, plus confidence badges, declarative presets, an update drift guardian and a home card. Design: DECISIONS T1 to T18; independent review: docs\REVIEW.md (3.6 section).

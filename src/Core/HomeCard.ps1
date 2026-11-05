@@ -45,7 +45,7 @@ function Select-IgwtHomeCard {
     $j = $InputData.Journal
     if ($j -and $j.Status -eq 'Broken') {
         $cards.Add([pscustomobject]@{ Key = 'journal:broken'; Priority = 1; Kind = 'journal'; Title = 'The change journal needs attention'
-                Text = 'Its integrity check failed, so iG makes no change until this is resolved.'; Action = 'openJournal'
+                Text = 'Its check failed, so iG makes no change until this is resolved; the Change journal tab shows why and how.'; Action = 'openJournal'
                 Why = "The journal records every change iG makes and protects itself with a hash chain. $($j.Reason) Changes are blocked so nothing is restored from a journal that may have been edited." })
     }
     foreach ($s in @($InputData.Incomplete)) {

@@ -83,20 +83,32 @@ Describe 'Firewall precedence and conflicts' {
     }
 
     It 'analyses 1,000+ rules within the budget' {
-        InModuleScope iGWindowsTuner -Parameters @{ None = $script:None; Fx = (New-IgwtFirewallFixture) } {
-            param($None, $Fx)
-            $fx = $Fx
-            $rows = Join-IgwtFirewallData -Rules $fx.Rules -ApplicationFilters $fx.App -PortFilters $fx.Port -AddressFilters $fx.Addr -ServiceFilters $fx.Svc -PathExists { $true }
-            Invoke-IgwtFirewallClassification -Rows $rows -Context (Get-IgwtFirewallClassificationContext -Role Gamer -InstalledPackages @() -Overrides $None)
-            # Best of two after a collection: the budget is the analysis, not the garbage earlier test files leave in the heap.
-            $best = [double]::MaxValue
-            foreach ($try in 1..2) {
-                [GC]::Collect()
-                $sw = [System.Diagnostics.Stopwatch]::StartNew()
-                $null = Get-IgwtFirewallConflicts -Rows $rows
-                $best = [Math]::Min([double]$best, [double]$sw.Elapsed.TotalSeconds)
-            }
-            $best | Should -BeLessThan 3
-        }
+        # In a clean process: after a thousand tests and many module reloads this process runs the same
+        # code about 3.5 times slower (0.9 s alone, 3.1 s here), so a timing here measures the suite.
+        $child = Join-Path $TestDrive 'firewall-budget.ps1'
+        $body = @"
+`$ErrorActionPreference = 'Stop'
+Import-Module '$(Join-Path $PSScriptRoot '..\src\iGWindowsTuner.psd1')' -Force
+Set-IgwtEnvironment -TestMode -DataRoot '$(Join-Path $TestDrive 'IgwtBudget')'
+. '$(Join-Path $PSScriptRoot 'fixtures\firewall\FirewallFixture.ps1')'
+`$fx = New-IgwtFirewallFixture
+`$none = [pscustomobject]@{ Role = ''; Categories = [pscustomobject]@{}; NotBloated = @(); Ignored = [pscustomobject]@{} }
+& (Get-Module iGWindowsTuner) {
+    param(`$fx, `$None)
+    `$rows = Join-IgwtFirewallData -Rules `$fx.Rules -ApplicationFilters `$fx.App -PortFilters `$fx.Port -AddressFilters `$fx.Addr -ServiceFilters `$fx.Svc -PathExists { `$true }
+    Invoke-IgwtFirewallClassification -Rows `$rows -Context (Get-IgwtFirewallClassificationContext -Role Gamer -InstalledPackages @() -Overrides `$None)
+    if (@(`$rows).Count -lt 1000) { throw 'The fixture has fewer than 1,000 rules.' }
+    [GC]::Collect()
+    `$sw = [System.Diagnostics.Stopwatch]::StartNew()
+    `$null = Get-IgwtFirewallConflicts -Rows `$rows
+    'SECONDS=' + `$sw.Elapsed.TotalSeconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+} `$fx `$none
+"@
+        Set-Content -LiteralPath $child -Value $body -Encoding UTF8
+        $out = & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $child 2>&1 | ForEach-Object { "$_" }
+        $line = @($out | Where-Object { $_ -like 'SECONDS=*' }) | Select-Object -Last 1
+        $line | Should -Not -BeNullOrEmpty -Because ($out -join ' ')
+        [double]::Parse($line.Substring(8), [System.Globalization.CultureInfo]::InvariantCulture) | Should -BeLessThan 3
     }
+
 }

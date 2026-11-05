@@ -2,7 +2,7 @@
 
 **An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
 
-![Version](https://img.shields.io/badge/version-3.6-0078D4)
+![Version](https://img.shields.io/badge/version-3.6.5-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
 ![Tests](https://img.shields.io/badge/Pester-986%20passing-2EA44F)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)

@@ -171,11 +171,13 @@ function Read-IgwtJournal {
     $baselines = New-Object 'System.Collections.Generic.Dictionary[string,object]'
     $last = New-Object 'System.Collections.Generic.Dictionary[string,object]'
     $res = [ordered]@{ Status = 'Empty'; Reason = ''; BadFile = ''; BadLine = 0; Seq = 0; Hash = $script:IgwtJournalZeroHash; Segment = ''; SegmentLines = 0; TornPending = $false; TornHash = ''; NeedsBreak = $false; Count = 0 }
+    # Every result carries the indexes, also a broken one (callers read them without checking the status first).
+    $finish = { $o = [pscustomobject]$res; $o | Add-Member -NotePropertyName Entries -NotePropertyValue $entries; $o | Add-Member -NotePropertyName Baselines -NotePropertyValue $baselines; $o | Add-Member -NotePropertyName Last -NotePropertyValue $last; $o }
     $hash = $script:IgwtJournalZeroHash
     $why = Test-IgwtJournalTrusted
-    if ($why) { $res.Status = 'Broken'; $res.Reason = "The journal is not protected: $why"; return [pscustomobject]$res }
+    if ($why) { $res.Status = 'Broken'; $res.Reason = "The journal is not protected: $why"; return (& $finish) }
     # After a compaction the chain continues from the checkpoint, which carries the folded indexes.
-    try { $cp = Read-IgwtJournalCheckpoint } catch { $res.Status = 'Broken'; $res.Reason = $_.Exception.Message; $res.BadFile = 'checkpoint.json'; return [pscustomobject]$res }
+    try { $cp = Read-IgwtJournalCheckpoint } catch { $res.Status = 'Broken'; $res.Reason = $_.Exception.Message; $res.BadFile = 'checkpoint.json'; return (& $finish) }
     if ($cp) {
         $hash = [string]$cp['head']; $res.Seq = [long]$cp['seq']
         foreach ($k in @($cp['baselines'].Keys)) { $baselines[$k] = $cp['baselines'][$k] }
@@ -203,11 +205,11 @@ function Read-IgwtJournal {
                 'torn' { $res.BadFile = $tornFile; "$([IO.Path]::GetFileName($tornFile)) line $($st.BadLine) is not a valid entry." }
                 default { "$name line $($st.BadLine) is not a valid entry." }
             }
-            return [pscustomobject]$res
+            return (& $finish)
         }
         $res.Segment = $file; $res.SegmentLines = $st.SegmentLines
     }
-    if ($st.HasTorn) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($tornFile)) line $($st.TornLine) is not a valid entry."; $res.BadFile = $tornFile; $res.BadLine = $st.TornLine; return [pscustomobject]$res }
+    if ($st.HasTorn) { $res.Status = 'Broken'; $res.Reason = "$([IO.Path]::GetFileName($tornFile)) line $($st.TornLine) is not a valid entry."; $res.BadFile = $tornFile; $res.BadLine = $st.TornLine; return (& $finish) }
     # A complete last line without its line break (cut off right after it): the next append adds the break first.
     $res.TornPending = $st.TornPending; $res.TornHash = $st.PendingHash; $res.NeedsBreak = $st.NeedsBreak
     $res.Seq = $st.Seq; $hash = $st.Hash
@@ -215,17 +217,13 @@ function Read-IgwtJournal {
     $hp = Join-Path (Get-IgwtJournalFolder) 'head.json'
     if (Test-Path -LiteralPath $hp) {
         $hd = ConvertFrom-IgwtJournalLine -Line (Read-IgwtJournalText -Path $hp)
-        if ($null -eq $hd) { $res.Status = 'Broken'; $res.Reason = 'The journal head record (head.json) is damaged.'; $res.BadFile = $hp; return [pscustomobject]$res }
-        if ([long]$hd['seq'] -gt $res.Seq) { $res.Status = 'Broken'; $res.Reason = "Entries were removed from the end of the journal: it ends at entry $($res.Seq), the head record says $($hd['seq'])."; $res.BadFile = $hp; return [pscustomobject]$res }
-        if ([long]$hd['seq'] -eq $res.Seq -and [string]$hd['hash'] -ne $hash) { $res.Status = 'Broken'; $res.Reason = "The last journal entry ($($res.Seq)) is not the one the head record names."; $res.BadFile = $hp; return [pscustomobject]$res }
+        if ($null -eq $hd) { $res.Status = 'Broken'; $res.Reason = 'The journal head record (head.json) is damaged.'; $res.BadFile = $hp; return (& $finish) }
+        if ([long]$hd['seq'] -gt $res.Seq) { $res.Status = 'Broken'; $res.Reason = "Entries were removed from the end of the journal: it ends at entry $($res.Seq), the head record says $($hd['seq'])."; $res.BadFile = $hp; return (& $finish) }
+        if ([long]$hd['seq'] -eq $res.Seq -and [string]$hd['hash'] -ne $hash) { $res.Status = 'Broken'; $res.Reason = "The last journal entry ($($res.Seq)) is not the one the head record names."; $res.BadFile = $hp; return (& $finish) }
     }
     if ($res.Seq -gt 0) { $res.Status = 'Ok' }
     $res.Hash = $hash; $res.Count = $res.Seq
-    $o = [pscustomobject]$res
-    $o | Add-Member -NotePropertyName Entries -NotePropertyValue $entries
-    $o | Add-Member -NotePropertyName Baselines -NotePropertyValue $baselines
-    $o | Add-Member -NotePropertyName Last -NotePropertyValue $last
-    return $o
+    return (& $finish)
 }
 
 function Invoke-IgwtJournalCompaction {
@@ -283,6 +281,28 @@ function Write-IgwtJournalHead {
     $p = Join-Path (Get-IgwtJournalFolder) 'head.json'
     [System.IO.File]::WriteAllText("$p.tmp", (ConvertTo-Json -InputObject ([ordered]@{ seq = $Seq; hash = $Hash }) -Compress), (New-Object System.Text.UTF8Encoding($false)))
     Move-Item -LiteralPath "$p.tmp" -Destination $p -Force
+}
+
+function Reset-IgwtChangeJournal {
+    <#
+    .SYNOPSIS
+        The way out of a journal that failed its check: moves the Journal folder aside (nothing is
+        deleted) so the next change starts a new, protected journal; the 3.x snapshots are imported
+        into it again. Refused while the journal is intact. Changes no system setting.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
+    Assert-IgwtWritable -Operation 'Reset-IgwtChangeJournal'
+    if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'The change journal is managed with administrator rights only.' }
+    $dir = Get-IgwtJournalFolder
+    if ((Read-IgwtJournal -NoEntries).Status -ne 'Broken') { throw 'The change journal is intact; it is not set aside.' }
+    $dest = '{0}-set-aside-{1}' -f $dir, (Get-Date).ToString('yyyyMMdd-HHmmss')
+    if (-not $PSCmdlet.ShouldProcess($dir, "Move to $dest")) { return $null }
+    Enter-IgwtChangeLock -Title 'Setting the change journal aside'
+    try { Move-Item -LiteralPath $dir -Destination $dest -ErrorAction Stop; $script:IgwtJournal = $null }
+    finally { Exit-IgwtChangeLock }
+    Write-IgwtLog -Level Warn -Message "The change journal failed its check and was set aside: $dest"
+    return [pscustomobject]@{ SetAside = $dest }
 }
 
 function Get-IgwtJournalState {
