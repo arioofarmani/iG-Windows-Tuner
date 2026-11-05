@@ -778,7 +778,7 @@ function Format-IgwtJournalValue {
     $v = $Value
     if ($v -is [System.Collections.IDictionary]) {
         # Registry snapshots: the value or "absent"; module steps: the snapshot or backup file.
-        if ((Test-IgwtMapKey $v 'ref')) { return "backup $(Split-Path -Leaf ([string]$v['ref']))" }
+        if ((Test-IgwtMapKey $v 'ref')) { return $(if ([string]$v['ref']) { "backup $(Split-Path -Leaf ([string]$v['ref']))" } else { '(no backup)' }) }
         if ((Test-IgwtMapKey $v 'op') -and $v.Count -eq 1) { return '(in its snapshot)' }
         if ((Test-IgwtMapKey $v 'exists') -and -not $v['exists']) { return 'absent' }
         if ((Test-IgwtMapKey $v 'exists')) { return '{0} {1}' -f $v['kind'], (@($v['value']) -join ',') }

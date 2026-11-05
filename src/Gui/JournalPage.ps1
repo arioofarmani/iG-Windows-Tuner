@@ -91,6 +91,10 @@ function Update-IgwtGuiJournalButtons {
     $c.JournalRevertSessionButton.IsEnabled = $ok -and $sel
     # From the engine's count, which also covers changes folded into the checkpoint (review 3.6 R18).
     $c.JournalRevertAllButton.IsEnabled = $ok -and [int]$script:Gui.Journal.Tracked -gt 0
+    # The way out of a journal that failed its check, shown only then.
+    $broken = ($script:Gui.Journal -and [string]$script:Gui.Journal.Status -eq 'Broken')
+    $c.JournalResetButton.Visibility = $(if ($broken) { 'Visible' } else { 'Collapsed' })
+    $c.JournalResetButton.IsEnabled = $broken -and [bool]$script:Gui.IsAdmin -and -not $script:Gui.Job
 }
 
 function Start-IgwtGuiJournalLoad {
@@ -106,6 +110,23 @@ function Start-IgwtGuiJournalLoad {
         $t = @($out | Where-Object { $_ }) | Select-Object -Last 1
         if (-not $t) { Set-IgwtGridState -Grid $script:Gui.Grids.JournalList -State Error -Message $(if (@($errs).Count) { [string]@($errs)[0] } else { 'The change journal could not be read.' }); return }
         Set-IgwtGuiJournal -Timeline $t
+    }
+}
+
+function Start-IgwtGuiJournalReset {
+    <# .SYNOPSIS After a confirmation, sets a journal that failed its check aside in the worker (nothing is deleted). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Runs only after the user confirms; changes the tool''s own journal folder.')]
+    [CmdletBinding()]
+    param()
+    $why = $(if ($script:Gui.Journal) { [string]$script:Gui.Journal.Reason } else { '' })
+    if ((Show-IgwtGuiMessage -Title 'Set the change journal aside' -Buttons 'YesNo' -Icon 'Warning' -Text "$why`n`nThe journal is moved aside and kept (nothing is deleted), and the next change starts a new one. The history in it can then no longer be reverted from this tab; the 3.x snapshots are imported again. Continue?") -ne 'Yes') { return }
+    $null = Start-IgwtGuiJob -Command 'Reset-IgwtChangeJournal' -Parameters @{ Confirm = $false } -Blocking -BusyText 'Setting the change journal aside...' -OnComplete {
+        param($out, $errs)
+        $r = @($out | Where-Object { $_ }) | Select-Object -Last 1
+        if ($r) { Set-IgwtGuiStatus "The change journal was set aside: $($r.SetAside)" }
+        elseif (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Not set aside: $(@($errs)[0])" -Icon 'Error' }
+        Start-IgwtGuiJournalLoad
+        Start-IgwtGuiHomeCard
     }
 }
 

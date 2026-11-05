@@ -2,7 +2,7 @@
 # Module-wide settings: data folders, registry redirection (used only by the test suite)
 # and the interactive-user hive mapping used when elevation happens under a different account.
 
-$script:IgwtVersion = '3.6.0'
+$script:IgwtVersion = '3.6.5'
 
 $script:IgwtSettings = @{
     DataRoot         = (Join-Path $env:ProgramData 'iGWindowsTuner')
@@ -227,36 +227,48 @@ function Protect-IgwtDataRoot {
     }
 }
 
+function Test-IgwtSecurityDescriptorTrusted {
+    <#
+    .SYNOPSIS
+        True when a file or folder security descriptor is owned by SYSTEM, Administrators,
+        TrustedInstaller or the current user and gives low-privilege groups no write access. Reading
+        is fine: only the exact write bits count (the composite Modify and FullControl also contain
+        read bits, so a mask built from them takes "Users: read" for write access). Works on SIDs,
+        so it does not depend on the Windows language. Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][System.Security.AccessControl.FileSystemSecurity]$Acl)
+    $sidType = [System.Security.Principal.SecurityIdentifier]
+    $owner = $Acl.GetOwner($sidType)
+    if ($null -eq $owner) { return $false }
+    $trustedOwners = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464', [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+    if ($trustedOwners -notcontains $owner.Value) { return $false }
+    # Everyone, Authenticated Users, Users, Interactive, Guests.
+    $lowPriv = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-32-546')
+    # WriteData, AppendData, WriteExtendedAttributes, DeleteSubdirectoriesAndFiles, WriteAttributes, Delete,
+    # ChangePermissions, TakeOwnership, and the generic GENERIC_ALL and GENERIC_WRITE.
+    [long]$writeBits = 0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
+    foreach ($rule in $Acl.GetAccessRules($true, $true, $sidType)) {
+        if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+        if ($lowPriv -contains $rule.IdentityReference.Value -and (([long][int]$rule.FileSystemRights) -band $writeBits) -ne 0) { return $false }
+    }
+    return $true
+}
+
 function Test-IgwtTrustedFile {
     <#
     .SYNOPSIS
-        Returns $true when a file is owned by SYSTEM, Administrators, TrustedInstaller or the
-        current (elevated) user and grants no write access to low-privilege groups.
-        Snapshots that fail this check are not restored.
+        Returns $true when a file or folder is owned by SYSTEM, Administrators, TrustedInstaller or
+        the current (elevated) user and grants no write access to low-privilege groups. Snapshots
+        and journal files that fail this check are not used.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
     if ($script:IgwtSettings.TestMode) { return $true }
-    try {
-        $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
-        $ownerSid = (New-Object System.Security.Principal.NTAccount($acl.Owner)).Translate([System.Security.Principal.SecurityIdentifier]).Value
-        $trustedOwners = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464',
-            [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
-        if ($trustedOwners -notcontains $ownerSid) { return $false }
-        $lowPriv = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-32-546')
-        $writeRights = [System.Security.AccessControl.FileSystemRights]'Write, Modify, FullControl, TakeOwnership, ChangePermissions'
-        foreach ($rule in $acl.Access) {
-            if ($rule.AccessControlType -ne 'Allow') { continue }
-            $sid = $null
-            try { $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { continue }
-            if (($lowPriv -contains $sid) -and (($rule.FileSystemRights -band $writeRights) -ne 0)) { return $false }
-        }
-        return $true
-    } catch {
-        return $false
-    }
+    try { return (Test-IgwtSecurityDescriptorTrusted -Acl (Get-Acl -LiteralPath $Path -ErrorAction Stop)) }
+    catch { return $false }
 }
-
 function Get-IgwtInteractiveUserSid {
     <#
     .SYNOPSIS

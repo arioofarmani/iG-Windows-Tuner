@@ -157,6 +157,69 @@ Describe 'Review 3.6 regressions' {
             @($tl.Rows | Where-Object { $_.After -like 'DWord*' }).Count | Should -BeGreaterThan 0
         }
     }
+    It '3.6.5: reading is not writing: Users read passes, every write right fails (real ACL objects, no test-mode bypass)' {
+        InModuleScope iGWindowsTuner {
+            $newAcl = {
+                param($OwnerSid, $Sid, $Rights, $Type = 'Allow')
+                $a = New-Object System.Security.AccessControl.DirectorySecurity
+                $a.SetAccessRuleProtection($true, $false)
+                $a.SetOwner((New-Object System.Security.Principal.SecurityIdentifier($OwnerSid)))
+                $a.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')), 'FullControl', 'Allow')))
+                $a.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier($Sid)), $Rights, $Type)))
+                $a
+            }
+            $admins = 'S-1-5-32-544'; $users = 'S-1-5-32-545'
+            # The ACL the data root really has (the case that failed on a real PC in 3.6.0).
+            Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl $admins $users 'ReadAndExecute, Synchronize') | Should -BeTrue
+            Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl $admins $users 'Read') | Should -BeTrue
+            foreach ($w in 'Write', 'Modify', 'FullControl', 'CreateFiles', 'AppendData', 'WriteAttributes', 'Delete', 'ChangePermissions', 'TakeOwnership') {
+                Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl $admins $users $w) | Should -BeFalse -Because "Users with $w can change the file"
+            }
+            Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl $admins 'S-1-1-0' 'CreateFiles') | Should -BeFalse -Because 'Everyone'
+            Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl $admins $users 'Write' 'Deny') | Should -BeTrue -Because 'a deny rule gives nothing'
+            Test-IgwtSecurityDescriptorTrusted -Acl (& $newAcl 'S-1-5-21-1-2-3-1001' $users 'Read') | Should -BeFalse -Because 'owned by another user'
+        }
+    }
+    It '3.6.5: a broken journal still gives the journal page, drift and revert plan their empty indexes' {
+        InModuleScope iGWindowsTuner {
+            $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'intent' })
+            Mock Test-IgwtTrustedFile { $false }
+            $script:IgwtJournal = $null
+            $r = Read-IgwtJournal
+            $r.Status | Should -Be 'Broken'
+            $r.Last.Count | Should -Be 0; $r.Baselines.Count | Should -Be 0; $r.Entries.Count | Should -Be 0
+            $tl = Get-IgwtJournalTimeline -Journal $r
+            $tl.Status | Should -Be 'Broken'; @($tl.Rows).Count | Should -Be 0; $tl.Tracked | Should -Be 0
+            @(Get-IgwtRevertPlan -All -Journal $r).Count | Should -Be 0
+            (Get-IgwtDriftReport -Journal $r -NoUpdateHistory).Status | Should -Be 'Broken'
+            (Select-IgwtHomeCard -InputData (Get-IgwtHomeCardInput)).Kind | Should -Be 'journal'
+        }
+    }
+    It '3.6.5: a module step without a backup is shown, not an error' {
+        InModuleScope iGWindowsTuner {
+            $d = New-Object 'System.Collections.Generic.Dictionary[string,object]'; $d['ref'] = ''; $d['action'] = ''
+            Format-IgwtJournalValue -Value $d | Should -Be '(no backup)'
+        }
+    }
+    It '3.6.5: a journal that failed its check can be set aside; nothing is deleted and changes work again' {
+        InModuleScope iGWindowsTuner {
+            $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'intent' })
+            { Reset-IgwtChangeJournal -Confirm:$false } | Should -Throw '*intact*'
+            $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'intent' })
+            $file = @(Get-IgwtJournalSegments)[0]
+            $l = [IO.File]::ReadAllLines($file); $l[0] = $l[0].Replace('intent', 'edited'); [IO.File]::WriteAllLines($file, $l)
+            $script:IgwtJournal = $null
+            (Read-IgwtJournal).Status | Should -Be 'Broken'
+            $res = Reset-IgwtChangeJournal -Confirm:$false
+            Test-Path -LiteralPath (Join-Path $res.SetAside ([IO.Path]::GetFileName($file))) | Should -BeTrue
+            (Read-IgwtJournal).Status | Should -Be 'Empty'
+            $r = Invoke-IgwtApply -Id 'gfx.game-mode' -Context (New-IgwtContext)
+            @($r.Results | Where-Object Result -EQ 'Applied').Count | Should -Be 1
+            $script:IgwtJournal = $null
+            (Read-IgwtJournal).Status | Should -Be 'Ok'
+            Remove-Item -LiteralPath $res.SetAside -Recurse -Force
+        }
+    }
     It 'R14: a path that climbs out of its parent with .. is not under it' {
         InModuleScope iGWindowsTuner {
             Test-IgwtPathUnder -Path 'C:\Data\Backups\..\..\Windows\x' -Parent 'C:\Data' | Should -BeFalse
