@@ -18,9 +18,14 @@ A bug-fix release for 3.6.0. If 3.6.0 refused your changes with "The change jour
 
 A change journal with exact undo per change, per session or for everything; confidence badges; presets with a preview; the update drift guardian; and the home card. See docs\CHANGELOG.md.
 
+### Known issues
+
+- Firewall > Overview > Recent changes shows `System.Windows.Controls.DockPanel` instead of the change. Backups & Logs lists the changes correctly.
+- A Defender setting your Windows version does not support (for example AiAgentProtection) fails with "A parameter cannot be found" and can still appear under recent changes; nothing was changed.
+
 ### Good to know
 
-- Not yet tested end to end in Windows Sandbox: the changes were tested with mocks and against a real journal read-only. Please try one small change first.
+- Used and confirmed working on a real PC by the author. A full end-to-end run in Windows Sandbox is still to come, so try one small change first.
 
 ### Install
 

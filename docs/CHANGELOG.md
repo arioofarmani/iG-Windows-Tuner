@@ -15,6 +15,12 @@ Fixes the bug that blocked every change on real PCs in 3.6.0 (found by Ario).
 - **Set this journal aside** (Backups & Logs > Change journal, shown only when the journal failed its check): a failed journal used to block every change with no way out. It is now moved aside after a confirmation, nothing is deleted, and the next change starts a new protected journal.
 - Regression tests that run the protection check on real security descriptors instead of skipping it in test mode.
 - The firewall precedence budget test runs in a clean process (the budget is unchanged; the analysis takes about 0.9 s).
+- New README with a comparison and real-PC screenshots (`docs\screenshots\3.6`).
+
+### Known issues
+
+- Firewall > Overview > Recent changes shows `System.Windows.Controls.DockPanel` instead of the change.
+- A Defender setting the installed Windows version does not support (for example AiAgentProtection) fails with "A parameter cannot be found" and can still appear under recent changes.
 
 ## 3.6.0 (2026-11-01)
 

@@ -1,140 +1,167 @@
+<div align="center">
+
 # iG Windows Tuner
 
-**An auditable, reversible Windows 11 tuner for competitive gaming that keeps your PC secure and your anti-cheat happy.**
+**The Windows 11 tuner that shows its evidence, checks its work and can undo every step.**
 
-![Version](https://img.shields.io/badge/version-3.6.5-0078D4)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.4-5391FE)
-![Tests](https://img.shields.io/badge/Pester-986%20passing-2EA44F)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
-![Status](https://img.shields.io/badge/status-preview-orange)
+Tune performance, security and privacy for competitive gaming, with every change previewed, recorded and reversible.
 
-**Evidence-based Windows 11 tuning. Transparent changes. Reversible by design.**
+[![Latest release](https://img.shields.io/github/v/release/arioofarmani/iG-Windows-Tuner?label=release&color=0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
+![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
+![Tests](https://img.shields.io/badge/tests-1%2C076%20passing-2EA44F)
+![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-iG Windows Tuner is an open-source Windows 11 utility for managing system performance, security, privacy, gaming settings, and advanced Windows configuration.
+[**Download**](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) · [Why it's different](#how-it-compares) · [Features](#what-it-does) · [Quick start](#quick-start) · [Docs](#documentation)
 
-Built with PowerShell and WPF, it combines curated presets with detailed system controls, security auditing, diagnostics, and configuration management.
+</div>
 
-Unlike one-click optimization tools, iG Windows Tuner shows what a change does, why it exists, and how to undo it.
+![The iG Windows Tuner dashboard: the one thing that needs attention, status at a glance and every recent change with Undo](docs/screenshots/3.6/dashboard.png)
 
-## Why iG Windows Tuner?
+Most Windows optimizers ask you to trust a list of tweaks. iG Windows Tuner works differently: every setting cites its source, every change is previewed, the result is read back from Windows, and the value from before can be restored exactly, including values that did not exist.
 
-- **Evidence-based tuning** — Settings are documented with Microsoft or hardware-vendor sources, or clearly identified as requiring measurement.
-- **Reversible changes** — Previous configuration values are captured before supported changes are applied, with individual and bulk rollback options.
-- **Security-focused** — Security controls are designed to strengthen or preserve protection rather than sacrifice it for speculative performance gains.
-- **Gaming-aware** — Includes competitive gaming presets and checks for important kernel anti-cheat prerequisites.
-- **Full transparency** — Review current and proposed values before applying changes.
-- **Built-in diagnostics** — Inspect system health, security configuration, network performance, and Windows reliability.
-- **No forced changes on launch** — The graphical interface starts in read-only mode.
+It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are documented as [rejected](docs/REJECTED_TWEAKS.md), with the reason.
 
-## Screenshots
+## Why people use it
 
 | | |
 |---|---|
-| ![Dashboard](docs/screenshots/3.4/00-Dashboard.png) | ![Firewall Manager overview](docs/screenshots/3.4/14-Firewall.png) |
-| Dashboard: status at a glance, one numbered "Do this next" list | Firewall Manager: what needs attention, quick wins, rule groups |
-| ![Firewall rules](docs/screenshots/3.4/14b-Firewall.png) | ![Presets](docs/screenshots/3.4/01-Presets.png) |
-| Every rule explained: origin, confidence, findings and safe fixes | Presets with changes per category and a compare view |
+| **Evidence, not folklore** | 129 catalog items, each with its sources and an evidence tier. Every item shows a confidence badge: Verified, Best effort or Unverified. |
+| **Every change is a transaction** | The previous value is recorded first, the change is read back, and a failure rolls back automatically. |
+| **Undo that is exact** | Revert one change, one session or everything iG ever changed. You see the value before, the value iG set and the value now, and you decide if something else changed it since. |
+| **It notices when Windows changes things back** | At start, a read-only check finds settings that drifted and lists the Windows updates installed in between, without claiming they were the cause. |
+| **Security stays on** | Gaming presets keep Defender, memory integrity and the firewall on, and use only items marked safe for anti-cheat. |
+| **Nothing hidden** | Plain PowerShell and JSON you can read. No telemetry, no background service, no scheduled task, no `irm \| iex` install. |
 
-Screenshots are rendered offscreen from demo data (`tools\Test-GuiRender.ps1`); more in [docs/screenshots/3.4](docs/screenshots/3.4), and the 3.0 interface for comparison in [docs/screenshots/3.3/before](docs/screenshots/3.3/before).
+## See it in action
 
-## What can you do?
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/3.6/hardening.png" alt="Security hardening items with state, evidence tier, risk, level, restart need and confidence badge"></td>
+<td width="50%"><img src="docs/screenshots/3.6/firewall-overview.png" alt="Firewall Manager overview: findings, quick wins, rule groups and the open ports map"></td>
+</tr>
+<tr>
+<td><b>Tweaks with their evidence.</b> Current state, tier, risk, confidence, the exact change and how to revert it.</td>
+<td><b>Firewall Manager.</b> What needs attention, rule groups and which open ports are really reachable.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/3.6/firewall-rules.png" alt="Firewall rule list with a details pane explaining why a rule exists"></td>
+<td><img src="docs/screenshots/3.6/defender-settings.png" alt="Microsoft Defender settings editor with current values and what can be changed"></td>
+</tr>
+<tr>
+<td><b>Every rule explained.</b> Why it exists, how it was classified, conflicts and which actions are safe.</td>
+<td><b>Defender settings.</b> Every setting with its current value, including the hidden ones. Protection only moves toward on.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/3.6/risk-zone.png" alt="Risk Zone: rejected tweaks, with the risks of each one, available only after a typed confirmation"></td>
+<td valign="top"><b>Risk Zone.</b> Popular tweaks iG does not recommend, separated from everything else. Each one says what it breaks, asks for a typed confirmation and can be reverted.<br><br>Tweaks that turn off security protections, edit boot data or need background software are not offered at all.</td>
+</tr>
+</table>
 
-### Performance and gaming
+Screenshots from a real PC, cropped for size. Dark, Light and High Contrast themes are included.
 
-Explore CPU, power, graphics, input, and network settings. Compare measured results instead of assuming every tweak improves performance.
+## How it compares
 
-### Security and privacy
+iG Windows Tuner is built for people who want to know exactly what changed and get it back. The table covers well-known free tools, based only on what each project's own page says (checked November 2026). "Not described" means the page does not mention it; the tool may still offer it, so check the project if it matters to you.
 
-Audit Windows security settings, review Microsoft Defender configuration, manage privacy policies, and inspect potential security weaknesses.
+| | **iG Windows Tuner** | [WinUtil](https://github.com/ChrisTitusTech/winutil) | [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) | [O&O ShutUp10++](https://www.oo-software.com/en/shutup10/editions) |
+|---|---|---|---|---|
+| **Focus** | Gaming, security and privacy tuning with auditing | App installs, tweaks, config, updates | Scripted Windows setup, 150+ functions | Privacy and security, about 300 settings |
+| **License** | MIT, open source | MIT, open source | MIT, open source | Freeware, closed source; paid Premium |
+| **How it runs** | Download, verify the SHA256, run | One-line remote command | Package manager, download or one-line command | Portable program |
+| **Undo** | Per change, per session or everything | Tweaks are expected to ship with an undo (contributor rules) | A restore function for every tweak | Restore points, undo recommended settings, reset per setting, profiles |
+| **Before/after history of your PC** | Tamper-evident journal | Not described | Not described | Not described |
+| **Reads each change back** | Yes, failure rolls back | Not described | Not described | Not described |
+| **Sources shown per setting** | Yes, with a confidence badge | Not described | Uses "officially documented ways" (overall) | Not described |
+| **Detects changed settings** | Free, you choose to re-apply or accept | Not described | Not described | Premium: restores automatically after updates |
+| **Anti-cheat information** | Per item; gaming presets use safe items only | Not described | States compatibility with VAC | Not described |
+| **Firewall rule manager** | Yes, with risk findings | Not described | Not described | Not described |
+| **Group Policy browser and editor** | Yes | Not described | Shows its policies in gpedit | Not described |
 
-### Firewall Manager (new in 3.4)
+### When another tool is the better choice
 
-Every firewall rule is classified (Core Services, Windows Connections, User Installed, Custom Rules) with the reason and a confidence level. Risk findings come with plain explanations and safe fixes, alongside conflict analysis, an exposure map of open ports, a smart fix wizard, firewall scopes per kind of PC and an audit report. Core Services stay read-only, Windows rules are never deleted, game and anti-cheat rules are never blocked, and every change is previewed, snapshot-backed and undoable. See [docs/FIREWALL.md](docs/FIREWALL.md).
+iG Windows Tuner is not the right tool for everything, and these are good projects:
 
-### Firewall logs and forensics (new in 3.5)
+- **Setting up a fresh PC with your apps?** [WinUtil](https://github.com/ChrisTitusTech/winutil) is built around installing apps alongside tweaks.
+- **Only want privacy settings, fast?** [O&O ShutUp10++](https://www.oo-software.com/en/shutup10/editions) is a small portable program covering about 300 of them.
+- **Automating many PCs from a script?** [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) is designed to be edited and run as a script.
+- **Not on Windows 11 24H2 or newer?** iG Windows Tuner needs build 26100 or later.
 
-Read the Windows Firewall log in a fast, filterable list with an overview of what was blocked and allowed (a full 32 MB log loads in about 2 seconds). Turn on forensic logging for a limited time (the firewall log, connection auditing with program names, and the DNS client log) and every setting is restored exactly afterwards. Collect an evidence package with SHA256 hashes and a chain-of-custody file, or export the data for analysis with internal addresses and user names pseudonymized. Nothing is uploaded and no log is ever cleared. See [docs/FIREWALL_LOGS.md](docs/FIREWALL_LOGS.md).
+## What it does
 
-### Transactions and undo (new in 3.6)
+**Performance and gaming**
+- 10 presets, including Competitive, Balanced, Laptop Gamer and Streamer, each with a preview of what it would change on your PC
+- Power, CPU, graphics, input and network tuning that takes your hardware into account
+- Session Mode for temporary changes while you play
+- Network test: latency, jitter, packet loss and stability
+- Anti-cheat readiness checks for common kernel anti-cheats
 
-Every change is recorded before it is made, read back after it, and rolled back automatically if part of it fails. Backups & Logs > Change journal shows every change by session; revert one change, one session or everything iG changed, with the value before, the value iG set and the value now. The Dashboard's home card shows the one thing that needs attention (an unfinished change, settings Windows changed back, Unverified items), every tweak has a confidence badge, and presets show a preview of what they would change on this PC. See [docs/CHANGELOG.md](docs/CHANGELOG.md).
+**Security and privacy**
+- Security score with what to fix first
+- ASR Center for all 19 attack surface reduction rules, with the gamer impact of each
+- Editor for Microsoft Defender settings: protection settings only move toward on
+- Firewall Manager: every rule classified, risk findings, conflict analysis, an open ports map and safe fixes
+- Firewall log reader, time-boxed forensic logging that restores every setting, and evidence export with SHA256 hashes
+- Group Policy browser, security and audit policy, and compliance baselines
 
-### Presets and configuration
+**Safety net**
+- Change journal: every change by session, hash-chained so edits are detected
+- Revert per change, per session or everything, with a choice whenever a value changed since
+- Unfinished changes are found after a crash and can be rolled back
+- Update drift guardian and a home card showing the one thing that needs attention
+- Changes that cannot be undone (removed apps, cleaned files) are recorded and marked as such
 
-Choose from curated profiles for different workloads, create custom presets, and review configuration changes before applying them.
-
-### Diagnostics and system management
-
-Generate system health reports, inspect services and scheduled tasks, review firewall rules, troubleshoot Windows, and examine network latency and reliability.
-
-### Advanced Windows administration
-
-Explore Group Policy, security policies, Defender controls, compliance baselines, and configuration exports.
-
-### Interface
-
-Dark, Light and High Contrast themes, grouped navigation, sortable and filterable lists everywhere, focus mode, a read-only mode for audits, and a calm, predictable layout ([docs/UX_GUIDELINES.md](docs/UX_GUIDELINES.md)).
+**Maintenance and diagnostics**
+- Cleaner with allow-listed rules, disk analyzer and startup apps
+- Services, scheduled tasks, apps and persistence inspector
+- Reliability, crashes, boot time, drivers, DPC/ISR, and an HTML health report
+- App installs through winget, Windows features and previewed repair fixes
 
 ## Quick start
 
-### Requirements
+**Requirements:** Windows 11 24H2 or newer (build 26100+). Windows PowerShell 5.1 is included with Windows; nothing else to install.
 
-- Windows 11 Pro 24H2 or newer (build 26100+).
-- Windows PowerShell 5.1, included with Windows. PowerShell 7.4 is also supported.
-- No additional dependencies are required.
+1. Download `iGWindowsTuner-3.6.5.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and check its SHA256.
+2. Extract it. Files from a downloaded zip carry Mark-of-the-Web: review them, then run `Unblock-File` if you trust them.
+3. Run `Start-iGWindowsTuner.cmd`.
+4. Look around first. Without administrator rights the app is read-only, and nothing changes until you press **Apply**.
+5. Pick a preset or a single setting, read the preview and apply. Windows asks for administrator rights when needed.
 
-### Run the application
+**To undo:** Backups & Logs > Change journal, then revert a change, a session or everything.
 
-1. Download or clone this repository.
-2. Run `Start-iGWindowsTuner.cmd`.
-3. Review the interface and inspect your current settings.
-4. Choose a preset or individual setting.
-5. Review the proposed changes before applying them.
+Prefer the command line? Start with what changes nothing:
 
-The graphical interface starts in read-only mode. Administrator privileges are requested through Windows UAC when needed to apply changes.
+```powershell
+.\iGWindowsTuner.ps1 -Report
+.\iGWindowsTuner.ps1 -Preset competitive -DryRun
+```
 
-## Before applying changes
+## Trust and transparency
 
-System tuning can affect stability, security, and application compatibility.
+- **No telemetry.** The network is used only when you ask: the network test, DNS benchmark and winget.
+- **No persistence.** No service and no scheduled task. Checks run while the app is open.
+- **Readable.** PowerShell and JSON, plus small C# helpers in plain source, compiled on your PC. Nothing is downloaded or decoded at run time.
+- **Tested.** 1,076 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
+- **Honest limits.** The automated tests use mocks and a test registry. Version 3.6.5 has been used on a real gaming PC, but a full end-to-end run in Windows Sandbox is still to come. An administrator who rewrites the whole journal consistently cannot be detected.
 
-- Review each proposed change before approving it.
-- Start with read-only reports and `-DryRun` commands.
-- Create a backup and a Windows restore point before significant changes.
-- Measure performance before and after tuning.
-- Verify that your games, applications, and security requirements still work as expected.
-
-The built-in snapshots and rollback features help restore supported configuration changes, but they are not a substitute for a complete backup.
-
-## Project status
-
-**Version 3.6 — Preview**
-
-3.6 makes every change a recorded, checked and reversible transaction: a tamper-evident change journal, exact undo per change, session or everything, confidence badges, previewed declarative presets, an update drift guardian and a home card. It builds on 3.5 (firewall logs and forensics) and 3.4 (the 3.3 quality release with a rebuilt, calmer interface, plus the Firewall Manager). The Group Policy, security auditing, Defender management and gaming network optimization features are available in the graphical interface and on the command line. See the [changelog](docs/CHANGELOG.md).
-
-Some features and workflows are still evolving. Review the documentation before relying on the tool for production or security-critical systems.
+> [!IMPORTANT]
+> System tuning can affect stability, security and compatibility. Create a backup before significant changes, measure before and after, and check that your games still work. The built-in undo is not a replacement for a complete backup. This project is a preview, provided as-is.
 
 ## Documentation
 
 - [User guide](docs/README.md)
-- [Tweak catalog and evidence](docs/TWEAKS.md)
-- [Preset guide](docs/PRESETS.md)
-- [Anti-cheat compatibility](docs/ANTICHEAT.md)
-- [Firewall Manager guide](docs/FIREWALL.md) and [how rules are classified](docs/FIREWALL_CATEGORIES.md)
-- [Firewall logs, forensic logging and evidence export](docs/FIREWALL_LOGS.md)
-- [Security and design principles](docs/SECURITY.md)
-- [Design decisions](docs/DECISIONS.md)
-- [Rejected tweaks and their rationale](docs/REJECTED_TWEAKS.md)
-- [Testing methodology](docs/TESTING.md)
-- [Changelog](docs/CHANGELOG.md)
+- [Tweak catalog and evidence](docs/TWEAKS.md) · [Presets](docs/PRESETS.md) · [Rejected tweaks and why](docs/REJECTED_TWEAKS.md)
+- [Anti-cheat compatibility](docs/ANTICHEAT.md) · [Security and design principles](docs/SECURITY.md)
+- [Firewall Manager](docs/FIREWALL.md) · [Firewall logs and forensics](docs/FIREWALL_LOGS.md)
+- [Design decisions](docs/DECISIONS.md) · [Independent reviews](docs/REVIEW.md) · [Testing](docs/TESTING.md) · [Changelog](docs/CHANGELOG.md)
 
 ## Contributing
 
-Contributions are welcome. New tweaks should include supporting evidence, a clear explanation, risk information, a rollback path, and appropriate tests.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+Contributions are welcome. A new tweak needs supporting evidence, a clear explanation, risk information, a way back and tests. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE). Provided as-is, without warranty. Review changes carefully and use the tool at your own risk.
 
-Provided as-is, without warranty. Review changes carefully and use the tool at your own risk.
+Windows, Microsoft Defender and other product names are trademarks of their owners. This project is not affiliated with Microsoft or with the other tools mentioned.
