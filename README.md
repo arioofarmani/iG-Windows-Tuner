@@ -12,8 +12,19 @@ Tune performance, security and privacy for competitive gaming, with every change
 ![Tests](https://img.shields.io/badge/tests-1%2C076%20passing-2EA44F)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![Open source](https://img.shields.io/badge/source-open%20and%20readable-2EA44F)](src)
+[![VirusTotal](https://img.shields.io/badge/VirusTotal-see%20the%20results-394EFF)](#is-it-safe-to-run)
 
-[**Download**](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) · [Why it's different](#how-it-compares) · [Features](#what-it-does) · [Quick start](#quick-start) · [Docs](#documentation)
+[**Download**](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) · [Is it safe?](#is-it-safe-to-run) · [Why it's different](#how-it-compares) · [Features](#what-it-does) · [Quick start](#quick-start) · [Docs](#documentation)
+
+<table>
+<tr>
+<td align="center" width="25%"><h3>129</h3>catalog items, each with its sources</td>
+<td align="center" width="25%"><h3>1,076</h3>automated tests</td>
+<td align="center" width="25%"><h3>3 levels</h3>of undo: change, session or everything</td>
+<td align="center" width="25%"><h3>0</h3>telemetry, services or scheduled tasks</td>
+</tr>
+</table>
 
 </div>
 
@@ -33,6 +44,17 @@ It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are
 | **It notices when Windows changes things back** | At start, a read-only check finds settings that drifted and lists the Windows updates installed in between, without claiming they were the cause. |
 | **Security stays on** | Gaming presets keep Defender, memory integrity and the firewall on, and use only items marked safe for anti-cheat. |
 | **Nothing hidden** | Plain PowerShell and JSON you can read. No telemetry, no background service, no scheduled task, no `irm \| iex` install. |
+
+## How every change works
+
+```mermaid
+flowchart LR
+    A["Preview<br/>see the exact change"] --> B["Record<br/>save the current value"]
+    B --> C["Apply<br/>after you press Apply"]
+    C --> D{"Read back<br/>did Windows accept it?"}
+    D -- "Yes" --> E["Journal<br/>undo at any time"]
+    D -- "No" --> F["Roll back<br/>restore the old value"]
+```
 
 ## See it in action
 
@@ -122,7 +144,7 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 
 **Requirements:** Windows 11 24H2 or newer (build 26100+). Windows PowerShell 5.1 is included with Windows; nothing else to install.
 
-1. Download `iGWindowsTuner-3.6.5.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and check its SHA256.
+1. Download `iGWindowsTuner-3.6.5.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
 2. Extract it. Files from a downloaded zip carry Mark-of-the-Web: review them, then run `Unblock-File` if you trust them.
 3. Run `Start-iGWindowsTuner.cmd`.
 4. Look around first. Without administrator rights the app is read-only, and nothing changes until you press **Apply**.
@@ -137,7 +159,57 @@ Prefer the command line? Start with what changes nothing:
 .\iGWindowsTuner.ps1 -Preset competitive -DryRun
 ```
 
-## Trust and transparency
+## Is it safe to run?
+
+You should not have to take our word for it, so here is what the scanners say, including the part that is less tidy, and how to check the app yourself.
+
+### VirusTotal results for 3.6.5
+
+| File | Result | What it is |
+|---|---|---|
+| [`iGWindowsTuner.ps1`](https://www.virustotal.com/gui/file/a0ae584f95081ed1340bfafc892579e7bf9be3501cd09af74b632242581413d8?nocache=1) | ✅ **0 of 60** vendors flagged it | The main script |
+| [`Start-iGWindowsTuner.cmd`](https://www.virustotal.com/gui/file/11e4ed3e3adc09c146683c668c5fd401ef2ab0c6afea93c7dfd673046cc66110?nocache=1) | ✅ **0 of 60** vendors flagged it | The 721-byte launcher |
+| [`iGWindowsTuner-3.6.5.zip`](https://www.virustotal.com/gui/file/3ff339c805e8b8f61de5792111e8611d2042ecd60039b0f76eb3b6edb9d40f7e) | ⚠️ **6 of 66** vendors flagged it | The complete release package |
+
+Results checked on 6 November 2026. They can change, so open the links for the current numbers.
+
+**About the 6 flags on the zip.** Arcabit, BitDefender, Emsisoft, GData and VIPRE report the same heuristic name, `CMD:Heur.BZC.PZQ.Boxter`, and CTX reports `Zip.unknown.boxter`. "Heur" means a rule matched a pattern, not that the file matched known malware. We believe this is a false positive, but you can judge for yourself:
+
+- The zip holds exactly one command script, the launcher above, and it scans clean by itself.
+- That launcher starts PowerShell with `-ExecutionPolicy Bypass`, for that one process only, because the scripts are not signed. Your machine and user execution policies are never changed. [Read all 12 lines](Start-iGWindowsTuner.cmd).
+- Antivirus results are not proof either way, and the two clean results above cover only those two files. If a flag concerns you, read the source or try the app in a virtual machine first.
+
+### Check it yourself
+
+**Confirm your download is the published file.** The result must be `3FF339C805E8B8F61DE5792111E8611D2042ECD60039B0F76EB3B6EDB9D40F7E`:
+
+```powershell
+Get-FileHash .\iGWindowsTuner-3.6.5.zip -Algorithm SHA256
+```
+
+**Look without changing anything.** Read-only mode blocks every change inside the app's engine:
+
+```powershell
+.\Start-iGWindowsTuner.cmd -ReadOnly
+```
+
+**Read the code.** Everything that runs is here on GitHub, in [`src`](src) and [`data`](data).
+
+### What the code is not allowed to do
+
+[Automated safety tests](tests/Safety.Tests.ps1) scan the shipped code for these techniques and fail if they find one:
+
+| | |
+|---|---|
+| 🚫 **Hidden code** | `Invoke-Expression`, Base64-encoded commands or command names built at run time |
+| 🚫 **Downloads** | Fetching files or scripts itself (app installs go through winget, only when you ask) |
+| 🚫 **Staying behind** | Creating services, scheduled tasks, Run keys or WMI subscriptions |
+| 🚫 **Hiding** | Hidden windows, or changing your machine or user execution policy |
+| 🚫 **Weakening your defenses** | Turning off AMSI, ETW, real-time protection or Tamper Protection, or adding Defender antivirus exclusions |
+| 🚫 **Boot and driver tampering** | Running `bcdedit`, turning off driver signature enforcement or enabling test signing |
+| 🚫 **UAC tricks** | Anything other than the normal Windows administrator prompt |
+
+### Trust and transparency
 
 - **No telemetry.** The network is used only when you ask: the network test, DNS benchmark and winget.
 - **No persistence.** No service and no scheduled task. Checks run while the app is open.
