@@ -6,13 +6,12 @@
 
 Tune performance, security and privacy for competitive gaming, with every change previewed, recorded and reversible.
 
-[![Latest release](https://img.shields.io/github/v/release/arioofarmani/iG-Windows-Tuner?label=release&color=0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v3.6.5-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
 ![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
 ![Tests](https://img.shields.io/badge/tests-1%2C076%20passing-2EA44F)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
-[![Open source](https://img.shields.io/badge/source-open%20and%20readable-2EA44F)](src)
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-see%20the%20results-394EFF)](#is-it-safe-to-run)
 
 [**Download**](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) · [Is it safe?](#is-it-safe-to-run) · [Why it's different](#how-it-compares) · [Features](#what-it-does) · [Quick start](#quick-start) · [Docs](#documentation)
