@@ -59,7 +59,7 @@ It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are
 </tr>
 </table>
 
-Screenshots from a real PC, cropped for size. Dark, Light and High Contrast themes are included.
+Screenshots from a real PC, cropped for size, with hardware, network and open port details blurred for privacy. Dark, Light and High Contrast themes are included.
 
 ## How it compares
 
