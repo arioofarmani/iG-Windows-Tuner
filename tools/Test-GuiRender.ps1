@@ -3,7 +3,10 @@
     Offscreen GUI render suite: renders every page to PNG (WPF RenderTargetBitmap) with the mocked
     data providers in tests\gui\GuiMocks.ps1, for each theme and display scale. No window is shown,
     nothing on the PC is read for page data and nothing is changed (the engine runs in read-only
-    mode). Writes <OutDir>\<theme>-<scale>\NN-Page-scale.png and a summary.json.
+    mode). Writes <OutDir>\<theme>-<scale>\NN-Page-scale.png and a summary.json. Every rendered view is
+    checked for text that looks like a leaked type name or hashtable (text-leaks.json beside the PNGs,
+    counted in summary.json); any leak fails the run with exit code 1. With the mocks, the run also
+    fails when a list in $requiredLists never has items, because the check would be blind there.
 .PARAMETER OutDir
     Output folder (default artifacts\gui-render).
 .PARAMETER Theme
@@ -45,11 +48,16 @@ $mocks = Join-Path $Root 'tests\gui\GuiMocks.ps1'
 $gui = Get-Command Show-IgwtGui
 $args2 = @{ RenderTo = $Dir; Scale = $Scale }
 if ($gui.Parameters.ContainsKey('Theme')) { $args2.Theme = $Theme }
+# The mocked network test sends nothing and fills the result lists of the Network test page.
+if (-not $Live) { $args2.WithNetworkTest = $true }
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $files = @(Show-IgwtGui @args2)
 [pscustomobject]@{ Theme = $Theme; Scale = $Scale; Pages = $files.Count; Seconds = [math]::Round($sw.Elapsed.TotalSeconds, 1) } | ConvertTo-Json -Compress
 '@ | Set-Content -LiteralPath $child -Encoding UTF8
 $summary = New-Object System.Collections.Generic.List[object]
+# Lists the mocks must fill: an empty list cannot show a leak.
+$requiredLists = @('FwOvRecentList', 'FwDetFindings', 'AsrExclusionList', 'NetTargetList', 'NetRecoList', 'NetGuidanceList')
+$gateFailed = $false
 try {
     foreach ($t in $Theme) {
         foreach ($s in $Scale) {
@@ -68,12 +76,23 @@ try {
                 $warn = @($out | Where-Object { $_ -is [System.Management.Automation.WarningRecord] -or "$_" -like 'WARNING:*' } | ForEach-Object { "$_" -replace '^WARNING:\s*', '' })
                 $r | Add-Member -NotePropertyName Warnings -NotePropertyValue $warn -Force
                 foreach ($w in $warn) { Write-Warning "$t $([int]($s * 100)) %: $w" }
+                # Text gate: a missing or empty report counts as a failure, not as a pass.
+                $leakFile = Join-Path $dir 'text-leaks.json'
+                $scan = $(if (Test-Path -LiteralPath $leakFile) { Get-Content -LiteralPath $leakFile -Raw -Encoding UTF8 | ConvertFrom-Json })
+                $leaks = $(if ($scan) { @($scan.Leaks) } else { @() })
+                $blind = $(if ($scan -and -not $Live) { @($requiredLists | Where-Object { @($scan.FilledLists) -notcontains $_ }) } else { @() })
+                $r | Add-Member -NotePropertyName TextsChecked -NotePropertyValue $(if ($scan) { [int]$scan.Checked } else { 0 }) -Force
+                $r | Add-Member -NotePropertyName TextLeaks -NotePropertyValue $leaks -Force
+                $r | Add-Member -NotePropertyName EmptyLists -NotePropertyValue $(if ($scan) { @($scan.EmptyLists) } else { @() }) -Force
+                if (-not $scan -or $r.TextsChecked -eq 0) { $gateFailed = $true; Write-Warning "$t $([int]($s * 100)) %: the text check did not run (no $leakFile)." }
+                foreach ($l in $leaks) { $gateFailed = $true; Write-Warning "$t $([int]($s * 100)) %: leaked text in $($l.Image) [$($l.Rule), $($l.Control)]: $($l.Text)" }
+                if ($blind.Count) { $gateFailed = $true; Write-Warning "$t $([int]($s * 100)) %: the mocks leave these lists empty, so the text check is blind there: $($blind -join ', ')" }
                 $summary.Add($r)
                 Write-Output ("{0,-13} {1,4} %  {2,3} page(s)  {3,5} s  -> {4}" -f $t, [int]($s * 100), $r.Pages, $r.Seconds, $dir)
             }
         }
     }
 } finally { Remove-Item -LiteralPath $child -Force -ErrorAction SilentlyContinue }
-$summary | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json') -Encoding UTF8
-if (@($summary | Where-Object { -not $_.Pages }).Count) { exit 1 }
+$summary | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json') -Encoding UTF8
+if (@($summary | Where-Object { -not $_.Pages }).Count -or $gateFailed) { exit 1 }
 exit 0
