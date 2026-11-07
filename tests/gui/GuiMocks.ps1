@@ -89,7 +89,7 @@ function script:Get-IgwtGuiData {
             $t = $script:MockNow.AddHours(-7 * $i - 1)
             $ops = @('Apply', 'Preset:competitive', 'ASR', 'Manage', 'Defender', 'Power', 'Revert')
             $op = $ops[$i % $ops.Count]
-            [pscustomobject]@{ Path = "C:\ProgramData\iGWindowsTuner\Backups\snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; File = "snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; Created = $t.ToUniversalTime().ToString('o'); Operation = $op; Detail = ''; Applied = @('net.example'); Count = 1 + ($i % 4); Failed = 0 }
+            [pscustomobject]@{ Path = "C:\ProgramData\iGWindowsTuner\Backups\snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; File = "snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; Created = $t.ToUniversalTime().ToString('o'); Operation = $op; Detail = ''; Applied = @('net.example'); HasChange = $true; Count = 1 + ($i % 4); Failed = 0 }
         })
     $startup = @(
         @('HKCU', 'Steam', '"C:\Program Files (x86)\Steam\steam.exe" -silent', $true), @('HKCU', 'Discord', '"C:\Users\Player\AppData\Local\Discord\Update.exe" --processStart Discord.exe', $true),

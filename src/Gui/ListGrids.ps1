@@ -369,12 +369,13 @@ function New-IgwtGuiSnapshotRow {
     }
     $failed = 0
     if ($s.PSObject.Properties['Failed'] -and $null -ne $s.Failed) { $failed = [int]$s.Failed }
+    $changed = Test-IgwtSnapshotHasChange -Snapshot $s
     $r = [ordered]@{
         Key = [string]$s.Path; Path = [string]$s.Path; File = [string]$s.File; When = $when; Operation = $op; KindText = $kind
-        Entries = @($s.Applied).Count; Failed = $failed; Detail = [string]$s.Detail
-        Summary = "$(@($s.Applied).Count) applied/reverted entr(ies), $failed failed. $($s.Detail)"
+        Entries = @($s.Applied).Count; Failed = $failed; Detail = [string]$s.Detail; HasChange = $changed
+        Summary = $(if ($changed) { "$(@($s.Applied).Count) applied/reverted entr(ies), $failed failed. $($s.Detail)" } else { "Nothing changed, so there is nothing to revert. $($s.Detail)" })
     }
-    Add-IgwtGuiStatusField -Row $r -Name 'FailedCol' -Text $(if ($failed) { "$failed failed" } else { 'None' }) -Tone $(if ($failed) { 'Warn' } else { 'Pass' })
+    Add-IgwtGuiStatusField -Row $r -Name 'FailedCol' -Text $(if (-not $changed) { 'Nothing changed' } elseif ($failed) { "$failed failed" } else { 'None' }) -Tone $(if ($failed -or -not $changed) { 'Warn' } else { 'Pass' })
     [pscustomobject]$r
 }
 

@@ -141,6 +141,9 @@ Describe 'Defender settings editor (Defender cmdlets mocked)' {
             }
         }
         Mock -ModuleName iGWindowsTuner Get-IgwtManagementState { [pscustomobject]@{ Managed = $false; DomainJoined = $false; DomainName = ''; Authorities = @(); LocalGroupPolicy = $true } }
+        # These tests are about the rules, so every catalog setting is writable whatever Windows this runs on.
+        $script:AllNames = @($script:Catalog.settings | ForEach-Object { [string]$_.mp })
+        Mock -ModuleName iGWindowsTuner Get-IgwtMpWriteParameterInfo { [pscustomobject]@{ Available = $true; Names = $script:AllNames } }
         $script:GpoRoot = Join-Path $TestDrive ('GPO-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         $admx = Join-Path $TestDrive 'NoAdmx'; $null = New-Item -ItemType Directory -Path $admx -Force
         InModuleScope iGWindowsTuner -Parameters @{ R = $script:GpoRoot; A = $admx } { param($R, $A) $script:IgwtSettings.GpoRoot = $R; $script:IgwtSettings.GpoUsersRoot = "$R-Users"; $script:IgwtSettings.AdmxFolders = @($A); $script:IgwtAdmxCache = $null }
@@ -231,6 +234,256 @@ Describe 'Defender settings editor (Defender cmdlets mocked)' {
         $rev.Results[0].Result | Should -Be 'Failed'
         $rev.Results[0].Message | Should -Match 'not changed by the Defender settings editor'
         $script:Pref.DisableTamperProtection | Should -BeFalse
+    }
+
+    Context 'a setting this PC cannot write' {
+        BeforeEach {
+            $script:Without = @($script:AllNames | Where-Object { $_ -notin 'CloudBlockLevel', 'DisableQuicParsing' })
+            Mock -ModuleName iGWindowsTuner Get-IgwtMpWriteParameterInfo { [pscustomobject]@{ Available = $true; Names = $script:Without } }
+        }
+        It 'refuses it in the plan and in the change, in plain words, before anything is written' {
+            $plan = InModuleScope iGWindowsTuner { Get-IgwtDefenderSettingChangePlan -Setting @{ CloudBlockLevel = 'High' } }
+            $plan.Rows[0].Refused | Should -Be 'Windows on this PC does not support changing this setting yet.'
+            $before = @(InModuleScope iGWindowsTuner { Get-IgwtSnapshotList }).Count
+            { InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ CloudBlockLevel = 'High'; ScanAvgCPULoadFactor = 30 } } } | Should -Throw '*does not support changing this setting yet*'
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 0
+            @(InModuleScope iGWindowsTuner { Get-IgwtSnapshotList }).Count | Should -Be $before -Because 'a refused change writes no snapshot'
+        }
+        It 'still explains the rules first, and refuses at the write point too' {
+            (InModuleScope iGWindowsTuner { Get-IgwtDefenderSettingChangePlan -Setting @{ CloudBlockLevel = 'Default'; MAPSReporting = 0 } }).Rows[1].Refused | Should -Match 'refused'
+            { InModuleScope iGWindowsTuner { Invoke-IgwtMpPreferenceWrite -Definition (Get-IgwtDefenderSettingDefinition -Name 'CloudBlockLevel') -Value 2 -Confirm:$false } } | Should -Throw '*does not support*'
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 0
+        }
+        It 'lists it as not changeable here instead of offering it' {
+            $rows = @(InModuleScope iGWindowsTuner { Get-IgwtDefenderSettings })
+            $s = $rows | Where-Object Property -EQ 'CloudBlockLevel'
+            $s.Supported | Should -BeFalse; $s.Editable | Should -BeFalse
+            $s.Display | Should -Be 'Default' -Because 'the current value is still shown'
+            $s.Status | Should -Be 'Info' -Because 'a value nobody can change here is not listed under Needs attention'
+            $s.Change | Should -Match 'does not support changing'
+            @($s.Choices | Where-Object Allowed) | Should -BeNullOrEmpty
+            @($s.Choices | ForEach-Object Why | Select-Object -Unique) | Should -Match 'does not support changing'
+            ($rows | Where-Object Property -EQ 'ScanAvgCPULoadFactor').Supported | Should -BeTrue
+            $row = InModuleScope iGWindowsTuner -Parameters @{ S = $s } { param($S) New-IgwtGuiDefenderRow -Setting $S }
+            $row.EditText | Should -Be 'Not changeable here'; $row.EditableKey | Should -Be 'No'; $row.RecommendText | Should -Match 'does not support changing'
+        }
+        It 'skips an unsupported parser and names it, on both parser routes' {
+            (InModuleScope iGWindowsTuner { Get-IgwtDefenderSettingChangePlan -Setting @{ DisableQuicParsing = 'on' } }).Rows[0].Refused | Should -Match 'does not support'
+            $r = InModuleScope iGWindowsTuner { Set-IgwtDefenderParsersOn -Name 'DisableQuicParsing' }
+            @($r.TurnedOn) | Should -BeNullOrEmpty
+            @($r.Unsupported) | Should -Be @('QUIC parser')
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 0
+        }
+    }
+
+    Context 'without the Defender commands (another antivirus)' {
+        BeforeEach {
+            Mock -ModuleName iGWindowsTuner Get-IgwtMpWriteParameterInfo { [pscustomobject]@{ Available = $false; Names = @() } }
+            Mock -ModuleName iGWindowsTuner Get-MpPreference { throw "The term 'Get-MpPreference' is not recognized" }
+            Mock -ModuleName iGWindowsTuner Get-MpComputerStatus { throw "The term 'Get-MpComputerStatus' is not recognized" }
+        }
+        It 'answers without throwing and refuses the change' {
+            $plan = InModuleScope iGWindowsTuner { Get-IgwtDefenderSettingChangePlan -Setting @{ ScanAvgCPULoadFactor = 30 } }
+            $plan.Rows[0].Refused | Should -Match 'commands are not available'
+            InModuleScope iGWindowsTuner { Test-IgwtMpPreferenceWritable -Name 'ScanAvgCPULoadFactor' } | Should -BeFalse
+            InModuleScope iGWindowsTuner { Get-IgwtDefenderSettingChoices -Definition (Get-IgwtDefenderSettingDefinition -Name 'CloudBlockLevel') | Where-Object Allowed } | Should -BeNullOrEmpty
+            { InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ ScanAvgCPULoadFactor = 30 } } } | Should -Throw '*commands are not available*'
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 0
+        }
+    }
+
+    Context 'a write that changed nothing' {
+        It 'records a failed write as nothing changed: no recent change, nothing to undo, the file stays' {
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { throw "A parameter cannot be found that matches parameter name 'CloudBlockLevel'." }
+            $r = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ CloudBlockLevel = 'High' } }
+            $r.Results[0].Result | Should -Be 'Failed'; $r.Changes | Should -Be 0
+            $r.Snapshot | Should -Exist
+            $row = InModuleScope iGWindowsTuner -Parameters @{ P = $r.Snapshot } { param($P) Get-IgwtSnapshotList | Where-Object Path -EQ $P }
+            $row.HasChange | Should -BeFalse
+            @($row.Applied) | Should -BeNullOrEmpty
+        }
+        It 'records a value that did not read back as nothing changed, and a mixed change only by what applied' {
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { }
+            $r = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ CloudBlockLevel = 'High' } }
+            $r.Results[0].Result | Should -Be 'NotApplied'; $r.Changes | Should -Be 0
+            $doc = Get-Content $r.Snapshot -Raw | ConvertFrom-Json
+            $doc.entries[0].result | Should -Be 'NotApplied'
+            $doc.entries[0].message | Should -Match 'Tamper Protection or a policy'
+            (InModuleScope iGWindowsTuner -Parameters @{ P = $r.Snapshot } { param($P) Get-IgwtSnapshotList | Where-Object Path -EQ $P }).HasChange | Should -BeFalse
+            InModuleScope iGWindowsTuner -Parameters @{ R = $r } { param($R) Test-IgwtModuleOperationFailed -Result $R } | Should -BeTrue -Because 'the journal must not commit a change that did not read back'
+
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { if ($PesterBoundParameters.ContainsKey('CloudBlockLevel')) { throw 'no' } else { $script:Pref.ScanAvgCPULoadFactor = $PesterBoundParameters['ScanAvgCPULoadFactor'] } }
+            $m = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting ([ordered]@{ CloudBlockLevel = 'High'; ScanAvgCPULoadFactor = 30 }) }
+            $m.Changes | Should -Be 1
+            (InModuleScope iGWindowsTuner -Parameters @{ P = $m.Snapshot } { param($P) Get-IgwtSnapshotList | Where-Object Path -EQ $P }).HasChange | Should -BeTrue
+        }
+        It 'never writes the earlier value of a failed or unconfirmed entry back (it could overwrite a later change)' {
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { throw 'blocked' }
+            $f = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ ScanAvgCPULoadFactor = 30 } }
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { }
+            $n = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ ScanScheduleDay = 'Friday' } }
+            $script:Pref.ScanAvgCPULoadFactor = [byte]40
+            foreach ($p in $f.Snapshot, $n.Snapshot) {
+                $rev = InModuleScope iGWindowsTuner -Parameters @{ P = $p } { param($P) Invoke-IgwtRevert -SnapshotPath $P }
+                @($rev.Results) | Should -BeNullOrEmpty
+                $rev.Snapshot | Should -BeNullOrEmpty -Because 'nothing to restore writes no new snapshot'
+            }
+            [int]$script:Pref.ScanAvgCPULoadFactor | Should -Be 40
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 2 -Exactly -Because 'the two attempts wrote; the reverts wrote nothing'
+        }
+        It 'a revert of an entry whose value is already right records no change' {
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { }
+            $s = InModuleScope iGWindowsTuner { $x = New-IgwtSnapshot -Operation 'Defender' -Detail 'ScanAvgCPULoadFactor=30'; Save-IgwtSnapshot -Snapshot $x; Add-IgwtSnapshotEntry -Snapshot $x -TweakId 'defender:ScanAvgCPULoadFactor' -Actions @([ordered]@{ index = 0; type = 'defenderSetting'; fingerprint = 'defenderSetting|ScanAvgCPULoadFactor'; data = [ordered]@{ mp = 'ScanAvgCPULoadFactor'; value = 50 } }) -Result 'Applied' -Message '50 -> 30'; $x.Path }
+            $rev = InModuleScope iGWindowsTuner -Parameters @{ P = $s } { param($P) Invoke-IgwtRevert -SnapshotPath $P }
+            @($rev.Results | ForEach-Object Result) | Should -Be @('Reverted')
+            (InModuleScope iGWindowsTuner -Parameters @{ P = $rev.Snapshot } { param($P) Get-IgwtSnapshotList | Where-Object Path -EQ $P }).HasChange | Should -BeFalse
+            Should -Invoke -ModuleName iGWindowsTuner Set-MpPreference -Times 0
+        }
+        It 'recognizes a snapshot written by 3.6.5 for a failed write, without changing or removing it' {
+            $dir = InModuleScope iGWindowsTuner { Get-IgwtDataPath -Kind Backups }
+            $null = New-Item -ItemType Directory -Path $dir -Force
+            $file = Join-Path $dir 'snapshot-20261105-233501-989-Defender-old365.json'
+            $json = @'
+{ "schema": 2, "catalogSchema": 3, "tool": "iG Windows Tuner", "version": "3.6.5", "hardwareTags": [], "id": "00000000-0000-0000-0000-000000000365", "created": "2026-11-05T23:35:01.9894831Z",
+  "operation": "Defender", "detail": "CloudBlockLevel=High", "computer": "TEST", "build": "26300.1", "userSid": "S-1-5-18", "userHiveSid": "S-1-5-18",
+  "entries": [ { "tweakId": "defender:CloudBlockLevel", "result": "Failed", "message": "A parameter cannot be found that matches parameter name 'CloudBlockLevel'.", "time": "2026-11-05T23:35:02.0000000Z",
+    "actions": [ { "index": 0, "type": "defenderSetting", "fingerprint": "defenderSetting|CloudBlockLevel", "data": { "mp": "CloudBlockLevel", "value": 0 } } ] } ] }
+'@
+            [IO.File]::WriteAllText($file, $json)
+            try {
+                $row = InModuleScope iGWindowsTuner -Parameters @{ F = $file } { param($F) Get-IgwtSnapshotList | Where-Object Path -EQ $F }
+                $row.HasChange | Should -BeFalse
+                [IO.File]::ReadAllText($file) | Should -BeExactly $json
+            } finally { Remove-Item -LiteralPath $file -Force }
+        }
+    }
+}
+
+Describe 'What counts as a change in a snapshot' {
+    It 'decides per entry result, and keeps the restore of writers that can stop halfway' -ForEach @(
+        @{ Result = 'Applied'; Type = 'defenderSetting'; Expected = $true }
+        @{ Result = 'Pending'; Type = 'registry'; Expected = $true }
+        @{ Result = 'Reverted'; Type = 'registry'; Expected = $true }
+        @{ Result = 'Failed'; Type = 'defenderSetting'; Expected = $false }
+        @{ Result = 'NotApplied'; Type = 'defenderSetting'; Expected = $false }
+        @{ Result = 'RolledBack'; Type = 'registry'; Expected = $false }
+        @{ Result = 'Failed'; Type = 'firewallManager'; Expected = $true }
+        @{ Result = 'Failed'; Type = 'powerSettingValue'; Expected = $true }
+        @{ Result = 'SomethingNew'; Type = 'registry'; Expected = $true }
+    ) {
+        InModuleScope iGWindowsTuner -Parameters @{ R = $Result; T = $Type; E = $Expected } {
+            param($R, $T, $E)
+            Test-IgwtSnapshotEntryChanged -Entry ([pscustomobject]@{ result = $R; actions = @([pscustomobject]@{ type = $T }) }) | Should -Be $E
+        }
+    }
+    It 'reads a list row, an empty snapshot, a failed entry without actions and an older row shape' {
+        InModuleScope iGWindowsTuner {
+            Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ Entries = @() }) | Should -BeFalse
+            Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ Entries = @([pscustomobject]@{ result = 'Failed'; actions = @() }) }) | Should -BeFalse
+            Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ HasChange = $false; Entries = @([pscustomobject]@{ result = 'Applied' }) }) | Should -BeFalse
+            Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ Entries = @([pscustomobject]@{ result = 'Failed'; actions = @([pscustomobject]@{ type = 'defenderSetting' }) }, [pscustomobject]@{ result = 'Applied'; actions = @() }) }) | Should -BeTrue
+            Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ Path = 'p'; Operation = 'Apply' }) | Should -BeTrue
+        }
+    }
+    It 'shows a snapshot in which nothing changed as such in Backups & Logs' {
+        InModuleScope iGWindowsTuner {
+            $r = New-IgwtGuiSnapshotRow -Snapshot ([pscustomobject]@{ Path = 'p'; File = 'f'; Created = '2026-11-05T23:35:01Z'; Operation = 'Defender'; Detail = 'X=Block'; Applied = @(); Failed = 1; HasChange = $false })
+            $r.HasChange | Should -BeFalse; $r.FailedCol | Should -Be 'Nothing changed'; $r.Summary | Should -Match 'nothing to revert'
+        }
+    }
+    It 'leaves it out of the Dashboard recent changes and the Backups summary, and offers no Undo for it' {
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF requires an STA thread.'; return }
+        Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+        InModuleScope iGWindowsTuner {
+            $snap = { param($n, $changed, $failed) [pscustomobject]@{ Path = "C:\b\$n.json"; File = "$n.json"; Created = '2026-11-05T23:35:01Z'; Operation = 'Defender'; Detail = "$n=Block"; Applied = @(); Failed = $failed; HasChange = $changed } }
+            $list = @((& $snap 'Failed1' $false 1), (& $snap 'Failed2' $false 1), (& $snap 'Good1' $true 0), (& $snap 'Mixed' $true 1))
+            $script:Gui = @{ IsAdmin = $true; Persona = $null; Grids = @{}; C = @{
+                    DashRecentList = (New-Object System.Windows.Controls.ItemsControl); DashRecentEmpty = (New-Object System.Windows.Controls.TextBlock)
+                    DashShortcuts = (New-Object System.Windows.Controls.WrapPanel); DashShortcutText = (New-Object System.Windows.Controls.TextBlock)
+                    BackupSummaryText = (New-Object System.Windows.Controls.TextBlock) } }
+            try {
+                Update-IgwtGuiDashRecent -Snapshots $list
+                $rows = @($script:Gui.C.DashRecentList.ItemsSource)
+                @($rows | ForEach-Object Title) | Should -Be @('Good1=Block', 'Mixed=Block (1 did not apply)')
+                @($rows | ForEach-Object Path) | Should -Not -Contain 'C:\b\Failed1.json'
+                Update-IgwtGuiDashRecent -Snapshots @($list[0], $list[1])
+                @($script:Gui.C.DashRecentList.ItemsSource).Count | Should -Be 0
+                $script:Gui.C.DashRecentEmpty.Visibility | Should -Be 'Visible'
+                Mock Set-IgwtGuiGridRows { }
+                Update-IgwtGuiSnapshots -Snapshots $list
+                Should -Invoke Set-IgwtGuiGridRows -Times 1 -Exactly -ParameterFilter { @($Rows).Count -eq 4 }
+                $script:Gui.C.BackupSummaryText.Text | Should -Match 'Good1=Block'
+                $script:Gui.C.BackupSummaryText.Text | Should -Match '2 attempts changed nothing'
+                Update-IgwtGuiSnapshots -Snapshots @($list[0])
+                $script:Gui.C.BackupSummaryText.Text | Should -Match '^No changes yet\..*1 attempt changed nothing'
+            } finally { $script:Gui = $null }
+        }
+    }
+    It 'leaves it out of the Firewall recent changes' {
+        (Get-Content (Join-Path $script:IgwtProjectRoot 'src\Manage\FirewallAudit.ps1') -Raw) | Should -Match "Operation -like 'Firewall\*' -and \(Test-IgwtSnapshotHasChange"
+    }
+}
+
+# Runs on the real PC and only reads: Get-Command, never Set-MpPreference. It is the gate for the bug where
+# the app called a Set-MpPreference that had no parameter for a catalog setting.
+Describe 'Set-MpPreference contract on this PC (read-only)' {
+    BeforeAll {
+        $script:RealSet = Get-Command -Name 'Set-MpPreference' -ErrorAction SilentlyContinue | Select-Object -First 1
+        $script:Writable = @($script:Catalog.settings | Where-Object { $_.edit -in 'set', 'parser' })
+    }
+    It 'maps every setting the editor writes to a real parameter, or reports it as unsupported without error' {
+        $script:Writable.Count | Should -BeGreaterThan 50
+        $unsupported = New-Object System.Collections.Generic.List[string]
+        foreach ($s in $script:Writable) {
+            $answer = InModuleScope iGWindowsTuner -Parameters @{ S = $s } { param($S) [pscustomobject]@{ Ok = (Test-IgwtMpPreferenceWritable -Name ([string]$S.mp)); Block = (Get-IgwtDefenderSettingWriteBlock -Definition $S) } }
+            $real = ($null -ne $script:RealSet -and $script:RealSet.Parameters.ContainsKey([string]$s.mp))
+            $answer.Ok | Should -Be $real -Because "$($s.mp) must follow what the command really has"
+            if ($real) { $answer.Block | Should -BeNullOrEmpty -Because $s.mp } else { $unsupported.Add([string]$s.mp); [string]$answer.Block | Should -Not -BeNullOrEmpty -Because $s.mp }
+        }
+        if ($unsupported.Count) { Write-Information "Not writable on this PC: $($unsupported.ToArray() -join ', ')" -InformationAction Continue }
+    }
+    It 'offers only enum values the real parameter accepts' {
+        if (-not $script:RealSet) { Set-ItResult -Skipped -Because 'this PC has no Set-MpPreference.'; return }
+        foreach ($s in @($script:Writable | Where-Object { $_.type -eq 'enum' -and $script:RealSet.Parameters.ContainsKey([string]$_.mp) })) {
+            $t = $script:RealSet.Parameters[[string]$s.mp].ParameterType
+            if ($t.IsArray) { $t = $t.GetElementType() }
+            $u = [Nullable]::GetUnderlyingType($t); if ($u) { $t = $u }
+            if (-not $t.IsEnum) { continue }
+            $vals = InModuleScope iGWindowsTuner -Parameters @{ S = $s } { param($S) @(Get-IgwtDefenderEnumValues -Definition $S) }
+            foreach ($v in @($vals | Where-Object { -not $_.refused -and -not $_.noSet })) {
+                [enum]::IsDefined($t, [System.Convert]::ChangeType($v.v, [enum]::GetUnderlyingType($t))) | Should -BeTrue -Because "$($s.mp) offers $($v.v) ($($v.label))"
+            }
+        }
+    }
+    It 'gives the GUI worker the same Set-MpPreference as a normal session' {
+        $mods = @(InModuleScope iGWindowsTuner { Get-IgwtGuiWorkerInboxModule })
+        @($mods | Where-Object { $_ -in 'ConfigDefender', 'Defender' }).Count | Should -BeLessOrEqual 1 -Because 'the Defender module loaded last wins, and Defender is a frozen copy'
+        if (-not $script:RealSet) { Set-ItResult -Skipped -Because 'this PC has no Set-MpPreference.'; return }
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $iss.ImportPSModule([string[]]@($mods | Where-Object { $_ -in 'ConfigDefender', 'Defender' }))
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+        $ps = [powershell]::Create()
+        try {
+            $rs.Open(); $ps.Runspace = $rs
+            $null = $ps.AddScript('@((Get-Command -Name Set-MpPreference).Parameters.Keys)')
+            $names = @($ps.Invoke() | ForEach-Object { [string]$_ })
+        } finally { $ps.Dispose(); $rs.Dispose() }
+        foreach ($s in $script:Writable) {
+            if ($script:RealSet.Parameters.ContainsKey([string]$s.mp)) { $names | Should -Contain ([string]$s.mp) -Because 'the app must be able to write what this PC supports' }
+        }
+    }
+    It 'has the catalog-independent helper read the real command and cache nothing wrong for a missing one' {
+        $info = InModuleScope iGWindowsTuner { Get-IgwtMpWriteParameterInfo }
+        $info.Available | Should -Be ($null -ne $script:RealSet)
+        InModuleScope iGWindowsTuner { Test-IgwtMpPreferenceWritable -Name 'NoSuchPreferenceAtAll' } | Should -BeFalse
+        InModuleScope iGWindowsTuner {
+            Mock Get-Command { $null } -ParameterFilter { $Name -eq 'Set-MpPreference' }
+            $none = Get-IgwtMpWriteParameterInfo
+            $none.Available | Should -BeFalse; @($none.Names).Count | Should -Be 0
+            Get-IgwtDefenderSettingWriteBlock -Definition (Get-IgwtDefenderSettingDefinition -Name 'CloudBlockLevel') | Should -Match 'commands are not available'
+            Mock Get-Command { throw 'broken module' } -ParameterFilter { $Name -eq 'Set-MpPreference' }
+            (Get-IgwtMpWriteParameterInfo).Available | Should -BeFalse
+        }
     }
 }
 

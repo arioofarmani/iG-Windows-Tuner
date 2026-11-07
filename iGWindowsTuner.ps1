@@ -1598,6 +1598,7 @@ try {
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
             try { $r = Set-IgwtDefenderParsersOn -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
             Write-IgwtCliLine "Turned on: $(@($r.TurnedOn) -join ', ')." ([ConsoleColor]::Green)
+            if (@($r.Unsupported).Count) { Write-IgwtCliLine "Windows on this PC does not support changing: $(@($r.Unsupported) -join ', ')." ([ConsoleColor]::Yellow) }
             Complete-IgwtCli 0
         }
         'DefenderSettings' {
@@ -1608,7 +1609,7 @@ try {
                 Write-IgwtCliLine ''; Write-IgwtCliLine $g.Name ([ConsoleColor]::White)
                 foreach ($r in $g.Group) {
                     $color = switch ($r.Status) { 'On' { [ConsoleColor]::Green } 'Off' { [ConsoleColor]::Red } 'Below' { [ConsoleColor]::Yellow } 'Optional' { [ConsoleColor]::Cyan } default { [ConsoleColor]::Gray } }
-                    $how = switch ($r.Edit) { 'set' { $(if ($r.Editable) { 'editable' } else { $r.Source }) } 'parser' { 'on only' } 'policy' { 'policy' } default { 'shown only' } }
+                    $how = switch ($r.Edit) { 'set' { $(if ($r.Editable) { 'editable' } elseif (-not $r.Supported) { 'not here' } else { $r.Source }) } 'parser' { $(if ($r.Supported) { 'on only' } else { 'not here' }) } 'policy' { 'policy' } default { 'shown only' } }
                     Write-IgwtCliLine ("  {0,-8} {1,-46} {2,-30} {3,-11} {4}" -f $r.Status, $r.Name, $r.Display, $how, $r.Property) $color
                 }
             }

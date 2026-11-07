@@ -117,7 +117,7 @@ function Get-IgwtGuiData {
         Changed    = $changed
         Health     = $health
         AntiCheat  = $ac
-        Snapshots  = @(Get-IgwtSnapshotList | Select-Object Path, File, Created, Operation, Detail, Applied, @{ n = 'Count'; e = { @($_.Entries).Count } }, @{ n = 'Failed'; e = { @($_.Entries | Where-Object { $_.result -in 'Failed', 'RolledBack' }).Count } })
+        Snapshots  = @(Get-IgwtSnapshotList | Select-Object Path, File, Created, Operation, Detail, Applied, HasChange, @{ n = 'Count'; e = { @($_.Entries).Count } }, @{ n = 'Failed'; e = { @($_.Entries | Where-Object { $_.result -in 'Failed', 'RolledBack', 'NotApplied' }).Count } })
         Startup    = $startup
         Games      = @($ctx.Games)
         # Confidence badges (3.6, DECISIONS T8): sources, this PC's journal and the tested builds.
@@ -899,16 +899,19 @@ function New-IgwtGuiDefenderRow {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Setting)
     $statusBrush = switch ([string]$Setting.Status) { 'On' { $script:IgwtColor.Pass } 'Off' { $script:IgwtColor.Fail } 'Below' { $script:IgwtColor.Warn } 'Optional' { $script:IgwtColor.Accent } default { $script:IgwtColor.Text } }
+    $unsupported = ($Setting.PSObject.Properties['Supported'] -and -not $Setting.Supported)
     $editText = switch ([string]$Setting.Edit) {
         'set' { $(if ($Setting.Editable) { 'Changeable' } else { "Set by $($Setting.Source)" }) }
         'parser' { $(if ($Setting.Editable) { 'Turn on only' } else { "Set by $($Setting.Source)" }) }
         'policy' { 'Group Policy only' }
         default { 'Shown only' }
     }
+    if ($unsupported) { $editText = 'Not changeable here' }
     $editBrush = $(if ($Setting.Editable) { $script:IgwtColor.Accent } elseif ([string]$Setting.Edit -in 'set', 'parser') { $script:IgwtColor.Warn } else { $script:IgwtColor.Muted })
     $rec = ''
     if ($Setting.ProtectiveDisplay) { $rec = $(if ([string]$Setting.Status -eq 'On') { 'Meets recommendation' } else { "Recommended: $($Setting.ProtectiveDisplay)" }) }
     elseif ([string]$Setting.Status -eq 'Info') { $rec = 'Your choice' }
+    if ($unsupported) { $rec = [string]$Setting.Change }
     $r = [ordered]@{
         Id               = [string]$Setting.Property
         Name             = [string]$Setting.Name

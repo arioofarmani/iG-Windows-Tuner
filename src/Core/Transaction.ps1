@@ -192,14 +192,14 @@ function Get-IgwtModuleOperationRef {
 }
 
 function Test-IgwtModuleOperationFailed {
-    <# .SYNOPSIS True when a module writer's result reports a failure or a read-back mismatch (Verified false, a Failed result, Stopped false). Pure. #>
+    <# .SYNOPSIS True when a module writer's result reports a failure or a read-back mismatch (Verified false, a Failed or NotApplied result, Stopped false). Pure. #>
     [CmdletBinding()]
     [OutputType([bool])]
     param($Result)
     foreach ($r in @($Result)) {
         if ($null -eq $r -or $r -is [string]) { continue }
         if ($r.PSObject.Properties['Verified'] -and $r.Verified -eq $false) { return $true }
-        if ($r.PSObject.Properties['Results'] -and @($r.Results | Where-Object { $_ -and $_.PSObject.Properties['Result'] -and [string]$_.Result -eq 'Failed' }).Count) { return $true }
+        if ($r.PSObject.Properties['Results'] -and @($r.Results | Where-Object { $_ -and $_.PSObject.Properties['Result'] -and [string]$_.Result -in 'Failed', 'NotApplied' }).Count) { return $true }
     }
     return $false
 }

@@ -8,6 +8,8 @@ $script:IgwtSupportedSnapshotSchemas = @(1, 2)   # schema 1 (iG Windows Tuner 1.
 # Snapshots record the tool name; pre-release preview builds wrote 'AegisTune'.
 $script:IgwtSnapshotToolNames = @('iG Windows Tuner', 'AegisTune')
 $script:IgwtApplyOperations =@('Apply', 'Preset', 'ResetDefault', 'Startup')
+# Action types whose write is one call of one setting: when it fails, nothing changed.
+$script:IgwtSingleWriteActions = @('defenderSetting')
 
 function Get-IgwtActionFingerprint {
     <# .SYNOPSIS Identifies an action so a snapshot is only restored onto the same catalog action. #>
@@ -88,6 +90,40 @@ function Add-IgwtSnapshotEntry {
     if ($PSCmdlet.ShouldProcess($Snapshot.Path, "Record $TweakId ($Result)")) { Save-IgwtSnapshot -Snapshot $Snapshot }
 }
 
+function Test-IgwtSnapshotEntryChanged {
+    <#
+    .SYNOPSIS
+        Whether a snapshot entry can stand for a change on this PC. Applied, Pending and Reverted can
+        (an entry is written before its write, so a crash stays revertable); NotApplied, RolledBack,
+        Kept and Skipped cannot. Failed cannot when the entry's actions are one single write
+        ($script:IgwtSingleWriteActions) or there are none; other failed writers can stop halfway, so
+        their restore stays available. An unknown result counts as a change. Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Entry)
+    $result = [string]$Entry.result
+    if ($result -in 'NotApplied', 'RolledBack', 'Kept', 'Skipped') { return $false }
+    if ($result -ne 'Failed') { return $true }
+    return (@(@($Entry.actions) | Where-Object { $_ -and $script:IgwtSingleWriteActions -notcontains [string]$_.type }).Count -gt 0)
+}
+
+function Test-IgwtSnapshotHasChange {
+    <#
+    .SYNOPSIS
+        False for a snapshot in which nothing changed (no entries, or only entries such as a failed
+        Defender write): the file stays, but it is no recent change and has nothing to undo. Takes a
+        Get-IgwtSnapshotList row; a row that holds neither HasChange nor Entries counts as a change. Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Snapshot)
+    if ($Snapshot.PSObject.Properties['HasChange'] -and $null -ne $Snapshot.HasChange) { return [bool]$Snapshot.HasChange }
+    if (-not $Snapshot.PSObject.Properties['Entries']) { return $true }
+    foreach ($e in @($Snapshot.Entries | Where-Object { $_ })) { if (Test-IgwtSnapshotEntryChanged -Entry $e) { return $true } }
+    return $false
+}
+
 function Get-IgwtSnapshotList {
     <# .SYNOPSIS Snapshot files, newest first, with their operation and entries. #>
     [CmdletBinding()]
@@ -103,14 +139,16 @@ function Get-IgwtSnapshotList {
         try {
             $doc = Read-IgwtJsonFile -Path $f.FullName
             if ([int]$doc.schema -lt $script:IgwtSnapshotSchema) { $doc = ConvertTo-IgwtV2Snapshot -Document $doc -Catalog $catalog -IdMap $idMap }
+            $entries = @($doc.entries | Where-Object { $_ })
             [pscustomobject]@{
                 Path      = $f.FullName
                 File      = $f.Name
                 Created   = $doc.created
                 Operation = [string]$doc.operation
                 Detail    = [string]$doc.detail
-                Entries   = @($doc.entries | Where-Object { $_ })
+                Entries   = $entries
                 Applied   = @($doc.entries | Where-Object { $_ -and $_.result -eq 'Applied' } | ForEach-Object { $_.tweakId })
+                HasChange = (Test-IgwtSnapshotHasChange -Snapshot ([pscustomobject]@{ Entries = $entries }))
                 Document  = $doc
             }
         } catch {

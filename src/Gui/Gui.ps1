@@ -328,6 +328,22 @@ function Initialize-IgwtGuiDiagnostics {
 
 #region Background worker
 
+function Get-IgwtGuiWorkerInboxModule {
+    <#
+    .SYNOPSIS
+        The Windows modules the worker runspaces load, those present on this PC. Only one Defender
+        module: Defender and ConfigDefender export the same commands, the module loaded last wins,
+        and Defender is a frozen copy that Defender platform updates do not refresh (it
+        lacks the parameters of newer preferences that ConfigDefender has).
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+    $present = @('NetSecurity', 'NetAdapter', 'NetTCPIP', 'DnsClient', 'NetQos', 'NetConnection', 'ScheduledTasks', 'ConfigDefender', 'Defender') |
+        Where-Object { Test-Path -LiteralPath (Join-Path $PSHOME "Modules\$_") }
+    return @($present | Where-Object { -not ($_ -eq 'Defender' -and $present -contains 'ConfigDefender') })
+}
+
 function Initialize-IgwtGuiWorker {
     <#
     .SYNOPSIS
@@ -342,8 +358,7 @@ function Initialize-IgwtGuiWorker {
     # The Windows CIM modules load with the pool, not on first use: when parallel jobs auto-loaded
     # NetSecurity at the same moment, its type data was missing and firewall rules came back as raw
     # CIM objects (numbers instead of names, no rule name, every program "Any").
-    $inbox = @('NetSecurity', 'NetAdapter', 'NetTCPIP', 'DnsClient', 'NetQos', 'NetConnection', 'ScheduledTasks', 'ConfigDefender', 'Defender') |
-        Where-Object { Test-Path -LiteralPath (Join-Path $PSHOME "Modules\$_") }
+    $inbox = @(Get-IgwtGuiWorkerInboxModule)
     if (@($inbox).Count) { $iss.ImportPSModule([string[]]@($inbox)) }
     $iss.ImportPSModule(@((Join-Path $script:IgwtModuleRoot 'iGWindowsTuner.psd1')))
     # Log and progress entries reach the UI thread through this queue (set once per runspace here;
@@ -719,7 +734,7 @@ function Update-IgwtGuiDashboard {
     } else { Set-IgwtGuiTile -Name 'Health' -Value '-' -Note 'Press Refresh to run the health checks' -Tone 'Info' }
 
     # Your changes.
-    $snaps = @($Data.Snapshots | Where-Object { $_ }).Count
+    $snaps = @($Data.Snapshots | Where-Object { $_ -and (Test-IgwtSnapshotHasChange -Snapshot $_) }).Count
     if ($Data.Pending) {
         $what = $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart Windows' } else { 'Sign out and back in' })
         Set-IgwtGuiTile -Name 'Changes' -Value $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart needed' } else { 'Sign-out needed' }) -Note "To finish $(@($Data.Pending.Tweaks).Count) change(s)" -Tone 'Warn'
@@ -754,15 +769,15 @@ $script:IgwtGuiDashShortcuts = @{
 }
 
 function Update-IgwtGuiDashRecent {
-    <# .SYNOPSIS The dashboard's last three changes with Undo, and the persona shortcuts. #>
+    <# .SYNOPSIS The dashboard's last three changes with Undo (a snapshot in which nothing changed is not one), and the persona shortcuts. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only; Undo asks first and runs through the engine.')]
     [CmdletBinding()]
     param([object[]]$Snapshots = @())
     $c = $script:Gui.C
     $canUndo = (-not (Test-IgwtReadOnly)) -and [bool]$script:Gui.IsAdmin
-    $rows = @(@($Snapshots | Where-Object { $_ } | Select-Object -First 3) | ForEach-Object {
+    $rows = @(@($Snapshots | Where-Object { $_ -and (Test-IgwtSnapshotHasChange -Snapshot $_) } | Select-Object -First 3) | ForEach-Object {
             $r = New-IgwtGuiSnapshotRow -Snapshot $_
-            [pscustomobject]@{ Title = $(if ([string]$r.Detail) { [string]$r.Detail } else { [string]$r.Operation }); When = "$($r.When)  |  $($r.KindText)"; Tip = [string]$r.Path; Path = [string]$_.Path; CanUndo = $canUndo
+            [pscustomobject]@{ Title = "$(if ([string]$r.Detail) { [string]$r.Detail } else { [string]$r.Operation })$(if ([int]$r.Failed) { " ($($r.Failed) did not apply)" })"; When = "$($r.When)  |  $($r.KindText)"; Tip = [string]$r.Path; Path = [string]$_.Path; CanUndo = $canUndo
                 UndoTip = $(if ($canUndo) { 'Restore the values from before this change (asks first; the undo gets its own snapshot).' } elseif (Test-IgwtReadOnly) { 'Read-only mode: nothing can be undone here.' } else { 'Undo needs administrator rights.' }) }
         })
     $c.DashRecentList.ItemsSource = $rows
@@ -787,11 +802,14 @@ function Update-IgwtGuiSnapshots {
     Set-IgwtGuiGridRows -Name 'SnapshotList' -Rows @($list | ForEach-Object { New-IgwtGuiSnapshotRow -Snapshot $_ })
     # Status line (3.3 C1): how many snapshots, the last change and any failures.
     $c = $script:Gui.C
-    if ($list.Count) {
-        $last = New-IgwtGuiSnapshotRow -Snapshot $list[0]
-        $failed = @($list | Where-Object { $_.PSObject.Properties['Failed'] -and [int]$_.Failed -gt 0 }).Count
-        $c.BackupSummaryText.Text = "$($list.Count) snapshot$(if ($list.Count -ne 1) { 's' }); last change $($last.When): $(if ($last.Detail) { $last.Detail } else { $last.Operation }).$(if ($failed) { " $failed with failures." } else { '' }) Every one can be reverted."
-    } else { $c.BackupSummaryText.Text = 'No changes yet. Every change you apply writes a snapshot here first.' }
+    $changes = @($list | Where-Object { Test-IgwtSnapshotHasChange -Snapshot $_ })
+    $attempts = $list.Count - $changes.Count
+    $attemptText = $(if ($attempts) { " $attempts attempt$(if ($attempts -ne 1) { 's' }) changed nothing, so there is nothing to revert there." } else { '' })
+    if ($changes.Count) {
+        $last = New-IgwtGuiSnapshotRow -Snapshot $changes[0]
+        $failed = @($changes | Where-Object { $_.PSObject.Properties['Failed'] -and [int]$_.Failed -gt 0 }).Count
+        $c.BackupSummaryText.Text = "$($list.Count) snapshot$(if ($list.Count -ne 1) { 's' }); last change $($last.When): $(if ($last.Detail) { $last.Detail } else { $last.Operation }).$(if ($failed) { " $failed with failures." } else { '' }) Every change can be reverted.$attemptText"
+    } else { $c.BackupSummaryText.Text = "No changes yet. Every change you apply writes a snapshot here first.$attemptText" }
 }
 
 function Update-IgwtGuiTweakList {
@@ -2629,7 +2647,7 @@ function Invoke-IgwtGuiDefenderChange {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
         if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The setting was not changed: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and $res.Changes -gt 0) {
+        elseif ($res -and @($res.Results).Count) {
             $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
             $tail = $(if ($res.Snapshot) { "`n`nSnapshot: $($res.Snapshot)" } else { '' })
             $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + $tail) -Icon $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 'Warning' } else { 'Information' })
@@ -3454,7 +3472,9 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.JournalRevertAllButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope All }
     Register-IgwtGuiHandler -Control $c.BackupRevertSelectedButton -Event 'Click' -Handler {
             $sel = (Get-IgwtGuiGridItem -Name SnapshotList)
-            if ($sel) { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path } else { Set-IgwtGuiStatus 'Select a snapshot first.' }
+            if (-not $sel) { Set-IgwtGuiStatus 'Select a snapshot first.' }
+            elseif ($sel.PSObject.Properties['HasChange'] -and -not $sel.HasChange) { Set-IgwtGuiStatus 'That attempt changed nothing, so there is nothing to revert.' }
+            else { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path }
         }
     Register-IgwtGuiHandler -Control $c.RevertSnapshotButton -Event 'Click' -Handler {
             $dlg = New-Object Microsoft.Win32.OpenFileDialog
