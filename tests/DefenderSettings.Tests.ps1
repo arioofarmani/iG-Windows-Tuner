@@ -302,6 +302,16 @@ Describe 'Defender settings editor (Defender cmdlets mocked)' {
             $row.HasChange | Should -BeFalse
             @($row.Applied) | Should -BeNullOrEmpty
         }
+        It 'keeps a write whose read-back throws as applied, with its undo' {
+            $script:Wrote = $false
+            Mock -ModuleName iGWindowsTuner Set-MpPreference { $script:Wrote = $true }
+            Mock -ModuleName iGWindowsTuner Get-MpPreference { if ($script:Wrote) { throw 'The Defender service is busy.' } else { $script:Pref } }
+            $r = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ CloudBlockLevel = 'High' } }
+            $r.Results[0].Result | Should -Be 'Applied'; $r.Changes | Should -Be 1
+            $r.Results[0].Message | Should -Match 'could not be read back'
+            (Get-Content $r.Snapshot -Raw | ConvertFrom-Json).entries[0].result | Should -Be 'Applied'
+            (InModuleScope iGWindowsTuner -Parameters @{ P = $r.Snapshot } { param($P) Get-IgwtSnapshotList | Where-Object Path -EQ $P }).HasChange | Should -BeTrue
+        }
         It 'records a value that did not read back as nothing changed, and a mixed change only by what applied' {
             Mock -ModuleName iGWindowsTuner Set-MpPreference { }
             $r = InModuleScope iGWindowsTuner { Invoke-IgwtDefenderSettingChange -Setting @{ CloudBlockLevel = 'High' } }

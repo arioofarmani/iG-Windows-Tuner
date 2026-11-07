@@ -324,8 +324,17 @@ function Invoke-IgwtDefenderSettingChange {
             $actions = @([ordered]@{ index = 0; type = 'defenderSetting'; fingerprint = "defenderSetting|$($row.Property)"; data = [ordered]@{ mp = $row.Property; value = $row.CurrentValue } })
             $change = "$($row.Current) -> $($row.New)"
             Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Applied' -Message $change
+            # Only the write itself decides 'Failed'. Once Set-MpPreference returned, the value may
+            # have changed, so a read-back error keeps the entry 'Applied' (with its undo).
             try {
                 Invoke-IgwtMpPreferenceWrite -Definition $def -Value $row.NewValue -Confirm:$false
+            } catch {
+                Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Failed' -Message $_.Exception.Message
+                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Failed'; Message = $_.Exception.Message })
+                Write-IgwtLog -Level Error -Message "Defender $($row.Property): $($_.Exception.Message)"
+                continue
+            }
+            try {
                 $after = ConvertFrom-IgwtMpRawValue -Definition $def -Raw (Get-IgwtMpPreferenceSafe).($row.Property)
                 if (Test-IgwtDefenderValueEqual -Definition $def -A $after -B $row.NewValue) {
                     $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Applied'; Message = '' })
@@ -337,9 +346,9 @@ function Invoke-IgwtDefenderSettingChange {
                     Write-IgwtLog -Level Warn -Message "Defender $($row.Property): $msg"
                 }
             } catch {
-                Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Failed' -Message $_.Exception.Message
-                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Failed'; Message = $_.Exception.Message })
-                Write-IgwtLog -Level Error -Message "Defender $($row.Property): $($_.Exception.Message)"
+                $msg = "Written, but the new value could not be read back: $($_.Exception.Message)"
+                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Applied'; Message = $msg })
+                Write-IgwtLog -Level Warn -Message "Defender $($row.Property): $change. $msg Snapshot: $($snap.Path)"
             }
         }
     }
