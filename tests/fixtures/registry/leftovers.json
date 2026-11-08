@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "description": "Synthetic registry cleaner scan fixture (DECISIONS RG26): invented vendors Contoso and Fabrikam, a fake SID, no data from a real PC. keys are created in TestRegistry ({sid} is replaced by sid; HKLM\\SOFTWARE\\WOW6432Node is the 32-bit view in TestMode). existingPaths are the paths the stubbed probe reports as existing; every other path is missing. expected lists what the scan must return (confidence, or 'none' when the entry must not be shown).",
+  "sid": "S-1-5-21-1-2-3-1001",
+  "keys": [
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoGone_is1", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Contoso Gone" },
+      { "name": "Publisher", "type": "String", "data": "Contoso Ltd" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\Program Files\\ContosoGone\\unins000.exe\"" },
+      { "name": "InstallLocation", "type": "String", "data": "C:\\Program Files\\ContosoGone\\" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoCached", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Contoso Cached" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\ProgramData\\ContosoCache\\setup.exe\" /uninstall" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoIcon", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Contoso Icon" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\ProgramData\\ContosoIconCache\\uninst.exe\"" },
+      { "name": "DisplayIcon", "type": "String", "data": "C:\\Program Files\\ContosoIcon\\icon.exe,0" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\FabrikamTool", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Fabrikam Tool 2" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\Program Files\\Fabrikam\\Tool2\\unins.exe\"" },
+      { "name": "InstallLocation", "type": "String", "data": "C:\\Program Files\\Fabrikam\\Tool2" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoInstalled", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Contoso App" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\Program Files\\Contoso\\App\\unins.exe\"" },
+      { "name": "InstallLocation", "type": "String", "data": "C:\\Program Files\\Contoso\\App" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoHidden", "values": [
+      { "name": "SystemComponent", "type": "DWord", "data": 1 },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\Program Files\\ContosoHidden\\unins.exe\"" },
+      { "name": "InstallLocation", "type": "String", "data": "C:\\Program Files\\ContosoHidden" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{9C1D2E3F-4A5B-4C6D-8E7F-0A1B2C3D4E5F}", "values": [
+      { "name": "DisplayName", "type": "String", "data": "{vendorDisplay}" },
+      { "name": "Publisher", "type": "String", "data": "{vendorPublisher}" },
+      { "name": "WindowsInstaller", "type": "DWord", "data": 1 },
+      { "name": "UninstallString", "type": "String", "data": "MsiExec.exe /X{9C1D2E3F-4A5B-4C6D-8E7F-0A1B2C3D4E5F}" },
+      { "name": "InstallLocation", "type": "String", "data": "C:\\Program Files\\FabrikamShieldGone" } ] },
+    { "path": "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Fabrikam32Gone", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Fabrikam 32" },
+      { "name": "UninstallString", "type": "String", "data": "\"C:\\Program Files (x86)\\Fabrikam32Gone\\uninst.exe\"" },
+      { "name": "DisplayIcon", "type": "String", "data": "C:\\Program Files (x86)\\Fabrikam32Gone\\bin\\app.exe,0" } ] },
+    { "path": "HKU\\{sid}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoUserGone", "values": [
+      { "name": "DisplayName", "type": "String", "data": "Contoso User" },
+      { "name": "UninstallString", "type": "ExpandString", "data": "\"%LOCALAPPDATA%\\ContosoUserGone\\uninstall.exe\"" },
+      { "name": "InstallLocation", "type": "ExpandString", "data": "%LOCALAPPDATA%\\ContosoUserGone" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\contosogone.app", "values": [
+      { "name": "(default)", "type": "String", "data": "C:\\Program Files\\ContosoGone\\contosogone.app" },
+      { "name": "Path", "type": "String", "data": "C:\\Program Files\\ContosoGone" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\fabrikamtool.app", "values": [
+      { "name": "(default)", "type": "String", "data": "C:\\Program Files\\Fabrikam\\Tool\\tool.app" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\contosobare.app", "values": [
+      { "name": "(default)", "type": "String", "data": "contosobare.app" } ] },
+    { "path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "values": [
+      { "name": "ContosoTray", "type": "String", "data": "\"C:\\Program Files\\ContosoGone\\tray.app\" /min" },
+      { "name": "ContosoHelper", "type": "String", "data": "rundll32 \"C:\\Program Files\\ContosoGone\\helper.dll\",Start" },
+      { "name": "ContosoWin", "type": "String", "data": "C:\\Windows\\System32\\contosowin.app" },
+      { "name": "ContosoKeep", "type": "String", "data": "\"C:\\Program Files\\Contoso\\App\\app.app\"" } ] },
+    { "path": "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", "values": [
+      { "name": "FabrikamUpdate", "type": "String", "data": "\"C:\\Program Files (x86)\\FabrikamUpd\\upd.app\"" } ] },
+    { "path": "HKU\\{sid}\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": [
+      { "name": "ContosoUserTray", "type": "ExpandString", "data": "\"%LOCALAPPDATA%\\ContosoUserGone\\tray.app\"" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\ContosoGone.Document\\DefaultIcon", "values": [
+      { "name": "(default)", "type": "String", "data": "C:\\Program Files\\ContosoGone\\doc.ico,0" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\ContosoGone.Document\\shell\\open\\command", "values": [
+      { "name": "(default)", "type": "String", "data": "\"C:\\Program Files\\ContosoGone\\contosogone.app\" \"%1\"" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\ContosoGone.Shared\\shell\\open\\command", "values": [
+      { "name": "(default)", "type": "String", "data": "\"C:\\Program Files\\ContosoGone\\contosogone.app\" \"%1\"" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\Fabrikam.Viewer\\shell\\open\\command", "values": [
+      { "name": "(default)", "type": "String", "data": "\"C:\\Program Files\\Fabrikam\\Keep\\keep.app\" \"%1\"" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\.cgdoc", "values": [
+      { "name": "(default)", "type": "String", "data": "ContosoGone.Document" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\.cgdoc\\OpenWithProgids", "values": [
+      { "name": "ContosoGone.Document", "type": "String", "data": "" },
+      { "name": "Contoso.Missing", "type": "String", "data": "" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\.cguser\\OpenWithProgids", "values": [
+      { "name": "Fabrikam.UserProg", "type": "String", "data": "" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\.cgshared\\OpenWithProgids", "values": [
+      { "name": "ContosoGone.Shared", "type": "String", "data": "" },
+      { "name": "Fabrikam.Viewer", "type": "String", "data": "" } ] },
+    { "path": "HKLM\\SOFTWARE\\Classes\\Applications\\contosogone.app\\shell\\open\\command", "values": [
+      { "name": "(default)", "type": "String", "data": "\"C:\\Program Files\\ContosoGone\\contosogone.app\" \"%1\"" } ] },
+    { "path": "HKU\\{sid}\\Software\\Classes\\Fabrikam.UserProg", "values": [] },
+    { "path": "HKLM\\SOFTWARE\\ContosoGone\\App", "values": [
+      { "name": "InstallDir", "type": "String", "data": "C:\\Program Files\\ContosoGone" },
+      { "name": "Language", "type": "String", "data": "en" } ] },
+    { "path": "HKLM\\SOFTWARE\\Contoso\\App", "values": [
+      { "name": "Path", "type": "String", "data": "C:\\Program Files\\Contoso\\App" } ] },
+    { "path": "HKLM\\SOFTWARE\\Contoso\\Settings", "values": [
+      { "name": "Color", "type": "String", "data": "Blue" } ] },
+    { "path": "HKLM\\SOFTWARE\\Fabrikam\\Linked", "values": [
+      { "name": "Home", "type": "String", "data": "C:\\Program Files\\FabrikamLinked" } ] },
+    { "path": "HKLM\\SOFTWARE\\Fabrikam\\Linked\\Wow6432Node\\Inner", "values": [] },
+    { "path": "HKLM\\SOFTWARE\\WOW6432Node\\Fabrikam32Vendor\\Tool", "values": [
+      { "name": "Exe", "type": "String", "data": "C:\\Program Files (x86)\\Fabrikam32Vendor\\tool.app" } ] },
+    { "path": "HKU\\{sid}\\Software\\ContosoUser\\Prefs", "values": [
+      { "name": "LastFile", "type": "String", "data": "C:\\Users\\contoso\\AppData\\Local\\ContosoUserGone\\last.dat" } ] }
+  ],
+  "existingPaths": [
+    "C:\\Program Files\\Contoso",
+    "C:\\Program Files\\Contoso\\App",
+    "C:\\Program Files\\Contoso\\App\\app.app",
+    "C:\\Program Files\\Contoso\\App\\unins.exe",
+    "C:\\Program Files\\Contoso\\Svc",
+    "C:\\Program Files\\Contoso\\Svc\\svc.exe",
+    "C:\\Program Files\\Fabrikam",
+    "C:\\Program Files\\Fabrikam\\Keep",
+    "C:\\Program Files\\Fabrikam\\Keep\\keep.app",
+    "C:\\Program Files\\Fabrikam\\Tool",
+    "C:\\Program Files\\Fabrikam\\Tool\\tool.app"
+  ],
+  "services": [
+    { "Name": "ContosoGoneSvc", "DisplayName": "Contoso Gone Service", "ImagePath": "\"C:\\Program Files\\ContosoGone\\svc.app\"", "Type": 16, "Start": 2, "Group": "", "LaunchProtected": null, "State": "Stopped" },
+    { "Name": "ContosoSvc", "DisplayName": "Contoso Service", "ImagePath": "\"C:\\Program Files\\Contoso\\Svc\\svc.exe\" -k", "Type": 16, "Start": 2, "Group": "", "LaunchProtected": null, "State": "Running" },
+    { "Name": "FabrikamDrv", "DisplayName": "Fabrikam Driver", "ImagePath": "\\??\\C:\\Program Files\\FabrikamDrvGone\\drv.sys", "Type": 1, "Start": 3, "Group": "", "LaunchProtected": null, "State": "Stopped" }
+  ],
+  "tasks": [
+    { "TaskPath": "\\ContosoGone\\", "TaskName": "Updater", "State": "Ready", "Actions": [ { "Execute": "\"C:\\Program Files\\ContosoGone\\update.app\"", "Arguments": "/silent" } ] },
+    { "TaskPath": "\\Microsoft\\Windows\\Contoso\\", "TaskName": "Inbox", "State": "Ready", "Actions": [ { "Execute": "C:\\Program Files\\ContosoGone\\inbox.app", "Arguments": "" } ] },
+    { "TaskPath": "\\Fabrikam\\", "TaskName": "ComTask", "State": "Ready", "Actions": [ { "ClassId": "{01234567-89AB-CDEF-0123-456789ABCDEF}", "Data": "" } ] }
+  ],
+  "firewallRules": [
+    { "Name": "{11111111-0000-0000-0000-000000000001}", "DisplayName": "Contoso Gone", "Action": "Allow", "Direction": "Inbound", "Group": "", "Program": "C:\\Program Files\\ContosoGone\\contosogone.app" },
+    { "Name": "{11111111-0000-0000-0000-000000000002}", "DisplayName": "Contoso Gone block", "Action": "Block", "Direction": "Outbound", "Group": "", "Program": "%ProgramFiles%\\ContosoGone\\contosogone.app" },
+    { "Name": "{11111111-0000-0000-0000-000000000003}", "DisplayName": "Fabrikam share", "Action": "Allow", "Direction": "Inbound", "Group": "", "Program": "\\\\fileserver\\apps\\fabrikam.app" },
+    { "Name": "{11111111-0000-0000-0000-000000000004}", "DisplayName": "Contoso App", "Action": "Allow", "Direction": "Inbound", "Group": "", "Program": "C:\\Program Files\\Contoso\\App\\app.app" },
+    { "Name": "{11111111-0000-0000-0000-000000000005}", "DisplayName": "@contoso.dll,-1", "Action": "Allow", "Direction": "Inbound", "Group": "@contoso.dll,-100", "Program": "C:\\Program Files\\ContosoGone\\windowsish.app" },
+    { "Name": "{11111111-0000-0000-0000-000000000006}", "DisplayName": "Fabrikam USB", "Action": "Allow", "Direction": "Inbound", "Group": "", "Program": "F:\\Apps\\fabrikam.app" }
+  ],
+  "expected": [
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoGone_is1", "hive": "HKLM", "view": "64", "confidence": "Safe" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoCached", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoIcon", "hive": "HKLM", "view": "64", "confidence": "Safe" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\FabrikamTool", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoInstalled", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoHidden", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{9C1D2E3F-4A5B-4C6D-8E7F-0A1B2C3D4E5F}", "hive": "HKLM", "view": "64", "confidence": "Protected" },
+    { "category": "uninstall", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Fabrikam32Gone", "hive": "HKLM", "view": "32", "confidence": "Review" },
+    { "category": "uninstall", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ContosoUserGone", "hive": "HKCU", "view": "64", "confidence": "Safe" },
+    { "category": "appPath", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\contosogone.app", "hive": "HKLM", "view": "64", "confidence": "Safe" },
+    { "category": "appPath", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\fabrikamtool.app", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "appPath", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\contosobare.app", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "run", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "ContosoTray", "hive": "HKLM", "view": "64", "confidence": "Safe" },
+    { "category": "run", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "ContosoHelper", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "run", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "ContosoWin", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "run", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "ContosoKeep", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "run", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "FabrikamUpdate", "hive": "HKLM", "view": "32", "confidence": "Safe" },
+    { "category": "run", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Run", "valueName": "ContosoUserTray", "hive": "HKCU", "view": "64", "confidence": "Safe" },
+    { "category": "progId", "path": "SOFTWARE\\Classes\\ContosoGone.Document", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "progId", "path": "SOFTWARE\\Classes\\ContosoGone.Shared", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "progId", "path": "SOFTWARE\\Classes\\Fabrikam.Viewer", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "openWith", "path": "SOFTWARE\\Classes\\.cgdoc\\OpenWithProgids", "valueName": "Contoso.Missing", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "openWith", "path": "SOFTWARE\\Classes\\.cgdoc\\OpenWithProgids", "valueName": "ContosoGone.Document", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "openWith", "path": "SOFTWARE\\Classes\\.cguser\\OpenWithProgids", "valueName": "Fabrikam.UserProg", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "application", "path": "SOFTWARE\\Classes\\Applications\\contosogone.app", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "softwareKey", "path": "SOFTWARE\\ContosoGone\\App", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "softwareKey", "path": "SOFTWARE\\ContosoGone", "hive": "HKLM", "view": "64", "confidence": "Review" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Contoso\\App", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Contoso\\Settings", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Contoso", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam\\Linked", "hive": "HKLM", "view": "64", "confidence": "Review", "selectable": false },
+    { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam32Vendor\\Tool", "hive": "HKLM", "view": "32", "confidence": "Review" },
+    { "category": "softwareKey", "path": "Software\\ContosoUser\\Prefs", "hive": "HKCU", "view": "64", "confidence": "Review" },
+    { "category": "service", "path": "SYSTEM\\CurrentControlSet\\Services\\ContosoGoneSvc", "hive": "HKLM", "view": "", "confidence": "Review", "selectable": false },
+    { "category": "service", "path": "SYSTEM\\CurrentControlSet\\Services\\ContosoSvc", "hive": "HKLM", "view": "", "confidence": "none" },
+    { "category": "service", "path": "SYSTEM\\CurrentControlSet\\Services\\FabrikamDrv", "hive": "HKLM", "view": "", "confidence": "none" },
+    { "category": "task", "path": "\\ContosoGone\\Updater", "hive": "", "view": "", "confidence": "Review", "selectable": false },
+    { "category": "task", "path": "\\Microsoft\\Windows\\Contoso\\Inbox", "hive": "", "view": "", "confidence": "none" },
+    { "category": "task", "path": "\\Fabrikam\\ComTask", "hive": "", "view": "", "confidence": "none" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000001}", "hive": "", "view": "", "confidence": "Safe" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000002}", "hive": "", "view": "", "confidence": "Review" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000003}", "hive": "", "view": "", "confidence": "none" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000004}", "hive": "", "view": "", "confidence": "none" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000005}", "hive": "", "view": "", "confidence": "none" },
+    { "category": "firewallRule", "ruleName": "{11111111-0000-0000-0000-000000000006}", "hive": "", "view": "", "confidence": "none" }
+  ]
+}

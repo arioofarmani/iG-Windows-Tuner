@@ -659,3 +659,354 @@ Describe 'Registry cleaner wrapped system calls (RG4, RG12)' {
         }
     }
 }
+
+Describe 'Registry cleaner scan (RG2, RG3, RG10, RG15, RG17, RG22, RG32, RG33)' {
+    BeforeAll {
+        $script:Fx = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'fixtures\registry\leftovers.json') -Raw | ConvertFrom-Json
+        $script:Sid = [string]$script:Fx.sid
+        $m64 = @{
+            SystemRoot = 'C:\Windows'; windir = 'C:\Windows'; SystemDrive = 'C:'; ProgramData = 'C:\ProgramData'; ALLUSERSPROFILE = 'C:\ProgramData'
+            ProgramFiles = 'C:\Program Files'; ProgramW6432 = 'C:\Program Files'; 'ProgramFiles(x86)' = 'C:\Program Files (x86)'
+            CommonProgramFiles = 'C:\Program Files\Common Files'; CommonProgramW6432 = 'C:\Program Files\Common Files'; 'CommonProgramFiles(x86)' = 'C:\Program Files (x86)\Common Files'
+        }
+        $m32 = @{}; foreach ($k in $m64.Keys) { $m32[$k] = $m64[$k] }
+        $m32['ProgramFiles'] = 'C:\Program Files (x86)'; $m32['CommonProgramFiles'] = 'C:\Program Files (x86)\Common Files'
+        $user = @{}; foreach ($k in $m64.Keys) { $user[$k] = $m64[$k] }
+        $user['USERPROFILE'] = 'C:\Users\contoso'; $user['APPDATA'] = 'C:\Users\contoso\AppData\Roaming'; $user['LOCALAPPDATA'] = 'C:\Users\contoso\AppData\Local'
+        $script:Vars = @{ '64' = $m64; '32' = $m32; 'user' = $user }
+        $script:VarsNoUser = @{ '64' = $m64; '32' = $m32 }
+        $script:Drives = @{ SystemDrive = 'C'; Online = @('C', 'D'); Skipped = @{}; Notes = @() }
+        $script:Existing = New-Object System.Collections.Generic.List[string]
+        $script:UnknownPaths = New-Object System.Collections.Generic.List[string]
+        $script:Probed = New-Object System.Collections.Generic.List[string]
+        $script:Progress = New-Object System.Collections.Generic.List[object]
+        $script:NoExclusions = [pscustomobject]@{ SchemaVersion = 1; Entries = @(); Path = '' }
+        $script:Exclusions = $script:NoExclusions
+
+        # A real consumer security vendor's publisher pattern from the shipped data (no vendor literal here).
+        $vendors = @((Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'data\registry\protected.json') -Raw | ConvertFrom-Json).groups | Where-Object { $_.id -eq 'securityVendors' })[0].vendors
+        $script:Vendor = @($vendors | Where-Object { $_.type -eq 'consumer' -and @($_.publisherPatterns).Count -gt 0 -and $_.removalTool.url })[0]
+        $script:VendorPublisher = ([string]@($script:Vendor.publisherPatterns)[0]).TrimEnd('*')
+
+        foreach ($k in @($script:Fx.keys)) {
+            $p = 'TestRegistry:\' + ([string]$k.path).Replace('{sid}', $script:Sid)
+            $null = New-Item -Path $p -Force
+            foreach ($v in @($k.values)) {
+                $data = $v.data
+                if ($data -is [string]) { $data = $data.Replace('{vendorPublisher}', $script:VendorPublisher).Replace('{vendorDisplay}', 'Fabrikam Shield') }
+                $null = New-ItemProperty -LiteralPath $p -Name ([string]$v.name) -Value $data -PropertyType ([string]$v.type) -Force
+            }
+        }
+        $script:Services = @($script:Fx.services)
+        $script:Tasks = @(foreach ($t in @($script:Fx.tasks)) { [pscustomobject]@{ TaskPath = $t.TaskPath; TaskName = $t.TaskName; State = $t.State; Actions = @($t.Actions) } })
+        $script:FwRules = @(foreach ($r in @($script:Fx.firewallRules)) {
+                [pscustomobject]@{
+                    Name = $r.Name; InstanceID = $r.Name; DisplayName = $r.DisplayName; Group = $r.Group; DisplayGroup = $r.Group; Enabled = 'True'
+                    Direction = $r.Direction; Action = $r.Action; Profile = 'Any'; PolicyStoreSourceType = 'Local'; PolicyStoreSource = 'PersistentStore'
+                    Owner = ''; Description = ''; EdgeTraversalPolicy = 'Block'
+                }
+            })
+        $script:FwFilters = @(foreach ($r in @($script:Fx.firewallRules)) { [pscustomobject]@{ InstanceID = $r.Name; Program = $r.Program; Package = '' } })
+
+        Mock Test-IgwtRegCleanProcess64 -ModuleName iGWindowsTuner { $true }
+        Mock Get-IgwtRegCleanVariableSet -ModuleName iGWindowsTuner { if ($Sid) { $script:Vars } else { $script:VarsNoUser } }
+        Mock Get-IgwtRegCleanDriveTable -ModuleName iGWindowsTuner { $script:Drives }
+        Mock Test-IgwtRegCleanPathProbe -ModuleName iGWindowsTuner {
+            $script:Probed.Add([string]$Path)
+            if ($Mode -eq 'List') { return 'Exists' }
+            if ($script:UnknownPaths -contains $Path) { return 'Unknown' }
+            if ($script:Existing -contains $Path) { return 'Exists' }
+            return 'Missing'
+        }
+        Mock Test-IgwtNetworkPath -ModuleName iGWindowsTuner { ([string]$Path).StartsWith('\\') }
+        Mock Get-IgwtRegCleanAppxPackages -ModuleName iGWindowsTuner { }
+        Mock Get-IgwtRegCleanServiceList -ModuleName iGWindowsTuner { $script:Services }
+        Mock Get-IgwtInstalledGames -ModuleName iGWindowsTuner { }
+        Mock Get-IgwtSteamLibraryPaths -ModuleName iGWindowsTuner { }
+        Mock Get-IgwtMsiProductState -ModuleName iGWindowsTuner { -1 }
+        Mock Get-IgwtRegCleanTrustedInstallerSid -ModuleName iGWindowsTuner { 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464' }
+        Mock Get-IgwtRegCleanSecurityProducts -ModuleName iGWindowsTuner { }
+        Mock Get-IgwtRegCleanPnpProviders -ModuleName iGWindowsTuner { }
+        Mock Get-IgwtRegCleanKeySecurity -ModuleName iGWindowsTuner { [pscustomobject]@{ Owner = 'S-1-5-32-544'; Writers = @('S-1-5-32-544', 'S-1-5-18'); AclProtected = $false; HasExplicitAce = $false; Sddl = '' } }
+        Mock Get-AuthenticodeSignature -ModuleName iGWindowsTuner { [pscustomobject]@{ Status = 'NotSigned'; SignerCertificate = $null } }
+        Mock Get-IgwtRegCleanExclusions -ModuleName iGWindowsTuner { $script:Exclusions }
+        Mock Get-IgwtInteractiveUserSid -ModuleName iGWindowsTuner { 'S-1-5-21-1-2-3-1001' }
+        Mock Test-IgwtIsAdmin -ModuleName iGWindowsTuner { $true }
+        Mock Get-NetFirewallRule -ModuleName iGWindowsTuner { if ($Name) { @($script:FwRules | Where-Object { $_.Name -eq $Name }) } else { $script:FwRules } }
+        Mock Get-NetFirewallApplicationFilter -ModuleName iGWindowsTuner { $script:FwFilters }
+        Mock Get-ScheduledTask -ModuleName iGWindowsTuner { $script:Tasks }
+        Mock Get-IgwtFirewallInventory -ModuleName iGWindowsTuner { throw 'the scan must not use the firewall inventory' }
+        Mock Get-IgwtFirewallSignatures -ModuleName iGWindowsTuner { throw 'the scan must not write the signature cache' }
+        Mock Send-IgwtProgress -ModuleName iGWindowsTuner { $script:Progress.Add([pscustomobject]@{ Text = $Text; Percent = $Percent }) }
+
+        function Initialize-TestState {
+            $script:Existing.Clear(); foreach ($p in @($script:Fx.existingPaths)) { $script:Existing.Add([string]$p) }
+            $script:UnknownPaths.Clear(); $script:Probed.Clear(); $script:Progress.Clear()
+            $script:Exclusions = $script:NoExclusions
+        }
+        function Find-TestFinding($Result, $Expect) {
+            @($Result.Findings | Where-Object {
+                    $_.Category -eq $Expect.category -and $(
+                        if ($Expect.ruleName) { $_.RuleName -eq $Expect.ruleName }
+                        else { $_.Path -eq $Expect.path -and [string]$_.ValueName -eq [string]$Expect.valueName -and $_.Hive -eq $Expect.hive -and [string]$_.View -eq [string]$Expect.view }
+                    )
+                })
+        }
+        function Get-TestExpect([string]$Category, [string]$Path, [string]$ValueName = '', [string]$Rule = '') {
+            @($script:Fx.expected | Where-Object { $_.category -eq $Category -and $(if ($Rule) { $_.ruleName -eq $Rule } else { $_.path -eq $Path -and [string]$_.valueName -eq $ValueName }) })[0]
+        }
+        Initialize-TestState
+        $script:Result = Get-IgwtRegistryLeftovers
+    }
+    BeforeEach { Initialize-TestState }
+
+    Context 'per-category rules on the fixture (RG10)' {
+        It 'returns the expected confidence for every fixture entry, and nothing for the rest' {
+            foreach ($e in @($script:Fx.expected)) {
+                $hit = @(Find-TestFinding $script:Result $e)
+                $label = "$($e.category) $($e.hive) $($e.view) $($e.path)$($e.ruleName) $($e.valueName)"
+                if ($e.confidence -eq 'none') { $hit.Count | Should -Be 0 -Because $label; continue }
+                $hit.Count | Should -Be 1 -Because $label
+                $hit[0].Confidence | Should -Be $e.confidence -Because $label
+                if ($null -ne $e.selectable) { $hit[0].Selectable | Should -Be ([bool]$e.selectable) -Because $label }
+            }
+        }
+        It 'returns only Safe, Review and Protected findings in the RG3 shape, with evidence, Sid and ScanId' {
+            $script:Result.Findings.Count | Should -BeGreaterThan 10
+            $script:Result.ScanId | Should -Match '^[0-9a-f]{32}$'
+            foreach ($f in @($script:Result.Findings)) {
+                $f.Confidence | Should -BeIn @('Safe', 'Review', 'Protected')
+                @($f.Evidence).Count | Should -BeGreaterThan 0 -Because $f.Path
+                foreach ($ev in @($f.Evidence)) { $ev.Result | Should -BeIn @('Pass', 'Review', 'Protected') }
+                $f.ScanId | Should -Be $script:Result.ScanId
+                $f.Id | Should -Match '^[0-9a-f]{16}$'
+                $f.Kind | Should -BeIn @('regKeyTree', 'regValue', 'firewallRule', 'reportOnly')
+                if ($f.Hive -eq 'HKCU') { $f.Sid | Should -Be $script:Sid } else { $f.Sid | Should -Be '' }
+                foreach ($n in 'Category', 'Hive', 'View', 'Path', 'ValueName', 'RuleName', 'Program', 'OwnerHint', 'RemovalTool', 'Size', 'Includes', 'Selectable', 'Reason') { $f.PSObject.Properties[$n] | Should -Not -BeNullOrEmpty -Because $n }
+            }
+            @($script:Result.Findings | Where-Object { $_.Confidence -eq 'Protected' -and $_.Selectable }).Count | Should -Be 0
+            ($script:Result | ConvertTo-Json -Depth 8 | ConvertFrom-Json).Findings.Count | Should -Be $script:Result.Findings.Count
+        }
+        It 'Uninstall: two missing pointers = Safe, only the uninstaller = Review, a vendor-folder App Paths hit = not shown' {
+            $safe = @(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoGone_is1'))[0]
+            @($safe.Evidence.Check) | Should -Contain 'UninstallerMissing'
+            @($safe.Evidence.Check) | Should -Contain 'InstallFolderMissing'
+            @($safe.Evidence.Check) | Should -Contain 'NoVendorEntryPoint'
+            $safe.Program | Should -Be 'Contoso Gone'
+            $safe.Size | Should -Be 4
+            $cached = @(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoCached'))[0]
+            ($cached.Evidence | Where-Object Check -EQ 'ReviewReason').Detail | Should -BeLike '*only the uninstaller*'
+            $ev = @(InModuleScope iGWindowsTuner { $c = Get-IgwtRegCleanScanContext; Get-IgwtRegCleanEvaluation -Target ([pscustomobject]@{ Category = 'uninstall'; Hive = 'HKLM'; View = '64'; Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\FabrikamTool' }) -Context $c })[0]
+            $ev.Finding | Should -BeNullOrEmpty
+            $ev.Skip | Should -Be 'vendorFolder'
+        }
+        It 'counts a DisplayIcon as a second pointer only outside the uninstaller''s folder' {
+            (@(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoIcon'))[0].Evidence.Check) | Should -Contain 'IconMissing'
+            (@(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Fabrikam32Gone'))[0].Evidence.Check) | Should -Not -Contain 'IconMissing'
+        }
+        It 'shows a GUID Uninstall key with a security vendor Publisher as Protected with the removal tool, never Safe or Review' {
+            $f = @(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{9C1D2E3F-4A5B-4C6D-8E7F-0A1B2C3D4E5F}'))[0]
+            $f.Confidence | Should -Be 'Protected'
+            $f.Selectable | Should -BeFalse
+            $f.RemovalTool.Url | Should -Be ([string]$script:Vendor.removalTool.url)
+            $f.Reason | Should -BeLike "Use $($script:Vendor.name)*"
+            @($f.Evidence | Where-Object Result -EQ 'Protected').Count | Should -Be 1
+        }
+        It 'does not let the microsoft group protect Contoso entries below the carved-out Uninstall, App Paths and Run roots' {
+            foreach ($e in @((Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoGone_is1'), (Get-TestExpect 'appPath' 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\contosogone.app'), (Get-TestExpect -Category 'run' -Path 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -ValueName 'ContosoTray'), (Get-TestExpect -Category 'run' -Path 'Software\Microsoft\Windows\CurrentVersion\Run' -ValueName 'ContosoUserTray'))) {
+                $f = @(Find-TestFinding $script:Result $e)
+                $f.Count | Should -Be 1 -Because $e.path
+                $f[0].Confidence | Should -Be 'Safe' -Because $e.path
+            }
+        }
+        It 'keeps a Run value that points under Windows protected even when the file is missing' {
+            @(Find-TestFinding $script:Result (Get-TestExpect -Category 'run' -Path 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -ValueName 'ContosoWin')).Count | Should -Be 0
+        }
+        It 'reads the 32-bit view and the scanned user''s hive (HKEY_USERS\<sid>)' {
+            @($script:Result.Findings | Where-Object { $_.View -eq '32' }).Count | Should -BeGreaterThan 1
+            @($script:Result.Findings | Where-Object { $_.Hive -eq 'HKCU' }).Count | Should -BeGreaterThan 2
+            $script:Result.User.Sid | Should -Be $script:Sid
+            $script:Result.User.Source | Should -Be 'interactive'
+        }
+        It 'reports services and tasks as report-only rows that are never selectable' {
+            @($script:Result.Findings | Where-Object { $_.Category -in 'service', 'task' }).Count | Should -Be 2
+            foreach ($f in @($script:Result.Findings | Where-Object { $_.Category -in 'service', 'task' })) {
+                $f.Kind | Should -Be 'reportOnly'
+                $f.Selectable | Should -BeFalse
+                $f.Reason | Should -BeLike 'iG does not remove*'
+                $f.Facts | Should -Not -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context 'deny list and backup limits (RG17, RG32)' {
+        It 'never offers a deny-listed Vendor and marks a tree with a deny-listed subkey not selectable' {
+            $deny = @(InModuleScope iGWindowsTuner { (Get-IgwtRegCleanCategories).denyList.vendorNames })
+            @($script:Result.Findings | Where-Object { $_.Category -eq 'softwareKey' -and $deny -contains ($_.Path -split '\\')[1] }).Count | Should -Be 0
+            $f = @(Find-TestFinding $script:Result (Get-TestExpect 'softwareKey' 'SOFTWARE\Fabrikam\Linked'))[0]
+            $f.Selectable | Should -BeFalse
+            $f.Reason | Should -BeLike '*shared or linked key (Wow6432Node)*'
+        }
+        It 'offers a Vendor key only when every product key is a leftover' {
+            (@(Find-TestFinding $script:Result (Get-TestExpect 'softwareKey' 'SOFTWARE\ContosoGone'))[0].Evidence.Check) | Should -Contain 'AllProductsLeftover'
+            @(Find-TestFinding $script:Result (Get-TestExpect 'softwareKey' 'SOFTWARE\Contoso')).Count | Should -Be 0
+        }
+        It 'marks a tree over 512 KB not selectable (cannot be backed up exactly)' {
+            $p = 'TestRegistry:\HKLM\SOFTWARE\ContosoBig\Data'
+            $null = New-Item -Path $p -Force
+            $null = New-ItemProperty -LiteralPath $p -Name 'Home' -Value 'C:\Program Files\ContosoBig' -PropertyType String -Force
+            $null = New-ItemProperty -LiteralPath $p -Name 'Blob' -Value (New-Object byte[] 600000) -PropertyType Binary -Force
+            try {
+                $r = Get-IgwtRegistryLeftovers -Category softwareKey
+                $f = @($r.Findings | Where-Object { $_.Path -eq 'SOFTWARE\ContosoBig\Data' })
+                $f.Count | Should -Be 1
+                $f[0].Selectable | Should -BeFalse
+                $f[0].Reason | Should -BeLike '*cannot be backed up exactly*'
+            } finally { Remove-Item -LiteralPath 'TestRegistry:\HKLM\SOFTWARE\ContosoBig' -Recurse -Force }
+        }
+        It 'marks a tree with its own permissions not selectable' {
+            Mock Get-IgwtRegCleanKeySecurity -ModuleName iGWindowsTuner { [pscustomobject]@{ Owner = 'S-1-5-32-544'; Writers = @('S-1-5-32-544'); AclProtected = $false; HasExplicitAce = $true; Sddl = '' } }
+            $f = @((Get-IgwtRegistryLeftovers -Category appPath).Findings | Where-Object { $_.Path -like '*contosogone.app' })
+            $f.Count | Should -Be 1
+            $f[0].Selectable | Should -BeFalse
+            $f[0].Reason | Should -BeLike '*own permissions*'
+        }
+    }
+
+    Context 'firewall rules (RG22)' {
+        It 'reads the persistent store, never the inventory or the signature cache, and never probes a UNC program' {
+            Mock Test-Path -ModuleName iGWindowsTuner { Microsoft.PowerShell.Management\Test-Path @PSBoundParameters }
+            Mock Test-Path -ModuleName iGWindowsTuner -ParameterFilter { ([string]$LiteralPath + [string]$Path) -like '\\*' } { throw 'a UNC path was tested' }
+            $r = Get-IgwtRegistryLeftovers -Category firewallRule
+            @($r.Findings).Count | Should -Be 2
+            Should -Invoke Get-NetFirewallRule -ModuleName iGWindowsTuner -ParameterFilter { $PolicyStore -eq 'PersistentStore' } -Scope It
+            Should -Invoke Get-NetFirewallApplicationFilter -ModuleName iGWindowsTuner -ParameterFilter { $PolicyStore -eq 'PersistentStore' } -Scope It
+            Should -Invoke Test-Path -ModuleName iGWindowsTuner -ParameterFilter { ([string]$LiteralPath + [string]$Path) -like '\\*' } -Times 0 -Exactly -Scope It
+            Should -Invoke Get-IgwtFirewallInventory -ModuleName iGWindowsTuner -Times 0 -Exactly -Scope It
+            Should -Invoke Get-IgwtFirewallSignatures -ModuleName iGWindowsTuner -Times 0 -Exactly -Scope It
+            @($script:Probed | Where-Object { $_ -like '\\*' -or $_ -like '*fileserver*' -or $_ -like 'F:*' }).Count | Should -Be 0
+            $r.Skipped['firewall network'] | Should -Be 1
+            $r.Skipped['firewall drive'] | Should -Be 1
+        }
+        It 'never offers a rule for a protected launcher program' {
+            $pattern = @(InModuleScope iGWindowsTuner { (Get-IgwtFirewallKnowledgeBase).Apps.protected | ForEach-Object { @($_.programPatterns) } | Where-Object { $_ -like '`*\*\`*' } })[0]
+            $pattern | Should -Not -BeNullOrEmpty
+            $prog = 'C:\Program Files\' + (($pattern -replace '^\*\\', '' -replace '\\\*$', '') -replace '\*', 'x') + '\gone.app'
+            $id = '{11111111-0000-0000-0000-000000000009}'
+            $script:FwRules += [pscustomobject]@{ Name = $id; InstanceID = $id; DisplayName = 'Launcher'; Group = ''; DisplayGroup = ''; Enabled = 'True'; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Any'; PolicyStoreSourceType = 'Local'; PolicyStoreSource = 'PersistentStore'; Owner = ''; Description = ''; EdgeTraversalPolicy = 'Block' }
+            $script:FwFilters += [pscustomobject]@{ InstanceID = $id; Program = $prog; Package = '' }
+            try {
+                $r = Get-IgwtRegistryLeftovers -Category firewallRule
+                @($r.Findings | Where-Object { $_.RuleName -eq $id }).Count | Should -Be 0
+                @($r.Findings).Count | Should -Be 2
+            } finally {
+                $script:FwRules = @($script:FwRules | Where-Object { $_.Name -ne $id })
+                $script:FwFilters = @($script:FwFilters | Where-Object { $_.InstanceID -ne $id })
+            }
+        }
+    }
+
+    Context 'scanned user, cancel, progress and refusals (RG2, RG13, RG22, RG33)' {
+        It 'skips the per-user categories with a note when elevated without a signed-in user' {
+            Mock Get-IgwtInteractiveUserSid -ModuleName iGWindowsTuner { $null }
+            Mock Test-IgwtIsAdmin -ModuleName iGWindowsTuner { $true }
+            $r = Get-IgwtRegistryLeftovers
+            @($r.Notes) | Should -Contain 'Per-user entries were not checked'
+            @($r.Findings | Where-Object { $_.Hive -eq 'HKCU' }).Count | Should -Be 0
+            $r.User.Source | Should -Be 'none'
+            @($r.Findings | Where-Object { $_.Category -eq 'run' -and $_.Hive -eq 'HKLM' }).Count | Should -BeGreaterThan 0
+        }
+        It 'notes that some entries cannot be checked without administrator rights' {
+            Mock Test-IgwtIsAdmin -ModuleName iGWindowsTuner { $false }
+            @((Get-IgwtRegistryLeftovers -Category run).Notes) | Should -Contain 'Some entries cannot be checked without administrator rights and are not shown'
+        }
+        It 'returns a partial result with Cancelled when the token is cancelled during the scan' {
+            $script:Cts = New-Object System.Threading.CancellationTokenSource
+            Mock Send-IgwtProgress -ModuleName iGWindowsTuner { $script:Progress.Add([pscustomobject]@{ Text = $Text; Percent = $Percent }); if ($Text -like '*App Paths*') { $script:Cts.Cancel() } }
+            $r = Get-IgwtRegistryLeftovers -CancelToken $script:Cts.Token
+            $r.Cancelled | Should -BeTrue
+            @($r.Findings | Where-Object { $_.Category -eq 'uninstall' }).Count | Should -BeGreaterThan 0
+            @($r.Findings | Where-Object { $_.Category -ne 'uninstall' }).Count | Should -Be 0
+            $script:Progress[-1].Text | Should -BeLike '*partial*'
+            $script:Cts.Dispose()
+        }
+        It 'returns an empty, cancelled result for a token cancelled before the start' {
+            $cts = New-Object System.Threading.CancellationTokenSource
+            $cts.Cancel()
+            $r = Get-IgwtRegistryLeftovers -CancelToken $cts.Token
+            $r.Cancelled | Should -BeTrue
+            @($r.Findings).Count | Should -Be 0
+            $cts.Dispose()
+        }
+        It 'reports progress per category' {
+            $null = Get-IgwtRegistryLeftovers
+            foreach ($l in 'Uninstall entries', 'App Paths', 'Run and RunOnce', 'Software keys', 'Firewall rules', 'Services', 'Scheduled tasks') {
+                @($script:Progress | Where-Object { $_.Text -like "*checking $l*" }).Count | Should -Be 1 -Because $l
+            }
+            $script:Progress[-1].Percent | Should -Be 100
+        }
+        It 'reports progress every 200 entries' {
+            1..205 | ForEach-Object { $null = New-Item -Path ('TestRegistry:\HKLM\SOFTWARE\Classes\Contoso.Bulk{0:D3}' -f $_) -Force }
+            try {
+                $null = Get-IgwtRegistryLeftovers -Category progId
+                @($script:Progress | Where-Object { $_.Percent -eq -1 -and $_.Text -like '*200 entries*' }).Count | Should -Be 1
+            } finally { 1..205 | ForEach-Object { Remove-Item -LiteralPath ('TestRegistry:\HKLM\SOFTWARE\Classes\Contoso.Bulk{0:D3}' -f $_) -Force } }
+        }
+        It 'limits the scan to -Category' {
+            $r = Get-IgwtRegistryLeftovers -Category run, appPath
+            @($r.Findings | Where-Object { $_.Category -notin 'run', 'appPath' }).Count | Should -Be 0
+            @($r.Findings).Count | Should -BeGreaterThan 3
+        }
+        It 'refuses to scan when the exclusion list is invalid' {
+            Mock Get-IgwtRegCleanExclusions -ModuleName iGWindowsTuner { throw 'The registry cleaner exclusion list is invalid.' }
+            { Get-IgwtRegistryLeftovers } | Should -Throw '*exclusion list*'
+        }
+        It 'drops an entry the user excluded' {
+            $script:Exclusions = [pscustomobject]@{ SchemaVersion = 1; Path = ''; Entries = @([pscustomobject]@{ pattern = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoGone_is1'; scope = 'key'; reason = 'test'; addedUtc = '2026-11-08T00:00:00Z' }) }
+            $r = Get-IgwtRegistryLeftovers -Category uninstall
+            @($r.Findings | Where-Object { $_.Path -like '*\ContosoGone_is1' }).Count | Should -Be 0
+            $r.Skipped['excluded'] | Should -Be 1
+        }
+        It 'drops an entry when any step answers Unknown' {
+            $script:UnknownPaths.Add('C:\Program Files\ContosoGone\unins000.exe')
+            $r = Get-IgwtRegistryLeftovers -Category uninstall
+            @($r.Findings | Where-Object { $_.Path -like '*\ContosoGone_is1' }).Count | Should -Be 0
+            @($r.Findings | Where-Object { $_.Path -like '*\ContosoCached' }).Count | Should -Be 1
+        }
+        It 'shows nothing removable when a live protection list cannot be read (RG12)' {
+            Mock Get-IgwtRegCleanSecurityProducts -ModuleName iGWindowsTuner { throw 'Invalid namespace' }
+            $r = Get-IgwtRegistryLeftovers -Category uninstall, run, appPath
+            @($r.Findings | Where-Object { $_.Confidence -ne 'Protected' }).Count | Should -Be 0
+            @($r.Findings | Where-Object { $_.Selectable }).Count | Should -Be 0
+            $r.Skipped['protected'] | Should -BeGreaterThan 5
+        }
+    }
+
+    Context 'Get-IgwtRegCleanFinding (re-check at the preview and the engine, RG14)' {
+        It 'gives the same answer for a JSON copy of a finding and drops it once the program exists again' {
+            $checks = @(
+                (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoGone_is1'),
+                (Get-TestExpect -Category 'run' -Path 'SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -ValueName 'FabrikamUpdate'),
+                (Get-TestExpect -Category 'firewallRule' -Rule '{11111111-0000-0000-0000-000000000002}'),
+                (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{9C1D2E3F-4A5B-4C6D-8E7F-0A1B2C3D4E5F}'),
+                (Get-TestExpect 'service' 'SYSTEM\CurrentControlSet\Services\ContosoGoneSvc')
+            )
+            foreach ($e in $checks) {
+                $f = @(Find-TestFinding $script:Result $e)[0]
+                $copy = $f | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+                $again = Get-IgwtRegCleanFinding -Target $copy
+                $again.Id | Should -Be $f.Id -Because $e.path
+                $again.Confidence | Should -Be $f.Confidence -Because $e.path
+                $again.Selectable | Should -Be $f.Selectable -Because $e.path
+            }
+            $f = @(Find-TestFinding $script:Result (Get-TestExpect 'uninstall' 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ContosoGone_is1'))[0]
+            $script:Existing.Add('C:\Program Files\ContosoGone')
+            Get-IgwtRegCleanFinding -Target $f | Should -BeNullOrEmpty
+        }
+        It 'returns nothing for a target outside its category roots, a category root itself or another user''s hive' {
+            Get-IgwtRegCleanFinding -Target ([pscustomobject]@{ Category = 'uninstall'; Hive = 'HKLM'; View = '64'; Path = 'SOFTWARE\Contoso\App' }) | Should -BeNullOrEmpty
+            Get-IgwtRegCleanFinding -Target ([pscustomobject]@{ Category = 'uninstall'; Hive = 'HKLM'; View = '64'; Path = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' }) | Should -BeNullOrEmpty
+            Get-IgwtRegCleanFinding -Target ([pscustomobject]@{ Category = 'run'; Kind = 'regValue'; Hive = 'HKCU'; Sid = 'S-1-5-21-9-9-9-1002'; View = '64'; Path = 'Software\Microsoft\Windows\CurrentVersion\Run'; ValueName = 'ContosoUserTray' }) | Should -BeNullOrEmpty
+        }
+    }
+}

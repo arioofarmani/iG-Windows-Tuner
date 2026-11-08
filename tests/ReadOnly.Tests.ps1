@@ -54,6 +54,11 @@ Describe 'Read-only mode' {
         $script:Allowed | Should -Not -Contain 'Save-IgwtRegCleanExclusions'
         $script:Mutating | Should -Contain 'Save-IgwtRegCleanExclusions'
         $script:Mutating | Should -Not -Contain 'Get-IgwtRegCleanExclusions'
+        # The scan and the finding re-check are read-only (RG22, RG30): no SupportsShouldProcess.
+        $script:Mutating | Should -Not -Contain 'Get-IgwtRegistryLeftovers'
+        $script:Mutating | Should -Not -Contain 'Get-IgwtRegCleanFinding'
+        @((Get-Module iGWindowsTuner).ExportedFunctions.Keys) | Should -Contain 'Get-IgwtRegistryLeftovers'
+        @((Get-Module iGWindowsTuner).ExportedFunctions.Keys) | Should -Contain 'Get-IgwtRegCleanFinding'
     }
     It 'guards every state-changing export as its first statement' {
         $m = Get-Module iGWindowsTuner
