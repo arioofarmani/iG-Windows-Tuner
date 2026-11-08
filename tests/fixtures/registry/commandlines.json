@@ -1,0 +1,375 @@
+{
+  "description": "Synthetic command lines for tests\\RegistryCleanerResolver.Tests.ps1 (invented vendors Contoso and Fabrikam, fake SID; no data from a real PC). The probe stub treats paths in existing as present, paths in unknown as unreadable and everything else as missing; drives C and D are online, E is skipped.",
+  "sid": "S-1-5-21-1-2-3-1001",
+  "drives": { "systemDrive": "C", "online": [ "C", "D" ], "skipped": "E" },
+  "variables": {
+    "machine64": {
+      "SystemRoot": "C:\\Windows",
+      "windir": "C:\\Windows",
+      "SystemDrive": "C:",
+      "ProgramData": "C:\\ProgramData",
+      "ProgramFiles": "C:\\Program Files",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)",
+      "ProgramW6432": "C:\\Program Files",
+      "CommonProgramFiles": "C:\\Program Files\\Common Files",
+      "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
+      "CommonProgramW6432": "C:\\Program Files\\Common Files"
+    },
+    "machine32": {
+      "SystemRoot": "C:\\Windows",
+      "windir": "C:\\Windows",
+      "SystemDrive": "C:",
+      "ProgramData": "C:\\ProgramData",
+      "ProgramFiles": "C:\\Program Files (x86)",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)",
+      "ProgramW6432": "C:\\Program Files",
+      "CommonProgramFiles": "C:\\Program Files (x86)\\Common Files",
+      "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
+      "CommonProgramW6432": "C:\\Program Files\\Common Files"
+    },
+    "user": { "USERPROFILE": "C:\\Users\\contoso", "APPDATA": "C:\\Users\\contoso\\AppData\\Roaming", "LOCALAPPDATA": "C:\\Users\\contoso\\AppData\\Local" }
+  },
+  "existing": [
+    "C:\\Program Files\\Contoso\\app.exe",
+    "C:\\Program Files\\Contoso",
+    "C:\\Contoso.exe",
+    "C:\\Contoso\\tool.exe",
+    "C:\\Program Files\\Contoso32\\app.exe",
+    "C:\\Windows\\SysWOW64\\contoso32.dll",
+    "D:\\Games\\Contoso\\game.exe",
+    "D:\\Fabrikam\\moved.exe"
+  ],
+  "unknown": [ "C:\\Locked\\Fabrikam\\x.exe" ],
+  "cases": [
+    {
+      "name": "quoted program that exists",
+      "value": "\"C:\\Program Files\\Contoso\\app.exe\" --minimized",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "quoted program missing on every fixed drive",
+      "value": "\"C:\\Program Files\\Fabrikam\\gone.exe\" /silent",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam\\gone.exe", "D:\\Program Files\\Fabrikam\\gone.exe" ]
+    },
+    {
+      "name": "unquoted program with spaces found by try-in-order",
+      "value": "C:\\Program Files\\Contoso\\app.exe --tray",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "unquoted program: every try-in-order prefix missing",
+      "value": "C:\\Program Files\\Fabrikam\\gone.exe -x",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [
+        "C:\\Program.exe",
+        "D:\\Program.exe",
+        "C:\\Program Files\\Fabrikam\\gone.exe",
+        "D:\\Program Files\\Fabrikam\\gone.exe",
+        "C:\\Program Files\\Fabrikam\\gone.exe -x",
+        "D:\\Program Files\\Fabrikam\\gone.exe -x"
+      ]
+    },
+    {
+      "name": "unquoted: an earlier prefix that exists wins (CreateProcess order)",
+      "value": "C:\\Contoso Tools\\run.exe",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "unquoted: .exe appended when there is no extension",
+      "value": "C:\\Contoso\\tool -x",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "quoted %1 placeholder removed",
+      "value": "\"C:\\Program Files\\Fabrikam\\viewer.exe\" \"%1\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam\\viewer.exe", "D:\\Program Files\\Fabrikam\\viewer.exe" ]
+    },
+    {
+      "name": "unquoted %1, %L, %V and %* placeholders removed",
+      "value": "C:\\Fabrikam\\v.exe %1 %L %V %*",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Fabrikam\\v.exe", "D:\\Fabrikam\\v.exe" ]
+    },
+    {
+      "name": "indirect string with resource index",
+      "value": "@C:\\Program Files\\Fabrikam\\res.dll,-101",
+      "kind": "File",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam\\res.dll", "D:\\Program Files\\Fabrikam\\res.dll" ]
+    },
+    {
+      "name": "quoted icon path with index",
+      "value": "\"C:\\Program Files\\Contoso\\app.exe\",0",
+      "kind": "File",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "native \\??\\ prefix (unquoted, so CreateProcess try-in-order)",
+      "value": "\\??\\C:\\Program Files\\Fabrikam\\drv.sys",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program.exe", "D:\\Program.exe", "C:\\Program Files\\Fabrikam\\drv.sys", "D:\\Program Files\\Fabrikam\\drv.sys" ]
+    },
+    {
+      "name": "native \\??\\ prefix inside quotes",
+      "value": "\"\\??\\C:\\Program Files\\Fabrikam\\drv.sys\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam\\drv.sys", "D:\\Program Files\\Fabrikam\\drv.sys" ]
+    },
+    {
+      "name": "service \\SystemRoot\\ form",
+      "value": "\\SystemRoot\\System32\\drivers\\fabrikam.sys",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Windows\\System32\\drivers\\fabrikam.sys", "D:\\Windows\\System32\\drivers\\fabrikam.sys" ]
+    },
+    {
+      "name": "rundll32: the DLL before the comma is the evidence",
+      "value": "rundll32.exe \"C:\\Program Files\\Fabrikam\\helper.dll\",RunEntry",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam\\helper.dll", "D:\\Program Files\\Fabrikam\\helper.dll" ]
+    },
+    {
+      "name": "rundll32 with a bare DLL name",
+      "value": "rundll32.exe shell32.dll,Control_RunDLL",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    {
+      "name": "rundll32 without DLL,entry",
+      "value": "rundll32.exe C:\\Fabrikam\\helper.dll RunEntry",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    {
+      "name": "msiexec /X product code, not installed",
+      "value": "MsiExec.exe /X{0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0}",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "{0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0}" ],
+      "productState": "-1"
+    },
+    {
+      "name": "msiexec /I product code, installed for another user (Absent)",
+      "value": "MsiExec.exe /I{0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0}",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Exists",
+      "productState": 2
+    },
+    {
+      "name": "msiexec with a package path",
+      "value": "msiexec.exe /i C:\\Fabrikam\\setup.msi",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    {
+      "name": "script host: first non-switch argument",
+      "value": "\"C:\\Windows\\System32\\wscript.exe\" //B \"C:\\ProgramData\\Fabrikam\\start.vbs\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\ProgramData\\Fabrikam\\start.vbs", "D:\\ProgramData\\Fabrikam\\start.vbs" ]
+    },
+    {
+      "name": "regsvr32: first non-switch argument",
+      "value": "regsvr32.exe /s C:\\Fabrikam\\ext.dll",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Fabrikam\\ext.dll", "D:\\Fabrikam\\ext.dll" ]
+    },
+    {
+      "name": "powershell -File script",
+      "value": "powershell.exe -NoProfile -WindowStyle Normal -File \"C:\\ProgramData\\Fabrikam\\p.ps1\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\ProgramData\\Fabrikam\\p.ps1", "D:\\ProgramData\\Fabrikam\\p.ps1" ]
+    },
+    {
+      "name": "powershell -Command is not provable",
+      "value": "powershell.exe -NoProfile -Command \"& C:\\Fabrikam\\p.ps1\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    {
+      "name": "cmd host is not provable",
+      "value": "cmd.exe /c \"C:\\Fabrikam\\start.bat\"",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    {
+      "name": "explorer with switches only is not provable",
+      "value": "explorer.exe /select,C:\\Fabrikam\\x.txt",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unprovable"
+    },
+    { "name": "bare program name", "value": "notepad.exe", "kind": "Command", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "relative path", "value": "Contoso\\app.exe", "kind": "Command", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "8.3 short name segment", "value": "C:\\PROGRA~1\\Fabrikam\\gone.exe", "kind": "Command", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "URL", "value": "https://contoso.example/app", "kind": "File", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "shell: target", "value": "shell:startup", "kind": "File", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "ms- protocol target", "value": "ms-settings:display", "kind": "File", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "UNC path", "value": "\\\\fileserver\\share\\Fabrikam\\app.exe", "kind": "Command", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "empty value", "value": "", "kind": "Command", "view": "64", "user": "", "status": "Unprovable" },
+    { "name": "unexpanded variable", "value": "%FABRIKAM_HOME%\\app.exe", "kind": "Command", "view": "64", "user": "", "status": "Unknown" },
+    { "name": "machine variable expanded", "value": "%ProgramFiles%\\Contoso\\app.exe", "kind": "Command", "view": "64", "user": "", "status": "Exists" },
+    {
+      "name": "user variable from the scanned user's table",
+      "value": "%LOCALAPPDATA%\\Fabrikam\\gone.exe",
+      "kind": "Command",
+      "view": "64",
+      "user": "S-1-5-21-1-2-3-1001",
+      "status": "Missing",
+      "candidates": [ "C:\\Users\\contoso\\AppData\\Local\\Fabrikam\\gone.exe", "D:\\Users\\contoso\\AppData\\Local\\Fabrikam\\gone.exe" ]
+    },
+    {
+      "name": "user variable in an HKLM value stays unexpanded",
+      "value": "%LOCALAPPDATA%\\Fabrikam\\gone.exe",
+      "kind": "Command",
+      "view": "64",
+      "user": "",
+      "status": "Unknown"
+    },
+    {
+      "name": "WOW64: %ProgramFiles% from the 32-bit view also checks Program Files",
+      "value": "\"%ProgramFiles%\\Contoso32\\app.exe\"",
+      "kind": "Command",
+      "view": "32",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "WOW64: x86 path from the 32-bit view missing in both folders",
+      "value": "C:\\Program Files (x86)\\Fabrikam\\gone.exe",
+      "kind": "File",
+      "view": "32",
+      "user": "",
+      "status": "Missing",
+      "candidates": [
+        "C:\\Program Files (x86)\\Fabrikam\\gone.exe",
+        "D:\\Program Files (x86)\\Fabrikam\\gone.exe",
+        "C:\\Program Files\\Fabrikam\\gone.exe",
+        "D:\\Program Files\\Fabrikam\\gone.exe"
+      ]
+    },
+    {
+      "name": "WOW64: System32 from the 32-bit view also checks SysWOW64",
+      "value": "C:\\Windows\\System32\\contoso32.dll",
+      "kind": "File",
+      "view": "32",
+      "user": "",
+      "status": "Exists"
+    },
+    {
+      "name": "WOW64: unsure view gets every candidate",
+      "value": "C:\\Program Files\\Fabrikam\\gone.exe",
+      "kind": "File",
+      "view": "",
+      "user": "",
+      "status": "Missing",
+      "candidates": [
+        "C:\\Program Files\\Fabrikam\\gone.exe",
+        "D:\\Program Files\\Fabrikam\\gone.exe",
+        "C:\\Program Files (x86)\\Fabrikam\\gone.exe",
+        "D:\\Program Files (x86)\\Fabrikam\\gone.exe"
+      ]
+    },
+    {
+      "name": "WOW64: the 64-bit view adds no alternative folder",
+      "value": "C:\\Program Files (x86)\\Fabrikam\\gone.exe",
+      "kind": "File",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files (x86)\\Fabrikam\\gone.exe", "D:\\Program Files (x86)\\Fabrikam\\gone.exe" ]
+    },
+    {
+      "name": "same relative path on another fixed drive exists",
+      "value": "C:\\Games\\Contoso\\game.exe",
+      "kind": "File",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    { "name": "path on a skipped drive is Unknown", "value": "E:\\Fabrikam\\gone.exe", "kind": "File", "view": "64", "user": "", "status": "Unknown" },
+    {
+      "name": "path on a skipped drive found on an online drive",
+      "value": "E:\\Fabrikam\\moved.exe",
+      "kind": "File",
+      "view": "64",
+      "user": "",
+      "status": "Exists"
+    },
+    { "name": "unreadable path is Unknown", "value": "C:\\Locked\\Fabrikam\\x.exe", "kind": "File", "view": "64", "user": "", "status": "Unknown" },
+    {
+      "name": "install folder missing",
+      "value": "C:\\Program Files\\Fabrikam\\",
+      "kind": "Folder",
+      "view": "64",
+      "user": "",
+      "status": "Missing",
+      "candidates": [ "C:\\Program Files\\Fabrikam", "D:\\Program Files\\Fabrikam" ]
+    },
+    { "name": "install folder exists", "value": "C:\\Program Files\\Contoso", "kind": "Folder", "view": "64", "user": "", "status": "Exists" }
+  ]
+}
