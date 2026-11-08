@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "kind": "regCleanCategories",
+  "description": "Registry cleaner categories (DECISIONS RG1, RG3, RG10, RG16, RG32). roots: the keys a category may scan and remove below; a target equal to a root is never removable. view 64 = Registry64, 32 = Registry32 (the WOW6432Node view, addressed through RegistryView, not the literal path); HKCU is read once (shared key). maxConfidence: the highest confidence the category can ever show. kind: what a removal of one finding is (regKeyTree, regValue, firewallRule, reportOnly = never removed by iG).",
+  "categories": [
+    {
+      "id": "uninstall",
+      "kind": "regKeyTree",
+      "maxConfidence": "Safe",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" },
+        { "hive": "HKLM", "view": "32", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" }
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/msi/uninstall-registry-key",
+        "https://learn.microsoft.com/en-us/windows/win32/winprog64/registry-redirector"
+      ]
+    },
+    {
+      "id": "appPath",
+      "kind": "regKeyTree",
+      "maxConfidence": "Safe",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths" }
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/shell/app-registration",
+        "https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys"
+      ]
+    },
+    {
+      "id": "progId",
+      "kind": "regKeyTree",
+      "maxConfidence": "Review",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Classes" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Classes" }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/shell/fa-progids", "https://learn.microsoft.com/en-us/windows/win32/shell/fa-file-types" ]
+    },
+    {
+      "id": "application",
+      "kind": "regKeyTree",
+      "maxConfidence": "Review",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Classes\\Applications" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Classes\\Applications" }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/shell/app-registration" ]
+    },
+    {
+      "id": "openWith",
+      "kind": "regValue",
+      "maxConfidence": "Review",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Classes" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Classes" }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/shell/fa-file-types" ]
+    },
+    {
+      "id": "run",
+      "kind": "regValue",
+      "maxConfidence": "Safe",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" },
+        { "hive": "HKLM", "view": "32", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Run" },
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce" },
+        { "hive": "HKLM", "view": "32", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce" },
+        { "hive": "HKCU", "view": "64", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce" }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys" ]
+    },
+    {
+      "id": "softwareKey",
+      "kind": "regKeyTree",
+      "maxConfidence": "Review",
+      "roots": [
+        { "hive": "HKLM", "view": "64", "path": "SOFTWARE" },
+        { "hive": "HKLM", "view": "32", "path": "SOFTWARE" },
+        { "hive": "HKCU", "view": "64", "path": "Software" }
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/sysinfo/structure-of-the-registry",
+        "https://learn.microsoft.com/en-us/windows/win32/winprog64/registry-redirector"
+      ]
+    },
+    {
+      "id": "firewallRule",
+      "kind": "firewallRule",
+      "maxConfidence": "Safe",
+      "roots": [],
+      "sources": [ "https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule" ]
+    },
+    {
+      "id": "service",
+      "kind": "reportOnly",
+      "maxConfidence": "Review",
+      "roots": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/hklm-system-currentcontrolset-services-registry-tree" ]
+    },
+    {
+      "id": "task",
+      "kind": "reportOnly",
+      "maxConfidence": "Review",
+      "roots": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-start-page" ]
+    }
+  ],
+  "denyList": {
+    "description": "RG32. vendorNames: never offered as the <Vendor> of Software\\<Vendor>\\<Product> (and never a tree root there). segmentNames: never a path segment below a category root of an offered target, and a tree holding a subkey with one of these names is not selectable (shared or linked keys). Exact names, case-insensitive.",
+    "vendorNames": [ "WOW6432Node", "Classes", "Clients", "RegisteredApplications", "Policies", "Microsoft" ],
+    "segmentNames": [ "Wow6432Node", "Clients", "RegisteredApplications", "Policies", "Microsoft", "AppID", "TypeLib", "PROTOCOLS", "CLSID", "Interface" ],
+    "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys" ]
+  }
+}

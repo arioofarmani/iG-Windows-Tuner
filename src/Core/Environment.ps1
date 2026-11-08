@@ -125,6 +125,8 @@ function Clear-IgwtCatalogCaches {
     $script:IgwtKernelInspectorCache = $null
     $script:IgwtServiceRuleCache = $null
     $script:IgwtNicKeywordCache = $null
+    $script:IgwtRegCleanProtectedCache = $null
+    $script:IgwtRegCleanCategoryCache = $null
 }
 
 function Get-IgwtEnvironment {
