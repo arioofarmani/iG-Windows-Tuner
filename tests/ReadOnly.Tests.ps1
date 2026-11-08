@@ -50,6 +50,11 @@ Describe 'Read-only mode' {
         $script:Mutating | Should -Contain 'Invoke-IgwtRevert'
         $script:Mutating | Should -Contain 'Invoke-IgwtCleanerClean'
     }
+    It 'treats the registry cleaner exclusion writer as a change (RG13: not on the allow list)' {
+        $script:Allowed | Should -Not -Contain 'Save-IgwtRegCleanExclusions'
+        $script:Mutating | Should -Contain 'Save-IgwtRegCleanExclusions'
+        $script:Mutating | Should -Not -Contain 'Get-IgwtRegCleanExclusions'
+    }
     It 'guards every state-changing export as its first statement' {
         $m = Get-Module iGWindowsTuner
         foreach ($n in $script:Mutating) {
