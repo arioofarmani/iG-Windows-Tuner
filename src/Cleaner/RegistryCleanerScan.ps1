@@ -339,6 +339,7 @@ function Get-IgwtRegCleanScanContext {
         Notes              = $notes
         EvalCache          = @{}
         EntryPoints        = $null
+        EntryPointIndex    = $null
         ClassNames         = $null
         ExtRefs            = $null
         FirewallSignatures = @{}
@@ -395,6 +396,54 @@ function Get-IgwtRegCleanEntryPoints {
     }
     $Context.EntryPoints = $list.ToArray()
     return $Context.EntryPoints
+}
+
+function Get-IgwtRegCleanEntryPointsUnder {
+    <#
+    .SYNOPSIS
+        The entry points (Get-IgwtRegCleanEntryPoints) that lie in or equal one of the given folders,
+        in list order: the same answer as Test-IgwtPathUnder for every pair, through an index built
+        once per scan (RG25: the pairwise test cost about 0.35 s per Uninstall entry with 2,000 entry
+        points). Read-only; throws like Get-IgwtRegCleanEntryPoints.
+    .PARAMETER Context
+        Get-IgwtRegCleanScanContext result.
+    .PARAMETER Folder
+        The vendor folders.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Context, [AllowEmptyCollection()][string[]]$Folder = @())
+    $eps = @(Get-IgwtRegCleanEntryPoints -Context $Context)
+    # Test-IgwtPathUnder's normalization: full path for drive and UNC paths, no trailing backslash.
+    $norm = { param($x) $y = [string]$x; if ($y -match '^[A-Za-z]:\\|^\\\\') { try { $y = [System.IO.Path]::GetFullPath($y) } catch { $y = [string]$x } }; $y.TrimEnd('\') }
+    $index = $null
+    $cached = $Context.PSObject.Properties['EntryPointIndex']
+    if ($cached -and $null -ne $cached.Value -and [object]::ReferenceEquals($cached.Value.Source, $Context.EntryPoints)) { $index = $cached.Value.Map }
+    if ($null -eq $index) {
+        # Every ancestor at a backslash boundary of each normalized path (and the path itself) maps to
+        # the entry points below it, so a folder lookup equals 'equal or StartsWith(folder + \)'.
+        $index = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.List[int]]' ([StringComparer]::OrdinalIgnoreCase)
+        for ($i = 0; $i -lt $eps.Count; $i++) {
+            $p = & $norm ([string]$eps[$i].Path)
+            $keys = New-Object System.Collections.Generic.List[string]
+            $keys.Add($p)
+            $at = $p.LastIndexOf('\')
+            while ($at -gt 0) { $keys.Add($p.Substring(0, $at)); $at = $p.LastIndexOf('\', $at - 1) }
+            foreach ($k in $keys) {
+                if (-not $k) { continue }
+                $l = $null
+                if (-not $index.TryGetValue($k, [ref]$l)) { $l = New-Object System.Collections.Generic.List[int]; $index[$k] = $l }
+                if ($l.Count -eq 0 -or $l[$l.Count - 1] -ne $i) { $l.Add($i) }
+            }
+        }
+        if ($cached) { $Context.EntryPointIndex = [pscustomobject]@{ Source = $Context.EntryPoints; Map = $index } }
+    }
+    $hits = New-Object 'System.Collections.Generic.SortedSet[int]'
+    foreach ($f in $Folder) {
+        if (-not $f) { continue }
+        $l = $null
+        if ($index.TryGetValue((& $norm $f), [ref]$l)) { foreach ($i in $l) { $null = $hits.Add($i) } }
+    }
+    foreach ($i in $hits) { $eps[$i] }
 }
 
 function Get-IgwtRegCleanClassNames {
@@ -650,9 +699,8 @@ function Get-IgwtRegCleanUninstallEvidence {
     }
     if ($vendor.Count -gt 0) {
         $eps = $null
-        try { $eps = @(Get-IgwtRegCleanEntryPoints -Context $Context) } catch { return @{ Skip = 'unknown'; Detail = 'App Paths, Run or service list' } }
+        try { $eps = @(Get-IgwtRegCleanEntryPointsUnder -Context $Context -Folder $vendor.ToArray()) } catch { return @{ Skip = 'unknown'; Detail = 'App Paths, Run or service list' } }
         foreach ($ep in $eps) {
-            if (-not @($vendor | Where-Object { Test-IgwtPathUnder -Path ([string]$ep.Path) -Parent $_ }).Count) { continue }
             $r = Resolve-IgwtRegCleanPointer -Context $Context -Value ([string]$ep.Path) -Kind File -Hive $ep.Hive -View ''
             if ($r.Status -eq 'Exists') { return @{ Skip = 'vendorFolder'; Detail = "$($ep.Source) points to an existing file of the same vendor" } }
             if ($r.Status -ne 'Missing') { return @{ Skip = 'unknown'; Detail = "$($ep.Source) could not be checked" } }
