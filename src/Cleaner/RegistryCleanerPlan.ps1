@@ -129,6 +129,72 @@ function Get-IgwtRegCleanPlan {
     }
 }
 
+function Format-IgwtRegCleanPlan {
+    <#
+    .SYNOPSIS
+        The text preview of a registry cleaner plan (DECISIONS RG23, RG24), shown before every
+        removal by the CLI (-RegClean) and the GUI. Pure: reads only the plan object.
+    .DESCRIPTION
+        Per target: the key (or value, or firewall rule), the program, the category and confidence,
+        the evidence, and the entries included in it; then the entries that are not removed with
+        their reasons, the backup folder and its files, and how to restore.
+    .PARAMETER Plan
+        A Get-IgwtRegCleanPlan result.
+    .EXAMPLE
+        Format-IgwtRegCleanPlan -Plan (Get-IgwtRegCleanPlan -Findings $selected)
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)]$Plan)
+    $lines = New-Object System.Collections.Generic.List[string]
+    $label = { param($f)
+        if ([string]$f.Kind -eq 'firewallRule' -or ([string]$f.RuleName -and -not [string]$f.Path)) { return "Firewall rule $([string]$f.RuleName)" }
+        $k = $(if ([string]$f.Hive) { "$([string]$f.Hive)\$([string]$f.Path)" } else { [string]$f.Path })
+        if ([string]$f.Kind -eq 'regValue' -or [string]$f.ValueName) { $k = $k + ' value ' + $(if ([string]$f.ValueName) { "'$([string]$f.ValueName)'" } else { '(Default)' }) }
+        if ([string]$f.View -eq '32') { $k = $k + ' (32-bit view)' }
+        return $k
+    }
+    $targets = @($Plan.Targets | Where-Object { $null -ne $_ })
+    $included = @($Plan.Included | Where-Object { $null -ne $_ })
+    $refused = @($Plan.Refused | Where-Object { $null -ne $_ })
+    $lines.Add('Registry cleanup preview (nothing has changed yet)')
+    if ([string]$Plan.Summary) { $lines.Add([string]$Plan.Summary) }
+    $lines.Add('')
+    if ($targets.Count) {
+        $lines.Add('Will be removed:')
+        foreach ($t in $targets) {
+            $cat = [string]$t.Category
+            if ($script:IgwtRegCleanCategoryLabels.ContainsKey($cat)) { $cat = $script:IgwtRegCleanCategoryLabels[$cat] }
+            $lines.Add(('  {0}  [{1}, {2}]' -f (& $label $t), [string]$t.Confidence, $cat))
+            if ([string]$t.Program) { $lines.Add("    Program: $([string]$t.Program)") }
+            foreach ($e in @($t.Evidence | Where-Object { $null -ne $_ })) {
+                $lines.Add(('    - {0}: {1}{2}' -f [string]$e.Check, [string]$e.Result, $(if ([string]$e.Detail) { "  $([string]$e.Detail)" } else { '' })))
+            }
+            foreach ($i in @($included | Where-Object { [string]$_.IncludedIn -eq [string]$t.Id })) {
+                $lines.Add(('    Also removed with it: {0}{1}' -f [string]$i.Path, $(if ([string]$i.ValueName) { " value '$([string]$i.ValueName)'" } else { '' })))
+            }
+        }
+    } else {
+        $lines.Add('Nothing will be removed.')
+    }
+    if ($refused.Count) {
+        $lines.Add('')
+        $lines.Add('Not removed:')
+        foreach ($r in $refused) {
+            $what = $(if ([string]$r.RuleName -and -not [string]$r.Path) { "Firewall rule $([string]$r.RuleName)" } else { [string]$r.Path + $(if ([string]$r.ValueName) { " value '$([string]$r.ValueName)'" } else { '' }) })
+            $lines.Add(('  {0}{1}: {2}' -f $what, $(if ([string]$r.Program) { " ($([string]$r.Program))" } else { '' }), [string]$r.Reason))
+        }
+    }
+    if ($targets.Count -and $Plan.Backup) {
+        $lines.Add('')
+        $lines.Add("Backup folder: $([string]$Plan.Backup.Folder)")
+        foreach ($f in @($Plan.Backup.Files | Where-Object { $_ })) { $lines.Add("  $([string]$f)") }
+        if ([string]$Plan.Backup.Note) { $lines.Add("  $([string]$Plan.Backup.Note)") }
+        $lines.Add('Every removed entry can be restored: Restore last cleanup on the Registry cleaner page, Backups > Change journal, or -RegRestore with the session id.')
+    }
+    return ($lines.ToArray() -join [Environment]::NewLine)
+}
+
 #endregion
 
 #region Writer

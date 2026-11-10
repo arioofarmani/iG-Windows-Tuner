@@ -21,7 +21,7 @@
         'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
         'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
         'Get-IgwtDiskUsage', 'Format-IgwtBytes',
-        'Get-IgwtRegCleanExclusions', 'Save-IgwtRegCleanExclusions', 'Get-IgwtRegistryLeftovers', 'Get-IgwtRegCleanFinding', 'Get-IgwtRegCleanPlan', 'Invoke-IgwtRegistryCleanup',
+        'Get-IgwtRegCleanExclusions', 'Save-IgwtRegCleanExclusions', 'Get-IgwtRegistryLeftovers', 'Get-IgwtRegCleanFinding', 'Get-IgwtRegCleanPlan', 'Format-IgwtRegCleanPlan', 'Invoke-IgwtRegistryCleanup',
         'Convert-IgwtDataToV2', 'Convert-IgwtSnapshotToV2', 'Get-IgwtHardwareTagDefinitions',
         'Get-IgwtHardwareFacts', 'Get-IgwtHardwareProfile', 'Get-IgwtHardwareOverlays', 'Resolve-IgwtPresetSelection', 'Test-IgwtHardwareCatalog',
         'Get-IgwtAsrCatalog', 'Get-IgwtAsrStatus', 'Get-IgwtAsrRecommendationPlan', 'Invoke-IgwtAsrChange', 'Test-IgwtAsrExclusion', 'Test-IgwtAsrCatalog',

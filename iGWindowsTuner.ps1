@@ -348,6 +348,35 @@
 .PARAMETER DisableFeature
     Disables a Toolkit feature; features other tools depend on (WSL, Virtual Machine Platform and
     the .NET Framework 4) are never disabled. -DryRun previews.
+.PARAMETER RegScan
+    Registry cleaner scan: entries left behind by programs that are no longer installed, each with
+    its evidence and confidence (Safe, Review, Protected). -Category limits it, -Json prints it for
+    scripts and -ReportPath writes it to a .json file. Read-only.
+.PARAMETER Category
+    With -RegScan: uninstall, appPath, progId, application, openWith, run, softwareKey,
+    firewallRule, service or task (several separated by commas).
+.PARAMETER RegClean
+    Removes registry cleaner entries: finding ids from -RegScan, or Safe for every Safe entry of a
+    fresh scan (Review entries need their ids). The preview is always printed first; -DryRun stops
+    there. Every removal is journaled and backed up, needs administrator rights and asks for
+    confirmation (scripts pass -Confirm:$false).
+.PARAMETER RegRestore
+    Restores a registry cleanup: its session id, the id of one removed entry (journal entry id) or
+    Last for the newest cleanup. The restore plan is printed first; -DryRun stops there. Restores
+    only what is missing and never overwrites or deletes.
+.PARAMETER RegConflict
+    With -RegRestore: Keep (keep what is there now and stop tracking it) or Skip (default) for each
+    entry that changed since the cleanup.
+.PARAMETER RegExclusions
+    Lists the registry cleaner exclusions (entries the scan never shows). Read-only.
+.PARAMETER RegExclude
+    Adds a registry cleaner exclusion: HKLM\ or HKCU\ key pattern, or a folder path (drive or
+    %Variable%\ first). Prefix key:, value: or path: to set the kind. Needs -Reason. -DryRun previews.
+.PARAMETER Reason
+    With -RegExclude: why the entry is excluded (shown in the exclusion list).
+.PARAMETER RegUnexclude
+    Removes a registry cleaner exclusion by its pattern (optionally prefixed key:, value: or path:).
+    -DryRun previews.
 .EXAMPLE
     .\iGWindowsTuner.ps1 -Report
 .EXAMPLE
@@ -390,14 +419,20 @@
     .\iGWindowsTuner.ps1 -RiskZone
 .EXAMPLE
     .\iGWindowsTuner.ps1 -Apply risk.tcp-autotuning-disabled -AcknowledgeRisk -DryRun
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -RegScan -Category uninstall,run
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -RegClean Safe -DryRun
 
 .NOTES
     Exit codes: 0 success, 1 error, 2 invalid arguments or unknown tweak/rule id, 3 elevation declined,
     4 preflight refused (unsupported build, System Protection off), 5 one or more tweaks or cleaner
-    rules failed, 6 nothing to revert, 3010 success and a reboot is required.
+    rules failed, 6 nothing to revert, 7 read-only mode, 3010 success and a reboot is required. The
+    registry cleaner verbs use 0, 1 (an entry failed and was rolled back, or an error), 2 and 7.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'Interactive CLI output with color; data is also available with -Json.')]
-[CmdletBinding()]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '', Justification = 'SupportsShouldProcess only provides -Confirm for -RegClean and -RegRestore, which pass it to the engine writers (DECISIONS RG24).')]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch]$Report,
     [string]$ReportPath,
@@ -554,6 +589,16 @@ param(
     [string]$OpenPanel,
     [string]$EnableFeature,
     [string]$DisableFeature,
+    [switch]$RegScan,
+    [string[]]$Category,
+    [string[]]$RegClean,
+    [string]$RegRestore,
+    [ValidateSet('Keep', 'Skip')]
+    [string]$RegConflict = 'Skip',
+    [switch]$RegExclusions,
+    [string]$RegExclude,
+    [string]$Reason,
+    [string]$RegUnexclude,
     [switch]$ElevatedRelaunch
 )
 
@@ -769,6 +814,220 @@ function Write-IgwtAsrStatus {
     }
 }
 
+# Registry cleaner verbs (DECISIONS RG24). Each returns {Code; Json}: the dispatcher writes Json
+# (when set) to the output and exits with Code, so tests can call these functions directly.
+
+function Get-IgwtCliRegKeyText {
+    <# The display key of a registry cleaner finding: Hive\Path, value name or firewall rule. #>
+    param($Finding)
+    if ([string]$Finding.Kind -eq 'firewallRule') { return "Firewall rule $([string]$Finding.RuleName)" }
+    $k = $(if ([string]$Finding.Hive) { "$([string]$Finding.Hive)\$([string]$Finding.Path)" } else { [string]$Finding.Path })
+    if ([string]$Finding.Kind -eq 'regValue') { $k = $k + ' value ' + $(if ([string]$Finding.ValueName) { "'$([string]$Finding.ValueName)'" } else { '(Default)' }) }
+    if ([string]$Finding.View -eq '32') { $k = $k + ' (32-bit view)' }
+    return $k
+}
+
+function Write-IgwtCliRegScan {
+    <# Prints a Get-IgwtRegistryLeftovers result: one line per finding with its id, then its first evidence line. #>
+    param($Scan)
+    Write-IgwtCliLine ''
+    Write-IgwtCliLine 'Registry cleaner scan (read-only, nothing was changed)' ([ConsoleColor]::White)
+    $findings = @($Scan.Findings | Where-Object { $null -ne $_ } | Sort-Object Program, Category, Path)
+    if ($findings.Count -eq 0) { Write-IgwtCliLine '  No leftovers that can be proven were found.' ([ConsoleColor]::Green) }
+    foreach ($f in $findings) {
+        $color = switch ([string]$f.Confidence) { 'Safe' { [ConsoleColor]::Green } 'Review' { [ConsoleColor]::Yellow } 'Protected' { [ConsoleColor]::Cyan } default { [ConsoleColor]::Gray } }
+        Write-IgwtCliLine ("{0,-12} {1}  {2}  [{3}]" -f "[$([string]$f.Confidence)]", [string]$f.Id, (Get-IgwtCliRegKeyText $f), [string]$f.Category) $color
+        if ([string]$f.Program) { Write-IgwtCliLine ("             {0}" -f [string]$f.Program) ([ConsoleColor]::Gray) }
+        $ev = @($f.Evidence | Where-Object { $null -ne $_ }) | Select-Object -First 1
+        if ($ev) { Write-IgwtCliLine ("             {0}: {1} {2}" -f [string]$ev.Check, [string]$ev.Result, [string]$ev.Detail) ([ConsoleColor]::DarkGray) }
+        if (-not $f.Selectable -and [string]$f.Reason) { Write-IgwtCliLine ("             {0}" -f [string]$f.Reason) ([ConsoleColor]::DarkGray) }
+        if ($f.RemovalTool) {
+            $tool = $f.RemovalTool
+            Write-IgwtCliLine ("             Removal tool: {0}" -f $(if ([string]$tool.Url) { "$([string]$tool.Name) $([string]$tool.Url)" } else { [string]$tool.Text })) ([ConsoleColor]::Cyan)
+        }
+    }
+    foreach ($n in @($Scan.Notes | Where-Object { $_ })) { Write-IgwtCliLine "Note: $n" ([ConsoleColor]::Yellow) }
+    Write-IgwtCliLine ''
+    Write-IgwtCliLine 'Scan finished. Remove entries with -RegClean <ids> or -RegClean Safe (add -DryRun to see the preview only).' ([ConsoleColor]::White)
+}
+
+function Get-IgwtCliRegCleanSelection {
+    <# Picks the findings of a fresh scan that -RegClean names: 'Safe' = every selectable Safe finding, otherwise finding ids. #>
+    param($Scan, [string[]]$Selection)
+    $ids = @($Selection | ForEach-Object { ([string]$_) -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $all = @($Scan.Findings | Where-Object { $null -ne $_ })
+    if ($ids.Count -eq 1 -and $ids[0] -eq 'Safe') {
+        return [pscustomobject]@{ Findings = @($all | Where-Object { [string]$_.Confidence -eq 'Safe' -and $_.Selectable }); Unknown = @() }
+    }
+    $picked = New-Object System.Collections.Generic.List[object]
+    $unknown = New-Object System.Collections.Generic.List[string]
+    foreach ($i in $ids) {
+        $f = @($all | Where-Object { [string]$_.Id -eq $i }) | Select-Object -First 1
+        if ($f) { $picked.Add($f) } else { $unknown.Add($i) }
+    }
+    return [pscustomobject]@{ Findings = $picked.ToArray(); Unknown = $unknown.ToArray() }
+}
+
+function Invoke-IgwtCliRegClean {
+    <#
+    Runs -RegClean: a fresh scan, the selection, the plan (always printed before anything changes),
+    then, without -DryRun, Invoke-IgwtRegistryCleanup with the caller's -Confirm.
+    #>
+    param([string[]]$Selection, [switch]$DryRun, [switch]$Json, [switch]$SkipRestorePoint, [switch]$EnableSystemProtection, [hashtable]$ConfirmArgs = @{})
+    $freshScan = Get-IgwtRegistryLeftovers
+    $sel = Get-IgwtCliRegCleanSelection -Scan $freshScan -Selection $Selection
+    if (@($sel.Unknown).Count) {
+        Write-IgwtCliLine ("Unknown registry cleaner id(s): {0}. Run -RegScan and use the ids it prints (a finding that is no longer a leftover is not listed)." -f (@($sel.Unknown) -join ', ')) ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = 2; Json = $null }
+    }
+    if (@($sel.Findings).Count -eq 0) {
+        Write-IgwtCliLine 'Nothing selected: the scan found no Safe entry. Review entries need their ids.' ([ConsoleColor]::Green)
+        return [pscustomobject]@{ Code = 0; Json = $null }
+    }
+    $plan = Get-IgwtRegCleanPlan -Findings @($sel.Findings)
+    if ($DryRun -and $Json) { return [pscustomobject]@{ Code = 0; Json = ($plan | ConvertTo-Json -Depth 8) } }
+    foreach ($l in ((Format-IgwtRegCleanPlan -Plan $plan) -split "`r?`n")) { Write-IgwtCliLine $l }
+    if ($DryRun) { Write-IgwtCliLine ''; Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); return [pscustomobject]@{ Code = 0; Json = $null } }
+    if (@($plan.Targets).Count -eq 0) { return [pscustomobject]@{ Code = 0; Json = $null } }
+    $res = $null
+    try { $res = Invoke-IgwtRegistryCleanup -Plan $plan -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection @ConfirmArgs }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 7; Json = $null } }
+        Write-IgwtCliLine "Error: $msg" ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = 1; Json = $null }
+    }
+    if ($null -eq $res) { Write-IgwtCliLine 'Cancelled; nothing was changed.' ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 0; Json = $null } }
+    $code = $(if ([int]$res.Failed -gt 0) { 1 } else { 0 })
+    if ($Json) { return [pscustomobject]@{ Code = $code; Json = ($res | ConvertTo-Json -Depth 8) } }
+    Write-IgwtCliLine ''
+    foreach ($r in @($res.Results)) {
+        $color = switch ([string]$r.Result) { 'Removed' { [ConsoleColor]::Green } 'Failed' { [ConsoleColor]::Red } 'Refused' { [ConsoleColor]::Yellow } default { [ConsoleColor]::DarkGray } }
+        Write-IgwtCliLine ("{0,-13} {1}  {2}  {3}" -f "[$([string]$r.Result)]", [string]$r.Id, (Get-IgwtCliRegKeyText $r), [string]$r.Message) $color
+    }
+    if ([string]$res.Message) { Write-IgwtCliLine ([string]$res.Message) ([ConsoleColor]::Yellow) }
+    if ($res.RestorePoint) { Write-IgwtCliLine ("Restore point: {0}" -f $(if ($res.RestorePoint.Created) { 'created' } else { "not created ($([string]$res.RestorePoint.Reason))" })) ([ConsoleColor]::Gray) }
+    if ([string]$res.Backup) { Write-IgwtCliLine "Backup folder: $([string]$res.Backup)" ([ConsoleColor]::Gray) }
+    if ([string]$res.SessionId) { Write-IgwtCliLine "Restore with: -RegRestore $([string]$res.SessionId)" ([ConsoleColor]::Gray) }
+    return [pscustomobject]@{ Code = $code; Json = $null }
+}
+
+function Resolve-IgwtCliRegRestoreId {
+    <# Maps -RegRestore to a regClean journal session (session id or Last) or one committed regClean entry. Returns $null with a message when it is neither. #>
+    param([string]$Id)
+    $sessions = @(Get-IgwtJournalSessions)
+    $isReg = { param($s) $s.Origin -is [System.Collections.IDictionary] -and [string]$s.Origin['type'] -eq 'regClean' }
+    if ($Id -eq 'Last') {
+        $last = @($sessions | Where-Object { & $isReg $_ }) | Select-Object -Last 1
+        if (-not $last) { Write-IgwtCliLine 'No registry cleanup is in the change journal.' ([ConsoleColor]::Yellow); return $null }
+        return [pscustomobject]@{ SessionId = [string]$last.Id; EntryId = ''; Title = [string]$last.Title }
+    }
+    $s = @($sessions | Where-Object { [string]$_.Id -eq $Id }) | Select-Object -First 1
+    if ($s) {
+        if (-not (& $isReg $s)) { Write-IgwtCliLine "Session $Id is not a registry cleanup; use the Change journal to revert it." ([ConsoleColor]::Red); return $null }
+        return [pscustomobject]@{ SessionId = [string]$s.Id; EntryId = ''; Title = [string]$s.Title }
+    }
+    foreach ($s in $sessions) {
+        foreach ($st in @($s.Steps.Values)) {
+            if ([string]$st.EntryId -ne $Id) { continue }
+            $prov = $(if ($st.Target -is [System.Collections.IDictionary]) { [string]$st.Target['provider'] } else { '' })
+            if ($prov -ne 'regClean' -or $st.Result -ne 'Committed') { Write-IgwtCliLine "Journal entry $Id is not a removed registry cleaner entry." ([ConsoleColor]::Red); return $null }
+            return [pscustomobject]@{ SessionId = ''; EntryId = $Id; Title = [string]$s.Title }
+        }
+    }
+    Write-IgwtCliLine "No registry cleanup or removed entry has the id $Id (use a session id from -RegClean, Last, or a journal entry id)." ([ConsoleColor]::Red)
+    return $null
+}
+
+function Invoke-IgwtCliRegRestore {
+    <#
+    Runs -RegRestore: the revert plan of a regClean session or entry (always printed first), then,
+    without -DryRun, Invoke-IgwtJournalRevert with -Conflict (Keep or Skip) for every Conflict row.
+    #>
+    param([string]$Id, [switch]$DryRun, [switch]$Json, [ValidateSet('Keep', 'Skip')][string]$Conflict = 'Skip', [hashtable]$ConfirmArgs = @{})
+    $t = Resolve-IgwtCliRegRestoreId -Id $Id
+    if ($null -eq $t) { return [pscustomobject]@{ Code = 2; Json = $null } }
+    $plan = $(if ($t.SessionId) { @(Get-IgwtRevertPlan -SessionId $t.SessionId) } else { @(Get-IgwtRevertPlan -EntryId $t.EntryId) })
+    if ($DryRun -and $Json) { return [pscustomobject]@{ Code = 0; Json = (ConvertTo-Json -InputObject $plan -Depth 8) } }
+    Write-IgwtCliLine ''
+    Write-IgwtCliLine ("Restore plan: {0} (nothing has changed yet)" -f $t.Title) ([ConsoleColor]::White)
+    if ($plan.Count -eq 0) { Write-IgwtCliLine '  Nothing to restore.' ([ConsoleColor]::Green); return [pscustomobject]@{ Code = 0; Json = $null } }
+    foreach ($p in $plan) {
+        $color = switch ([string]$p.Status) { 'Ready' { [ConsoleColor]::Green } 'Conflict' { [ConsoleColor]::Yellow } 'Refused' { [ConsoleColor]::Red } default { [ConsoleColor]::DarkGray } }
+        Write-IgwtCliLine ("{0,-11} {1}" -f "[$([string]$p.Status)]", [string]$p.Key) $color
+        if ([string]$p.Message) { Write-IgwtCliLine ("            {0}" -f [string]$p.Message) ([ConsoleColor]::DarkGray) }
+        if ([string]$p.Status -eq 'Conflict') { Write-IgwtCliLine ("            -RegConflict {0}: {1}" -f $Conflict, $(if ($Conflict -eq 'Keep') { 'keep what is there now' } else { 'leave it as it is' })) ([ConsoleColor]::DarkGray) }
+    }
+    if ($DryRun) { Write-IgwtCliLine ''; Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); return [pscustomobject]@{ Code = 0; Json = $null } }
+    $decisions = @{}
+    foreach ($p in @($plan | Where-Object { [string]$_.Status -eq 'Conflict' })) { $decisions[[string]$p.Key] = $Conflict }
+    $res = $null
+    try { $res = Invoke-IgwtJournalRevert -Plan $plan -Decisions $decisions -Title "Restore: $($t.Title)" @ConfirmArgs }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 7; Json = $null } }
+        Write-IgwtCliLine "Error: $msg" ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = 1; Json = $null }
+    }
+    if ($null -eq $res) { Write-IgwtCliLine 'Cancelled; nothing was changed.' ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 0; Json = $null } }
+    $code = $(if (@($res.Results | Where-Object { [string]$_.Result -eq 'Failed' }).Count) { 1 } else { 0 })
+    if ($Json) { return [pscustomobject]@{ Code = $code; Json = ($res | ConvertTo-Json -Depth 6) } }
+    Write-IgwtCliLine ''
+    foreach ($r in @($res.Results)) {
+        $color = switch ([string]$r.Result) { 'Reverted' { [ConsoleColor]::Green } 'Failed' { [ConsoleColor]::Red } default { [ConsoleColor]::DarkGray } }
+        Write-IgwtCliLine ("{0,-15} {1}  {2}" -f "[$([string]$r.Result)]", [string]$r.Key, [string]$r.Message) $color
+    }
+    return [pscustomobject]@{ Code = $code; Json = $null }
+}
+
+function Get-IgwtCliExclusionSpec {
+    <# Splits an -RegExclude/-RegUnexclude pattern into {Scope; Pattern}: an optional key:, value: or path: prefix, otherwise HKLM\/HKCU\ = key and anything else = path. #>
+    param([string]$Text)
+    $t = ([string]$Text).Trim()
+    if ($t -match '^(?i)(key|value|path):(.+)$') { return [pscustomobject]@{ Scope = $Matches[1].ToLowerInvariant(); Pattern = $Matches[2].Trim(); Explicit = $true } }
+    $scope = $(if ($t -match '^(?i)(HKLM|HKCU)\\') { 'key' } else { 'path' })
+    return [pscustomobject]@{ Scope = $scope; Pattern = $t; Explicit = $false }
+}
+
+function Invoke-IgwtCliRegExclusion {
+    <# -RegExclusions (List), -RegExclude (Add, needs a reason) and -RegUnexclude (Remove); -DryRun shows the change only. #>
+    param([ValidateSet('List', 'Add', 'Remove')][string]$Action, [string]$Pattern, [string]$Reason, [switch]$DryRun, [switch]$Json)
+    try { $cur = Get-IgwtRegCleanExclusions } catch { Write-IgwtCliLine "Error: $($_.Exception.Message)" ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 1; Json = $null } }
+    $entries = @($cur.Entries | Where-Object { $null -ne $_ })
+    if ($Action -eq 'List') {
+        if ($Json) { return [pscustomobject]@{ Code = 0; Json = ($cur | ConvertTo-Json -Depth 4) } }
+        Write-IgwtCliLine "Registry cleaner exclusions ($($cur.Path)):" ([ConsoleColor]::White)
+        if ($entries.Count -eq 0) { Write-IgwtCliLine '  (none)' }
+        foreach ($e in $entries) { Write-IgwtCliLine ("  {0,-6} {1}  ({2}, added {3})" -f $e.scope, $e.pattern, $e.reason, $e.addedUtc) }
+        return [pscustomobject]@{ Code = 0; Json = $null }
+    }
+    $spec = Get-IgwtCliExclusionSpec -Text $Pattern
+    $same = { param($e) ([string]$e.pattern).ToLowerInvariant() -eq $spec.Pattern.ToLowerInvariant() -and (-not $spec.Explicit -or [string]$e.scope -eq $spec.Scope) }
+    if ($Action -eq 'Add') {
+        if (@($entries | Where-Object { [string]$_.scope -eq $spec.Scope -and ([string]$_.pattern).ToLowerInvariant() -eq $spec.Pattern.ToLowerInvariant() }).Count) {
+            Write-IgwtCliLine "Already excluded: $($spec.Scope) $($spec.Pattern)" ([ConsoleColor]::Green); return [pscustomobject]@{ Code = 0; Json = $null }
+        }
+        $new = @($entries) + @([pscustomobject]@{ pattern = $spec.Pattern; scope = $spec.Scope; reason = $Reason; addedUtc = '' })
+        $what = "Add exclusion: $($spec.Scope) $($spec.Pattern) ($Reason)"
+    } else {
+        $gone = @($entries | Where-Object { & $same $_ })
+        if ($gone.Count -eq 0) { Write-IgwtCliLine "No exclusion has the pattern $($spec.Pattern); -RegExclusions lists them." ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 2; Json = $null } }
+        $new = @($entries | Where-Object { -not (& $same $_) })
+        $what = 'Remove exclusion: ' + (($gone | ForEach-Object { "$($_.scope) $($_.pattern)" }) -join '; ')
+    }
+    Write-IgwtCliLine $what ([ConsoleColor]::White)
+    if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was saved.' ([ConsoleColor]::White); return [pscustomobject]@{ Code = 0; Json = $null } }
+    try { $saved = Save-IgwtRegCleanExclusions -Entries $new -Confirm:$false }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 7; Json = $null } }
+        Write-IgwtCliLine "Refused: $msg" ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = $(if ($msg -like 'The exclusion list was not saved*') { 2 } else { 1 }); Json = $null }
+    }
+    Write-IgwtCliLine ("Saved: {0} exclusion(s) in {1}." -f @($saved.Entries).Count, $saved.Path) ([ConsoleColor]::Green)
+    return [pscustomobject]@{ Code = 0; Json = $null }
+}
+
 # ---------------------------------------------------------------------------------------------
 $modes = @()
 if ($Report) { $modes += 'Report' }
@@ -853,6 +1112,12 @@ if ($Fix) { $modes += 'Fix' }
 if ($OpenPanel) { $modes += 'OpenPanel' }
 if ($EnableFeature) { $modes += 'EnableFeature' }
 if ($DisableFeature) { $modes += 'DisableFeature' }
+if ($RegScan) { $modes += 'RegScan' }
+if ($PSBoundParameters.ContainsKey('RegClean')) { $modes += 'RegClean' }
+if ($PSBoundParameters.ContainsKey('RegRestore')) { $modes += 'RegRestore' }
+if ($RegExclusions) { $modes += 'RegExclusions' }
+if ($PSBoundParameters.ContainsKey('RegExclude')) { $modes += 'RegExclude' }
+if ($PSBoundParameters.ContainsKey('RegUnexclude')) { $modes += 'RegUnexclude' }
 if (($AddItem -or $RemoveItem) -and -not ($Preset -or $SavePreset)) { Write-IgwtCliLine '-AddItem and -RemoveItem are only valid with -Preset or -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($BasedOn -and -not $SavePreset) { Write-IgwtCliLine '-BasedOn is only valid with -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($ExportPreset -and -not $PresetPath) { Write-IgwtCliLine '-ExportPreset needs -PresetPath.' ([ConsoleColor]::Red); exit 2 }
@@ -873,7 +1138,7 @@ if ($Change -and (-not $Target -or -not $Value)) { Write-IgwtCliLine '-Change ne
 if ($IncludeMicrosoft -and -not $Persistence) { Write-IgwtCliLine '-IncludeMicrosoft is only valid with -Persistence.' ([ConsoleColor]::Red); exit 2 }
 if ($Quick -and -not ($SystemReport -or $Toolkit)) { Write-IgwtCliLine '-Quick is only valid with -SystemReport or -Toolkit.' ([ConsoleColor]::Red); exit 2 }
 if ($SystemReport -and -not $ReportPath) { Write-IgwtCliLine '-SystemReport needs -ReportPath (.html or .json).' ([ConsoleColor]::Red); exit 2 }
-if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport -or $NetworkTest)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence, -SystemReport or -NetworkTest.' ([ConsoleColor]::Red); exit 2 }
+if ($ReportPath -and -not ($Report -or $Persistence -or $SystemReport -or $NetworkTest -or $RegScan)) { Write-IgwtCliLine '-ReportPath is only valid with -Report, -Persistence, -SystemReport, -NetworkTest or -RegScan.' ([ConsoleColor]::Red); exit 2 }
 $netOnly = @('Duration', 'NetTarget', 'UnderLoad') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($netOnly -and -not ($NetworkTest -or $NetworkOptimize)) { Write-IgwtCliLine "-$($netOnly -join ', -') only valid with -NetworkTest or -NetworkOptimize." ([ConsoleColor]::Red); exit 2 }
 if ($RouterHonorsDscp -and -not $NetworkOptimize) { Write-IgwtCliLine '-RouterHonorsDscp is only valid with -NetworkOptimize.' ([ConsoleColor]::Red); exit 2 }
@@ -885,6 +1150,17 @@ if ($Snapshot -and -not $RevertAll) { Write-IgwtCliLine '-Snapshot is only valid
 $cleanOnly = @('Scan', 'CleanRule', 'CleanLevel', 'IncludeOptIn', 'AllUsers', 'Yes') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($cleanOnly -and -not $Clean) { Write-IgwtCliLine "-$($cleanOnly -join ', -') only valid with -Clean." ([ConsoleColor]::Red); exit 2 }
 if ($PSBoundParameters.ContainsKey('Top') -and -not $Analyze) { Write-IgwtCliLine '-Top is only valid with -Analyze.' ([ConsoleColor]::Red); exit 2 }
+if ($Category -and -not $RegScan) { Write-IgwtCliLine '-Category is only valid with -RegScan.' ([ConsoleColor]::Red); exit 2 }
+$regCategories = @('uninstall', 'appPath', 'progId', 'application', 'openWith', 'run', 'softwareKey', 'firewallRule', 'service', 'task')
+foreach ($c in @(Split-IgwtIdList $Category)) { if ($regCategories -notcontains $c) { Write-IgwtCliLine "Unknown -Category '$c' (use $($regCategories -join ', '))." ([ConsoleColor]::Red); exit 2 } }
+if ($PSBoundParameters.ContainsKey('Reason') -and -not $PSBoundParameters.ContainsKey('RegExclude')) { Write-IgwtCliLine '-Reason is only valid with -RegExclude.' ([ConsoleColor]::Red); exit 2 }
+if ($PSBoundParameters.ContainsKey('RegConflict') -and -not $PSBoundParameters.ContainsKey('RegRestore')) { Write-IgwtCliLine '-RegConflict is only valid with -RegRestore.' ([ConsoleColor]::Red); exit 2 }
+if ($RegScan -and $ReportPath -and $ReportPath -notmatch '\.json$') { Write-IgwtCliLine '-ReportPath with -RegScan writes a .json file.' ([ConsoleColor]::Red); exit 2 }
+if ($PSBoundParameters.ContainsKey('RegExclude') -and -not ([string]$Reason).Trim()) { Write-IgwtCliLine '-RegExclude needs -Reason (why the entry is excluded).' ([ConsoleColor]::Red); exit 2 }
+foreach ($rp in 'RegClean', 'RegRestore', 'RegExclude', 'RegUnexclude') { if ($PSBoundParameters.ContainsKey($rp) -and -not (([string[]]$PSBoundParameters[$rp]) -join '').Trim()) { Write-IgwtCliLine "-$rp needs a value." ([ConsoleColor]::Red); exit 2 } }
+# -WhatIf and -Confirm exist only for the registry cleaner writers (RG24); -DryRun is the preview everywhere.
+if ($PSBoundParameters.ContainsKey('WhatIf')) { Write-IgwtCliLine 'Use -DryRun to see what would change (-WhatIf is not used by this script).' ([ConsoleColor]::Red); exit 2 }
+if ($PSBoundParameters.ContainsKey('Confirm') -and -not ($PSBoundParameters.ContainsKey('RegClean') -or $PSBoundParameters.ContainsKey('RegRestore'))) { Write-IgwtCliLine '-Confirm is only valid with -RegClean or -RegRestore.' ([ConsoleColor]::Red); exit 2 }
 
 try {
     if ($modes -notcontains 'Session' -and -not $Json) {
@@ -1336,6 +1612,41 @@ try {
             Write-IgwtCleanResult -CleanResult $c
             if (@($c.Rules | Where-Object { $_.Status -eq 'Error' }).Count -gt 0) { Complete-IgwtCli 5 }
             Complete-IgwtCli 0
+        }
+        'RegScan' {
+            $scanArgs = @{}
+            if ($Category) { $scanArgs.Category = @(Split-IgwtIdList $Category) }
+            # Not $scan: that is the -Scan switch of -Clean (PowerShell variable names ignore case).
+            $regScanResult = Get-IgwtRegistryLeftovers @scanArgs
+            if ($Json) { $regScanResult | ConvertTo-Json -Depth 8 } else { Write-IgwtCliRegScan -Scan $regScanResult }
+            if ($ReportPath) {
+                $out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ReportPath)
+                [IO.File]::WriteAllText($out, ($regScanResult | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
+                if (-not $Json) { Write-IgwtCliLine "Report written to $out" ([ConsoleColor]::Gray) }
+            }
+            exit 0
+        }
+        'RegExclusions' {
+            $r = Invoke-IgwtCliRegExclusion -Action List -Json:$Json
+            if ($r.Json) { $r.Json }
+            exit $r.Code
+        }
+        { $_ -in 'RegClean', 'RegRestore', 'RegExclude', 'RegUnexclude' } {
+            # Changing verbs: refused in read-only mode before any scan or journal read; -DryRun only previews.
+            if (-not $DryRun) {
+                if (Test-IgwtReadOnly) { Write-IgwtCliLine 'Read-only mode: this command changes the PC and is disabled. Run it without -ReadOnly (use -DryRun to see the plan).' ([ConsoleColor]::Yellow); exit 7 }
+                if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            }
+            $confirmArgs = @{}
+            if ($PSBoundParameters.ContainsKey('Confirm')) { $confirmArgs.Confirm = [bool]$PSBoundParameters['Confirm'] }
+            $r = switch ($modes[0]) {
+                'RegClean' { Invoke-IgwtCliRegClean -Selection $RegClean -DryRun:$DryRun -Json:$Json -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -ConfirmArgs $confirmArgs }
+                'RegRestore' { Invoke-IgwtCliRegRestore -Id $RegRestore -DryRun:$DryRun -Json:$Json -Conflict $RegConflict -ConfirmArgs $confirmArgs }
+                'RegExclude' { Invoke-IgwtCliRegExclusion -Action Add -Pattern $RegExclude -Reason $Reason -DryRun:$DryRun }
+                'RegUnexclude' { Invoke-IgwtCliRegExclusion -Action Remove -Pattern $RegUnexclude -DryRun:$DryRun }
+            }
+            if ($r.Json) { $r.Json }
+            Complete-IgwtCli $r.Code
         }
         'PolicySearch' {
             $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ })
