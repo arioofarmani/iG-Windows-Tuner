@@ -68,7 +68,7 @@ function Get-IgwtRegCleanKeySecurity {
     .SYNOPSIS
         Owner and write access of one key (RegistryKey.GetAccessControl; Get-Acl -LiteralPath fails on
         HKLM here): {Owner (SID); Writers (SIDs with an Allow write right that applies to this key);
-        AclProtected; HasExplicitAce; Sddl}. $null when the key does not exist. Read-only.
+        AclProtected; HasExplicitAce; ExplicitAceCount; Sddl}. $null when the key does not exist. Read-only.
     .PARAMETER Hive
         HKLM or HKCU.
     .PARAMETER View
@@ -96,8 +96,9 @@ function Get-IgwtRegCleanKeySecurity {
             $sidType = [System.Security.Principal.SecurityIdentifier]
             $writers = New-Object System.Collections.Generic.List[string]
             $explicit = $false
+            $explicitCount = 0
             foreach ($rule in $acl.GetAccessRules($true, $true, $sidType)) {
-                if (-not $rule.IsInherited) { $explicit = $true }
+                if (-not $rule.IsInherited) { $explicit = $true; $explicitCount++ }
                 if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
                 if (($rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
                 if (([int64][int]$rule.RegistryRights -band $script:IgwtRegCleanWriteRightsMask) -eq 0) { continue }
@@ -106,7 +107,7 @@ function Get-IgwtRegCleanKeySecurity {
             }
             return [pscustomobject]@{
                 Owner = [string]$acl.GetOwner($sidType).Value; Writers = $writers.ToArray(); AclProtected = [bool]$acl.AreAccessRulesProtected
-                HasExplicitAce = $explicit; Sddl = [string]$acl.GetSecurityDescriptorSddlForm($sections)
+                HasExplicitAce = $explicit; ExplicitAceCount = $explicitCount; Sddl = [string]$acl.GetSecurityDescriptorSddlForm($sections)
             }
         } finally { $key.Dispose() }
     } finally { $base.Dispose() }

@@ -1,0 +1,25 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_USERS\S-1-5-21-1-2-3-1001\Software\Contoso\App]
+@="Contoso App"
+"Quote\"Name"="C:\\Program Files\\Contoso\\app.app \"%1\""
+"Flags"=dword:ffffffff
+"Big"=hex(b):ef,cd,ab,89,67,45,23,01
+"Blob"=hex:00,01,fe,ff
+"Marker"=hex(0):07,08
+
+[HKEY_USERS\S-1-5-21-1-2-3-1001\Software\Contoso\App\Sub]
+"Path"=hex(2):25,00,50,00,72,00,6f,00,67,00,72,00,61,00,6d,00,46,00,69,00,6c,\
+  00,65,00,73,00,25,00,5c,00,43,00,00,00
+"List"=hex(7):61,00,00,00,00,00,62,00,00,00,00,00
+
+[HKEY_USERS\S-1-5-21-1-2-3-1001\Software\Contoso\App\Sub\Deep]
+"Long"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\tool.app]
+@="C:\\Fabrikam\\tool.app"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\contoso]
+"Start"=dword:00000001
+
