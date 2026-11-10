@@ -17,6 +17,7 @@ $script:IgwtGuiControlNames = @(
     'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
     'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalResetButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
+    'PageRegistryCleaner', 'RegScanButton', 'RegCancelButton', 'RegSelectSafeButton', 'RegClearButton', 'RegRemoveButton', 'RegRestoreButton', 'RegExclusionsButton', 'RegNoteText', 'RegListHost', 'RegDetailText',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
     'AsrDetImpactIcon', 'AsrDetImpactLevel', 'AsrDetImpact', 'AsrModeNotConfigured', 'AsrModeAudit', 'AsrModeWarn', 'AsrModeBlock', 'AsrModeHelp', 'AsrSetModeButton', 'AsrExclusionList', 'AsrExclusionBox', 'AsrGlobalBox',
@@ -886,6 +887,7 @@ function Update-IgwtGuiButtons {
     $c.CleanRunButton.IsEnabled = (-not $busy) -and [bool]$script:Gui.CleanScan -and @(Get-IgwtGuiCleanerSelection).Count -gt 0 -and -not (Test-IgwtReadOnly)
     if (Test-IgwtReadOnly) { $c.CleanRunButton.ToolTip = Get-IgwtGuiChangeBlockReason -What 'delete files' }
     $c.CleanCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -like 'Invoke-IgwtCleaner*'
+    Update-IgwtGuiRegCleanButtons
     $c.DiskAnalyzeButton.IsEnabled = -not $busy
     $c.DiskCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -eq 'Get-IgwtDiskUsage'
     Update-IgwtGuiAsrButtons
@@ -2731,7 +2733,7 @@ $script:IgwtGuiNavGroups = [ordered]@{
     'Start'    = @('Dashboard', 'Presets')
     'Optimize' = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'System')
     'Secure'   = @('Security', 'Asr', 'Defender', 'Firewall', 'Policy', 'Risk Zone')
-    'Clean'    = @('Cleaner', 'Storage', 'Disk', 'Startup')
+    'Clean'    = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup')
     'Manage'   = @('Manage', 'Toolkit')
     'Diagnose' = @('Diagnostics', 'NetTest', 'Inspect')
     'History'  = @('Backups', 'Rejected', 'About')
@@ -3080,7 +3082,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -3105,6 +3107,7 @@ function Show-IgwtGuiPage {
         'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
+        'RegistryCleaner' { $c.PageRegistryCleaner.Visibility = 'Visible'; if ($script:Gui.RegClean -and -not $script:Gui.RegClean.RemovedLoaded -and $script:Gui.Runspace) { $null = Start-IgwtGuiRegCleanRemovedLoad } }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
         'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
@@ -3137,6 +3140,9 @@ function Save-IgwtGuiScreenshots {
     Update-IgwtGuiFromData -Data $data
     # Read-only data for the cleaner and disk analyzer pages (scan deletes nothing).
     Set-IgwtGuiCleanerScan -Scan (Invoke-IgwtCleanerScan -Level Standard)
+    # The registry cleaner (read-only scan) and its removed entries from the change journal.
+    try { Set-IgwtGuiRegCleanScan -Scan (Get-IgwtRegistryLeftovers); Set-IgwtGuiRegCleanTimeline -Timeline (Get-IgwtJournalTimeline) }
+    catch { Write-Warning "Registry cleaner data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # The change journal (read-only).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
     # The home card (read-only inputs).
@@ -3230,6 +3236,12 @@ function Save-IgwtGuiScreenshots {
             $script:Gui.C.PageDashboard.ScrollToVerticalOffset(560)
             & $capture 'b'
             $script:Gui.C.PageDashboard.ScrollToVerticalOffset(0)
+        }
+        # The registry cleaner's Removed view (grouped by cleanup, then category).
+        if ($page -eq 'RegistryCleaner' -and $script:Gui.Grids.RegList) {
+            Set-IgwtGridChip -Grid $script:Gui.Grids.RegList -ChipId 'removed'
+            & $capture 'b'
+            Set-IgwtGridChip -Grid $script:Gui.Grids.RegList -ChipId 'removed' -On $false
         }
         # The Firewall Manager has a second view worth checking: the Rules tab with a rule that has findings.
         if ($page -eq 'Firewall' -and $script:Gui.Grids.Firewall) {
@@ -3334,6 +3346,8 @@ function Show-IgwtGui {
     Add-IgwtGuiStartupMark -Name 'asr'
     Initialize-IgwtGuiPolicyPage
     Add-IgwtGuiStartupMark -Name 'policy'
+    Initialize-IgwtGuiRegistryCleanerPage
+    Add-IgwtGuiStartupMark -Name 'registryCleaner'
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.AboutBuildText.Text = Get-IgwtGuiBuildInfo

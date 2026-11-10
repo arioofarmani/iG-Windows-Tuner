@@ -33,10 +33,12 @@ Describe 'GUI XAML (headless)' {
 
     It 'runs only exported module commands in the background worker' {
         $gui = Get-Content (Join-Path $script:IgwtProjectRoot 'src\Gui\Gui.ps1') -Raw
+        $gui += Get-Content (Join-Path $script:IgwtProjectRoot 'src\Gui\RegistryCleanerPage.ps1') -Raw
         $commands = @([regex]::Matches($gui, "Start-IgwtGuiJob -Command '([^']+)'") | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
         $commands | Should -Contain 'Invoke-IgwtCleanerScan'
         $commands | Should -Contain 'Invoke-IgwtCleanerClean'
         $commands | Should -Contain 'Get-IgwtDiskUsage'
+        foreach ($rc in 'Get-IgwtRegistryLeftovers', 'Get-IgwtRegCleanPlan', 'Invoke-IgwtRegistryCleanup', 'Get-IgwtRevertPlan', 'Get-IgwtRegCleanExclusions', 'Save-IgwtRegCleanExclusions', 'Get-IgwtJournalTimeline', 'Test-IgwtSystemProtectionEnabled') { $commands | Should -Contain $rc }
         $exported = @((Get-Module iGWindowsTuner).ExportedFunctions.Keys)
         foreach ($cmd in $commands) { $cmd | Should -BeIn $exported -Because "the worker runspace can only call exported commands ($cmd)" }
     }
@@ -51,6 +53,8 @@ Describe 'GUI XAML (headless)' {
         @($items | ForEach-Object { $_.GetAttribute('Tag') }) | Should -Contain 'Cleaner'
         @($items | ForEach-Object { $_.GetAttribute('Tag') }) | Should -Contain 'Storage'
         @($items | ForEach-Object { $_.GetAttribute('Tag') }) | Should -Contain 'Disk'
+        $tags = @($items | ForEach-Object { $_.GetAttribute('Tag') })
+        [array]::IndexOf($tags, 'RegistryCleaner') | Should -Be ([array]::IndexOf($tags, 'Cleaner') + 1) -Because 'the registry cleaner follows the cleaner (RG23)'
     }
 
     It 'gives every button, checkbox, combo box and text box a tooltip' {
@@ -63,6 +67,19 @@ Describe 'GUI XAML (headless)' {
             $label = '{0} {1}{2}' -f $ctl.LocalName, $ctl.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml'), $ctl.GetAttribute('Content')
             $ctl.GetAttribute('ToolTip') | Should -Not -BeNullOrEmpty -Because $label
         }
+    }
+
+    It 'gives every registry cleaner control an automation id equal to its name and a tooltip on every button (RG23)' {
+        $xaml = [xml](Get-Content (Join-Path $script:IgwtProjectRoot 'src\Gui\MainWindow.xaml') -Raw)
+        $x = 'http://schemas.microsoft.com/winfx/2006/xaml'
+        $names = @('PageRegistryCleaner', 'RegScanButton', 'RegCancelButton', 'RegSelectSafeButton', 'RegClearButton', 'RegRemoveButton', 'RegRestoreButton', 'RegExclusionsButton', 'RegNoteText', 'RegListHost', 'RegDetailText')
+        foreach ($n in $names) {
+            $node = @($xaml.SelectNodes("//*[@*[local-name()='Name' and namespace-uri()='$x']='$n']"))
+            $node.Count | Should -Be 1 -Because $n
+            $node[0].GetAttribute('AutomationProperties.AutomationId') | Should -Be $n
+            if ($node[0].LocalName -eq 'Button') { $node[0].GetAttribute('ToolTip') | Should -Not -BeNullOrEmpty -Because $n }
+        }
+        InModuleScope iGWindowsTuner -Parameters @{ Names = $names } { param($Names) foreach ($n in $Names) { $script:IgwtGuiControlNames | Should -Contain $n } }
     }
 
     It 'uses only inbox fonts and no external assets' {

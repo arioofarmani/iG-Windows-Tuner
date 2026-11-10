@@ -479,6 +479,40 @@ function script:Get-IgwtForensicLoggingState {
     }
 }
 
+function script:Get-IgwtRegistryLeftovers {
+    # Demo registry cleaner scan: fictional programs, every kind of row, in the real result shape (DECISIONS RG3).
+    [CmdletBinding()]
+    param($CancelToken, [string[]]$Category)
+    $null = $CancelToken, $Category
+    $ev = { param($check, $result, $detail) [pscustomobject]@{ Check = $check; Result = $result; Detail = $detail } }
+    $mk = {
+        param($n, $cat, $kind, $hive, $path, $value, $program, $owner, $conf, $evidence, $selectable, $reason)
+        [pscustomobject]@{
+            Id = ('{0:x16}' -f (1000 + $n)); Category = $cat; Kind = $kind; Hive = $hive; Sid = $(if ($hive -eq 'HKCU') { 'S-1-5-21-1000-1000-1000-1001' } else { '' }); View = $(if ($hive) { '64' } else { '' })
+            Path = $path; ValueName = $value; RuleName = ''; Program = $program; OwnerHint = $owner; Confidence = $conf; Evidence = @($evidence); RemovalTool = $null
+            Size = 4; Includes = @(); Selectable = $selectable; Reason = $reason; ScanId = 'mockscan01'
+        }
+    }
+    $u = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    $f = @(
+        (& $mk 1 'uninstall' 'regKeyTree' 'HKLM' "$u\ContosoPhotoStudio" '' 'Contoso Photo Studio 4' 'ContosoPhotoStudio' 'Safe' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Contoso\Photo Studio\uninst.app missing'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it'), (& $ev 'NotProtected' 'Pass' 'no protected group, exclusion or live check matches')) $true '')
+        (& $mk 2 'appPath' 'regKeyTree' 'HKLM' 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\photostudio.app' '' 'Contoso Photo Studio 4' 'photostudio.app' 'Safe' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Contoso\Photo Studio\photostudio.app missing'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it')) $true '')
+        (& $mk 3 'run' 'regValue' 'HKCU' 'Software\Microsoft\Windows\CurrentVersion\Run' 'FabrikamLauncher' 'Fabrikam Game Launcher' 'FabrikamLauncher' 'Safe' @((& $ev 'PathMissing' 'Pass' 'D:\Games\Fabrikam\launcher.app missing on D:'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it')) $true '')
+        (& $mk 4 'softwareKey' 'regKeyTree' 'HKCU' 'Software\Fabrikam\Game Launcher' '' 'Fabrikam Game Launcher' 'Fabrikam' 'Review' @((& $ev 'FolderMissing' 'Pass' 'no folder named Fabrikam in Program Files or AppData'), (& $ev 'NameOnly' 'Review' 'only the key name links it to the program')) $true '')
+        (& $mk 5 'progId' 'regKeyTree' 'HKLM' 'SOFTWARE\Classes\Northwind.MediaFile.1' '' 'Northwind Media Player' 'Northwind.MediaFile.1' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files (x86)\Northwind\player.app missing'), (& $ev 'OtherHandler' 'Review' '.nwm still names this handler')) $true '')
+        (& $mk 6 'uninstall' 'regKeyTree' 'HKLM' "$u\WoodgroveAntivirus" '' 'Woodgrove Antivirus' 'WoodgroveAntivirus' 'Protected' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Woodgrove\av.app missing'), (& $ev 'SecuritySoftware' 'Protected' 'Woodgrove Antivirus: left by security software')) $false 'Security software: use the vendor''s removal tool.')
+        (& $mk 7 'service' 'reportOnly' 'HKLM' 'SYSTEM\CurrentControlSet\Services\TailspinUpdate' '' 'Tailspin Update Service' 'TailspinUpdate' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Tailspin\update.app missing')) $false 'iG does not remove services; you can disable it in Manage.')
+        (& $mk 8 'task' 'reportOnly' '' '\Tailspin\Daily update' '' 'Daily update' '\Tailspin\' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Tailspin\update.app missing')) $false 'iG does not remove scheduled tasks; you can disable it in Manage.')
+    )
+    $f[5].RemovalTool = [pscustomobject]@{ Name = ''; Url = ''; Text = 'Woodgrove publishes no removal tool that iG could confirm; contact Woodgrove support.' }
+    $f[6] | Add-Member -NotePropertyName Facts -NotePropertyValue ([pscustomobject]@{ Name = 'TailspinUpdate'; DisplayName = 'Tailspin Update Service'; ImagePath = 'C:\Program Files\Tailspin\update.app'; Service = $null })
+    $f[7] | Add-Member -NotePropertyName Facts -NotePropertyValue ([pscustomobject]@{ TaskPath = '\Tailspin\'; Name = 'Daily update'; Actions = @('C:\Program Files\Tailspin\update.app /daily') })
+    [pscustomobject]@{
+        Generated = $script:MockNow.ToString('o'); ScanId = 'mockscan01'; Findings = $f; Skipped = [ordered]@{ installed = 412; protected = 96 }; Cancelled = $false; Elapsed = 6.2
+        Notes = @(); User = [pscustomobject]@{ Sid = 'S-1-5-21-1000-1000-1000-1001'; Source = 'process' }
+    }
+}
+
 function script:Get-IgwtJournalTimeline {
     # Demo journal: one preset session still in effect, one module change, one reverted change.
     param($Journal)
@@ -489,8 +523,9 @@ function script:Get-IgwtJournalTimeline {
         [pscustomobject]@{ Key = 's1|2'; Session = 's1'; SessionTitle = 'Preset:competitive (3 item(s))'; Origin = 'preset'; When = $t0; Outcome = 'ok'; Step = 2; Op = 'change'; Item = 'sec.autorun-off'; Target = 'action|sec.autorun-off|0|registry'; Result = 'Committed'; Error = ''; Before = 'absent'; After = 'DWord 255'; EntryId = 'e2'; InEffect = $true; OneWay = $false }
         [pscustomobject]@{ Key = 's2|1'; Session = 's2'; SessionTitle = 'Invoke-IgwtManagedChange service Fax Disabled'; Origin = 'module'; When = $t1; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'backup snapshot-20261030-201540.json'; EntryId = 'e3'; InEffect = $false; OneWay = $false }
         [pscustomobject]@{ Key = 's3|1'; Session = 's3'; SessionTitle = 'Revert session: Invoke-IgwtManagedChange'; Origin = 'revert'; When = $t2; Outcome = 'ok'; Step = 1; Op = 'restore'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = ''; EntryId = 'e4'; InEffect = $false; OneWay = $false }
+        [pscustomobject]@{ Key = 's4|1'; Session = 's4'; SessionTitle = 'Registry cleanup (1 entry)'; Origin = 'regClean'; When = '2026-10-31T10:12:00.0000000Z'; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'regclean:uninstall'; Target = 'regclean|regKeyTree|HKLM|-|64|SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AdventureWorksTrial'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'absent'; EntryId = 'e5'; InEffect = $true; OneWay = $false }
     )
-    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Tracked = 2; Rows = $rows }
+    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 20; Sessions = 4; Baselines = 4; Tracked = 3; Rows = $rows }
 }
 
 function script:Get-IgwtHomeCardInput {
