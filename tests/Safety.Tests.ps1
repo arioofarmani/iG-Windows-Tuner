@@ -234,3 +234,35 @@ Describe 'Cleaning engine stays non-recursive and never closes apps' {
     }
     It 'never takes ownership or rewrites ACLs' { Get-Matches '(?i)(takeown|icacls|Set-Acl)' $script:CleanerCode | Should -BeNullOrEmpty }
 }
+
+Describe 'Registry cleaner stays narrow and does not look like an AV killer (DECISIONS RG17, RG30)' {
+    BeforeAll {
+        $script:CleanerCode = @($script:Code | Where-Object { $_.DirectoryName -like '*\src\Cleaner' })
+        $script:RegCleanWriters = @($script:CleanerCode | Where-Object { $_.Name -in 'RegistryCleanerProvider.ps1', 'RegistryCleanerPlan.ps1' })
+        # Vendor, EDR and anti-cheat names exist only in the data file (read here, never written into a test literal).
+        $doc = Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'data\registry\protected.json') -Raw | ConvertFrom-Json
+        $names = New-Object System.Collections.Generic.List[string]
+        foreach ($g in @($doc.groups)) {
+            foreach ($v in @($g.vendors | Where-Object { $_ })) { foreach ($part in (([string]$v.name) -split '\s*[()]\s*|\s+and\s+')) { if ($part.Trim().Length -ge 3) { $names.Add($part.Trim()) } } }
+            if ($g.id -eq 'antiCheat') { foreach ($p in @($g.displayNamePatterns) + @($g.servicePatterns)) { $n = ([string]$p).Trim('*').Trim(); if ($n.Length -ge 4) { $names.Add($n) } } }
+        }
+        $script:VendorNames = @($names | Select-Object -Unique)
+    }
+    It 'has the provider and plan files to check' {
+        $script:RegCleanWriters.Count | Should -Be 2
+        $script:VendorNames.Count | Should -BeGreaterThan 20
+    }
+    It 'never uses DeleteSubKeyTree or reg.exe in src\Cleaner' {
+        Get-Matches '(?i)DeleteSubKeyTree' $script:CleanerCode | Should -BeNullOrEmpty
+        Get-Matches '(?i)\breg(\.exe)?\s+(add|delete|export|import|load|unload|copy|restore|save)\b|reg\.exe' $script:CleanerCode | Should -BeNullOrEmpty
+    }
+    It 'names no security vendor, EDR or anti-cheat product in the provider and plan files' {
+        foreach ($n in $script:VendorNames) {
+            Get-Matches ('(?i)(?<![A-Za-z0-9])' + [regex]::Escape($n) + '(?![A-Za-z0-9])') $script:RegCleanWriters | Should -BeNullOrEmpty -Because $n
+        }
+    }
+    It 'queries no SecurityCenter2 and holds no service write in the provider and plan files' {
+        Get-Matches '(?i)SecurityCenter2|AntiVirusProduct|LaunchProtected' $script:RegCleanWriters | Should -BeNullOrEmpty
+        Get-Matches '(?i)\b(Stop|Start|Set|New|Remove|Restart|Suspend|Resume)-Service\b|ServiceController|Win32_Service|\bsc(\.exe)?\s+(config|stop|delete|create|start)\b|ChangeStartMode|StopService' $script:RegCleanWriters | Should -BeNullOrEmpty
+    }
+}

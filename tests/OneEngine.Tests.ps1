@@ -20,6 +20,8 @@ BeforeAll {
         'Install-IgwtWingetPackage', 'Uninstall-IgwtWingetPackage', 'Update-IgwtWingetPackage',
         'Invoke-IgwtPowerCfgSchemeApply', 'Restore-IgwtPowerCfgSchemeSnapshot', 'Set-IgwtPowerSettingIndex', 'Set-IgwtPowerAttributeVisible',
         'Stop-IgwtCleanerService', 'Restore-IgwtCleanerService',
+        # src\Cleaner: the registry cleaner's only registry writes (provider "regClean", DECISIONS RG16, RG30)
+        'Remove-IgwtRegCleanKeyTree', 'Remove-IgwtRegCleanValue', 'Restore-IgwtRegCleanKeyTree', 'Restore-IgwtRegCleanValue',
         # module writers (provider "module", DECISIONS T14) and the restores they call
         'Import-IgwtFirewallRules', 'Invoke-IgwtFirewallChange', 'Restore-IgwtFirewallSnapshot', 'Set-IgwtFirewallProfileSetting', 'Set-IgwtNetworkCategory',
         'Invoke-IgwtManagedChange', 'Restore-IgwtManagedSnapshot',
