@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.8.0 (unreleased)
+
+Registry Analyzer & Cleaner. Design: DECISIONS RG1 to RG34; guide: docs\REGISTRY_CLEANER.md.
+
+### Added
+
+- **Registry cleaner** (Clean > Registry cleaner; DECISIONS RG1-RG3, RG23): finds entries left behind by programs that are no longer installed: Uninstall entries, App Paths, ProgIDs, Applications verbs, Open with values, Run and RunOnce values, Software\<Vendor>\<Product> keys (64-bit and 32-bit views, the signed-in user's HKCU) and firewall rules for missing programs. Services and scheduled tasks of removed programs are reported only, with Open in Manage. It makes no speed or performance claim.
+- **Only what can be proven** (RG2, RG5-RG10): each entry shows its evidence and is Safe (every rule of its category holds, more than one pointer missing where there is one) or Review (you decide). An entry is not shown at all when any check cannot answer (access denied, skipped or offline drive, unexpanded variable, another user's profile). Ownership is decided by identifiers and folders (Uninstall keys, MSI product state, services, Store packages, games), never by display names. Paths are parsed by the documented command-line rules, expanded for the entry's owner, checked in both WOW64 views and on every online fixed drive; removable, network, virtual and unknown drives are skipped.
+- **Protected entries** (RG11-RG15, RG32): Windows and Microsoft components, Windows Installer data, policies, drivers and hardware software, shared runtimes, anti-cheat and game launchers are never offered, from reviewable data (data\registry\protected.json) plus live checks (TrustedInstaller ownership, Microsoft signatures, launch-protected and early-launch services, Windows Security Center products). Security-product leftovers are shown as Protected with a link to the vendor's removal tool, or a plain text where no tool page could be confirmed; they can never be removed. Shared and linked keys (Wow6432Node, Classes, Policies and the documented link names) are never part of an offered key. The protection check runs in the scan, in the preview and in the engine just before each delete.
+- **Your exclusions** (RG13): Never show this again and an Exclusions dialog, stored machine-wide in %ProgramData%\iGWindowsTuner\State\regclean-exclusions.json, with a reason per entry.
+- **Removal through the change journal** (RG16-RG19, RG21): a fresh preview first, a restore point offer, then one journaled session with a new engine provider: each entry is re-checked, re-read and refused if it changed since the preview, deleted values first and keys leaf-first, and read back. Refused entries leave the rest of the session running; a failed entry is rolled back and stops the session. Nested selections collapse into the parent key.
+- **Private backup folder** (RG18): Backups\regclean-<time>-<id> with selected.reg (iG's own .reg writer; per-user keys under HKEY_USERS\<SID>), firewall-rules.json (the rule definitions) and manifest.json (targets, file hashes, owner and SDDL); only SYSTEM and Administrators can change it.
+- **One-click restore, additive only** (RG20): Restore last cleanup, Restore per removed entry and Undo in the toast, each with the journal's restore plan. A restore only creates what is missing and refuses, with nothing changed, when the key exists again with other data.
+- **Command line** (RG24): -RegScan [-Category] [-Json] [-ReportPath], -RegClean <ids|Safe> [-DryRun], -RegRestore <session|entry|Last> [-DryRun] [-RegConflict], -RegExclusions, -RegExclude -Reason, -RegUnexclude; the changing verbs exit with 7 in read-only mode before any scan. docs\CLI.md now also lists exit code 7.
+- Headless tests for the resolver, scanner, provider, CLI, GUI page and performance budgets (tests\RegistryCleaner*.Tests.ps1, synthetic fixtures only), and tools\RegistryCleaner.Sandbox.ps1 for the real round trip in Windows Sandbox.
+
+### Known limits
+
+- Only the scanned user's per-user entries are read; key class names, last-write times and the volatile flag are not captured; after a restore a key's owner and inherited permissions can differ from the original (docs\REGISTRY_CLEANER.md, Honest limits).
+- A scan of a PC with thousands of entries can take several minutes (RG25); the real scan time is measured in Windows Sandbox.
+- Not yet verified in Windows Sandbox (RG27).
 ## 3.6.5 (2026-11-05)
 
 Fixes the bug that blocked every change on real PCs in 3.6.0 (found by Ario).

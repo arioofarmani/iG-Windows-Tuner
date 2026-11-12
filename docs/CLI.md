@@ -205,6 +205,24 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-EnableFeature` | Enables a Toolkit feature (for example feature.wsl); snapshot-backed. -DryRun previews. |
 | `-DisableFeature` | Disables a Toolkit feature; features other tools depend on (WSL, Virtual Machine Platform and the .NET Framework 4) are never disabled. -DryRun previews. |
 
+## Registry cleaner
+
+Finds and removes registry entries left behind by programs that are no longer installed (see [REGISTRY_CLEANER.md](REGISTRY_CLEANER.md)). Every removal is previewed first, journaled and backed up, and can be restored. These verbs use the exit codes 0, 1, 2 and 7.
+
+| Parameter | Description |
+|---|---|
+| `-RegScan` | Registry cleaner scan: entries left behind by programs that are no longer installed, each with its evidence and confidence (Safe, Review, Protected). -Category limits it, -Json prints it for scripts and -ReportPath writes it to a .json file. Read-only. |
+| `-Category` | With -RegScan: uninstall, appPath, progId, application, openWith, run, softwareKey, firewallRule, service or task (several separated by commas). |
+| `-RegClean` | Removes registry cleaner entries: finding ids from -RegScan, or Safe for every Safe entry of a fresh scan (Review entries need their ids). The preview is always printed first; -DryRun stops there. Every removal is journaled and backed up, needs administrator rights and asks for confirmation (scripts pass -Confirm:$false). |
+| `-RegRestore` | Restores a registry cleanup: its session id, the id of one removed entry (journal entry id) or Last for the newest cleanup. The restore plan is printed first; -DryRun stops there. Restores only what is missing and never overwrites or deletes. |
+| `-RegConflict` | With -RegRestore: Keep (keep what is there now and stop tracking it) or Skip (default) for each entry that changed since the cleanup. |
+| `-RegExclusions` | Lists the registry cleaner exclusions (entries the scan never shows). Read-only. |
+| `-RegExclude` | Adds a registry cleaner exclusion: HKLM\ or HKCU\ key pattern, or a folder path (drive or %Variable%\ first). Prefix key:, value: or path: to set the kind. Needs -Reason. -DryRun previews. |
+| `-Reason` | With -RegExclude: why the entry is excluded (shown in the exclusion list). |
+| `-RegUnexclude` | Removes a registry cleaner exclusion by its pattern (optionally prefixed key:, value: or path:). -DryRun previews. |
+
+-RegClean also accepts -SkipRestorePoint and -EnableSystemProtection. -Confirm is accepted only with -RegClean and -RegRestore; -WhatIf is refused (use -DryRun). Windows PowerShell 5.1 cannot pass -Confirm:$false through `powershell.exe -File`, so scripts that remove without a prompt call `.\iGWindowsTuner.ps1` from PowerShell. In read-only mode the changing verbs exit with 7 before any scan.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -216,6 +234,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | 4 | Preflight refused (unsupported build, System Protection off) |
 | 5 | One or more items, rules, packages or fix steps failed |
 | 6 | Nothing to revert (or no active session) |
+| 7 | Read-only mode: a command that changes the PC is disabled |
 | 3010 | Success; a restart is required |
 
 ## Examples
@@ -254,4 +273,9 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 .\iGWindowsTuner.ps1 -PolicySearch "defer feature"
 .\iGWindowsTuner.ps1 -PolicyShow WindowsUpdate:DeferFeatureUpdates
 .\iGWindowsTuner.ps1 -PolicySet WindowsUpdate:DeferFeatureUpdates -PolicyState Enabled -PolicyValue "DeferFeatureUpdatesPeriodId=90" -DryRun
+.\iGWindowsTuner.ps1 -RegScan -Category uninstall,run
+.\iGWindowsTuner.ps1 -RegScan -Json -ReportPath "$env:USERPROFILE\Desktop\registry-leftovers.json"
+.\iGWindowsTuner.ps1 -RegClean Safe -DryRun
+.\iGWindowsTuner.ps1 -RegRestore Last -DryRun
+.\iGWindowsTuner.ps1 -RegExclusions
 ```
