@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "description": "Microsoft security baseline values iG can cite (DECISIONS SM32). Only entries whose value is stated on a Microsoft page are bundled; nothing is downloaded. The Windows 11 baseline itself ships as GPO backups in the Security Compliance Toolkit: import it with -SecSettingsBaseline <folder> to show its values next to the current ones.",
+  "baseline": {
+    "name": "Windows 11 security baseline",
+    "version": "not bundled",
+    "url": "https://learn.microsoft.com/en-us/windows/security/operating-system-security/device-management/windows-security-configuration-framework/windows-security-baselines"
+  },
+  "entries": []
+}

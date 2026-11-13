@@ -5,7 +5,7 @@
 # project. The parsed catalog is cached per user, keyed by a hash of the definition files.
 
 $script:IgwtAdmxCache = $null
-$script:IgwtAdmxCacheVersion = 1
+$script:IgwtAdmxCacheVersion = 2
 
 function Get-IgwtAdmxFolders {
     <#
@@ -107,7 +107,9 @@ function Get-IgwtAdmxPresentation {
         $rid = $c.GetAttribute('refId')
         if (-not $rid) { continue }
         $label = $(if ($c['label']) { $c['label'].InnerText } else { $c.InnerText })
-        $map[$rid] = [pscustomobject]@{ Kind = $c.LocalName; Label = ([string]$label).Trim(); Default = $(if ($c.HasAttribute('defaultValue')) { $c.GetAttribute('defaultValue') } elseif ($c.HasAttribute('defaultChecked')) { $c.GetAttribute('defaultChecked') } elseif ($c.HasAttribute('defaultItem')) { $c.GetAttribute('defaultItem') } else { $null }) }
+        # 3.8 (DECISIONS SM7, additive): decimalTextBox spin and spinStep, comboBox suggestions.
+        $suggest = @(foreach ($s in $c.ChildNodes) { if ($s.NodeType -eq 'Element' -and $s.LocalName -eq 'suggestion') { ([string]$s.InnerText).Trim() } })
+        $map[$rid] = [pscustomobject]@{ Kind = $c.LocalName; Spin = ($c.GetAttribute('spin') -ne 'false'); SpinStep = $(if ($c.HasAttribute('spinStep')) { [uint64]$c.GetAttribute('spinStep') } else { [uint64]1 }); Suggestions = $suggest; Label = ([string]$label).Trim(); Default = $(if ($c.HasAttribute('defaultValue')) { $c.GetAttribute('defaultValue') } elseif ($c.HasAttribute('defaultChecked')) { $c.GetAttribute('defaultChecked') } elseif ($c.HasAttribute('defaultItem')) { $c.GetAttribute('defaultItem') } else { $null }) }
     }
     return $map
 }
@@ -119,6 +121,8 @@ function ConvertFrom-IgwtAdmxElement {
     $key = $Node.GetAttribute('key'); if (-not $key) { $key = $PolicyKey }
     $e = [ordered]@{ Type = $Node.LocalName; Id = $id; Key = $key; ValueName = $Node.GetAttribute('valueName'); Required = ($Node.GetAttribute('required') -eq 'true')
         Label = $(if ($Labels.ContainsKey($id)) { $Labels[$id].Label } else { $id }); Default = $(if ($Labels.ContainsKey($id)) { $Labels[$id].Default } else { $null }) }
+    # 3.8 (DECISIONS SM7, additive): the presentation control's kind, spin settings and suggestions.
+    if ($Labels.ContainsKey($id)) { $e.Presentation = [string]$Labels[$id].Kind; $e.Spin = [bool]$Labels[$id].Spin; $e.SpinStep = $Labels[$id].SpinStep; $e.Suggestions = @($Labels[$id].Suggestions) }
     switch ($Node.LocalName) {
         { $_ -in 'decimal', 'longDecimal' } {
             $e.Min = $(if ($Node.HasAttribute('minValue')) { [uint64]$Node.GetAttribute('minValue') } else { [uint64]0 })
@@ -128,6 +132,7 @@ function ConvertFrom-IgwtAdmxElement {
         { $_ -in 'text', 'multiText' } {
             $e.MaxLength = $(if ($Node.HasAttribute('maxLength')) { [int]$Node.GetAttribute('maxLength') } else { 1023 })
             $e.Expandable = ($Node.GetAttribute('expandable') -eq 'true')
+            if ($_ -eq 'multiText') { $e.MaxStrings = $(if ($Node.HasAttribute('maxStrings')) { [int]$Node.GetAttribute('maxStrings') } else { 0 }) }
         }
         'boolean' {
             $e.TrueValue = ConvertFrom-IgwtAdmxValue -Node $Node['trueValue']
@@ -204,6 +209,7 @@ function Read-IgwtAdmxFolder {
                             EnabledValue = (ConvertFrom-IgwtAdmxValue -Node $p['enabledValue']); DisabledValue = (ConvertFrom-IgwtAdmxValue -Node $p['disabledValue'])
                             EnabledList = @(ConvertFrom-IgwtAdmxValueList -Node $p['enabledList'] -DefaultKey $key); DisabledList = @(ConvertFrom-IgwtAdmxValueList -Node $p['disabledList'] -DefaultKey $key)
                             Elements = $elements
+                            ClientExtension = $p.GetAttribute('clientExtension')
                         }
                     })
             }
@@ -231,9 +237,12 @@ function Get-IgwtAdmxCatalog {
         Parse again even when a cache exists.
     .PARAMETER ExtraFolder
         Additional ADMX folders (for example Edge, Chrome or Office templates).
+    .PARAMETER NoCache
+        Do not write the disk cache (read-only runs on the dev PC, DECISIONS SM7); the parsed catalog
+        is still kept in memory, so later readers in the same process reuse it.
     #>
     [CmdletBinding()]
-    param([switch]$Force, [string[]]$ExtraFolder = @(), [scriptblock]$OnProgress)
+    param([switch]$Force, [string[]]$ExtraFolder = @(), [scriptblock]$OnProgress, [switch]$NoCache)
     $folders = @(Get-IgwtAdmxFolders -Extra $ExtraFolder)
     $hash = Get-IgwtAdmxFolderHash -Folders $folders
     if (-not $Force -and $script:IgwtAdmxCache -and $script:IgwtAdmxCache.Hash -eq $hash) { return $script:IgwtAdmxCache }
@@ -276,11 +285,11 @@ function Get-IgwtAdmxCatalog {
         $policies.Add($p)
     }
     $cat = [pscustomobject]@{ Hash = $hash; Folders = $folders; Parsed = (Get-Date).ToString('o'); ParseMs = $sw.ElapsedMilliseconds; Policies = $policies.ToArray(); Categories = @($categories.Values); Errors = $errors.ToArray() }
-    try {
+    if (-not $NoCache) { try {
         $dir = Split-Path -Parent $cacheFile
         if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
         Export-Clixml -LiteralPath $cacheFile -InputObject $cat -Depth 8
-    } catch { Write-Verbose "ADMX cache not written: $($_.Exception.Message)" }
+    } catch { Write-Verbose "ADMX cache not written: $($_.Exception.Message)" } }
     $script:IgwtAdmxCache = $cat
     Send-IgwtProgress -Text 'Policy definitions read' -Percent 100 -Callback $OnProgress
     return $cat

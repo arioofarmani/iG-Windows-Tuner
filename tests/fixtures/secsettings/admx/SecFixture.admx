@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="lanman" namespace="Microsoft.Policies.LanmanWorkstation" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Fixture" displayName="$(string.SUPPORTED_Fixture)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="Cat_LanmanWorkstation" displayName="$(string.Cat_LanmanWorkstation)" />
+    <category name="Cat_Child" displayName="$(string.Cat_Child)">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+    </category>
+    <category name="Cat_Unlisted" displayName="$(string.Cat_Unlisted)" />
+  </categories>
+  <policies>
+    <policy name="AllKinds" class="Machine" displayName="$(string.AllKinds)" explainText="$(string.AllKinds_Help)" presentation="$(presentation.AllKinds)" key="Software\Policies\Contoso\Sec" valueName="AllKindsOn" clientExtension="{827D319E-6EAC-11D2-A4EA-00C04F79F83A}">
+      <parentCategory ref="Cat_Child" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+      <elements>
+        <boolean id="BoolEl" valueName="BoolValue"><trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue></boolean>
+        <decimal id="DecEl" valueName="DecValue" minValue="1" maxValue="99" />
+        <longDecimal id="LongEl" valueName="LongValue" maxValue="5000000000" />
+        <text id="TextEl" valueName="TextValue" maxLength="64" />
+        <multiText id="MultiEl" valueName="MultiValue" maxStrings="5" />
+        <enum id="EnumEl" valueName="EnumValue">
+          <item displayName="$(string.EnumLow)"><value><decimal value="10" /></value></item>
+          <item displayName="$(string.EnumHigh)"><value><decimal value="20" /></value></item>
+        </enum>
+        <list id="ListEl" key="Software\Policies\Contoso\Sec\Items" valuePrefix="" />
+        <list id="PairEl" key="Software\Policies\Contoso\Sec\Pairs" explicitValue="true" />
+      </elements>
+    </policy>
+    <policy name="OverlapA" class="Machine" displayName="$(string.OverlapA)" explainText="$(string.Plain_Help)" key="Software\Policies\Contoso\Shared" valueName="Shared">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="OverlapB" class="Machine" displayName="$(string.OverlapB)" explainText="$(string.Plain_Help)" key="Software\Policies\Contoso\Shared" valueName="Shared">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="2" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="ListOwner" class="Machine" displayName="$(string.ListOwner)" explainText="$(string.Plain_Help)" presentation="$(presentation.ListOwner)" key="Software\Policies\Contoso\Parent">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <elements><list id="OwnerList" key="Software\Policies\Contoso\Parent" /></elements>
+    </policy>
+    <policy name="ChildWriter" class="Machine" displayName="$(string.ChildWriter)" explainText="$(string.Plain_Help)" key="Software\Policies\Contoso\Parent\Child" valueName="X">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="LoggingSwitch" class="Machine" displayName="$(string.LoggingSwitch)" explainText="$(string.Plain_Help)" key="Software\Policies\Contoso\Log" valueName="EnableAuditLogging">
+      <parentCategory ref="Cat_LanmanWorkstation" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="NotInScope" class="Machine" displayName="$(string.NotInScope)" explainText="$(string.Plain_Help)" key="Software\Policies\Contoso\Other" valueName="Other">
+      <parentCategory ref="Cat_Unlisted" />
+      <supportedOn ref="SUPPORTED_Fixture" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

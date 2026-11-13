@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="dg" namespace="Microsoft.Windows.DeviceGuard" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <categories>
+    <category name="DeviceGuardCategory" displayName="$(string.DeviceGuard)" />
+  </categories>
+  <policies>
+    <policy name="VbsShaped" class="Machine" displayName="$(string.VbsShaped)" explainText="$(string.VbsShaped_Help)" presentation="$(presentation.VbsShaped)" key="SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" valueName="EnableVirtualizationBasedSecurity">
+      <parentCategory ref="DeviceGuardCategory" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+      <elements>
+        <enum id="HvciDrop" valueName="HypervisorEnforcedCodeIntegrity">
+          <item displayName="$(string.Off)"><value><decimal value="0" /></value></item>
+          <item displayName="$(string.WithLock)"><value><decimal value="1" /></value></item>
+          <item displayName="$(string.NoLock)"><value><decimal value="2" /></value></item>
+        </enum>
+        <enum id="FakeDrop" valueName="FakeIsolation">
+          <item displayName="$(string.Off)"><value><decimal value="0" /></value></item>
+          <item displayName="$(string.WithLock)"><value><decimal value="1" /></value></item>
+        </enum>
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "description": "Per-setting facts for the Security Settings Manager (DECISIONS SM3, SM15-SM19, SM25). Keys of settings are setting ids; a key may end in * to cover every id with that prefix. risk normal, medium or high; riskClass lockout or uefiLock; restart none, reboot, signOut, appRestart, immediate or unknown.",
+  "settings": {
+    "admx:DeviceGuard:VirtualizationBasedSecurity:Machine": {
+      "risk": "high",
+      "restart": "reboot",
+      "riskClass": [ "uefiLock" ],
+      "sideEffects": [
+        {
+          "text": "Drivers that are not compatible with memory integrity can stop working or prevent Windows from starting; check Windows Security > Device security > Core isolation first.",
+          "url": "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity"
+        },
+        {
+          "text": "Some virtualization software and older anti-cheat drivers do not run with virtualization-based security on.",
+          "url": "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity"
+        },
+        {
+          "text": "With UEFI lock, the setting is stored in firmware and cannot be turned off by software or Group Policy.",
+          "url": "https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/configure"
+        }
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity",
+        "https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/configure"
+      ]
+    },
+    "admx:DeviceGuard:ConfigCIPolicy:Machine": {
+      "risk": "high",
+      "restart": "reboot",
+      "sideEffects": [
+        {
+          "text": "An application control policy can block programs and drivers from running.",
+          "url": "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/appcontrol"
+        }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/app-control-for-business/appcontrol" ]
+    },
+    "admx:LocalSecurityAuthority:ConfigureLsaProtectedProcess:Machine": {
+      "risk": "high",
+      "restart": "reboot",
+      "riskClass": [ "uefiLock" ],
+      "sideEffects": [
+        {
+          "text": "Security packages and plug-ins that are not signed for LSA protection stop loading.",
+          "url": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+        },
+        {
+          "text": "With UEFI lock, the setting is stored in firmware and turning it off needs a firmware step.",
+          "url": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+        }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection" ]
+    },
+    "admx:VolumeEncryption:*": {
+      "risk": "high",
+      "restart": "unknown",
+      "sideEffects": [
+        {
+          "text": "Changing BitLocker policy can require the recovery key at the next start. Make sure you have your recovery key before you continue.",
+          "url": "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/recovery-overview"
+        }
+      ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/recovery-overview" ]
+    }
+  },
+  "uefiLockValues": [
+    {
+      "class": "Machine",
+      "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeviceGuard",
+      "valueName": "HypervisorEnforcedCodeIntegrity",
+      "value": 1,
+      "label": "Memory integrity enabled with UEFI lock",
+      "source": "https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity"
+    },
+    {
+      "class": "Machine",
+      "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DeviceGuard",
+      "valueName": "LsaCfgFlags",
+      "value": 1,
+      "label": "Credential Guard enabled with UEFI lock",
+      "source": "https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/configure"
+    },
+    {
+      "class": "Machine",
+      "key": "Software\\Policies\\Microsoft\\Windows\\System",
+      "valueName": "RunAsPPL",
+      "value": 1,
+      "label": "LSA protection enabled with UEFI lock",
+      "source": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+    }
+  ],
+  "mpCoverage": {
+    "AllowDatagramProcessingOnWinServer": "catalog",
+    "AllowNetworkProtectionDownLevel": "catalog",
+    "AllowNetworkProtectionOnWinServer": "catalog",
+    "AllowSwitchToAsyncInspection": "catalog",
+    "AsJob": "excluded",
+    "AttackSurfaceReductionOnlyExclusions": "coveredElsewhere:asr",
+    "AttackSurfaceReductionRules_Actions": "coveredElsewhere:asr",
+    "AttackSurfaceReductionRules_Ids": "coveredElsewhere:asr",
+    "CheckForSignaturesBeforeRunningScan": "catalog",
+    "CimSession": "excluded",
+    "CloudBlockLevel": "catalog",
+    "CloudExtendedTimeout": "catalog",
+    "ControlledFolderAccessAllowedApplications": "coveredElsewhere:cfa",
+    "ControlledFolderAccessProtectedFolders": "coveredElsewhere:cfa",
+    "DisableArchiveScanning": "catalog",
+    "DisableAutoExclusions": "catalog",
+    "DisableBehaviorMonitoring": "catalog",
+    "DisableBlockAtFirstSeen": "catalog",
+    "DisableCacheMaintenance": "catalog",
+    "DisableCatchupFullScan": "catalog",
+    "DisableCatchupQuickScan": "catalog",
+    "DisableCpuThrottleOnIdleScans": "catalog",
+    "DisableDatagramProcessing": "catalog",
+    "DisableDnsOverTcpParsing": "catalog",
+    "DisableDnsParsing": "catalog",
+    "DisableEmailScanning": "catalog",
+    "DisableFtpParsing": "catalog",
+    "DisableGradualRelease": "catalog",
+    "DisableHttpParsing": "catalog",
+    "DisableInboundConnectionFiltering": "catalog",
+    "DisableIOAVProtection": "catalog",
+    "DisableNetworkProtectionPerfTelemetry": "catalog",
+    "DisablePrivacyMode": "catalog",
+    "DisableRdpParsing": "catalog",
+    "DisableRealtimeMonitoring": "catalog",
+    "DisableRemovableDriveScanning": "catalog",
+    "DisableRestorePoint": "catalog",
+    "DisableScanningMappedNetworkDrivesForFullScan": "catalog",
+    "DisableScanningNetworkFiles": "catalog",
+    "DisableScriptScanning": "catalog",
+    "DisableSmtpParsing": "catalog",
+    "DisableSshParsing": "catalog",
+    "DisableTlsParsing": "catalog",
+    "EnableControlledFolderAccess": "coveredElsewhere:cfa",
+    "EnableDnsSinkhole": "catalog",
+    "EnableFileHashComputation": "catalog",
+    "EnableFullScanOnBatteryPower": "catalog",
+    "EnableLowCpuPriority": "catalog",
+    "EnableNetworkProtection": "catalog",
+    "EngineUpdatesChannel": "catalog",
+    "ExclusionExtension": "coveredElsewhere:exclusion",
+    "ExclusionIpAddress": "coveredElsewhere:exclusion",
+    "ExclusionPath": "coveredElsewhere:exclusion",
+    "ExclusionProcess": "coveredElsewhere:exclusion",
+    "Force": "excluded",
+    "ForceUseProxyOnly": "catalog",
+    "HighThreatDefaultAction": "catalog",
+    "IntelTDTEnabled": "catalog",
+    "LowThreatDefaultAction": "catalog",
+    "MAPSReporting": "catalog",
+    "MeteredConnectionUpdates": "catalog",
+    "ModerateThreatDefaultAction": "catalog",
+    "OobeEnableRtpAndSigUpdate": "catalog",
+    "PlatformUpdatesChannel": "catalog",
+    "ProxyBypass": "catalog",
+    "ProxyPacUrl": "catalog",
+    "ProxyServer": "catalog",
+    "PUAProtection": "catalog",
+    "QuarantinePurgeItemsAfterDelay": "catalog",
+    "RandomizeScheduleTaskTimes": "catalog",
+    "RealTimeScanDirection": "catalog",
+    "RemediationScheduleDay": "catalog",
+    "RemediationScheduleTime": "catalog",
+    "ReportingAdditionalActionTimeOut": "catalog",
+    "ReportingCriticalFailureTimeOut": "catalog",
+    "ReportingNonCriticalTimeOut": "catalog",
+    "ScanAvgCPULoadFactor": "catalog",
+    "ScanOnlyIfIdleEnabled": "catalog",
+    "ScanParameters": "catalog",
+    "ScanPurgeItemsAfterDelay": "catalog",
+    "ScanScheduleDay": "catalog",
+    "ScanScheduleOffset": "catalog",
+    "ScanScheduleQuickScanTime": "catalog",
+    "ScanScheduleTime": "catalog",
+    "SchedulerRandomizationTime": "catalog",
+    "ServiceHealthReportInterval": "catalog",
+    "SevereThreatDefaultAction": "catalog",
+    "SharedSignaturesPath": "catalog",
+    "SignatureAuGracePeriod": "catalog",
+    "SignatureBlobFileSharesSources": "catalog",
+    "SignatureBlobUpdateInterval": "catalog",
+    "SignatureDefinitionUpdateFileSharesSources": "catalog",
+    "SignatureDisableUpdateOnStartupWithoutEngine": "catalog",
+    "SignatureFallbackOrder": "catalog",
+    "SignatureFirstAuGracePeriod": "catalog",
+    "SignatureScheduleDay": "catalog",
+    "SignatureScheduleTime": "catalog",
+    "SignaturesUpdatesChannel": "readOnly",
+    "SignatureUpdateCatchupInterval": "catalog",
+    "SignatureUpdateInterval": "catalog",
+    "SubmitSamplesConsent": "catalog",
+    "ThreatIDDefaultAction_Actions": "catalog",
+    "ThreatIDDefaultAction_Ids": "catalog",
+    "ThrottleForScheduledScanOnly": "catalog",
+    "ThrottleLimit": "excluded",
+    "UILockdown": "catalog",
+    "UnknownThreatDefaultAction": "catalog"
+  },
+  "reviewedOverlaps": [],
+  "reviewedAllowed": []
+}
