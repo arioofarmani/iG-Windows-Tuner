@@ -430,7 +430,7 @@ function Get-IgwtSecSettings {
     foreach ($r in @(Get-IgwtSecSettingAdmxRows -Catalog $catalog -Context $ctx -MergedPolicies $def.Merged -Imported $Imported)) { $all.Add($r) }
     foreach ($r in @($def.Rows)) { $all.Add($r) }
     foreach ($r in @(Get-IgwtSecSettingPolicyRows -Context $ctx -Imported $Imported)) { $all.Add($r) }
-    if (Get-Command -Name Get-IgwtSecDeviceGuardRows -ErrorAction SilentlyContinue) { foreach ($r in @(Get-IgwtSecDeviceGuardRows)) { $all.Add($r) } }
+    foreach ($r in @(Get-IgwtSecDeviceGuardRows)) { $all.Add($r) }
     $rows = @($all.ToArray() | Where-Object {
             $_ -and (-not $SourceKind -or @($SourceKind) -contains [string]$_.SourceKind) -and
             (-not $ConfiguredOnly -or [bool]$_.Configured) -and
@@ -460,3 +460,128 @@ function Get-IgwtSecSettingDetail {
     if (-not $src) { $null = Get-IgwtSecSettings -NoCache:$NoCache; $src = $script:IgwtSecSettingsLast }
     return (@($src.Rows | Where-Object { [string]::Equals([string]$_.Id, $Id, [System.StringComparison]::OrdinalIgnoreCase) }) | Select-Object -First 1)
 }
+
+#region Device Guard state and high-risk prerequisites (SM17, SM18, SM31)
+
+function Get-IgwtSecDeviceGuardRegistry {
+    <#
+    .SYNOPSIS
+        The Device Guard registry values (DECISIONS SM31) with the 64-bit view: a hashtable
+        'key|valueName' (lower case, key relative to HKLM) -> value. Read-only; must be mocked in tests.
+    #>
+    [CmdletBinding()]
+    param()
+    if ($script:IgwtSettings.TestMode) { throw 'TestMode safety: Get-IgwtSecDeviceGuardRegistry reads the real registry and must be mocked in tests.' }
+    $out = @{}
+    $base = Open-IgwtRegistryBaseKey -Hive LocalMachine
+    try {
+        foreach ($k in 'SYSTEM\CurrentControlSet\Control\DeviceGuard', 'SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity', 'SYSTEM\CurrentControlSet\Control\Lsa', 'SOFTWARE\Policies\Microsoft\Windows\DeviceGuard') {
+            $key = $null
+            try { $key = $base.OpenSubKey($k, $false) } catch { $key = $null }
+            if (-not $key) { continue }
+            try { foreach ($n in 'EnableVirtualizationBasedSecurity', 'RequirePlatformSecurityFeatures', 'Locked', 'Enabled', 'LsaCfgFlags', 'RunAsPPL', 'HypervisorEnforcedCodeIntegrity') { $v = $key.GetValue($n, $null); if ($null -ne $v) { $out[("$k|$n").ToLowerInvariant()] = $v } } } finally { $key.Dispose() }
+        }
+    } finally { $base.Dispose() }
+    return $out
+}
+
+function Test-IgwtSecDeviceGuardLocked {
+    <# .SYNOPSIS True when a current Device Guard value already carries a UEFI lock (DECISIONS SM18). Pure. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([hashtable]$Registry = @{})
+    $v = { param($k) $Registry[$k.ToLowerInvariant()] }
+    return ([string](& $v 'SYSTEM\CurrentControlSet\Control\DeviceGuard|Locked') -eq '1' -or
+        [string](& $v 'SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity|Locked') -eq '1' -or
+        [string](& $v 'SYSTEM\CurrentControlSet\Control\Lsa|LsaCfgFlags') -eq '1' -or
+        [string](& $v 'SYSTEM\CurrentControlSet\Control\Lsa|RunAsPPL') -eq '1' -or
+        [string](& $v 'SOFTWARE\Policies\Microsoft\Windows\DeviceGuard|HypervisorEnforcedCodeIntegrity') -eq '1' -or
+        [string](& $v 'SOFTWARE\Policies\Microsoft\Windows\DeviceGuard|LsaCfgFlags') -eq '1')
+}
+
+function Get-IgwtSecDeviceGuardRows {
+    <#
+    .SYNOPSIS
+        Read-only rows for VBS, Credential Guard (1), memory integrity (2), System Guard Secure Launch
+        (3), kernel-mode stack protection (5) and HVPT (7): configured versus running (DECISIONS SM31).
+        A CIM failure gives Unknown, never Off. A current UEFI lock adds the SM18 warning. Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    $dg = Get-IgwtDeviceGuardInfo
+    $reg = @{}
+    try { $reg = Get-IgwtSecDeviceGuardRegistry } catch { $reg = @{} }
+    $locked = Test-IgwtSecDeviceGuardLocked -Registry $reg
+    $lockText = 'A UEFI lock cannot be removed by software. Microsoft documents removal steps that need firmware access at boot; iG cannot do them. If you change Secure Boot, BitLocker will ask for your recovery key.'
+    $services = @(@(0, 'Virtualization-based security'), @(1, 'Credential Guard'), @(2, 'Memory integrity'), @(3, 'System Guard Secure Launch'), @(5, 'Kernel-mode hardware-enforced stack protection'), @(7, 'Hypervisor-enforced paging translation'))
+    foreach ($s in $services) {
+        $n = [int]$s[0]; $name = [string]$s[1]
+        $id = $(if ($n -eq 0) { 'deviceguard:vbs' } else { "deviceguard:$n" })
+        if (-not $dg.Available) {
+            New-IgwtSecSettingRow -Fields @{ Id = $id; SourceKind = 'deviceguardState'; Category = @('Device Guard and VBS', 'Running state'); Name = $name; State = 'Unknown'; Origin = 'Unknown'; CurrentText = 'Unknown: Windows did not report Device Guard state.'; ReadOnly = $true; ReadOnlyReason = 'This row shows state only; change it with the Device Guard policies.'; Configured = $false }
+            continue
+        }
+        if ($n -eq 0) { $configured = ([int]$dg.VbsStatus -ge 1); $running = ([int]$dg.VbsStatus -eq 2) }
+        else { $configured = (@($dg.ServicesConfigured) -contains $n); $running = (@($dg.ServicesRunning) -contains $n) }
+        $text = $(if ($running) { 'Running' } elseif ($configured) { 'Configured, not running: a restart is pending, or hardware or a driver blocks it.' } else { 'Off' })
+        if ($locked -and $n -in 0, 1, 2) { $text = "$text. $lockText" }
+        New-IgwtSecSettingRow -Fields @{
+            Id = $id; SourceKind = 'deviceguardState'; Category = @('Device Guard and VBS', 'Running state'); Name = $name
+            Current = [pscustomobject]@{ Configured = $configured; Running = $running; Locked = $locked }; CurrentText = $text
+            State = $(if ($configured) { 'Configured' } else { 'NotConfigured' }); Origin = 'SystemValue'; Configured = $configured
+            ReadOnly = $true; ReadOnlyReason = 'This row shows state only; change it with the Device Guard policies.'
+            Explain = 'Configured is what Windows was told to run; running is what runs now (Win32_DeviceGuard).'
+        }
+    }
+}
+
+function Get-IgwtSecSettingPrerequisites {
+    <#
+    .SYNOPSIS
+        The prerequisite checks of a high-risk setting (DECISIONS SM17): rows @{ Check; Result = Pass |
+        Fail | NotChecked | Info; Text }. Uses the Health readers (Device Guard, Secure Boot, TPM,
+        BitLocker). Nothing is Pass without evidence. Read-only.
+    .PARAMETER Id
+        The setting id.
+    .PARAMETER EditionFamily
+        The edition family (Credential Guard warning).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Id, [string]$EditionFamily = '')
+    $row = { param($c, $r, $t) [pscustomobject]@{ Check = $c; Result = $r; Text = $t } }
+    $isVbs = $Id -like 'admx:DeviceGuard:VirtualizationBasedSecurity:*' -or $Id -like 'catalog:sec.hvci*'
+    $isLsa = $Id -like 'admx:LocalSecurityAuthority:ConfigureLsaProtectedProcess:*'
+    $isBitLocker = $Id -like 'admx:VolumeEncryption:*'
+    $meta = Get-IgwtSecSettingMeta -Id $Id
+    $reboot = ($meta -and [string]$meta.restart -eq 'reboot') -or $isVbs -or $isLsa
+    if ($isVbs) {
+        $dg = Get-IgwtDeviceGuardInfo
+        if (-not $dg.Available) { & $row 'Virtualization support' 'NotChecked' 'Windows did not report Device Guard state.' }
+        elseif ($dg.HypervisorAvailable) { & $row 'Virtualization support' 'Pass' 'The hypervisor and virtualization extensions are available.' }
+        else { & $row 'Virtualization support' 'Fail' 'This PC does not report hypervisor support (turn on virtualization in the firmware settings first).' }
+        if ($dg.Available) { & $row 'DMA protection' $(if ($dg.DmaProtectionAvailable) { 'Pass' } else { 'Info' }) $(if ($dg.DmaProtectionAvailable) { 'DMA protection is available.' } else { 'DMA protection is not available; choose Secure Boot without DMA protection.' }) }
+        $sb = $null; try { $sb = Get-IgwtSecureBootInfo } catch { $sb = $null }
+        if (-not $sb -or $null -eq $sb.Enabled) { & $row 'Secure Boot' 'NotChecked' 'Secure Boot state could not be read.' }
+        elseif ($sb.Enabled) { & $row 'Secure Boot' 'Pass' 'Secure Boot is on.' }
+        else { & $row 'Secure Boot' 'Fail' 'Secure Boot is off; VBS with Secure Boot needs it on.' }
+        $tpm = $null; try { $tpm = Get-IgwtTpmInfo } catch { $tpm = $null }
+        if (-not $tpm) { & $row 'TPM' 'NotChecked' 'The TPM could not be read.' }
+        elseif ($tpm.Present -and $tpm.Ready) { & $row 'TPM' 'Pass' 'A TPM is present and ready.' }
+        else { & $row 'TPM' 'Info' 'No ready TPM was found; Credential Guard keys are then protected by VBS only.' }
+        & $row 'Driver compatibility' 'NotChecked' 'Windows has no documented pre-check. Open Windows Security > Device security > Core isolation to see incompatible drivers before restarting.'
+        & $row 'If Windows does not start' 'Info' 'Microsoft documents how to turn memory integrity off from the Windows Recovery Environment: https://learn.microsoft.com/en-us/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity'
+        if ($EditionFamily -notin 'Enterprise', 'Education') { & $row 'Credential Guard edition' 'Info' 'Credential Guard needs Windows Enterprise or Education (UNVERIFIED on this edition); the other choices still apply.' }
+    }
+    if ($reboot -or $isBitLocker) {
+        $bl = $null; try { $bl = Get-IgwtBitLockerStatus } catch { $bl = $null }
+        $ready = 'Have your BitLocker recovery key ready (aka.ms/myrecoverykey) before restarting or changing Secure Boot.'
+        if (-not $bl -or [string]$bl.Text -eq 'Unknown') { & $row 'BitLocker recovery key' 'NotChecked' $ready }
+        elseif (-not $bl.On) { & $row 'BitLocker recovery key' 'Pass' 'The system drive is not protected by BitLocker, so no recovery key is needed.' }
+        elseif ($bl.PSObject.Properties['ProtectorTypes'] -and @($bl.ProtectorTypes).Count) {
+            if (@($bl.ProtectorTypes) -contains 'RecoveryPassword') { & $row 'BitLocker recovery key' 'Pass' "The system drive has a recovery password. $ready" }
+            else { & $row 'BitLocker recovery key' 'Fail' 'The system drive is protected by BitLocker but has no recovery password; add one before this change.' }
+        } else { & $row 'BitLocker recovery key' 'NotChecked' $ready }
+    }
+}
+
+#endregion

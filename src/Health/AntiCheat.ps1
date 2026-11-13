@@ -121,7 +121,8 @@ function Get-IgwtBitLockerStatus {
     if (Test-IgwtIsAdmin) {
         try {
             $v = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
-            return [pscustomobject]@{ On = ([string]$v.ProtectionStatus -eq 'On'); Text = "Protection $($v.ProtectionStatus), $($v.VolumeStatus), $($v.EncryptionPercentage)%" }
+            # 3.8 (DECISIONS SM17, additive): key protector types only (never a key), for the recovery check.
+            return [pscustomobject]@{ On = ([string]$v.ProtectionStatus -eq 'On'); Text = "Protection $($v.ProtectionStatus), $($v.VolumeStatus), $($v.EncryptionPercentage)%"; ProtectorTypes = @($v.KeyProtector | ForEach-Object { [string]$_.KeyProtectorType }) }
         } catch { Write-Verbose 'Get-BitLockerVolume failed.' }
     }
     try {

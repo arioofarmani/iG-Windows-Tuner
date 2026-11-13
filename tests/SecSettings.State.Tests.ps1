@@ -6,6 +6,8 @@ BeforeAll {
     Initialize-IgwtTestEnvironment
     $script:Admx = Join-Path $PSScriptRoot 'fixtures\secsettings\admx'
     $script:GpoRoot = Join-Path $TestDrive 'GroupPolicy'
+    $script:DgDir = Join-Path $PSScriptRoot 'fixtures\secsettings'
+    $script:DgFixture = Join-Path $script:DgDir 'deviceguard-none.json'
     InModuleScope iGWindowsTuner -Parameters @{ A = $script:Admx; R = $script:GpoRoot } { param($A, $R) $script:IgwtSettings.AdmxFolders = @($A); $script:IgwtSettings.GpoRoot = $R; $script:IgwtSettings.GpoUsersRoot = "$R-Users"; $script:IgwtAdmxCache = $null; $script:IgwtSecSettingsData = $null }
     function Initialize-StateMocks {
         param([string]$Family = 'Professional', [bool]$Admin = $false, [bool]$Domain = $false, [bool]$Mdm = $false, $Tamper = $false, [string[]]$MdmNames = @(), [string[]]$PolicyNames = @())
@@ -26,6 +28,8 @@ BeforeAll {
         Mock -ModuleName iGWindowsTuner Invoke-IgwtAuditpol { throw 'auditpol must not run' }
         Mock -ModuleName iGWindowsTuner Get-IgwtSecurityPolicy { @([pscustomobject]@{ Section = 'Registry Values'; Key = 'MACHINE\System\CurrentControlSet\Control\Lsa\NoLMHash'; Value = '4,1'; Name = 'Do not store LAN Manager hash' }, [pscustomobject]@{ Section = 'Privilege Rights'; Key = 'SeDebugPrivilege'; Value = '*S-1-5-32-544'; Name = 'Debug programs' }) }
         Mock -ModuleName iGWindowsTuner Get-IgwtAuditPolicy { [pscustomobject]@{ Subcategories = @([pscustomobject]@{ Subcategory = 'Logon'; Guid = '{0CCE9215-69AE-11D9-BED3-505054503030}'; Setting = 'Success and Failure'; Option = $false }) } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtSecDeviceGuardRegistry { @{} }
+        Mock -ModuleName iGWindowsTuner Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_DeviceGuard' } { Get-Content -LiteralPath $script:DgFixture -Raw | ConvertFrom-Json }
         Mock -ModuleName iGWindowsTuner Read-IgwtSceRegVlInf { [pscustomobject]@{ Key = 'MACHINE\System\CurrentControlSet\Control\Lsa\NoLMHash'; RegType = 4; Name = 'NoLMHash'; DisplayType = 0; Choices = @(); Unit = '' } }
     }
     function Write-MachinePol([string]$Policy, [string]$State, [hashtable]$Values = @{}) {
@@ -147,5 +151,54 @@ Describe 'Filters and status' {
         @($r.Rows | ForEach-Object Id) | Should -Be @('admx:SecFixture:AllKinds:Machine')
         @((Get-Rows -Arguments @{ Search = 'audit logging' }).Rows | ForEach-Object Id) | Should -Contain 'admx:SecFixture:LoggingSwitch:Machine'
         $r.Status.EditionFamily | Should -Be 'Professional'; $r.Status.Tamper | Should -Be 'Off'; $r.Status.Elevated | Should -BeFalse
+    }
+}
+
+Describe 'Device Guard state (SM31) and high-risk prerequisites (SM17)' {
+    BeforeEach { Initialize-StateMocks }
+    It 'shows configured versus running, and Unknown (never Off) when Windows does not answer' {
+        $script:DgFixture = Join-Path $script:DgDir 'deviceguard-running.json'
+        $rows = @(InModuleScope iGWindowsTuner { Get-IgwtSecDeviceGuardRows })
+        ($rows | Where-Object Id -EQ 'deviceguard:2').CurrentText | Should -Be 'Running'
+        ($rows | Where-Object Id -EQ 'deviceguard:vbs').Current.Running | Should -BeTrue
+        ($rows | Where-Object Id -EQ 'deviceguard:1').CurrentText | Should -Be 'Off'
+        $script:DgFixture = Join-Path $script:DgDir 'deviceguard-configured-not-running.json'
+        $rows = @(InModuleScope iGWindowsTuner { Get-IgwtSecDeviceGuardRows })
+        ($rows | Where-Object Id -EQ 'deviceguard:1').CurrentText | Should -Match '^Configured, not running'
+        ($rows | Where-Object Id -EQ 'deviceguard:1').Configured | Should -BeTrue
+        Mock -ModuleName iGWindowsTuner Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_DeviceGuard' } { throw 'Invalid namespace' }
+        $rows = @(InModuleScope iGWindowsTuner { Get-IgwtSecDeviceGuardRows })
+        @($rows | ForEach-Object State | Select-Object -Unique) | Should -Be @('Unknown')
+        $script:DgFixture = Join-Path $script:DgDir 'deviceguard-none.json'
+    }
+    It 'adds the UEFI-lock warning when a value is already locked' {
+        $script:DgFixture = Join-Path $script:DgDir 'deviceguard-running.json'
+        Mock -ModuleName iGWindowsTuner Get-IgwtSecDeviceGuardRegistry { @{ 'system\currentcontrolset\control\lsa|lsacfgflags' = 1 } }
+        (@(InModuleScope iGWindowsTuner { Get-IgwtSecDeviceGuardRows }) | Where-Object Id -EQ 'deviceguard:2').CurrentText | Should -Match 'cannot be removed by software'
+        $script:DgFixture = Join-Path $script:DgDir 'deviceguard-none.json'
+    }
+    It 'fails VBS without hypervisor support and never passes without evidence' {
+        Mock -ModuleName iGWindowsTuner Get-IgwtDeviceGuardInfo { [pscustomobject]@{ Available = $true; HypervisorAvailable = $false; DmaProtectionAvailable = $false } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtSecureBootInfo { [pscustomobject]@{ Enabled = $null } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtTpmInfo { throw 'no tpm read' }
+        Mock -ModuleName iGWindowsTuner Get-IgwtBitLockerStatus { [pscustomobject]@{ On = $false; Text = 'Unknown' } }
+        $c = @(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:DeviceGuard:VirtualizationBasedSecurity:Machine' -EditionFamily 'Professional' })
+        ($c | Where-Object Check -EQ 'Virtualization support').Result | Should -Be 'Fail'
+        ($c | Where-Object Check -EQ 'Secure Boot').Result | Should -Be 'NotChecked'
+        ($c | Where-Object Check -EQ 'TPM').Result | Should -Be 'NotChecked'
+        ($c | Where-Object Check -EQ 'Driver compatibility').Result | Should -Be 'NotChecked'
+        ($c | Where-Object Check -EQ 'BitLocker recovery key').Result | Should -Be 'NotChecked'
+        ($c | Where-Object Check -EQ 'If Windows does not start').Text | Should -Match 'learn.microsoft.com'
+    }
+    It 'checks the BitLocker recovery password by protector type only' {
+        Mock -ModuleName iGWindowsTuner Get-IgwtBitLockerStatus { [pscustomobject]@{ On = $true; Text = 'Protection On'; ProtectorTypes = @('Tpm', 'RecoveryPassword') } }
+        (@(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:VolumeEncryption:OSRecoveryUsage:Machine' }) | Where-Object Check -EQ 'BitLocker recovery key').Result | Should -Be 'Pass'
+        Mock -ModuleName iGWindowsTuner Get-IgwtBitLockerStatus { [pscustomobject]@{ On = $true; Text = 'Protection On'; ProtectorTypes = @('Tpm') } }
+        (@(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:VolumeEncryption:OSRecoveryUsage:Machine' }) | Where-Object Check -EQ 'BitLocker recovery key').Result | Should -Be 'Fail'
+        Mock -ModuleName iGWindowsTuner Get-IgwtBitLockerStatus { [pscustomobject]@{ On = $true; Text = 'On (non-elevated reading)' } }
+        (@(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:VolumeEncryption:OSRecoveryUsage:Machine' }) | Where-Object Check -EQ 'BitLocker recovery key').Result | Should -Be 'NotChecked'
+        Mock -ModuleName iGWindowsTuner Get-IgwtBitLockerStatus { [pscustomobject]@{ On = $false; Text = 'Protection Off' } }
+        (@(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:VolumeEncryption:OSRecoveryUsage:Machine' }) | Where-Object Check -EQ 'BitLocker recovery key').Result | Should -Be 'Pass'
+        @(InModuleScope iGWindowsTuner { Get-IgwtSecSettingPrerequisites -Id 'admx:SecFixture:LoggingSwitch:Machine' }) | Should -BeNullOrEmpty
     }
 }

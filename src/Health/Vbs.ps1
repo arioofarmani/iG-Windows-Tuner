@@ -29,6 +29,9 @@ function Get-IgwtDeviceGuardInfo {
         HypervisorAvailable       = ($avail -contains 1)
         MbecAvailable             = ($avail -contains 7)
         CodeIntegrityPolicy       = [int]$dg.CodeIntegrityPolicyEnforcementStatus
+        # 3.8 (DECISIONS SM31, additive): the raw service lists for configured versus running.
+        ServicesConfigured        = $configured
+        ServicesRunning           = $running
         Error                     = $null
     }
 }
