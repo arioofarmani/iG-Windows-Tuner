@@ -1,0 +1,25 @@
+[version]
+signature="$CHICAGO$"
+
+[Register Registry Values]
+MACHINE\System\CurrentControlSet\Control\Lsa\NoLMHash,4,%NoLMHash%,0
+MACHINE\System\CurrentControlSet\Control\Lsa\LmCompatibilityLevel,4,%LmCompatibilityLevel%,3,0|%LMCLevel0%,1|%LMCLevel1%,5|%LMCLevel5%
+MACHINE\System\CurrentControlSet\Control\Lsa\MSV1_0\NTLMMinClientSec,4,%NTLMMinClientSec%,5,524288|%NTLMv2Session%,536870912|%NTLM128%
+MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System\LegalNoticeText,7,%LegalNoticeText%,4
+MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\CachedLogonsCount,1,%CachedLogonsCount%,1,%Unit-Logons%
+MACHINE\Software\Contoso\BinaryOption,3,%BinaryOption%,2
+MACHINE\Software\Contoso\Broken,notanumber,%Broken%,0
+
+[Strings]
+NoLMHash = "Network security: Do not store LAN Manager hash value on next password change"
+LmCompatibilityLevel = "Network security: LAN Manager authentication level"
+LMCLevel0 = "Send LM and NTLM responses"
+LMCLevel1 = "Send LM and NTLM - use NTLMv2 session security if negotiated"
+LMCLevel5 = "Send NTLMv2 response only. Refuse LM and NTLM"
+NTLMMinClientSec = "@wsecedit.dll,-59066"
+NTLMv2Session = "Require NTLMv2 session security"
+NTLM128 = "Require 128-bit encryption"
+LegalNoticeText = "Interactive logon: Message text for users attempting to log on"
+CachedLogonsCount = "Interactive logon: Number of previous logons to cache"
+Unit-Logons = "logons"
+BinaryOption = "Contoso binary option"
