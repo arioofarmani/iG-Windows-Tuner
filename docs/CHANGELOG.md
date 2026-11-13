@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.8.1 (unreleased)
+## 3.8.1 (2026-11-13)
 
 Registry Analyzer & Cleaner (DECISIONS RG1 to RG34; guide: docs\REGISTRY_CLEANER.md), full control over startup apps (SA1 to SA10) and the Security Settings Manager (SM1 to SM44; guide: docs\SECURITY_SETTINGS.md). 3.8.0 was never released on its own; its work is part of 3.8.1.
 
