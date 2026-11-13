@@ -141,6 +141,7 @@ $script:IgwtModuleOperations = @{
     'Invoke-IgwtManagedChange'         = 'snapshot'
     'Invoke-IgwtPowerSettingChange'    = 'snapshot'
     'Set-IgwtStartupItemEnabled'       = 'snapshot'
+    'Remove-IgwtStartupItem'           = 'snapshot'
     # A revert's own snapshot holds Reverted entries, which Invoke-IgwtRevert does not restore (review 3.6 R3):
     # one-way in the journal; its targets are recorded as reverted, and each can be changed again normally.
     'Invoke-IgwtRevert'                = ''

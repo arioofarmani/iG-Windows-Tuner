@@ -30,6 +30,16 @@ Describe 'Forbidden techniques are absent from shipped code' {
         Get-Matches '(?i)(Register-ScheduledTask|New-ScheduledTask|schtasks|New-Service|sc\.exe\s+create|__EventFilter|Register-WmiEvent|Register-CimIndicationEvent)' | Should -BeNullOrEmpty
         Get-Matches '(?i)Set-ItemProperty.*CurrentVersion\\Run' | Should -BeNullOrEmpty
     }
+    It 'writes a startup entry only to restore iG''s own backup (DECISIONS SA4)' {
+        # Run-key values and Startup-folder files are written back only by Restore-IgwtStartupEntry.
+        $file = Join-Path $script:IgwtProjectRoot 'src\Core\StartupApps.ps1'
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$null)
+        $writers = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | Where-Object {
+            $_.Extent.Text -match '(?i)Set-IgwtRegistryValue\s+-Path\s+\$src\.Location|Copy-Item\s[^\r\n]*-Destination\s+\$file\b'
+        } | ForEach-Object { $_.Name })
+        $writers | Should -Be @('Restore-IgwtStartupEntry')
+        Get-Matches '(?i)Set-IgwtRegistryValue\s+-Path\s+\$src\.Location' | ForEach-Object { $_ | Should -Match '^StartupApps\.ps1:' }
+    }
     It 'never hides windows' { Get-Matches '(?i)WindowStyle\s+Hidden|-w\s+hidden|CreateNoWindow' | Should -BeNullOrEmpty }
     It 'never changes machine or user execution policy' { Get-Matches '(?i)Set-ExecutionPolicy' | Should -BeNullOrEmpty }
     It 'never touches AMSI, ETW, real-time protection, Tamper Protection or Defender exclusions' {
