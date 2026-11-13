@@ -125,3 +125,52 @@ Describe 'Managed PCs (SM11, SM29)' {
         (Get-Plan $chg -Options @{ AcknowledgeManaged = $true }).Rows[0].Status | Should -Be 'Change'
     }
 }
+
+Describe 'Journaled apply (SM26-SM28)' {
+    BeforeEach {
+        Remove-Item -Path $script:GpoRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Initialize-PlanMocks
+        Mock -ModuleName iGWindowsTuner Invoke-IgwtGpUpdate { }
+        Mock -ModuleName iGWindowsTuner Set-IgwtPendingRestartState { }
+    }
+    It 'commits a local policy change in one session, refreshes once, and undoes it from the session' {
+        $res = InModuleScope iGWindowsTuner { Invoke-IgwtSecSettingChange -Changes @(@{ Id = 'admx:SecFixture:LoggingSwitch:Machine'; Value = @{ State = 'Enabled' } }) -Confirm:$false }
+        @($res.Results | ForEach-Object Result) | Should -Be @('Committed')
+        Should -Invoke -ModuleName iGWindowsTuner Invoke-IgwtGpUpdate -Times 1 -Exactly
+        InModuleScope iGWindowsTuner { @((Read-IgwtRegistryPol -Path (Get-IgwtLocalPolPath -Class Machine)).Entries | ForEach-Object ValueName) } | Should -Be @('EnableAuditLogging')
+        InModuleScope iGWindowsTuner -Parameters @{ S = $res.SessionId } { param($S) $null = Invoke-IgwtJournalRevert -Plan @(Get-IgwtRevertPlan -SessionId $S) -Confirm:$false }
+        @(InModuleScope iGWindowsTuner { (Read-IgwtRegistryPol -Path (Get-IgwtLocalPolPath -Class Machine)).Entries }) | Should -BeNullOrEmpty
+    }
+    It 'rolls back the local policy step when the ASR change does not read back' {
+        $script:AsrSnap = InModuleScope iGWindowsTuner { $p = Join-Path (Get-IgwtDataPath -Kind Backups) 'asr-test.json'; $null = New-Item -ItemType Directory -Path (Split-Path $p) -Force; '{}' | Set-Content -LiteralPath $p; $p }
+        Mock -ModuleName iGWindowsTuner Invoke-IgwtAsrChange { [pscustomobject]@{ Snapshot = $script:AsrSnap; Changes = 1; Results = @() } }
+        Mock -ModuleName iGWindowsTuner Invoke-IgwtRevert { [pscustomobject]@{ Results = @([pscustomobject]@{ Result = 'Reverted' }) } }
+        $res = InModuleScope iGWindowsTuner { Invoke-IgwtSecSettingChange -Changes @(@{ Id = 'admx:SecFixture:LoggingSwitch:Machine'; Value = @{ State = 'Enabled' } }, @{ Id = 'asr:56a863a9-875e-4185-98a7-b882c64b5ce5'; Value = 'Block' }) -Confirm:$false }
+        ($res.Results | Where-Object Id -Like 'asr:*').Result | Should -Be 'Failed'
+        ($res.Results | Where-Object Id -Like 'admx:*').Result | Should -Be 'RolledBack'
+        @(InModuleScope iGWindowsTuner { (Read-IgwtRegistryPol -Path (Get-IgwtLocalPolPath -Class Machine)).Entries }) | Should -BeNullOrEmpty
+        Should -Invoke -ModuleName iGWindowsTuner Invoke-IgwtGpUpdate -Times 0 -Exactly
+    }
+    It 'restores the secpol backup when the writer fails after recording it' {
+        Mock -ModuleName iGWindowsTuner Get-IgwtSecurityPolicy { @([pscustomobject]@{ Section = 'Registry Values'; Key = 'MACHINE\Software\Contoso\Opt'; Value = '4,0'; Name = 'Contoso option' }) }
+        Mock -ModuleName iGWindowsTuner Read-IgwtSceRegVlInf { [pscustomobject]@{ Key = 'MACHINE\Software\Contoso\Opt'; RegType = 4; Name = 'Contoso option'; DisplayType = 0; Choices = @(); Unit = '' } }
+        Mock -ModuleName iGWindowsTuner Set-IgwtSecurityPolicy { & (Get-Module iGWindowsTuner) { $p = Join-Path (Get-IgwtDataPath -Kind Backups) 'secpol-test'; $null = New-Item -ItemType Directory -Path $p -Force; Set-IgwtModuleOperationRef -Path $p }; throw 'secedit failed half way' }
+        Mock -ModuleName iGWindowsTuner Restore-IgwtSecurityPolicy { [pscustomobject]@{ Verified = $true } }
+        $res = InModuleScope iGWindowsTuner { Invoke-IgwtSecSettingChange -Changes @(@{ Id = 'secpol:Registry Values:MACHINE\Software\Contoso\Opt'; Value = 'on' }) -Confirm:$false }
+        $res.Results[0].Result | Should -Be 'Failed'
+        Should -Invoke -ModuleName iGWindowsTuner Restore-IgwtSecurityPolicy -Times 1
+    }
+    It 'refuses an unconfirmed high-risk change and records the pending restart for a confirmed one' {
+        Mock -ModuleName iGWindowsTuner Get-IgwtSecSettingMeta -ParameterFilter { $Id -eq 'admx:DgFixture:VbsShaped:Machine' } { [pscustomobject]@{ risk = 'high'; restart = 'reboot'; riskClass = @(); sideEffects = @() } }
+        $chg = @(@{ Id = 'admx:DgFixture:VbsShaped:Machine'; Value = @{ State = 'Enabled'; Values = @{ HvciDrop = 'Enabled without lock'; FakeDrop = 'Disabled' } } })
+        { InModuleScope iGWindowsTuner -Parameters @{ C = $chg } { param($C) Invoke-IgwtSecSettingChange -Changes $C -Confirm:$false } } | Should -Throw '*Refused, nothing changed*'
+        $res = InModuleScope iGWindowsTuner -Parameters @{ C = $chg } { param($C) Invoke-IgwtSecSettingChange -Changes $C -AcknowledgeRisk -Confirm:$false }
+        $res.Restart | Should -Be 'reboot'
+        Should -Invoke -ModuleName iGWindowsTuner Set-IgwtPendingRestartState -Times 1
+    }
+    It 'refuses everything in read-only mode before reading anything' {
+        InModuleScope iGWindowsTuner { $script:IgwtSettings.ReadOnly = $true }
+        try { { InModuleScope iGWindowsTuner { Invoke-IgwtSecSettingChange -Changes @(@{ Id = 'x'; Value = 1 }) -Confirm:$false } } | Should -Throw '*read-only*' }
+        finally { InModuleScope iGWindowsTuner { $script:IgwtSettings.ReadOnly = $false } }
+    }
+}

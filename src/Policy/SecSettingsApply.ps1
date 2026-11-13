@@ -175,3 +175,179 @@ function Format-IgwtSecSettingPlan {
     if ($Plan.Mixed) { 'A change that iG cannot undo is applied on its own: apply it in a separate step.' }
     if (@($Plan.Rows | Where-Object { $_.Status -ne 'Refused' -and $_.Restart -eq 'reboot' }).Count) { 'Restart Windows after applying. Have your BitLocker recovery key ready (aka.ms/myrecoverykey) if the system drive is encrypted.' }
 }
+
+#region Journaled apply (SM26-SM28)
+
+function Invoke-IgwtSecSettingSecpolStep {
+    <#
+    .SYNOPSIS
+        Module step wrapper (DECISIONS SM27): Set-IgwtSecurityPolicy for the manager's secpol changes.
+        When the writer throws after its backup was recorded, returns @{ Backup; Verified = $false;
+        Error } so the step fails with an undo reference and the engine rolls it back.
+    .PARAMETER Changes
+        Secpol change objects (Section, Key, Value).
+    .PARAMETER AcknowledgeManaged
+        Passed to the writer.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)][object[]]$Changes, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtSecSettingSecpolStep'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtSecSettingSecpolStep' -Parameters $PSBoundParameters) }
+    if (-not $PSCmdlet.ShouldProcess("$(@($Changes).Count) security option(s)", 'Change')) { return }
+    try { return (Set-IgwtSecurityPolicy -Changes $Changes -AcknowledgeManaged:$AcknowledgeManaged -Confirm:$false) }
+    catch { $ref = $(if ($script:IgwtModuleStep) { [string]$script:IgwtModuleStep.Ref } else { '' }); if ($ref) { return [pscustomobject]@{ Backup = $ref; Verified = $false; Error = $_.Exception.Message } }; throw }
+}
+
+function Invoke-IgwtSecSettingAuditStep {
+    <#
+    .SYNOPSIS
+        Module step wrapper (DECISIONS SM27): Set-IgwtAuditPolicy for the manager's audit changes,
+        with the same undo reference handling as the secpol wrapper.
+    .PARAMETER Changes
+        Subcategory GUID -> None, Success, Failure or SuccessAndFailure.
+    .PARAMETER AcknowledgeManaged
+        Passed to the writer.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)][hashtable]$Changes, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtSecSettingAuditStep'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtSecSettingAuditStep' -Parameters $PSBoundParameters) }
+    if (-not $PSCmdlet.ShouldProcess("$($Changes.Count) audit subcategor(ies)", 'Change')) { return }
+    try { return (Set-IgwtAuditPolicy -Changes $Changes -AcknowledgeManaged:$AcknowledgeManaged -Confirm:$false) }
+    catch { $ref = $(if ($script:IgwtModuleStep) { [string]$script:IgwtModuleStep.Ref } else { '' }); if ($ref) { return [pscustomobject]@{ Backup = $ref; Verified = $false; Error = $_.Exception.Message } }; throw }
+}
+
+function Invoke-IgwtSecSettingAsrChange {
+    <#
+    .SYNOPSIS
+        Module step wrapper (DECISIONS SM24, SM27): Invoke-IgwtAsrChange, then a read of the rule modes
+        inside the same step; a rule that does not read back is reported NotApplied, so the step fails
+        and its snapshot is restored.
+    .PARAMETER RuleMode
+        Rule GUID -> Block, Audit or Warn.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)][hashtable]$RuleMode)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtSecSettingAsrChange'
+    if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtSecSettingAsrChange' -Parameters $PSBoundParameters) }
+    if (-not $PSCmdlet.ShouldProcess("$($RuleMode.Count) ASR rule(s)", 'Change')) { return }
+    $res = $null
+    try { $res = Invoke-IgwtAsrChange -RuleMode $RuleMode -Confirm:$false }
+    catch { $ref = $(if ($script:IgwtModuleStep) { [string]$script:IgwtModuleStep.Ref } else { '' }); if ($ref) { return [pscustomobject]@{ Snapshot = $ref; Verified = $false; Error = $_.Exception.Message } }; throw }
+    $now = @{}
+    try { foreach ($r in @((Get-IgwtAsrStatus).Rules)) { if ($r) { $now[([string]$r.Id).ToLowerInvariant()] = [string]$r.Mode } } } catch { $now = $null }
+    $checks = @(foreach ($k in @($RuleMode.Keys)) {
+            $mode = $(if ($null -ne $now -and $now.ContainsKey(([string]$k).ToLowerInvariant())) { $now[([string]$k).ToLowerInvariant()] } else { $null })
+            $ok = ($null -ne $mode -and $mode -eq [string]$RuleMode[$k])
+            [pscustomobject]@{ Target = [string]$k; Result = $(if ($ok) { 'Applied' } else { 'NotApplied' }); Message = $(if ($ok) { '' } else { "Defender reports '$mode' instead of '$($RuleMode[$k])'." }) }
+        })
+    return [pscustomobject]@{ Snapshot = $(if ($res) { $res.Snapshot } else { $null }); Changes = $(if ($res) { $res.Changes } else { 0 }); Results = $checks }
+}
+
+$script:IgwtModuleOperations['Invoke-IgwtSecSettingSecpolStep'] = 'secpol'
+$script:IgwtModuleOperations['Invoke-IgwtSecSettingAuditStep'] = 'audit'
+$script:IgwtModuleOperations['Invoke-IgwtSecSettingAsrChange'] = 'snapshot'
+
+function Invoke-IgwtSecSettingChange {
+    <#
+    .SYNOPSIS
+        Applies security setting changes as one journaled session (DECISIONS SM26): the plan is made
+        again under the lock, refused, unconfirmed and unacknowledged rows stop the whole apply, and
+        the steps run in order (local policy, Defender, ASR, exclusions, one secpol step, one audit
+        step). The first failed step rolls back the committed ones. Then one Group Policy refresh per
+        touched class and the pending-restart record for reboot-class changes. Returns @{ SessionId;
+        Results; Refresh; Restart }.
+    .PARAMETER Changes
+        @{ Id; Value } per change.
+    .PARAMETER AcknowledgeRisk
+        Confirms high-risk changes.
+    .PARAMETER AcknowledgeManaged
+        Confirms changes on a managed PC.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)][object[]]$Changes, [switch]$AcknowledgeRisk, [switch]$AcknowledgeManaged)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtSecSettingChange'
+    if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) { throw 'Refused: run iG in 64-bit PowerShell; a 32-bit process would write local policy where Windows ignores it.' }
+    if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing security settings needs administrator rights.' }
+    if (-not $PSCmdlet.ShouldProcess("$(@($Changes).Count) security setting(s)", 'Change')) { return $null }
+    if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
+    $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'secSettings' }) -Title "Security settings: $(@($Changes).Count) change(s)" -Confirm:$false
+    $results = New-Object System.Collections.Generic.List[object]
+    $classes = New-Object System.Collections.Generic.List[string]
+    $restart = New-Object System.Collections.Generic.List[string]
+    $refresh = @()
+    $group = 'secsettings'
+    try {
+        $plan = Get-IgwtSecSettingChangePlan -Changes $Changes -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
+        $stop = @($plan.Rows | Where-Object { $_.Status -in 'Refused', 'NeedsConfirmation', 'NeedsManagedAck' })
+        if ($stop.Count -or $plan.Mixed) { throw "Refused, nothing changed: $(@($stop | ForEach-Object { "$($_.Name): $($_.Reason)" }) -join ' ')" }
+        $todo = @($plan.Rows | Where-Object { $_.Status -in 'Change', 'OneWay' })
+        foreach ($r in @($plan.Rows | Where-Object { $_.Status -eq 'InPlace' })) { $results.Add([pscustomobject]@{ Id = $r.Id; Name = $r.Name; Result = 'InPlace'; Message = $r.Reason }) }
+        $failed = $null
+        $ok = { param($row, $step) if ($step -and [string]$step.Result -eq 'Committed') { $results.Add([pscustomobject]@{ Id = $row.Id; Name = $row.Name; Result = 'Committed'; Message = '' }); if ($row.Restart -eq 'reboot') { $restart.Add($row.Id) }; return $true }; $results.Add([pscustomobject]@{ Id = $row.Id; Name = $row.Name; Result = 'Failed'; Message = $(if ($step) { [string]$step.Message } else { 'The step did not run.' }) }); return $false }
+        # 1. Local policy, one step per policy and class.
+        $policies = @{}
+        foreach ($row in @($todo | Where-Object { $_.Writer -eq 'localPolicy' })) {
+            if (-not $policies.Count) { foreach ($x in @((Get-IgwtAdmxCatalog).Policies)) { if ($x) { $policies[[string]$x.Id] = $x } } }
+            $pd = $policies[[string]$row.PolicyId]
+            $target = New-IgwtSecSettingPolTarget -Policy $pd -Class $row.Class
+            $res = Resolve-IgwtSecSettingPolTarget -Target $target
+            $cur = @((Read-IgwtRegistryPol -Path (Get-IgwtLocalPolPath -Class $row.Class)).Entries)
+            $desired = ConvertTo-IgwtSecSettingPolDesired -Resolved $res -CurrentEntries $cur -Ops @($row.Ops)
+            $step = Invoke-IgwtChangeStep -Session $session -Target $target -Desired $desired -Group $group -Confirm:$false
+            if (-not (& $ok $row $step)) { $failed = $row; break }
+            $classes.Add([string]$row.Class)
+        }
+        # 2. Defender preferences, one step.
+        $def = @($todo | Where-Object { $_.Writer -eq 'defender' })
+        if (-not $failed -and $def.Count) {
+            $setting = [ordered]@{}; foreach ($row in $def) { foreach ($k in $row.Input.Setting.Keys) { $setting[$k] = $row.Input.Setting[$k] } }
+            $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtDefenderSettingChange' -Parameters @{ Setting = $setting; AcknowledgeManaged = [bool]$AcknowledgeManaged; Confirm = $false } -Group $group
+            foreach ($row in $def) { if (-not (& $ok $row $s.Step)) { $failed = $row } }
+        }
+        # 3. ASR rules, one step.
+        $asr = @($todo | Where-Object { $_.Writer -eq 'asr' })
+        if (-not $failed -and $asr.Count) {
+            $modes = @{}; foreach ($row in $asr) { $modes[[string]$row.Input.Id] = [string]$row.Input.Mode }
+            $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtSecSettingAsrChange' -Parameters @{ RuleMode = $modes; Confirm = $false } -Group $group
+            foreach ($row in $asr) { if (-not (& $ok $row $s.Step)) { $failed = $row } }
+        }
+        # 4. Exclusion removal (one-way, always alone).
+        foreach ($row in @($todo | Where-Object { $_.Writer -eq 'exclusion' })) {
+            foreach ($value in @($row.Input.Values)) {
+                $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Remove-IgwtDefenderExclusion' -Parameters @{ Kind = [string]$row.Input.Kind; Value = [string]$value; Confirm = $false } -Group $group -Detail "$($row.Input.Kind)|$value"
+                if (-not $s.Step -or [string]$s.Step.Result -ne 'Committed') { $failed = $row; break }
+            }
+            if ($failed) { $results.Add([pscustomobject]@{ Id = $row.Id; Name = $row.Name; Result = 'Failed'; Message = 'An exclusion could not be removed.' }) } else { $results.Add([pscustomobject]@{ Id = $row.Id; Name = $row.Name; Result = 'Committed'; Message = 'One-way: re-add by hand in Windows Security if needed.' }) }
+        }
+        # 5. Security options, one step.
+        $sec = @($todo | Where-Object { $_.Writer -eq 'secpol' })
+        if (-not $failed -and $sec.Count) {
+            $objs = @($sec | ForEach-Object { $_.Input })
+            $detail = (@($objs | ForEach-Object { "$($_.Section)\$($_.Key)=$($_.Value)" } | Sort-Object) -join "`n")
+            $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtSecSettingSecpolStep' -Parameters @{ Changes = $objs; AcknowledgeManaged = [bool]$AcknowledgeManaged; Confirm = $false } -Group $group -Detail $detail
+            foreach ($row in $sec) { if (-not (& $ok $row $s.Step)) { $failed = $row } }
+        }
+        # 6. Audit, one step.
+        $aud = @($todo | Where-Object { $_.Writer -eq 'audit' })
+        if (-not $failed -and $aud.Count) {
+            $chg = @{}; foreach ($row in $aud) { $chg[[string]$row.Input.Guid] = [string]$row.Input.Setting }
+            $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtSecSettingAuditStep' -Parameters @{ Changes = $chg; AcknowledgeManaged = [bool]$AcknowledgeManaged; Confirm = $false } -Group $group
+            foreach ($row in $aud) { if (-not (& $ok $row $s.Step)) { $failed = $row } }
+        }
+        if ($failed) {
+            $null = Undo-IgwtChangeGroup -Session $session -Group $group
+            foreach ($x in $results) { if ($x.Result -eq 'Committed') { $x.Result = 'RolledBack'; $x.Message = "Rolled back because '$($failed.Name)' failed." } }
+            $restart.Clear()
+        } elseif ($classes.Count) {
+            $refresh = @(Invoke-IgwtSecSettingRefresh -Classes @($classes | Select-Object -Unique) -Confirm:$false)
+        }
+        if ($restart.Count) { try { Set-IgwtPendingRestartState -Requires reboot -TweakId @($restart) -Confirm:$false } catch { Write-IgwtLog -Level Warn -Message "Pending restart not recorded: $($_.Exception.Message)" } }
+    } finally {
+        Complete-IgwtChangeSession -Session $session
+    }
+    Write-IgwtLog -Message "Security settings: $(@($results | Group-Object Result | ForEach-Object { "$($_.Count) $($_.Name)" }) -join ', ') (session $($session.Id))."
+    return [pscustomobject]@{ SessionId = $session.Id; Results = $results.ToArray(); Refresh = $refresh; Restart = $(if ($restart.Count) { 'reboot' } else { 'none' }) }
+}
+
+#endregion

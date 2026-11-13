@@ -14,7 +14,7 @@ function New-IgwtGuiJournalRow {
     if ([datetime]::TryParse([string]$Step.When, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$dt)) { $when = $dt.ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss') }
     $origin = switch ([string]$Step.Origin) {
         'tweak' { 'Tweaks' } 'preset' { 'Preset' } 'resetDefault' { 'Reset to default' } 'forensic' { 'Forensic logging' } 'revert' { 'Revert' }
-        'recovery' { 'Recovery' } 'upgrade' { 'Imported (3.x)' } 'module' { 'Module' } default { [string]$Step.Origin }
+        'recovery' { 'Recovery' } 'upgrade' { 'Imported (3.x)' } 'module' { 'Module' } 'secSettings' { 'Security settings' } default { [string]$Step.Origin }
     }
     $what = $(if ($Step.Op -eq 'restore') { 'Restored' } else { 'Changed' })
     $text = switch ([string]$Step.Result) {
@@ -53,7 +53,7 @@ function Initialize-IgwtGuiJournalGrid {
         @{ Id = 'effect'; Label = 'In effect'; Group = 'state'; Test = { param($row) [bool]$row.InEffect } }
         @{ Id = 'failed'; Label = 'Failed or unfinished'; Group = 'state'; Test = { param($row) [string]$row.ResultKey -in 'Failed', 'RollbackFailed', 'InDoubt' } }
         @{ Id = 'tweaks'; Label = 'Tweaks and presets'; Group = 'origin'; Field = 'OriginText'; Values = @('Tweaks', 'Preset', 'Reset to default', 'Imported (3.x)') }
-        @{ Id = 'module'; Label = 'Security and system'; Group = 'origin'; Field = 'OriginText'; Values = @('Module', 'Forensic logging') }
+        @{ Id = 'module'; Label = 'Security and system'; Group = 'origin'; Field = 'OriginText'; Values = @('Module', 'Forensic logging', 'Security settings') }
         @{ Id = 'revert'; Label = 'Reverts'; Group = 'origin'; Field = 'OriginText'; Values = @('Revert', 'Recovery') }
         @{ Id = 'week'; Label = 'Last 7 days'; Group = 'age'; Test = { param($row) $dt = [datetime]::MinValue; [datetime]::TryParse([string]$row.When, [ref]$dt) -and $dt -ge (Get-Date).AddDays(-7) } }
     )

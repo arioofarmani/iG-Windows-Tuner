@@ -16,7 +16,7 @@
         'Get-IgwtHealthReport', 'Format-IgwtHealthReport', 'Export-IgwtHealthReport', 'Get-IgwtHardwareSummary', 'Get-IgwtAntiCheatReadiness',
         'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
         'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',
-        'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled', 'Get-IgwtStartupRemovePlan', 'Test-IgwtSecSettingValue', 'Get-IgwtSecSettings', 'Get-IgwtSecSettingDetail', 'Get-IgwtSecSettingChangePlan', 'Format-IgwtSecSettingPlan', 'Format-IgwtStartupRemovePlan', 'Remove-IgwtStartupItem',
+        'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled', 'Get-IgwtStartupRemovePlan', 'Test-IgwtSecSettingValue', 'Get-IgwtSecSettings', 'Get-IgwtSecSettingDetail', 'Get-IgwtSecSettingChangePlan', 'Format-IgwtSecSettingPlan', 'Invoke-IgwtSecSettingChange', 'Invoke-IgwtSecSettingSecpolStep', 'Invoke-IgwtSecSettingAuditStep', 'Invoke-IgwtSecSettingAsrChange', 'Format-IgwtStartupRemovePlan', 'Remove-IgwtStartupItem',
         'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Get-IgwtLogEntries', 'Set-IgwtLogSink',
         'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
         'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
