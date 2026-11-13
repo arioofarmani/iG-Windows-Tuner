@@ -17,6 +17,7 @@ $script:IgwtGuiControlNames = @(
     'StartupRefreshButton', 'StartupListHost', 'StartupOnButton', 'StartupOffButton', 'StartupDeleteButton', 'StartupOpenButton', 'StartupCopyButton', 'StartupDetailText', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
     'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalResetButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
+    'PageSecSettings', 'SecRefreshButton', 'SecStatusText', 'SecSettingsListHost', 'SecSettingsDetailHost', 'SecStageButton', 'SecPreviewButton', 'SecApplyButton', 'SecClearButton', 'SecStagedText',
     'PageRegistryCleaner', 'RegScanButton', 'RegCancelButton', 'RegSelectSafeButton', 'RegClearButton', 'RegRemoveButton', 'RegRestoreButton', 'RegExclusionsButton', 'RegNoteText', 'RegListHost', 'RegDetailText',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
@@ -2732,7 +2733,7 @@ function Set-IgwtGuiFocusMode {
 $script:IgwtGuiNavGroups = [ordered]@{
     'Start'    = @('Dashboard', 'Presets')
     'Optimize' = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'System')
-    'Secure'   = @('Security', 'Asr', 'Defender', 'Firewall', 'Policy', 'Risk Zone')
+    'Secure'   = @('Security', 'Asr', 'Defender', 'SecSettings', 'Firewall', 'Policy', 'Risk Zone')
     'Clean'    = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup')
     'Manage'   = @('Manage', 'Toolkit')
     'Diagnose' = @('Diagnostics', 'NetTest', 'Inspect')
@@ -2790,7 +2791,7 @@ function Set-IgwtGuiPersona {
     $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
     # The ASR Center and the Defender settings are part of Security: keep them directly under
     # Security in every persona.
-    $subs = @(foreach ($tag in 'Asr', 'Defender', 'Firewall') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
+    $subs = @(foreach ($tag in 'Asr', 'Defender', 'SecSettings', 'Firewall') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
     $subs = @($subs | Where-Object { $_ })
     if ($subs.Count) {
         $rest = New-Object System.Collections.Generic.List[object]
@@ -3060,7 +3061,7 @@ function Get-IgwtGuiBreadcrumb {
     $label = $Page
     if ($item -and $item.Content -is [System.Windows.Controls.Panel]) { $tb = @($item.Content.Children | Where-Object { $_ -is [System.Windows.Controls.TextBlock] -and $_.Style -ne $script:Gui.Window.TryFindResource('Icon') })[-1]; if ($tb) { $label = [string]$tb.Text } }
     $parts = @($group)
-    if ($Page -in 'Asr', 'Defender', 'Firewall') { $parts += 'Security' }
+    if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { $parts += 'Security' }
     $parts += $label
     return (@($parts | Where-Object { $_ }) -join "  $([char]0x203A)  ")
 }
@@ -3072,7 +3073,7 @@ function Show-IgwtGuiPage {
     $script:Gui.CurrentPage = $Page
     $c.Breadcrumb.Text = Get-IgwtGuiBreadcrumb -Page $Page
     # The Security sub-pages carry the breadcrumb in their title (Security > Firewall).
-    $c.Breadcrumb.Visibility = $(if ($Page -in 'Asr', 'Defender', 'Firewall') { 'Collapsed' } else { 'Visible' })
+    $c.Breadcrumb.Visibility = $(if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { 'Collapsed' } else { 'Visible' })
     if ($script:Gui.Window -and $script:Gui.Window.IsLoaded) { Set-IgwtGuiViewValue -Name 'LastPage' -Value $Page }
     if ($script:Gui.DiagnosticsPath -and $script:Gui.Window) {
         # Page switch time: from the click to the next idle UI thread (the page is laid out and painted).
@@ -3082,7 +3083,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -3107,6 +3108,7 @@ function Show-IgwtGuiPage {
         'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
+        'SecSettings' { $c.PageSecSettings.Visibility = 'Visible'; if (-not $script:Gui.SecLoaded -and $script:Gui.Runspace) { Start-IgwtGuiSecSettingsLoad } }
         'RegistryCleaner' { $c.PageRegistryCleaner.Visibility = 'Visible'; if ($script:Gui.RegClean -and -not $script:Gui.RegClean.RemovedLoaded -and $script:Gui.Runspace) { $null = Start-IgwtGuiRegCleanRemovedLoad } }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
@@ -3143,6 +3145,8 @@ function Save-IgwtGuiScreenshots {
     # The registry cleaner (read-only scan) and its removed entries from the change journal.
     try { Set-IgwtGuiRegCleanScan -Scan (Get-IgwtRegistryLeftovers); Set-IgwtGuiRegCleanTimeline -Timeline (Get-IgwtJournalTimeline) }
     catch { Write-Warning "Registry cleaner data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
+    # Security settings (read-only).
+    try { Set-IgwtGuiSecSettingsData -Result (Get-IgwtSecSettings) } catch { Write-Warning "Security settings unavailable for screenshots: $($_.Exception.Message)" }
     # The change journal (read-only).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
     # The home card (read-only inputs).
@@ -3241,6 +3245,14 @@ function Save-IgwtGuiScreenshots {
         if ($page -eq 'Startup' -and $script:Gui.Grids.StartupList) {
             $sg = $script:Gui.Grids.StartupList.C.Grid
             $pick = @($sg.ItemsSource | Where-Object { $_.Note } | Select-Object -First 1)
+            if ($pick.Count) { $sg.SelectedItem = $pick[0] } elseif (@($sg.ItemsSource).Count) { $sg.SelectedIndex = 0 }
+            & $capture 'b'
+            $sg.UnselectAll()
+        }
+        # Security settings with one editable setting selected: the detail pane with its editor (SM33).
+        if ($page -eq 'SecSettings' -and $script:Gui.Grids.SecSettingsList) {
+            $sg = $script:Gui.Grids.SecSettingsList.C.Grid
+            $pick = @($sg.ItemsSource | Where-Object { $_.AccessKey -eq 'Editable' -and $_.SourceKind -eq 'admx' } | Select-Object -First 1)
             if ($pick.Count) { $sg.SelectedItem = $pick[0] } elseif (@($sg.ItemsSource).Count) { $sg.SelectedIndex = 0 }
             & $capture 'b'
             $sg.UnselectAll()
@@ -3355,6 +3367,7 @@ function Show-IgwtGui {
     Initialize-IgwtGuiPolicyPage
     Add-IgwtGuiStartupMark -Name 'policy'
     Initialize-IgwtGuiRegistryCleanerPage
+    Initialize-IgwtGuiSecSettingsPage
     Add-IgwtGuiStartupMark -Name 'registryCleaner'
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
