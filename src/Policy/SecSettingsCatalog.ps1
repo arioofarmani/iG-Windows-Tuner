@@ -4,6 +4,7 @@
 # names, exclusion names and Tamper-locked names live only in the JSON data (SM2).
 
 $script:IgwtSecSettingsData = $null
+$script:IgwtSecSettingOverlapCache = $null
 
 function Get-IgwtSecSettingsData {
     <#
@@ -193,6 +194,8 @@ function Get-IgwtSecSettingOverlapIndex {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Catalog)
+    # Computed once per catalog load (SM8): the parsed catalog's hash identifies it.
+    if ($Catalog.PSObject.Properties['Hash'] -and $Catalog.Hash -and $script:IgwtSecSettingOverlapCache -and $script:IgwtSecSettingOverlapCache.Hash -eq $Catalog.Hash) { return $script:IgwtSecSettingOverlapCache.Index }
     $reviewed = New-Object 'System.Collections.Generic.HashSet[string]'
     foreach ($o in @((Get-IgwtSecSettingsData).Meta.reviewedOverlaps)) {
         if ($o -and $o.a -and $o.b) { $null = $reviewed.Add(("$($o.a)|$($o.b)").ToLowerInvariant()); $null = $reviewed.Add(("$($o.b)|$($o.a)").ToLowerInvariant()) }
@@ -224,12 +227,19 @@ function Get-IgwtSecSettingOverlapIndex {
         $null = $result[$b].Add($a)
     }
     foreach ($ids in $byPair.Values) { if ($ids.Count -gt 1) { foreach ($a in $ids) { foreach ($b in $ids) { & $link $a $b } } } }
-    foreach ($lo in $listOwners) {
-        foreach ($k in @($byKey.Keys)) {
-            if ($k -eq $lo.Key -or $k.StartsWith($lo.Key + '\')) { foreach ($b in $byKey[$k]) { & $link $lo.Id $b } }
+    # Every key and each of its parent keys -> the policies writing at or below it (one pass, not keys x list keys).
+    $under = @{}
+    foreach ($k in @($byKey.Keys)) {
+        $cur = $k
+        while ($cur) {
+            if (-not $under.ContainsKey($cur)) { $under[$cur] = New-Object 'System.Collections.Generic.HashSet[string]' }
+            foreach ($id in $byKey[$k]) { $null = $under[$cur].Add($id) }
+            $cut = $cur.LastIndexOf('\'); $cur = $(if ($cut -gt 0) { $cur.Substring(0, $cut) } else { '' })
         }
     }
+    foreach ($lo in $listOwners) { if ($under.ContainsKey($lo.Key)) { foreach ($b in $under[$lo.Key]) { & $link $lo.Id $b } } }
     $out = @{}
     foreach ($k in @($result.Keys)) { $out[$k] = @($result[$k] | Sort-Object) }
+    if ($Catalog.PSObject.Properties['Hash'] -and $Catalog.Hash) { $script:IgwtSecSettingOverlapCache = [pscustomobject]@{ Hash = $Catalog.Hash; Index = $out } }
     return $out
 }

@@ -161,15 +161,21 @@ function Get-IgwtDefenderSettings {
         manages it, the ADMX policy, how it can be changed and the values the editor may set.
         Settings that Get-MpPreference does not report are left out; a setting this PC's
         Set-MpPreference cannot write is listed as not changeable here (Supported false). Read-only.
+    .PARAMETER Category
+        Only settings of this catalog category.
+    .PARAMETER PolicyIndex
+        ADMX policy id -> policy (built here when not given).
     #>
     [CmdletBinding()]
-    param([string]$Category)
+    param([string]$Category, [hashtable]$PolicyIndex)
     $cat = Get-IgwtDefenderSettingCatalog
     $pref = $null; $err = ''
     try { $pref = Get-IgwtMpPreferenceSafe } catch { $err = $_.Exception.Message }
     if (-not $pref) { throw "Defender preferences are unavailable: $err" }
     $admx = $null
     try { $admx = Get-IgwtAdmxCatalog } catch { Write-Verbose "ADMX catalog unavailable: $($_.Exception.Message)" }
+    # 3.8 (DECISIONS SM35): one id lookup table instead of a scan of every policy per setting.
+    if (-not $PolicyIndex -and $admx) { $PolicyIndex = @{}; foreach ($p in @($admx.Policies)) { if ($p -and -not $PolicyIndex.ContainsKey([string]$p.Id)) { $PolicyIndex[[string]$p.Id] = $p } } }
     $catNames = @{}
     foreach ($c in @($cat.categories)) { $catNames[[string]$c.id] = [string]$c.name }
     foreach ($s in @($cat.settings)) {
@@ -177,7 +183,7 @@ function Get-IgwtDefenderSettings {
         if (-not $pref.PSObject.Properties[[string]$s.mp]) { continue }
         $cur = ConvertFrom-IgwtMpRawValue -Definition $s -Raw $pref.([string]$s.mp)
         $pd = $null
-        if ($s.policy -and $admx) { $pd = @($admx.Policies | Where-Object { $_.Id -eq [string]$s.policy }) | Select-Object -First 1 }
+        if ($s.policy -and $PolicyIndex) { $pd = $PolicyIndex[[string]$s.policy] }
         $source = Get-IgwtDefenderSettingSource -Setting $s -PolicyDefinition $pd
         $edit = [string]$s.edit
         $block = Get-IgwtDefenderSettingWriteBlock -Definition $s

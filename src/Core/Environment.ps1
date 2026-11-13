@@ -128,6 +128,7 @@ function Clear-IgwtCatalogCaches {
     $script:IgwtRegCleanProtectedCache = $null
     $script:IgwtRegCleanCategoryCache = $null
     $script:IgwtSecSettingsData = $null
+    $script:IgwtSecSettingOverlapCache = $null
 }
 
 function Get-IgwtEnvironment {

@@ -287,14 +287,16 @@ function Test-IgwtSecSettingWritable {
         Get-IgwtSecSettingOverlapIndex.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Policy, [AllowEmptyCollection()][object[]]$Entries = @(), [hashtable]$OverlapIndex = @{})
+    param([Parameter(Mandatory = $true)]$Policy, [AllowEmptyCollection()][object[]]$Entries = @(), [hashtable]$OverlapIndex = @{}, [ValidateSet('', 'Machine', 'User')][string]$Class = '')
     $no = { param($why) @{ Writable = $false; Reason = $why } }
+    # A 'Both' policy is written one class at a time: the row's class decides.
+    $rowClass = $(if ($Class) { $Class } else { [string]$Policy.Class })
     foreach ($e in @($Policy.Elements | Where-Object { $_ })) { if ([string]$e.Type -notin 'boolean', 'decimal', 'longDecimal', 'text', 'multiText', 'enum', 'list') { return (& $no "The element kind '$($e.Type)' is not supported by iG.") } }
     $roots = '^(?i)(Software\\Policies\\|Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\)'
     $owned = Get-IgwtSecSettingOwnedSet -Policy $Policy
     $keys = @($owned.ListKeys) + @($owned.Pairs | ForEach-Object { $_.Substring(0, $_.LastIndexOf('|')) })
     foreach ($k in $keys) { if ($k -notmatch $roots) { return (& $no "It writes outside the Policies keys ($k), so iG does not change it.") } }
-    if ([string]$Policy.Class -notin 'Machine', 'User') { return (& $no 'iG changes Machine and User policies one class at a time; this policy is for both.') }
+    if ($rowClass -notin 'Machine', 'User') { return (& $no 'iG changes Machine and User policies one class at a time; this policy is for both.') }
     if ($Policy.PSObject.Properties['ClientExtension'] -and $Policy.ClientExtension -and [string]$Policy.ClientExtension -notmatch '^\{[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}$') { return (& $no 'Its client extension is not a valid GUID.') }
     if ($OverlapIndex.ContainsKey([string]$Policy.Id)) { return (& $no "Shares registry values with $(@($OverlapIndex[[string]$Policy.Id]) -join ', '), so iG does not change it.") }
     $rt = Test-IgwtSecSettingRoundTrip -Policy $Policy -Entries $Entries

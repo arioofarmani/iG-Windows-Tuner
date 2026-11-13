@@ -90,6 +90,30 @@
       "source": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
     }
   ],
+  "tamperLocked": {
+    "source": "https://learn.microsoft.com/en-us/defender-endpoint/tamper-protection-overview",
+    "preferences": [
+      "DisableRealtimeMonitoring",
+      "DisableBehaviorMonitoring",
+      "DisableIOAVProtection",
+      "DisableScriptScanning",
+      "MAPSReporting",
+      "DisableBlockAtFirstSeen",
+      "DisableArchiveScanning",
+      "SignatureDisableUpdateOnStartupWithoutEngine"
+    ],
+    "policies": [
+      "WindowsDefender:DisableBlockAtFirstSeen",
+      "WindowsDefender:DisableRealtimeMonitoring",
+      "WindowsDefender:RealtimeProtection_DisableBehaviorMonitoring",
+      "WindowsDefender:RealtimeProtection_DisableIOAVProtection",
+      "WindowsDefender:RealtimeProtection_DisableSriptScanning",
+      "WindowsDefender:Scan_DisableArchiveScanning",
+      "WindowsDefender:SignatureUpdate_DisableUpdateOnStartupWithoutEngine",
+      "WindowsDefender:SpynetReporting"
+    ],
+    "prefixes": [ "WindowsDefender:Exclusions" ]
+  },
   "mpCoverage": {
     "AllowDatagramProcessingOnWinServer": "catalog",
     "AllowNetworkProtectionDownLevel": "catalog",
