@@ -223,6 +223,17 @@ Finds and removes registry entries left behind by programs that are no longer in
 
 -RegClean also accepts -SkipRestorePoint and -EnableSystemProtection. -Confirm is accepted only with -RegClean and -RegRestore; -WhatIf is refused (use -DryRun). Windows PowerShell 5.1 cannot pass -Confirm:$false through `powershell.exe -File`, so scripts that remove without a prompt call `.\iGWindowsTuner.ps1` from PowerShell. In read-only mode the changing verbs exit with 7 before any scan.
 
+## Security settings
+
+Every security setting with its current value and origin (see [SECURITY_SETTINGS.md](SECURITY_SETTINGS.md)). Changes are previewed, journaled and can be undone. These verbs use the exit codes 0, 1, 2 and 7.
+
+| Parameter | Description |
+|---|---|
+| `-SecSettings` | Every security setting with its current value, origin and whether iG can change it. -Category, -Search, -ConfiguredOnly and -SourceKind filter; -Json for scripts; -NoCache keeps the policy definitions out of the disk cache. Read-only. |
+| `-SecSetting` | One security setting by id, with its value definition, origin and read-only reason. Read-only. |
+| `-SecSettingSet` | Changes security settings: 'id=value' (Group Policy: Enabled, Disabled or NotConfigured, then ;element=value; lists separated by \|). The plan is printed first; -DryRun stops there. High-risk settings need -AcknowledgeRisk; managed PCs -AcknowledgeManaged. |
+| `-SecSettingRemoveExclusion` | Removes Defender exclusions: 'Kind:Value' with Kind Path, Process, Extension or IpAddress. This cannot be undone by iG; the plan is printed first and -DryRun stops there. |
+
 ## Startup apps
 
 | Parameter | Description |
