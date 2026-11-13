@@ -1803,9 +1803,25 @@
                             <Button x:Name="StartupRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Re-read the startup entries (read-only)."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Startup apps"/>
                         </DockPanel>
-                        <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Toggling uses the StartupApproved mechanism (like Task Manager); entries are never deleted, and every change is snapshotted. Machine-wide entries need administrator rights." Margin="0,0,0,10"/>
+                        <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Turning one off works like Task Manager. Delete makes a backup first, so Undo or Backups &amp; Logs can restore it. Windows components and security products can be turned off but not deleted. Entries for all users need administrator rights." TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button x:Name="StartupOnButton" Content="Turn on" IsEnabled="False" ToolTip="Start the selected entries with Windows again." AutomationProperties.Name="Turn on the selected startup entries"/>
+                            <Button x:Name="StartupOffButton" Content="Turn off" IsEnabled="False" ToolTip="Stop the selected entries from starting with Windows (nothing is deleted)." AutomationProperties.Name="Turn off the selected startup entries"/>
+                            <Button x:Name="StartupDeleteButton" Content="Delete..." IsEnabled="False" Style="{DynamicResource DangerButton}" ToolTip="Delete the selected entries. A backup is made first." AutomationProperties.Name="Delete the selected startup entries"/>
+                            <Button x:Name="StartupOpenButton" Content="Open file location" IsEnabled="False" ToolTip="Show the file in File Explorer (it is not started)." AutomationProperties.Name="Open the file location of the selected startup entry"/>
+                            <Button x:Name="StartupCopyButton" Content="Copy command" IsEnabled="False" ToolTip="Copy the command lines of the selected entries." AutomationProperties.Name="Copy the command of the selected startup entries"/>
+                        </WrapPanel>
                     </StackPanel>
-                    <ContentControl x:Name="StartupListHost" Grid.Row="1" Focusable="False"/>
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ContentControl x:Name="StartupListHost" Grid.Row="0" Focusable="False"/>
+                        <Border Grid.Row="1" Style="{DynamicResource Card}" Margin="0,8,0,0" Padding="12,8">
+                            <TextBlock x:Name="StartupDetailText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Select an entry to see its file, company and where it is registered. Right-click for all actions."/>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Backups and logs -->

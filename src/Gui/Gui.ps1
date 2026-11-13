@@ -14,7 +14,7 @@ $script:IgwtGuiControlNames = @(
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
-    'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
+    'StartupRefreshButton', 'StartupListHost', 'StartupOnButton', 'StartupOffButton', 'StartupDeleteButton', 'StartupOpenButton', 'StartupCopyButton', 'StartupDetailText', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
     'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalResetButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
     'PageRegistryCleaner', 'RegScanButton', 'RegCancelButton', 'RegSelectSafeButton', 'RegClearButton', 'RegRemoveButton', 'RegRestoreButton', 'RegExclusionsButton', 'RegNoteText', 'RegListHost', 'RegDetailText',
@@ -654,7 +654,7 @@ function Update-IgwtGuiFromData {
     # The page updates run one per UI step (together they took about 400 ms, a visible freeze when the data
     # arrived). They read $script:Gui.Data, never a local of this function: the steps run later.
     Invoke-IgwtGuiChunked -Key 'data.pages' -Size 1 -Items @(
-        { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
+        { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }); Update-IgwtGuiStartupDetails -Rows @(Get-IgwtGridSelection -Grid $script:Gui.Grids.StartupList) }
         { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
         { if ($script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         # The home card inputs (journal, unfinished changes, drift): at start and after every refresh.
@@ -3237,6 +3237,14 @@ function Save-IgwtGuiScreenshots {
             & $capture 'b'
             $script:Gui.C.PageDashboard.ScrollToVerticalOffset(0)
         }
+        # Startup apps with one entry selected: the details line and the enabled actions (DECISIONS SA7).
+        if ($page -eq 'Startup' -and $script:Gui.Grids.StartupList) {
+            $sg = $script:Gui.Grids.StartupList.C.Grid
+            $pick = @($sg.ItemsSource | Where-Object { $_.Note } | Select-Object -First 1)
+            if ($pick.Count) { $sg.SelectedItem = $pick[0] } elseif (@($sg.ItemsSource).Count) { $sg.SelectedIndex = 0 }
+            & $capture 'b'
+            $sg.UnselectAll()
+        }
         # The registry cleaner's Removed view (grouped by cleanup, then category).
         if ($page -eq 'RegistryCleaner' -and $script:Gui.Grids.RegList) {
             Set-IgwtGridChip -Grid $script:Gui.Grids.RegList -ChipId 'removed'
@@ -3605,6 +3613,11 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.DefPolicyApplyButton -Event 'Click' -Handler { Invoke-IgwtGuiDefenderPolicyChange }
     Register-IgwtGuiHandler -Control $c.DefDocButton -Event 'Click' -Handler { $u = [string]$script:Gui.C.DefDocButton.Tag; if ($u) { Open-IgwtGuiPath -Target $u } }
     Register-IgwtGuiHandler -Control $c.StartupRefreshButton -Event 'Click' -Handler { Start-IgwtGuiRefresh }
+    Register-IgwtGuiHandler -Control $c.StartupOnButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'on' }
+    Register-IgwtGuiHandler -Control $c.StartupOffButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'off' }
+    Register-IgwtGuiHandler -Control $c.StartupDeleteButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'delete' }
+    Register-IgwtGuiHandler -Control $c.StartupOpenButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'open' }
+    Register-IgwtGuiHandler -Control $c.StartupCopyButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'copy' }
     Register-IgwtGuiHandler -Control $script:Gui.Grids.StartupList.Root -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
             param($eventSource, $e)
             $cb = $e.OriginalSource

@@ -360,6 +360,13 @@
     fresh scan (Review entries need their ids). The preview is always printed first; -DryRun stops
     there. Every removal is journaled and backed up, needs administrator rights and asks for
     confirmation (scripts pass -Confirm:$false).
+.PARAMETER Startup
+    Lists the startup entries (Run keys and Startup folders) with their state, file, company and
+    whether iG protects them. Read-only; -Json prints them for scripts.
+.PARAMETER StartupRemove
+    Deletes startup entries by id '<Scope>|<Name>' as -Startup prints them (several separated by
+    commas). The plan is printed first; -DryRun stops there. A backup is made first and Backups &
+    Logs restores it. Windows components and security products are refused.
 .PARAMETER RegRestore
     Restores a registry cleanup: its session id, the id of one removed entry (journal entry id) or
     Last for the newest cleanup. The restore plan is printed first; -DryRun stops there. Restores
@@ -423,6 +430,8 @@
     .\iGWindowsTuner.ps1 -RegScan -Category uninstall,run
 .EXAMPLE
     .\iGWindowsTuner.ps1 -RegClean Safe -DryRun
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -StartupRemove 'HKCU-Run|Contoso Updater' -DryRun
 
 .NOTES
     Exit codes: 0 success, 1 error, 2 invalid arguments or unknown tweak/rule id, 3 elevation declined,
@@ -599,6 +608,8 @@ param(
     [string]$RegExclude,
     [string]$Reason,
     [string]$RegUnexclude,
+    [switch]$Startup,
+    [string[]]$StartupRemove,
     [switch]$ElevatedRelaunch
 )
 
@@ -912,6 +923,32 @@ function Invoke-IgwtCliRegClean {
     return [pscustomobject]@{ Code = $code; Json = $null }
 }
 
+function Invoke-IgwtCliStartupRemove {
+    <#
+    Runs -StartupRemove (DECISIONS SA8): the plan is always printed first; -DryRun stops there;
+    otherwise Remove-IgwtStartupItem deletes the allowed entries with a backup.
+    #>
+    param([string[]]$Id, [switch]$DryRun, [switch]$Json, [hashtable]$ConfirmArgs = @{})
+    $plan = @(Get-IgwtStartupRemovePlan -Item $Id)
+    if ($DryRun -and $Json) { return [pscustomobject]@{ Code = 0; Json = ($plan | ConvertTo-Json -Depth 4) } }
+    foreach ($l in @(Format-IgwtStartupRemovePlan -Plan $plan)) { Write-IgwtCliLine $l }
+    $ok = @($plan | Where-Object { -not $_.Refused })
+    if ($DryRun) { Write-IgwtCliLine ''; Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); return [pscustomobject]@{ Code = 0; Json = $null } }
+    if (-not $ok.Count) { return [pscustomobject]@{ Code = 2; Json = $null } }
+    try { $snap = Remove-IgwtStartupItem -Item @($ok | ForEach-Object { $_.Id }) @ConfirmArgs }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 7; Json = $null } }
+        Write-IgwtCliLine "Error: $msg" ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = 1; Json = $null }
+    }
+    if (-not $snap) { Write-IgwtCliLine 'Cancelled; nothing was changed.' ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 0; Json = $null } }
+    Write-IgwtCliLine "Deleted $($ok.Count) startup entr$(if ($ok.Count -eq 1) { 'y' } else { 'ies' }). Backup: $snap" ([ConsoleColor]::Green)
+    Write-IgwtCliLine "Restore with: -RevertAll -Snapshot ""$snap"", or from Backups & Logs in the app." ([ConsoleColor]::Gray)
+    $code = $(if ($ok.Count -lt $plan.Count) { 1 } else { 0 })
+    return [pscustomobject]@{ Code = $code; Json = $null }
+}
+
 function Resolve-IgwtCliRegRestoreId {
     <# Maps -RegRestore to a regClean journal session (session id or Last) or one committed regClean entry. Returns $null with a message when it is neither. #>
     param([string]$Id)
@@ -1118,6 +1155,8 @@ if ($PSBoundParameters.ContainsKey('RegRestore')) { $modes += 'RegRestore' }
 if ($RegExclusions) { $modes += 'RegExclusions' }
 if ($PSBoundParameters.ContainsKey('RegExclude')) { $modes += 'RegExclude' }
 if ($PSBoundParameters.ContainsKey('RegUnexclude')) { $modes += 'RegUnexclude' }
+if ($Startup) { $modes += 'Startup' }
+if ($PSBoundParameters.ContainsKey('StartupRemove')) { $modes += 'StartupRemove' }
 if (($AddItem -or $RemoveItem) -and -not ($Preset -or $SavePreset)) { Write-IgwtCliLine '-AddItem and -RemoveItem are only valid with -Preset or -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($BasedOn -and -not $SavePreset) { Write-IgwtCliLine '-BasedOn is only valid with -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($ExportPreset -and -not $PresetPath) { Write-IgwtCliLine '-ExportPreset needs -PresetPath.' ([ConsoleColor]::Red); exit 2 }
@@ -1626,12 +1665,25 @@ try {
             }
             exit 0
         }
+        'Startup' {
+            $items = @(Get-IgwtStartupItem)
+            if ($Json) { $items | ConvertTo-Json -Depth 4 }
+            else {
+                foreach ($i in $items) {
+                    $note = $(if ($i.Protection) { [string]$i.Protection } elseif ($i.FileMissing) { 'File missing' } else { '' })
+                    Write-IgwtCliLine ("{0,-4} {1}|{2}  {3}" -f $(if ($i.Enabled) { 'On' } else { 'Off' }), $i.Scope, $i.Name, $note) $(if ($i.Enabled) { [ConsoleColor]::Green } else { [ConsoleColor]::DarkGray })
+                    Write-IgwtCliLine ("     {0}" -f $i.Command) ([ConsoleColor]::Gray)
+                }
+                Write-IgwtCliLine 'Delete with -StartupRemove ''<Scope>|<Name>'' (add -DryRun to see the plan only).' ([ConsoleColor]::White)
+            }
+            exit 0
+        }
         'RegExclusions' {
             $r = Invoke-IgwtCliRegExclusion -Action List -Json:$Json
             if ($r.Json) { $r.Json }
             exit $r.Code
         }
-        { $_ -in 'RegClean', 'RegRestore', 'RegExclude', 'RegUnexclude' } {
+        { $_ -in 'RegClean', 'RegRestore', 'RegExclude', 'RegUnexclude', 'StartupRemove' } {
             # Changing verbs: refused in read-only mode before any scan or journal read; -DryRun only previews.
             if (-not $DryRun) {
                 if (Test-IgwtReadOnly) { Write-IgwtCliLine 'Read-only mode: this command changes the PC and is disabled. Run it without -ReadOnly (use -DryRun to see the plan).' ([ConsoleColor]::Yellow); exit 7 }
@@ -1644,6 +1696,7 @@ try {
                 'RegRestore' { Invoke-IgwtCliRegRestore -Id $RegRestore -DryRun:$DryRun -Json:$Json -Conflict $RegConflict -ConfirmArgs $confirmArgs }
                 'RegExclude' { Invoke-IgwtCliRegExclusion -Action Add -Pattern $RegExclude -Reason $Reason -DryRun:$DryRun }
                 'RegUnexclude' { Invoke-IgwtCliRegExclusion -Action Remove -Pattern $RegUnexclude -DryRun:$DryRun }
+                'StartupRemove' { Invoke-IgwtCliStartupRemove -Id @(Split-IgwtIdList $StartupRemove) -DryRun:$DryRun -Json:$Json -ConfirmArgs $confirmArgs }
             }
             if ($r.Json) { $r.Json }
             Complete-IgwtCli $r.Code

@@ -269,19 +269,25 @@ function Initialize-IgwtGuiListGrids {
     )
     Add-IgwtGuiListGrid -Name 'DiskFileList' -Grid $g -SortBy 'SizeText' -Descending -Empty
 
-    # Startup Apps: a switch per entry (StartupApproved; entries are never deleted).
-    $g = New-IgwtSmartGrid -Id 'startup.entries' -Noun 'entries' -RowKey 'Key' -SearchPlaceholder 'Search startup entries' -SelectionMode Single -OnRefresh $refresh `
+    # Startup Apps: a switch per entry (StartupApproved) plus delete with a backup, open and copy (DECISIONS SA7).
+    $g = New-IgwtSmartGrid -Id 'startup.entries' -Noun 'entries' -RowKey 'Key' -SearchPlaceholder 'Search startup entries' -SelectionMode Extended -OnRefresh $refresh `
+        -Actions (Get-IgwtGuiStartupActions) -OnSelectionChanged { param($grid, $rows) $null = $grid; Update-IgwtGuiStartupDetails -Rows $rows } `
         -EmptyTitle 'No startup entries' -EmptyText 'Nothing starts from the Run keys or the Startup folders.' -Columns @(
         @{ Key = 'On'; Header = 'On'; Width = 64; MinWidth = 56; Template = 'Toggle'; Search = $false }
         @{ Key = 'Name'; Header = 'Entry'; Width = 220; MinWidth = 140; Tip = 'Command' }
-        @{ Key = 'ScopeText'; Header = 'Starts for'; Width = 120 }
+        @{ Key = 'ScopeText'; Header = 'Starts for'; Width = 110 }
+        @{ Key = 'Company'; Header = 'Company'; Width = 160 }
+        @{ Key = 'Note'; Header = 'Note'; Width = 150; Tip = 'NoteTip' }
         @{ Key = 'Command'; Header = 'Command'; MinWidth = 240; Template = 'Mono'; Tip = 'Command' }
         @{ Key = 'Scope'; Header = 'Location'; Width = 120; Visible = $false }
+        @{ Key = 'Target'; Header = 'File'; Width = 260; Template = 'Mono'; Visible = $false }
     ) -Chips @(
         @{ Id = 'on'; Label = 'On'; Group = 'state'; Field = 'StateKey'; Values = @('On') }
         @{ Id = 'off'; Label = 'Off'; Group = 'state'; Field = 'StateKey'; Values = @('Off') }
         @{ Id = 'user'; Label = 'This user'; Group = 'scope'; Field = 'ScopeText'; Values = @('This user') }
         @{ Id = 'machine'; Label = 'All users'; Group = 'scope'; Field = 'ScopeText'; Values = @('All users') }
+        @{ Id = 'missing'; Label = 'File missing'; Group = 'note'; Field = 'NoteKey'; Values = @('Missing'); Tip = 'The file the entry starts no longer exists' }
+        @{ Id = 'protected'; Label = 'Protected'; Group = 'note'; Field = 'NoteKey'; Values = @('Windows', 'Security', 'AntiCheat'); Tip = 'Windows components, security products and anti-cheats' }
     )
     Add-IgwtGuiListGrid -Name 'StartupList' -Grid $g -SortBy 'Name'
 
@@ -337,16 +343,25 @@ function Initialize-IgwtGuiListGrids {
 }
 
 function New-IgwtGuiStartupRow {
-    <# .SYNOPSIS SmartGrid row for one startup entry. #>
+    <# .SYNOPSIS SmartGrid row for one startup entry (DECISIONS SA6, SA7). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory row only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Entry, [bool]$CanToggle)
     $enabled = [bool]$Entry.Enabled
+    $f = { param($n) if ($Entry.PSObject.Properties[$n]) { $Entry.$n } else { $null } }
+    $prot = [string](& $f 'Protection')
+    $missing = [bool](& $f 'FileMissing')
+    $noteKey = $(if ($prot) { $prot } elseif ($missing) { 'Missing' } else { '' })
+    $note = switch ($noteKey) { 'Windows' { 'Windows component' } 'Security' { 'Security product' } 'AntiCheat' { 'Anti-cheat' } 'Missing' { 'File missing' } default { '' } }
     [pscustomobject]@{
         Key = "$($Entry.Scope)|$($Entry.Name)"; Scope = [string]$Entry.Scope; Name = [string]$Entry.Name; Command = [string]$Entry.Command; Enabled = $enabled; CanToggle = $CanToggle
         ScopeText = $(if ([string]$Entry.Scope -in 'HKCU-Run', 'User-Folder') { 'This user' } else { 'All users' }); StateKey = $(if ($enabled) { 'On' } else { 'Off' })
+        Target = [string](& $f 'Target'); TargetExists = [bool](& $f 'TargetExists'); FileMissing = $missing; Company = [string](& $f 'Company'); Source = [string](& $f 'Source')
+        Protection = $prot; ProtectionReason = [string](& $f 'ProtectionReason'); NoteKey = $noteKey; Note = $note
+        NoteTip = $(if ($prot) { [string](& $f 'ProtectionReason') } elseif ($missing) { 'The file this entry starts no longer exists. Deleting the entry is safe to try; a backup is made first.' } else { '' })
+        DeleteBlock = $(if ($prot -in 'Windows', 'Security') { [string](& $f 'ProtectionReason') } else { '' })
         On = $enabled; OnEnabled = $CanToggle; OnName = "Start $($Entry.Name) with Windows"
-        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved; the entry is never deleted).' } else { (Get-IgwtGuiChangeBlockReason -What 'turn startup entries on or off') })
+        OnTip = $(if ($CanToggle) { 'Turn this startup entry on or off (StartupApproved, like Task Manager).' } else { (Get-IgwtGuiChangeBlockReason -What 'turn startup entries on or off') })
     }
 }
 

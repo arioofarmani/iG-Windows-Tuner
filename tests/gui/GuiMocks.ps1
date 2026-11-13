@@ -91,11 +91,19 @@ function script:Get-IgwtGuiData {
             $op = $ops[$i % $ops.Count]
             [pscustomobject]@{ Path = "C:\ProgramData\iGWindowsTuner\Backups\snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; File = "snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; Created = $t.ToUniversalTime().ToString('o'); Operation = $op; Detail = ''; Applied = @('net.example'); HasChange = $true; Count = 1 + ($i % 4); Failed = 0 }
         })
+    # Real shape of Get-IgwtStartupItem (DECISIONS SA6): fictional entries only.
     $startup = @(
-        @('HKCU', 'Steam', '"C:\Program Files (x86)\Steam\steam.exe" -silent', $true), @('HKCU', 'Discord', '"C:\Users\Player\AppData\Local\Discord\Update.exe" --processStart Discord.exe', $true),
-        @('HKLM', 'SecurityHealth', '%windir%\system32\SecurityHealthSystray.exe', $true), @('HKCU', 'OneDrive', '"C:\Program Files\Microsoft OneDrive\OneDrive.exe" /background', $false),
-        @('HKLM', 'NVIDIA App', '"C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe" --minimized', $true), @('HKCU', 'Spotify', '"C:\Users\Player\AppData\Roaming\Spotify\Spotify.exe" --autostart', $false)
-    ) | ForEach-Object { [pscustomobject]@{ Scope = $_[0]; Name = $_[1]; Command = $_[2]; Enabled = $_[3]; Machine = ($_[0] -eq 'HKLM'); Location = "$($_[0])\Software\Microsoft\Windows\CurrentVersion\Run" } }
+        ,@('HKCU-Run', 'Steam', '"C:\Program Files (x86)\Steam\steam.exe" -silent', $true, 'C:\Program Files (x86)\Steam\steam.exe', $true, 'Valve Corporation', '', '')
+        ,@('HKCU-Run', 'Discord', '"C:\Users\Player\AppData\Local\Discord\Update.exe" --processStart Discord.exe', $true, 'C:\Users\Player\AppData\Local\Discord\Update.exe', $true, 'Discord Inc.', '', '')
+        ,@('HKLM-Run', 'SecurityHealth', '%windir%\system32\SecurityHealthSystray.exe', $true, 'C:\Windows\system32\SecurityHealthSystray.exe', $true, 'Microsoft Corporation', 'Windows', 'This is part of Windows. You can turn it off, but iG does not delete it.')
+        ,@('HKCU-Run', 'FACEIT', '"C:\Users\Player\AppData\Local\FACEIT\update.exe" --processStart "FACEIT.exe"', $false, 'C:\Users\Player\AppData\Local\FACEIT\update.exe', $true, 'FACEIT Ltd', 'AntiCheat', 'This belongs to an anti-cheat. Removing it can stop the anti-cheat from updating or starting, and games that need it may refuse to run.')
+        ,@('HKLM-Run', 'NVIDIA App', '"C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe" --minimized', $true, 'C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe', $true, 'NVIDIA Corporation', '', '')
+        ,@('HKCU-Run', 'Contoso Updater', '"C:\Program Files\Contoso\Updater\updater.exe" /tray', $false, 'C:\Program Files\Contoso\Updater\updater.exe', $false, '', '', '')
+    ) | ForEach-Object {
+        $machine = ($_[0] -like 'HKLM*')
+        [pscustomobject]@{ Scope = $_[0]; Name = $_[1]; Command = $_[2]; Enabled = $_[3]; Machine = $machine; Location = "$(if ($machine) { 'HKLM:\SOFTWARE' } else { 'HKCU:\Software' })\Microsoft\Windows\CurrentVersion\Run"
+            Source = "$(if ($machine) { 'HKLM:\SOFTWARE' } else { 'HKCU:\Software' })\Microsoft\Windows\CurrentVersion\Run"; Target = $_[4]; TargetExists = $_[5]; FileMissing = (-not $_[5]); Company = $_[6]; Protection = $_[7]; ProtectionReason = $_[8] }
+    }
     $confCtx = [pscustomobject]@{ Build = '26200'; Passed = (New-Object 'System.Collections.Generic.HashSet[string]'); Failed = (New-Object 'System.Collections.Generic.HashSet[string]') }
     foreach ($k in @($states.Keys)) { if ($states[$k].State -eq 'On') { $null = $confCtx.Passed.Add([string]$k) } }
     $os = [pscustomobject]@{ Caption = 'Microsoft Windows 11 Pro'; EditionId = 'Professional'; DisplayVersion = '25H2'; Build = 26200; Ubr = 6584; FullBuild = '26200.6584'; LastBootUpTime = $script:MockNow.AddDays(-2); Uptime = [timespan]::FromDays(2) }

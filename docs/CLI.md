@@ -223,6 +223,13 @@ Finds and removes registry entries left behind by programs that are no longer in
 
 -RegClean also accepts -SkipRestorePoint and -EnableSystemProtection. -Confirm is accepted only with -RegClean and -RegRestore; -WhatIf is refused (use -DryRun). Windows PowerShell 5.1 cannot pass -Confirm:$false through `powershell.exe -File`, so scripts that remove without a prompt call `.\iGWindowsTuner.ps1` from PowerShell. In read-only mode the changing verbs exit with 7 before any scan.
 
+## Startup apps
+
+| Parameter | Description |
+|---|---|
+| `-Startup` | Lists the startup entries (Run keys and Startup folders) with their state, file, company and whether iG protects them. Read-only; -Json prints them for scripts. |
+| `-StartupRemove` | Deletes startup entries by id '<Scope>\|<Name>' as -Startup prints them (several separated by commas). The plan is printed first; -DryRun stops there. A backup is made first and Backups & Logs restores it. Windows components and security products are refused. |
+
 ## Exit codes
 
 | Code | Meaning |

@@ -2,7 +2,7 @@
 # Module-wide settings: data folders, registry redirection (used only by the test suite)
 # and the interactive-user hive mapping used when elevation happens under a different account.
 
-$script:IgwtVersion = '3.6.5'
+$script:IgwtVersion = '3.8.1'
 
 $script:IgwtSettings = @{
     DataRoot         = (Join-Path $env:ProgramData 'iGWindowsTuner')

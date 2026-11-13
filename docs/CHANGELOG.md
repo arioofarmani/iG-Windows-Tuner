@@ -1,10 +1,14 @@
 # Changelog
 
-## 3.8.0 (unreleased)
+## 3.8.1 (unreleased)
 
-Registry Analyzer & Cleaner. Design: DECISIONS RG1 to RG34; guide: docs\REGISTRY_CLEANER.md.
+Registry Analyzer & Cleaner (DECISIONS RG1 to RG34; guide: docs\REGISTRY_CLEANER.md) and full control over startup apps (SA1 to SA10). 3.8.0 was never released on its own; its work is part of 3.8.1.
 
 ### Added
+
+- **Startup apps: delete with a backup** (SA2-SA4): delete one or several entries from the Run keys or the Startup folders. The exact entry is saved first (a Run value with its type and unexpanded data; a Startup folder file as a hash-checked copy in a private backup folder), then the entry and its on/off state are removed and read back. Undo in the message, or Backups & Logs, restores it; a restore never overwrites an entry that exists again with other data.
+- **Startup apps: more control** (SA6, SA7): turn several entries on or off at once, open the file location, copy the command, see the company and the file each entry starts, and filter by File missing or Protected. Windows components and security products can be turned off but not deleted; anti-cheat entries get a warning first.
+- **Command line** (SA8): -Startup lists the entries, -StartupRemove '<Scope>|<Name>' [-DryRun] deletes with a backup.
 
 - **Registry cleaner** (Clean > Registry cleaner; DECISIONS RG1-RG3, RG23): finds entries left behind by programs that are no longer installed: Uninstall entries, App Paths, ProgIDs, Applications verbs, Open with values, Run and RunOnce values, Software\<Vendor>\<Product> keys (64-bit and 32-bit views, the signed-in user's HKCU) and firewall rules for missing programs. Services and scheduled tasks of removed programs are reported only, with Open in Manage. It makes no speed or performance claim.
 - **Only what can be proven** (RG2, RG5-RG10): each entry shows its evidence and is Safe (every rule of its category holds, more than one pointer missing where there is one) or Review (you decide). An entry is not shown at all when any check cannot answer (access denied, skipped or offline drive, unexpanded variable, another user's profile). Ownership is decided by identifiers and folders (Uninstall keys, MSI product state, services, Store packages, games), never by display names. Paths are parsed by the documented command-line rules, expanded for the entry's owner, checked in both WOW64 views and on every online fixed drive; removable, network, virtual and unknown drives are skipped.
