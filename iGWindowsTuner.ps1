@@ -367,6 +367,27 @@
     Deletes startup entries by id '<Scope>|<Name>' as -Startup prints them (several separated by
     commas). The plan is printed first; -DryRun stops there. A backup is made first and Backups &
     Logs restores it. Windows components and security products are refused.
+.PARAMETER SecSettings
+    Security Settings Manager: every security setting with its current value, origin and whether
+    iG can change it (ADMX security policies, Defender, ASR, exclusions, security options, audit,
+    Device Guard). -Category, -Search, -ConfiguredOnly and -SourceKind filter; -Json for scripts;
+    -NoCache keeps the policy definitions out of the disk cache. Read-only.
+.PARAMETER SecSetting
+    One security setting by id (as -SecSettings -Json prints it), with its value definition,
+    origin and read-only reason. Read-only.
+.PARAMETER SecSettingSet
+    Changes security settings: 'id=value' (ADMX: Enabled, Disabled or NotConfigured, then element
+    values as ;element=value; lists separated by |). The plan is printed first; -DryRun stops
+    there. High-risk settings need -AcknowledgeRisk; managed PCs -AcknowledgeManaged.
+.PARAMETER SecSettingRemoveExclusion
+    Removes Defender exclusions: 'Kind:Value' with Kind Path, Process, Extension or IpAddress.
+    This cannot be undone by iG; the plan is printed first and -DryRun stops there.
+.PARAMETER SourceKind
+    With -SecSettings: admx, defender, asr, exclusionList, secpolicy, audit or deviceguardState.
+.PARAMETER ConfiguredOnly
+    With -SecSettings: only settings that are configured.
+.PARAMETER NoCache
+    With -SecSettings or -SecSetting: do not write the policy definition cache.
 .PARAMETER RegRestore
     Restores a registry cleanup: its session id, the id of one removed entry (journal entry id) or
     Last for the newest cleanup. The restore plan is printed first; -DryRun stops there. Restores
@@ -432,6 +453,10 @@
     .\iGWindowsTuner.ps1 -RegClean Safe -DryRun
 .EXAMPLE
     .\iGWindowsTuner.ps1 -StartupRemove 'HKCU-Run|Contoso Updater' -DryRun
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -SecSettings -Search smartscreen -ConfiguredOnly
+.EXAMPLE
+    .\iGWindowsTuner.ps1 -SecSettingSet 'admx:WindowsDefender:Root_PUAProtection:Machine=Enabled;Root_PUAProtection=Block' -DryRun
 
 .NOTES
     Exit codes: 0 success, 1 error, 2 invalid arguments or unknown tweak/rule id, 3 elevation declined,
@@ -610,6 +635,13 @@ param(
     [string]$RegUnexclude,
     [switch]$Startup,
     [string[]]$StartupRemove,
+    [switch]$SecSettings,
+    [string]$SecSetting,
+    [string[]]$SecSettingSet,
+    [string[]]$SecSettingRemoveExclusion,
+    [string[]]$SourceKind,
+    [switch]$ConfiguredOnly,
+    [switch]$NoCache,
     [switch]$ElevatedRelaunch
 )
 
@@ -923,6 +955,117 @@ function Invoke-IgwtCliRegClean {
     return [pscustomobject]@{ Code = $code; Json = $null }
 }
 
+function Write-IgwtCliSecSettingDetail {
+    <# Prints one security setting: value, origin, read-only reason, value definition and baseline. #>
+    param([Parameter(Mandatory = $true)]$Row)
+    $r = $Row
+    Write-IgwtCliLine $r.Name ([ConsoleColor]::White)
+    Write-IgwtCliLine "  Id:        $($r.Id)"
+    Write-IgwtCliLine "  Category:  $(@($r.Category) -join ' > ')"
+    Write-IgwtCliLine "  Current:   $($r.CurrentText)  (origin $($r.Origin)$(if ($r.Class) { ", applies to $($r.AppliesTo)" }))"
+    if ($r.ReadOnly) { Write-IgwtCliLine "  Read-only: $($r.ReadOnlyReason)" ([ConsoleColor]::Yellow) }
+    if ($r.Risk -ne 'normal') { Write-IgwtCliLine "  Risk:      $($r.Risk); restart: $($r.Restart)" ([ConsoleColor]::Yellow) }
+    Write-IgwtCliLine "  Baseline:  $(if ($null -ne $r.Baseline) { "$($r.Baseline) ($($r.BaselineSource))" } else { $r.BaselineSource })"
+    if ($r.SupportedOn) { Write-IgwtCliLine "  Supported: $($r.SupportedOn)" }
+    if ($r.ValueSpec.Mode -ne 'none') {
+        Write-IgwtCliLine "  Value ($($r.ValueSpec.Mode)):"
+        foreach ($e in @($r.ValueSpec.Elements)) {
+            $range = $(if ($null -ne $e.Min) { " $($e.Min)-$($e.Max)" } else { '' })
+            $choices = $(if (@($e.Choices).Count) { ': ' + (@($e.Choices | ForEach-Object { if ($_.Refused) { "$($_.Label) (refused)" } else { $_.Label } }) -join '; ') } else { '' })
+            Write-IgwtCliLine "    $($e.Id) [$($e.Kind)$range] $($e.Label)$choices" ([ConsoleColor]::Gray)
+        }
+    }
+    if ($r.Explain) { Write-IgwtCliLine ''; foreach ($l in @(([string]$r.Explain) -split "`r?`n" | Select-Object -First 12)) { Write-IgwtCliLine "  $l" ([ConsoleColor]::DarkGray) } }
+}
+
+function ConvertFrom-IgwtCliSecSettingValue {
+    <#
+    Parses a -SecSettingSet value for a row: ADMX 'State[;element=value]...' with list items
+    separated by | and key=value pairs as name=value|name=value; other settings take the value as is
+    (lists separated by |).
+    #>
+    param([Parameter(Mandatory = $true)]$Row, [AllowEmptyString()][string]$Text)
+    $spec = $Row.ValueSpec
+    $asValue = {
+        param($el, $raw)
+        switch ([string]$el.Kind) {
+            { $_ -in 'list', 'multiText', 'flags' } { return , @($raw -split '\|' | Where-Object { $_ -ne '' }) }
+            'keyValueList' { $h = [ordered]@{}; foreach ($p in @($raw -split '\|' | Where-Object { $_ })) { $i = $p.IndexOf('='); if ($i -gt 0) { $h[$p.Substring(0, $i)] = $p.Substring($i + 1) } }; return $h }
+            default { return $raw }
+        }
+    }
+    if ([string]$spec.Mode -eq 'tristate') {
+        $parts = @($Text -split ';')
+        $values = @{}
+        foreach ($p in @($parts | Select-Object -Skip 1)) {
+            $i = $p.IndexOf('=')
+            if ($i -lt 1) { continue }
+            $id = $p.Substring(0, $i)
+            $el = @($spec.Elements | Where-Object { [string]$_.Id -eq $id }) | Select-Object -First 1
+            $values[$id] = $(if ($el) { & $asValue $el $p.Substring($i + 1) } else { $p.Substring($i + 1) })
+        }
+        return @{ State = $parts[0].Trim(); Values = $values }
+    }
+    $el = @($spec.Elements)[0]
+    if ($el) { return (& $asValue $el $Text) }
+    return $Text
+}
+
+function Invoke-IgwtCliSecSettingChange {
+    <#
+    Runs -SecSettingSet and -SecSettingRemoveExclusion (DECISIONS SM29): reads the settings, parses
+    and validates each value, prints the plan, stops with -DryRun, otherwise applies through
+    Invoke-IgwtSecSettingChange with the caller's -Confirm.
+    #>
+    param([string[]]$Set = @(), [string[]]$RemoveExclusion = @(), [switch]$DryRun, [switch]$Json, [switch]$AcknowledgeRisk, [switch]$AcknowledgeManaged, [hashtable]$ConfirmArgs = @{})
+    $rows = @((Get-IgwtSecSettings -NoCache:$DryRun).Rows)
+    $byId = @{}; foreach ($r in $rows) { $byId[([string]$r.Id).ToLowerInvariant()] = $r }
+    $changes = New-Object System.Collections.Generic.List[object]
+    # powershell -File passes a list as one comma-joined string: split only where a new setting id starts.
+    $Set = @(@($Set) | ForEach-Object { [string]$_ -split ',(?=(admx|defender|asr|exclusion|secpol|audit|deviceguard):)' } | Where-Object { $_ -and $_ -notmatch '^(admx|defender|asr|exclusion|secpol|audit|deviceguard)$' })
+    $RemoveExclusion = @(@($RemoveExclusion) | ForEach-Object { [string]$_ -split ',(?=(Path|Process|Extension|IpAddress):)' } | Where-Object { $_ -and $_ -notmatch '^(Path|Process|Extension|IpAddress)$' })
+    foreach ($s in @($Set)) {
+        $i = $s.IndexOf('=')
+        if ($i -lt 1) { Write-IgwtCliLine "'$s' is not id=value." ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 2; Json = $null } }
+        $id = $s.Substring(0, $i); $row = $byId[$id.ToLowerInvariant()]
+        if (-not $row) { Write-IgwtCliLine "No security setting has the id $id (see -SecSettings)." ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 2; Json = $null } }
+        $value = ConvertFrom-IgwtCliSecSettingValue -Row $row -Text $s.Substring($i + 1)
+        $v = Test-IgwtSecSettingValue -ValueSpec $row.ValueSpec -Value $value -Current $row.Current
+        if (-not $v.Ok) { Write-IgwtCliLine "$($row.Name): $(@($v.Errors) -join ' ')" ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 2; Json = $null } }
+        $changes.Add(@{ Id = [string]$row.Id; Value = $value })
+    }
+    $byKind = @{}
+    foreach ($x in @($RemoveExclusion)) {
+        if ($x -notmatch '^(Path|Process|Extension|IpAddress):(.+)$') { Write-IgwtCliLine "'$x' is not Kind:Value (Path, Process, Extension or IpAddress)." ([ConsoleColor]::Red); return [pscustomobject]@{ Code = 2; Json = $null } }
+        if (-not $byKind.ContainsKey($Matches[1])) { $byKind[$Matches[1]] = New-Object System.Collections.Generic.List[string] }
+        $byKind[$Matches[1]].Add($Matches[2])
+    }
+    foreach ($k in @($byKind.Keys)) {
+        $row = $byId["exclusion:$k".ToLowerInvariant()]
+        $drop = @{}; foreach ($v in $byKind[$k]) { $drop[$v.ToLowerInvariant()] = $true }
+        $changes.Add(@{ Id = "exclusion:$k"; Value = @(@($row.Current) | Where-Object { $_ -and -not $drop.ContainsKey(([string]$_).ToLowerInvariant()) }) })
+    }
+    if (-not $changes.Count) { Write-IgwtCliLine 'Nothing to change.' ([ConsoleColor]::Green); return [pscustomobject]@{ Code = 0; Json = $null } }
+    $plan = Get-IgwtSecSettingChangePlan -Changes $changes.ToArray() -Rows $rows -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged
+    if ($DryRun -and $Json) { return [pscustomobject]@{ Code = 0; Json = ($plan | ConvertTo-Json -Depth 8) } }
+    foreach ($l in @(Format-IgwtSecSettingPlan -Plan $plan)) { Write-IgwtCliLine $l }
+    if ($DryRun) { Write-IgwtCliLine ''; Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); return [pscustomobject]@{ Code = 0; Json = $null } }
+    if (-not $plan.CanApply) { Write-IgwtCliLine 'Nothing was changed (see the reasons above; high-risk changes need -AcknowledgeRisk, managed PCs -AcknowledgeManaged).' ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 1; Json = $null } }
+    try { $res = Invoke-IgwtSecSettingChange -Changes $changes.ToArray() -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged @ConfirmArgs }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -like 'Read-only mode:*') { Write-IgwtCliLine $msg ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 7; Json = $null } }
+        Write-IgwtCliLine "Error: $msg" ([ConsoleColor]::Red)
+        return [pscustomobject]@{ Code = 1; Json = $null }
+    }
+    if (-not $res) { Write-IgwtCliLine 'Cancelled; nothing was changed.' ([ConsoleColor]::Yellow); return [pscustomobject]@{ Code = 0; Json = $null } }
+    if ($Json) { return [pscustomobject]@{ Code = $(if (@($res.Results | Where-Object { $_.Result -in 'Failed', 'RolledBack' }).Count) { 1 } else { 0 }); Json = ($res | ConvertTo-Json -Depth 6) } }
+    foreach ($x in @($res.Results)) { Write-IgwtCliLine ("{0,-12} {1}  {2}" -f "[$($x.Result)]", $x.Name, $x.Message) $(switch ($x.Result) { 'Committed' { [ConsoleColor]::Green } 'InPlace' { [ConsoleColor]::Gray } default { [ConsoleColor]::Red } }) }
+    if ($res.Restart -eq 'reboot') { Write-IgwtCliLine 'Restart Windows to finish. Have your BitLocker recovery key ready if the system drive is encrypted.' ([ConsoleColor]::Yellow) }
+    Write-IgwtCliLine "Undo: Backups & Logs > Change journal, session $($res.SessionId)." ([ConsoleColor]::Gray)
+    return [pscustomobject]@{ Code = $(if (@($res.Results | Where-Object { $_.Result -in 'Failed', 'RolledBack' }).Count) { 1 } else { 0 }); Json = $null }
+}
+
 function Invoke-IgwtCliStartupRemove {
     <#
     Runs -StartupRemove (DECISIONS SA8): the plan is always printed first; -DryRun stops there;
@@ -1157,6 +1300,10 @@ if ($PSBoundParameters.ContainsKey('RegExclude')) { $modes += 'RegExclude' }
 if ($PSBoundParameters.ContainsKey('RegUnexclude')) { $modes += 'RegUnexclude' }
 if ($Startup) { $modes += 'Startup' }
 if ($PSBoundParameters.ContainsKey('StartupRemove')) { $modes += 'StartupRemove' }
+if ($SecSettings) { $modes += 'SecSettings' }
+if ($SecSetting) { $modes += 'SecSetting' }
+if ($PSBoundParameters.ContainsKey('SecSettingSet')) { $modes += 'SecSettingSet' }
+if ($PSBoundParameters.ContainsKey('SecSettingRemoveExclusion')) { $modes += 'SecSettingRemoveExclusion' }
 if (($AddItem -or $RemoveItem) -and -not ($Preset -or $SavePreset)) { Write-IgwtCliLine '-AddItem and -RemoveItem are only valid with -Preset or -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($BasedOn -and -not $SavePreset) { Write-IgwtCliLine '-BasedOn is only valid with -SavePreset.' ([ConsoleColor]::Red); exit 2 }
 if ($ExportPreset -and -not $PresetPath) { Write-IgwtCliLine '-ExportPreset needs -PresetPath.' ([ConsoleColor]::Red); exit 2 }
@@ -1167,7 +1314,9 @@ $asrOnly = @('AsrRule', 'AsrMode', 'AsrRecommended', 'AsrExclude', 'AsrUnexclude
 if ($asrOnly -and -not $Asr) { Write-IgwtCliLine "-$($asrOnly -join ', -') only valid with -Asr." ([ConsoleColor]::Red); exit 2 }
 if ($PSBoundParameters.ContainsKey('Days') -and -not ($AsrAudit -or $Diagnostics -or $SystemReport)) { Write-IgwtCliLine '-Days is only valid with -AsrAudit, -Diagnostics or -SystemReport.' ([ConsoleColor]::Red); exit 2 }
 if ($AsrAudit -and $Days -gt 90) { Write-IgwtCliLine '-Days must be 90 or less with -AsrAudit.' ([ConsoleColor]::Red); exit 2 }
-if ($Search -and -not ($Inventory -or $Toolkit)) { Write-IgwtCliLine '-Search is only valid with -Inventory or -Toolkit.' ([ConsoleColor]::Red); exit 2 }
+if ($Search -and -not ($Inventory -or $Toolkit -or $SecSettings)) { Write-IgwtCliLine '-Search is only valid with -Inventory, -Toolkit or -SecSettings.' ([ConsoleColor]::Red); exit 2 }
+if (($SourceKind -or $ConfiguredOnly) -and -not $SecSettings) { Write-IgwtCliLine '-SourceKind and -ConfiguredOnly are only valid with -SecSettings.' ([ConsoleColor]::Red); exit 2 }
+if ($NoCache -and -not ($SecSettings -or $SecSetting)) { Write-IgwtCliLine '-NoCache is only valid with -SecSettings or -SecSetting.' ([ConsoleColor]::Red); exit 2 }
 if ($AcceptAgreements -and -not ($Install -or $Upgrade -or $UpgradeAll -or $AppList)) { Write-IgwtCliLine '-AcceptAgreements is only valid with -Install, -Upgrade or -UpgradeAll.' ([ConsoleColor]::Red); exit 2 }
 if ($AppId -and -not $ExportAppList) { Write-IgwtCliLine '-AppId is only valid with -ExportAppList.' ([ConsoleColor]::Red); exit 2 }
 if ($ExportAppList -and -not $AppId) { Write-IgwtCliLine '-ExportAppList needs -AppId.' ([ConsoleColor]::Red); exit 2 }
@@ -1189,7 +1338,7 @@ if ($Snapshot -and -not $RevertAll) { Write-IgwtCliLine '-Snapshot is only valid
 $cleanOnly = @('Scan', 'CleanRule', 'CleanLevel', 'IncludeOptIn', 'AllUsers', 'Yes') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($cleanOnly -and -not $Clean) { Write-IgwtCliLine "-$($cleanOnly -join ', -') only valid with -Clean." ([ConsoleColor]::Red); exit 2 }
 if ($PSBoundParameters.ContainsKey('Top') -and -not $Analyze) { Write-IgwtCliLine '-Top is only valid with -Analyze.' ([ConsoleColor]::Red); exit 2 }
-if ($Category -and -not $RegScan) { Write-IgwtCliLine '-Category is only valid with -RegScan.' ([ConsoleColor]::Red); exit 2 }
+if ($Category -and -not ($RegScan -or $SecSettings)) { Write-IgwtCliLine '-Category is only valid with -RegScan or -SecSettings.' ([ConsoleColor]::Red); exit 2 }
 $regCategories = @('uninstall', 'appPath', 'progId', 'application', 'openWith', 'run', 'softwareKey', 'firewallRule', 'service', 'task')
 foreach ($c in @(Split-IgwtIdList $Category)) { if ($regCategories -notcontains $c) { Write-IgwtCliLine "Unknown -Category '$c' (use $($regCategories -join ', '))." ([ConsoleColor]::Red); exit 2 } }
 if ($PSBoundParameters.ContainsKey('Reason') -and -not $PSBoundParameters.ContainsKey('RegExclude')) { Write-IgwtCliLine '-Reason is only valid with -RegExclude.' ([ConsoleColor]::Red); exit 2 }
@@ -1678,10 +1827,50 @@ try {
             }
             exit 0
         }
+        'SecSettings' {
+            $sargs = @{ NoCache = [bool]$NoCache; ConfiguredOnly = [bool]$ConfiguredOnly }
+            if ($Category) { $sargs.Category = (@($Category) -join ' ') }
+            if ($Search) { $sargs.Search = $Search }
+            if ($SourceKind) { $sargs.SourceKind = @(Split-IgwtIdList $SourceKind) }
+            $res = Get-IgwtSecSettings @sargs
+            if ($Json) { $res | ConvertTo-Json -Depth 8; exit 0 }
+            Write-IgwtCliLine ("Edition {0}, elevated {1}, domain policy {2}, Tamper Protection {3}, managed {4}." -f $res.Status.EditionFamily, $res.Status.Elevated, $res.Status.DomainPolicyRead, $res.Status.Tamper, $res.Status.Managed) ([ConsoleColor]::Gray)
+            foreach ($g in @($res.Rows | Group-Object { @($_.Category)[0] } | Sort-Object Name)) {
+                Write-IgwtCliLine ''
+                Write-IgwtCliLine "== $($g.Name)" ([ConsoleColor]::White)
+                foreach ($r in @($g.Group | Sort-Object Name)) {
+                    $mark = $(if ($r.ReadOnly) { 'read-only' } elseif ($r.Risk -eq 'high') { 'high risk' } else { '' })
+                    Write-IgwtCliLine ("  {0,-60} {1,-22} {2}" -f $(if ($r.Name.Length -gt 60) { $r.Name.Substring(0, 57) + '...' } else { $r.Name }), $(if ($r.CurrentText.Length -gt 22) { $r.CurrentText.Substring(0, 19) + '...' } else { $r.CurrentText }), $mark) $(if ($r.Configured) { [ConsoleColor]::Green } else { [ConsoleColor]::Gray })
+                    Write-IgwtCliLine ("      {0}  ({1})" -f $r.Id, $r.Origin) ([ConsoleColor]::DarkGray)
+                }
+            }
+            Write-IgwtCliLine ''
+            Write-IgwtCliLine "$(@($res.Rows).Count) setting(s). Details: -SecSetting <id>. Change: -SecSettingSet '<id>=<value>' -DryRun." ([ConsoleColor]::White)
+            exit 0
+        }
+        'SecSetting' {
+            $r = Get-IgwtSecSettingDetail -Id $SecSetting -NoCache:$NoCache
+            if (-not $r) { Write-IgwtCliLine "No security setting has the id $SecSetting (see -SecSettings)." ([ConsoleColor]::Red); exit 2 }
+            if ($Json) { $r | ConvertTo-Json -Depth 8; exit 0 }
+            Write-IgwtCliSecSettingDetail -Row $r
+            exit 0
+        }
         'RegExclusions' {
             $r = Invoke-IgwtCliRegExclusion -Action List -Json:$Json
             if ($r.Json) { $r.Json }
             exit $r.Code
+        }
+        { $_ -in 'SecSettingSet', 'SecSettingRemoveExclusion' } {
+            # Changing verbs: refused in read-only mode; -DryRun only previews (state checks may be NotChecked when not elevated).
+            if (-not $DryRun) {
+                if (Test-IgwtReadOnly) { Write-IgwtCliLine 'Read-only mode: this command changes the PC and is disabled. Run it without -ReadOnly (use -DryRun to see the plan).' ([ConsoleColor]::Yellow); exit 7 }
+                if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+            }
+            $confirmArgs = @{}
+            if ($PSBoundParameters.ContainsKey('Confirm')) { $confirmArgs.Confirm = [bool]$PSBoundParameters['Confirm'] }
+            $r = Invoke-IgwtCliSecSettingChange -Set $(if ($modes[0] -eq 'SecSettingSet') { $SecSettingSet } else { @() }) -RemoveExclusion $(if ($modes[0] -eq 'SecSettingRemoveExclusion') { $SecSettingRemoveExclusion } else { @() }) -DryRun:$DryRun -Json:$Json -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged -ConfirmArgs $confirmArgs
+            if ($r.Json) { $r.Json }
+            Complete-IgwtCli $r.Code
         }
         { $_ -in 'RegClean', 'RegRestore', 'RegExclude', 'RegUnexclude', 'StartupRemove' } {
             # Changing verbs: refused in read-only mode before any scan or journal read; -DryRun only previews.
