@@ -24,6 +24,8 @@ BeforeAll {
         'Remove-IgwtRegCleanKeyTree', 'Remove-IgwtRegCleanValue', 'Restore-IgwtRegCleanKeyTree', 'Restore-IgwtRegCleanValue',
         # src\Core\StartupApps.ps1: startup entry delete and its additive restore (module writer Remove-IgwtStartupItem, DECISIONS SA2-SA4)
         'Remove-IgwtStartupEntry', 'Restore-IgwtStartupEntry',
+        # src\Policy\SecSettingsProvider.ps1: provider 'localPolicy' (DECISIONS SM20, SM21)
+        'Write-IgwtSecSettingPolOwned', 'Set-IgwtSecSettingPolEntries', 'Restore-IgwtSecSettingPolEntries', 'Invoke-IgwtSecSettingRefresh',
         # module writers (provider "module", DECISIONS T14) and the restores they call
         'Import-IgwtFirewallRules', 'Invoke-IgwtFirewallChange', 'Restore-IgwtFirewallSnapshot', 'Set-IgwtFirewallProfileSetting', 'Set-IgwtNetworkCategory',
         'Invoke-IgwtManagedChange', 'Restore-IgwtManagedSnapshot',

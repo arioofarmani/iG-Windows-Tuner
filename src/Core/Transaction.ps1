@@ -321,20 +321,49 @@ function Invoke-IgwtModuleOperation {
     $desired = ConvertTo-IgwtJournalParameters -Parameters $Parameters
     if (-not $Title) { $Title = "$Command $(@($desired.Values | Where-Object { $_ -is [string] -or $_ -is [ValueType] }) -join ' ')".Trim() }
     if (-not $Origin) { $Origin = [ordered]@{ type = 'module'; ref = $Command } }
-    $detail = (Get-IgwtJournalHash -Line (ConvertTo-IgwtCanonicalJson $desired)).Substring(0, 16)
-    $target = [ordered]@{ provider = 'module'; key = "module|$Command|$detail"; item = "module:$Command"; op = $Command }
-    $params = @{}; foreach ($k in $Parameters.Keys) { $params[$k] = $Parameters[$k] }
     $session = Start-IgwtChangeSession -Origin $Origin -Title $Title -Confirm:$false
-    $script:IgwtModuleStep = [pscustomobject]@{ Command = $Command; Parameters = $params; Result = $null; Ref = ''; Session = $session.Id; Step = $session.Step + 1 }
     try {
-        $r = Invoke-IgwtChangeStep -Session $session -Target $target -Desired $desired -Group $Command -Confirm:$false
-        $out = $script:IgwtModuleStep.Result
+        $s = Invoke-IgwtModuleOperationStep -Session $session -Command $Command -Parameters $Parameters -Group $Command
+        $r = $s.Step; $out = $s.Result
         # A writer that threw: the step is journaled as failed, and the caller sees the same error.
         if ($r -and $r.Result -ne 'Committed' -and $null -eq $out -and $r.Message) { throw $r.Message }
         return $out
     } finally {
-        $script:IgwtModuleStep = $null
         Complete-IgwtChangeSession -Session $session
+    }
+}
+
+function Invoke-IgwtModuleOperationStep {
+    <#
+    .SYNOPSIS
+        Runs one module writer as one step of an existing session (DECISIONS SM26): the target key is
+        'module|<command>|<16 hex>' as in Invoke-IgwtModuleOperation (the hash of the parameters, or of
+        -Detail when given, so two secpol batches never share a key). Returns @{ Step; Result }.
+    .PARAMETER Session
+        The change session.
+    .PARAMETER Command
+        A registered module writer.
+    .PARAMETER Parameters
+        The writer's parameters.
+    .PARAMETER Group
+        The step group (rollback unit).
+    .PARAMETER Detail
+        Text that identifies the change instead of the parameters (for example sorted secpol keys).
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)]$Session, [Parameter(Mandatory = $true)][string]$Command, [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Parameters, [string]$Group, [string]$Detail)
+    if (-not $script:IgwtModuleOperations.ContainsKey($Command)) { throw "$Command is not a registered module writer." }
+    $desired = ConvertTo-IgwtJournalParameters -Parameters $Parameters
+    $hashOf = $(if ($Detail) { $Detail } else { ConvertTo-IgwtCanonicalJson $desired })
+    $detailHash = (Get-IgwtJournalHash -Line $hashOf).Substring(0, 16)
+    $target = [ordered]@{ provider = 'module'; key = "module|$Command|$detailHash"; item = "module:$Command"; op = $Command }
+    $params = @{}; foreach ($k in $Parameters.Keys) { $params[$k] = $Parameters[$k] }
+    $script:IgwtModuleStep = [pscustomobject]@{ Command = $Command; Parameters = $params; Result = $null; Ref = ''; Session = $Session.Id; Step = $Session.Step + 1 }
+    try {
+        $r = Invoke-IgwtChangeStep -Session $Session -Target $target -Desired $desired -Group $(if ($Group) { $Group } else { $Command }) -Confirm:$false
+        return [pscustomobject]@{ Step = $r; Result = $script:IgwtModuleStep.Result }
+    } finally {
+        $script:IgwtModuleStep = $null
     }
 }
 
