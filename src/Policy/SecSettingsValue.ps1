@@ -11,7 +11,8 @@ function New-IgwtSecSettingElement {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][string]$Kind, [string]$Label = '', [hashtable]$More = @{})
     $e = [ordered]@{ Id = $Id; Kind = $Kind; Label = $(if ($Label) { $Label } else { $Id }); Required = $false; Default = $null; Min = $null; Max = $null; Unit = ''; Step = $null
-        MaxLength = $null; Pattern = ''; MaxStrings = $null; Expandable = $false; PathKind = ''; Choices = @(); Bits = @(); ValuePrefix = ''; Additive = $false; Suggestions = @() }
+        MaxLength = $null; Pattern = ''; MaxStrings = $null; Expandable = $false; PathKind = ''; Choices = @(); Bits = @(); ValuePrefix = ''; Additive = $false; Suggestions = @()
+        Key = ''; ValueName = ''; SecpolText = $false; RemoveOnly = $false }
     foreach ($k in @($More.Keys)) { $e[$k] = $More[$k] }
     return [pscustomobject]$e
 }
@@ -32,18 +33,26 @@ function ConvertTo-IgwtSecSettingValueSpec {
     param([Parameter(Mandatory = $true)][ValidateSet('admx', 'defender', 'secpol', 'audit')][string]$SourceKind, $Definition)
     switch ($SourceKind) {
         'admx' {
+            $class = $(if ([string]$Definition.Class -in 'Machine', 'User') { [string]$Definition.Class } else { 'Machine' })
+            # A choice that would write a refused value (denylist, weakening, UEFI lock) carries the reason (SM13, SM18).
+            $refusal = { param($ops) foreach ($o in @($ops)) { $why = Get-IgwtSecSettingOpRefusal -Class $class -Op $o; if ($why) { return $why } }; return '' }
+            $toOps = { param($k, $n, $v, $list) @($(if ($v -and $n) { [pscustomobject]@{ Op = $(if ([string]$v.Type -eq 'Delete') { 'Delete' } else { 'Set' }); Key = $k; ValueName = $n; Value = $v.Value } })) + @(foreach ($i in @($list)) { if ($i -and $i.Value) { [pscustomobject]@{ Op = $(if ([string]$i.Value.Type -eq 'Delete') { 'Delete' } else { 'Set' }); Key = $i.Key; ValueName = $i.ValueName; Value = $i.Value.Value } } }) }
             $els = foreach ($e in @($Definition.Elements | Where-Object { $_ })) {
-                $more = @{ Required = [bool]$e.Required; Default = $e.Default }
+                $more = @{ Required = [bool]$e.Required; Default = $e.Default; Key = [string]$e.Key; ValueName = [string]$e.ValueName }
                 $label = [string]$e.Label
                 switch ([string]$e.Type) {
-                    'boolean' { $kind = 'bool'; $more.Choices = @([pscustomobject]@{ Value = $true; Label = 'On'; Index = 0 }, [pscustomobject]@{ Value = $false; Label = 'Off'; Index = 1 }) }
+                    'boolean' {
+                        $kind = 'bool'
+                        $tv = $(if ($e.TrueValue) { $e.TrueValue } else { [pscustomobject]@{ Type = 'DWord'; Value = 1 } }); $fv = $(if ($e.FalseValue) { $e.FalseValue } else { [pscustomobject]@{ Type = 'DWord'; Value = 0 } })
+                        $more.Choices = @([pscustomobject]@{ Value = $true; Label = 'On'; Index = 0; Refused = (& $refusal (& $toOps $e.Key $e.ValueName $tv $e.TrueList)) }, [pscustomobject]@{ Value = $false; Label = 'Off'; Index = 1; Refused = (& $refusal (& $toOps $e.Key $e.ValueName $fv $e.FalseList)) })
+                    }
                     'decimal' { $kind = 'decimal'; $more.Min = [uint64]$e.Min; $more.Max = [uint64]$e.Max; $more.Unit = $label; $more.Step = $(if ($e.PSObject.Properties['SpinStep'] -and $e.SpinStep) { [uint64]$e.SpinStep } else { [uint64]1 }) }
                     'longDecimal' { $kind = 'longDecimal'; $more.Min = [uint64]$e.Min; $more.Max = [uint64]$e.Max; $more.Unit = $label; $more.Step = $(if ($e.PSObject.Properties['SpinStep'] -and $e.SpinStep) { [uint64]$e.SpinStep } else { [uint64]1 }) }
                     'text' { $kind = 'text'; $more.MaxLength = [int]$e.MaxLength; $more.Expandable = [bool]$e.Expandable; if ($e.PSObject.Properties['Suggestions']) { $more.Suggestions = @($e.Suggestions) } }
                     'multiText' { $kind = 'multiText'; $more.MaxLength = [int]$e.MaxLength; $more.MaxStrings = $(if ($e.PSObject.Properties['MaxStrings']) { [int]$e.MaxStrings } else { 0 }) }
                     'enum' {
                         $kind = 'enum'; $i = 0
-                        $more.Choices = @(foreach ($it in @($e.Items)) { [pscustomobject]@{ Value = [string]$it.DisplayName; Label = [string]$it.DisplayName; Index = $i }; $i++ })
+                        $more.Choices = @(foreach ($it in @($e.Items)) { [pscustomobject]@{ Value = [string]$it.DisplayName; Label = [string]$it.DisplayName; Index = $i; Refused = (& $refusal (& $toOps $e.Key $e.ValueName $it.Value $it.ValueList)) }; $i++ })
                     }
                     'list' { $kind = $(if ($e.ExplicitValue) { 'keyValueList' } else { 'list' }); $more.ValuePrefix = [string]$e.ValuePrefix; $more.Additive = [bool]$e.Additive; $more.Expandable = [bool]$e.Expandable }
                     default { $kind = 'unsupported' }
@@ -57,7 +66,7 @@ function ConvertTo-IgwtSecSettingValueSpec {
             $more = @{}
             $kind = switch ([string]$d.type) { 'bool' { 'bool' } 'enum' { 'enum' } 'uint' { 'decimal' } 'time' { 'time' } 'text' { 'text' } 'list' { 'list' } default { 'unsupported' } }
             if ($kind -eq 'bool') { $more.Choices = @([pscustomobject]@{ Value = $true; Label = 'On'; Index = 0 }, [pscustomobject]@{ Value = $false; Label = 'Off'; Index = 1 }) }
-            if ($kind -eq 'enum') { $i = 0; $more.Choices = @(foreach ($v in @($d.values)) { [pscustomobject]@{ Value = $v.v; Label = [string]$v.label; Index = $i }; $i++ }) }
+            if ($kind -eq 'enum') { $i = 0; $more.Choices = @(foreach ($v in @($d.values)) { [pscustomobject]@{ Value = $v.v; Label = [string]$v.label; Index = $i; Refused = $(if ($v.refused) { [string]$v.why } else { '' }) }; $i++ }) }
             if ($kind -eq 'decimal') { $more.Min = $(if ($null -ne $d.min) { [uint64]$d.min } else { [uint64]0 }); $more.Max = $(if ($null -ne $d.max) { [uint64]$d.max } else { [uint64][uint32]::MaxValue }); $more.Unit = [string]$d.unit; $more.Step = [uint64]1 }
             if ($kind -eq 'text' -and $d.pattern) { $more.Pattern = [string]$d.pattern }
             $mode = $(if ($kind -eq 'unsupported' -or [string]$d.edit -notin 'set', 'parser') { 'none' } else { 'value' })
@@ -76,6 +85,7 @@ function ConvertTo-IgwtSecSettingValueSpec {
                 5 { $kind = 'flags'; $more.Bits = @(foreach ($c in @($s.Choices)) { [pscustomobject]@{ Value = $c.Value; Label = [string]$c.Label } }) }
                 default { return @{ Mode = 'none'; Elements = @(); Reason = "The display type $($s.DisplayType) is not known to iG." } }
             }
+            $more.SecpolText = $true
             return @{ Mode = 'value'; Elements = @(New-IgwtSecSettingElement -Id 'value' -Kind $kind -Label ([string]$s.Name) -More $more) }
         }
         'audit' {
@@ -373,6 +383,160 @@ function New-IgwtSecSettingRow {
     if ($r.ReadOnly -and $r.Writer -ne 'none') { $r.Writer = 'none' }
     $r.Search = ("{0}`n{1}`n{2}`n{3}`n{4}" -f $r.Name, (@($r.Category) -join ' > '), $r.Explain, $r.Id, $r.CurrentText).ToLowerInvariant()
     return [pscustomobject]$r
+}
+
+#endregion
+
+#region Validation (SM30 part 1)
+
+function Test-IgwtSecSettingElementValue {
+    <# .SYNOPSIS Validates one element value; returns @{ Ok; Value; Index; Error }. Pure (see Test-IgwtSecSettingValue). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Element, [AllowNull()]$Value, [AllowNull()]$Current, [string]$Mode = 'value')
+    $e = $Element
+    $bad = { param($m) @{ Ok = $false; Value = $null; Index = $null; Error = "$($e.Label): $m" } }
+    $good = { param($v, $i) @{ Ok = $true; Value = $v; Index = $i; Error = '' } }
+    $isEmpty = ($null -eq $Value -or ($Value -is [string] -and $Value.Trim() -eq '') -or ($Value -is [array] -and @($Value).Count -eq 0))
+    if ($isEmpty) { if ($e.Required) { return (& $bad 'a value is required.') }; return (& $good $null $null) }
+    $refusedChoice = { param($c) if ($c -and $c.PSObject.Properties['Refused'] -and $c.Refused) { return [string]$c.Refused }; return '' }
+    switch ([string]$e.Kind) {
+        'bool' {
+            $s = ([string]$Value).Trim().ToLowerInvariant()
+            $b = $null
+            if ($Value -is [bool]) { $b = [bool]$Value } elseif ($s -in 'true', '1', 'yes', 'on') { $b = $true } elseif ($s -in 'false', '0', 'no', 'off') { $b = $false }
+            if ($null -eq $b) { return (& $bad "'$Value' is not on or off.") }
+            $c = @($e.Choices | Where-Object { [bool]$_.Value -eq $b }) | Select-Object -First 1
+            $why = & $refusedChoice $c
+            if ($why) { return (& $bad $why) }
+            return (& $good $b $(if ($c) { $c.Index } else { $null }))
+        }
+        { $_ -in 'decimal', 'longDecimal' } {
+            $s = ([string]$Value).Trim()
+            if ($s -notmatch '^\d+$') { return (& $bad "'$s' is not a whole number.") }
+            $n = [uint64]0
+            if (-not [uint64]::TryParse($s, [ref]$n)) { return (& $bad "'$s' is too large.") }
+            if ($e.Kind -eq 'decimal' -and $n -gt [uint32]::MaxValue) { return (& $bad "'$s' is too large.") }
+            if ($null -ne $e.Min -and $n -lt [uint64]$e.Min) { return (& $bad "must be at least $($e.Min).") }
+            if ($null -ne $e.Max -and $n -gt [uint64]$e.Max) { return (& $bad "must be at most $($e.Max).") }
+            return (& $good $n $null)
+        }
+        'text' {
+            $s = [string]$Value
+            if ($s.Contains([string][char]0)) { return (& $bad 'contains a NUL character.') }
+            $max = $(if ($e.MaxLength) { [int]$e.MaxLength } else { 1023 })
+            if ($s.Length -gt $max) { return (& $bad "is longer than $max characters.") }
+            if ($e.Pattern -and $s -notmatch "^(?:$($e.Pattern))$") { return (& $bad 'does not have the required format.') }
+            if ([string]$e.PathKind -eq 'localFolder' -and $s -match '^(\\\\|//)') { return (& $bad 'must be a folder on this PC, not a network path.') }
+            if ($e.SecpolText -and $s -match '[;"\r\n]') { return (& $bad 'may not contain ; or " or line breaks.') }
+            return (& $good $s $null)
+        }
+        'multiText' {
+            $items = @(@($Value) | ForEach-Object { [string]$_ })
+            if (@($items | Where-Object { $_ -eq '' }).Count) { return (& $bad 'contains an empty line.') }
+            if ($e.MaxStrings -and $items.Count -gt [int]$e.MaxStrings) { return (& $bad "allows at most $($e.MaxStrings) lines.") }
+            foreach ($s in $items) {
+                if ($s.Contains([string][char]0)) { return (& $bad 'contains a NUL character.') }
+                if ($e.MaxLength -and $s.Length -gt [int]$e.MaxLength) { return (& $bad "has a line longer than $($e.MaxLength) characters.") }
+                if ($e.SecpolText -and $s -match '[;",\r\n]') { return (& $bad 'lines may not contain ; , or " or line breaks.') }
+            }
+            return (& $good $items $null)
+        }
+        'enum' {
+            $s = ([string]$Value).Trim()
+            $hits = @($e.Choices | Where-Object { [string]$_.Value -eq $s })
+            if (-not $hits.Count) { $hits = @($e.Choices | Where-Object { [string]::Equals([string]$_.Label, $s, [System.StringComparison]::OrdinalIgnoreCase) }) }
+            if ($hits.Count -ne 1) { return (& $bad "'$s' is not one of: $(@($e.Choices | ForEach-Object { $_.Label }) -join '; ').") }
+            $why = & $refusedChoice $hits[0]
+            if ($why) { return (& $bad $why) }
+            return (& $good $(if ($Mode -eq 'tristate') { [int]$hits[0].Index } else { $hits[0].Value }) ([int]$hits[0].Index))
+        }
+        'list' {
+            $items = @(@($Value) | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne '' })
+            if (-not $items.Count) { return (& $bad 'needs at least one entry.') }
+            $seen = @{}
+            foreach ($s in $items) { $k = $s.ToLowerInvariant(); if ($seen.ContainsKey($k)) { return (& $bad "'$s' is listed twice.") }; $seen[$k] = $true }
+            if ($e.RemoveOnly) {
+                $cur = @{}; foreach ($c in @($Current)) { if ($c) { $cur[([string]$c).ToLowerInvariant()] = $true } }
+                foreach ($s in $items) { if (-not $cur.ContainsKey($s.ToLowerInvariant())) { return (& $bad "adding '$s' is refused: iG only removes entries from this list.") } }
+            }
+            return (& $good $items $null)
+        }
+        'keyValueList' {
+            if (-not ($Value -is [System.Collections.IDictionary])) { return (& $bad 'needs name and value pairs.') }
+            $seen = @{}; $out = [ordered]@{}
+            foreach ($k in @($Value.Keys)) {
+                $n = ([string]$k).Trim()
+                if ($n.Length -lt 1 -or $n.Length -gt 259) { return (& $bad "the name '$n' must be 1 to 259 characters.") }
+                if ($n.StartsWith('**')) { return (& $bad "the name '$n' may not start with **.") }
+                if ($seen.ContainsKey($n.ToLowerInvariant())) { return (& $bad "the name '$n' is listed twice.") }
+                $seen[$n.ToLowerInvariant()] = $true; $out[$n] = [string]$Value[$k]
+            }
+            if (-not $out.Count) { return (& $bad 'needs at least one pair.') }
+            return (& $good $out $null)
+        }
+        'time' {
+            try { $m = ConvertTo-IgwtDefenderSettingValue -Definition ([pscustomobject]@{ mp = [string]$e.Id; type = 'time' }) -Value $Value } catch { return (& $bad $_.Exception.Message) }
+            return (& $good $m $null)
+        }
+        'flags' {
+            $allowed = @($e.Bits | ForEach-Object { [uint32]$_.Value })
+            $total = [uint32]0
+            foreach ($x in @($Value)) {
+                $s = ([string]$x).Trim()
+                $bit = @($e.Bits | Where-Object { [string]$_.Value -eq $s -or [string]::Equals([string]$_.Label, $s, [System.StringComparison]::OrdinalIgnoreCase) }) | Select-Object -First 1
+                if (-not $bit) { return (& $bad "'$s' is not one of the listed options.") }
+                $total = $total -bor [uint32]$bit.Value
+            }
+            $null = $allowed
+            return (& $good $total $null)
+        }
+    }
+    return (& $bad "the kind '$($e.Kind)' cannot be edited.")
+}
+
+function Test-IgwtSecSettingValue {
+    <#
+    .SYNOPSIS
+        Validates a value against a row's value spec (DECISIONS SM30 part 1), using only the spec and
+        the data files: @{ Ok; Value; Errors }. Tristate specs take @{ State = Enabled | Disabled |
+        NotConfigured; Values = @{ element id = value } } and return the same shape with enum values
+        as their [int] Index (what Get-IgwtPolicyRegistryOps needs). Value specs take the single
+        element's value. Refused choices (UEFI lock, weakening, denylist, refused Defender values)
+        and new exclusion entries fail. Pure: no secedit, no ADMX parsing, no system reads.
+    .PARAMETER ValueSpec
+        The row's ValueSpec.
+    .PARAMETER Value
+        The new value.
+    .PARAMETER Current
+        The current list (remove-only lists).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$ValueSpec, [AllowNull()]$Value, [AllowNull()]$Current)
+    $errors = New-Object System.Collections.Generic.List[string]
+    switch ([string]$ValueSpec.Mode) {
+        'none' { return @{ Ok = $false; Value = $null; Errors = @($(if ($ValueSpec.Reason) { [string]$ValueSpec.Reason } else { 'This setting is read-only.' })) } }
+        'tristate' {
+            $state = $(if ($Value -is [System.Collections.IDictionary]) { [string]$Value['State'] } else { [string]$Value })
+            if ($state -notin 'Enabled', 'Disabled', 'NotConfigured') { return @{ Ok = $false; Value = $null; Errors = @('Choose Not configured, Enabled or Disabled.') } }
+            $out = @{}
+            if ($state -eq 'Enabled') {
+                $in = $(if ($Value -is [System.Collections.IDictionary] -and $Value['Values'] -is [System.Collections.IDictionary]) { $Value['Values'] } else { @{} })
+                foreach ($el in @($ValueSpec.Elements)) {
+                    $r = Test-IgwtSecSettingElementValue -Element $el -Value $in[[string]$el.Id] -Mode 'tristate'
+                    if (-not $r.Ok) { $errors.Add($r.Error) } elseif ($null -ne $r.Value) { $out[[string]$el.Id] = $r.Value }
+                }
+            }
+            return @{ Ok = ($errors.Count -eq 0); Value = @{ State = $state; Values = $out }; Errors = $errors.ToArray() }
+        }
+        'value' {
+            $el = @($ValueSpec.Elements)[0]
+            if (-not $el) { return @{ Ok = $false; Value = $null; Errors = @('This setting has no editable value.') } }
+            $r = Test-IgwtSecSettingElementValue -Element $el -Value $Value -Current $Current -Mode 'value'
+            if ($null -eq $r.Value -and $r.Ok) { return @{ Ok = $false; Value = $null; Errors = @("$($el.Label): a value is required.") } }
+            return @{ Ok = $r.Ok; Value = $r.Value; Errors = @($(if (-not $r.Ok) { $r.Error })) }
+        }
+    }
+    return @{ Ok = $false; Value = $null; Errors = @("Unknown value mode '$($ValueSpec.Mode)'.") }
 }
 
 #endregion
