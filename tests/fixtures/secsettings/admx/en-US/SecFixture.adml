@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Fixture</displayName>
+  <description>Synthetic security fixture</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Fixture">At least Windows 11</string>
+      <string id="Cat_LanmanWorkstation">Lanman Workstation</string>
+      <string id="Cat_Child">Contoso child category</string>
+      <string id="Cat_Unlisted">Credential hardening</string>
+      <string id="AllKinds">Contoso all element kinds</string>
+      <string id="AllKinds_Help">Synthetic policy with every element kind.</string>
+      <string id="EnumLow">Low</string>
+      <string id="EnumHigh">High</string>
+      <string id="OverlapA">Contoso overlap A</string>
+      <string id="OverlapB">Contoso overlap B</string>
+      <string id="ListOwner">Contoso list owner</string>
+      <string id="ChildWriter">Contoso child writer</string>
+      <string id="LoggingSwitch">Contoso audit logging</string>
+      <string id="NotInScope">Contoso not in scope</string>
+      <string id="Plain_Help">Synthetic policy.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="AllKinds">
+        <checkBox refId="BoolEl" defaultChecked="true">Turn the option on</checkBox>
+        <decimalTextBox refId="DecEl" defaultValue="5" spinStep="5">Minutes</decimalTextBox>
+        <decimalTextBox refId="LongEl" spin="false">Bytes</decimalTextBox>
+        <textBox refId="TextEl"><label>Server name</label></textBox>
+        <multiTextBox refId="MultiEl">Lines</multiTextBox>
+        <dropdownList refId="EnumEl" defaultItem="1">Level</dropdownList>
+        <listBox refId="ListEl">Items</listBox>
+        <listBox refId="PairEl">Pairs</listBox>
+      </presentation>
+      <presentation id="ListOwner">
+        <comboBox refId="OwnerList"><label>Owner</label><suggestion>alpha</suggestion><suggestion>beta</suggestion></comboBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

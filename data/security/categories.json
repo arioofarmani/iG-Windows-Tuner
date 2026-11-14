@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "description": "ADMX categories the Security Settings Manager shows (DECISIONS SM5). category * means every category of that namespace. A policy is in scope when its category or any parent is listed. Review new categories with tools\\Find-IgwtSecurityCategories.ps1 (SM6).",
+  "entries": [
+    {
+      "namespace": "Microsoft.Policies.WindowsDefender",
+      "category": "*",
+      "label": "Microsoft Defender Antivirus",
+      "reason": "Defender antivirus policies; ASR, exclusion and Controlled Folder Access policies are read-only here (SM8)."
+    },
+    {
+      "namespace": "Microsoft.Windows.DeviceGuard",
+      "category": "*",
+      "label": "Device Guard and VBS",
+      "reason": "Virtualization-based security, memory integrity and Credential Guard."
+    },
+    { "namespace": "Microsoft.Policies.VolumeEncryption", "category": "*", "label": "BitLocker Drive Encryption", "reason": "BitLocker policies." },
+    { "namespace": "Microsoft.Policies.WindowsFirewall", "category": "*", "label": "Windows Defender Firewall", "reason": "Firewall profile policies." },
+    { "namespace": "Microsoft.Policies.CredentialsSSP", "category": "*", "label": "Credentials Delegation", "reason": "CredSSP delegation of credentials." },
+    { "namespace": "Microsoft.Policies.CredentialsUI", "category": "*", "label": "Credential User Interface", "reason": "How credentials are entered." },
+    { "namespace": "Microsoft.Policies.DmaGuard", "category": "*", "label": "Kernel DMA Protection", "reason": "DMA protection for external devices." },
+    {
+      "namespace": "Microsoft.Policies.TrustedPlatformModule",
+      "category": "*",
+      "label": "Trusted Platform Module",
+      "reason": "TPM services and device health attestation."
+    },
+    {
+      "namespace": "Microsoft.Policies.SmartScreen",
+      "category": "*",
+      "label": "SmartScreen",
+      "reason": "Microsoft Defender SmartScreen for Explorer and the inbox browser."
+    },
+    {
+      "namespace": "Microsoft.Policies.LocalSecurityAuthority",
+      "category": "*",
+      "label": "Local Security Authority",
+      "reason": "LSA protection and custom security packages."
+    },
+    { "namespace": "Microsoft.Policies.SAM", "category": "*", "label": "Security Account Manager", "reason": "SAM remote calls and password checks." },
+    { "namespace": "Microsoft.Policies.Kerberos", "category": "*", "label": "Kerberos", "reason": "Kerberos authentication." },
+    { "namespace": "Microsoft.Policies.ExploitGuard", "category": "*", "label": "Exploit protection", "reason": "System-wide exploit protection settings." },
+    { "namespace": "Microsoft.Policies.SecurityCenter", "category": "*", "label": "Security Center", "reason": "Security Center on domain PCs." },
+    {
+      "namespace": "Microsoft.Policies.TerminalServer",
+      "category": "TS_SECURITY",
+      "label": "Remote Desktop: Security",
+      "reason": "Remote Desktop encryption and authentication."
+    },
+    {
+      "namespace": "Microsoft.Policies.TerminalServer",
+      "category": "TS_CONNECTIONS",
+      "label": "Remote Desktop: Connections",
+      "reason": "Who may connect remotely."
+    },
+    { "namespace": "Microsoft.Policies.LanmanServer", "category": "Cat_LanmanServer", "label": "SMB server (Lanman Server)", "reason": "SMB server security." },
+    {
+      "namespace": "Microsoft.Policies.LanmanWorkstation",
+      "category": "Cat_LanmanWorkstation",
+      "label": "SMB client (Lanman Workstation)",
+      "reason": "SMB client security, insecure guest logons and signing."
+    },
+    {
+      "namespace": "Microsoft.Policies.PowerShell",
+      "category": "PowerShell",
+      "label": "Windows PowerShell",
+      "reason": "Script block, module and transcription logging; script execution (read-only, SM41)."
+    },
+    { "namespace": "Microsoft.Policies.AutoPlay", "category": "AutoPlay", "label": "AutoPlay Policies", "reason": "AutoRun and AutoPlay of removable media." },
+    { "namespace": "Microsoft.Policies.WindowsLogon", "category": "Logon", "label": "Logon", "reason": "Logon options." },
+    {
+      "namespace": "Microsoft.Policies.WindowsLogon2",
+      "category": "Logon",
+      "label": "Windows Logon Options",
+      "reason": "Sign-in and automatic restart sign-on."
+    },
+    { "namespace": "Microsoft.Policies.CredentialProviders", "category": "Logon", "label": "Credential providers", "reason": "Sign-in options and PIN." },
+    { "namespace": "Microsoft.Policies.MSI", "category": "MSI", "label": "Windows Installer", "reason": "Installer elevation and user control." }
+  ]
+}

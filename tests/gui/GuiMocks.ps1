@@ -89,13 +89,21 @@ function script:Get-IgwtGuiData {
             $t = $script:MockNow.AddHours(-7 * $i - 1)
             $ops = @('Apply', 'Preset:competitive', 'ASR', 'Manage', 'Defender', 'Power', 'Revert')
             $op = $ops[$i % $ops.Count]
-            [pscustomobject]@{ Path = "C:\ProgramData\iGWindowsTuner\Backups\snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; File = "snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; Created = $t.ToUniversalTime().ToString('o'); Operation = $op; Detail = ''; Applied = @('net.example'); Count = 1 + ($i % 4); Failed = 0 }
+            [pscustomobject]@{ Path = "C:\ProgramData\iGWindowsTuner\Backups\snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; File = "snapshot-$($t.ToString('yyyyMMdd-HHmmss'))-$op.json"; Created = $t.ToUniversalTime().ToString('o'); Operation = $op; Detail = ''; Applied = @('net.example'); HasChange = $true; Count = 1 + ($i % 4); Failed = 0 }
         })
+    # Real shape of Get-IgwtStartupItem (DECISIONS SA6): fictional entries only.
     $startup = @(
-        @('HKCU', 'Steam', '"C:\Program Files (x86)\Steam\steam.exe" -silent', $true), @('HKCU', 'Discord', '"C:\Users\Player\AppData\Local\Discord\Update.exe" --processStart Discord.exe', $true),
-        @('HKLM', 'SecurityHealth', '%windir%\system32\SecurityHealthSystray.exe', $true), @('HKCU', 'OneDrive', '"C:\Program Files\Microsoft OneDrive\OneDrive.exe" /background', $false),
-        @('HKLM', 'NVIDIA App', '"C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe" --minimized', $true), @('HKCU', 'Spotify', '"C:\Users\Player\AppData\Roaming\Spotify\Spotify.exe" --autostart', $false)
-    ) | ForEach-Object { [pscustomobject]@{ Scope = $_[0]; Name = $_[1]; Command = $_[2]; Enabled = $_[3]; Machine = ($_[0] -eq 'HKLM'); Location = "$($_[0])\Software\Microsoft\Windows\CurrentVersion\Run" } }
+        ,@('HKCU-Run', 'Steam', '"C:\Program Files (x86)\Steam\steam.exe" -silent', $true, 'C:\Program Files (x86)\Steam\steam.exe', $true, 'Valve Corporation', '', '')
+        ,@('HKCU-Run', 'Discord', '"C:\Users\Player\AppData\Local\Discord\Update.exe" --processStart Discord.exe', $true, 'C:\Users\Player\AppData\Local\Discord\Update.exe', $true, 'Discord Inc.', '', '')
+        ,@('HKLM-Run', 'SecurityHealth', '%windir%\system32\SecurityHealthSystray.exe', $true, 'C:\Windows\system32\SecurityHealthSystray.exe', $true, 'Microsoft Corporation', 'Windows', 'This is part of Windows. You can turn it off, but iG does not delete it.')
+        ,@('HKCU-Run', 'FACEIT', '"C:\Users\Player\AppData\Local\FACEIT\update.exe" --processStart "FACEIT.exe"', $false, 'C:\Users\Player\AppData\Local\FACEIT\update.exe', $true, 'FACEIT Ltd', 'AntiCheat', 'This belongs to an anti-cheat. Removing it can stop the anti-cheat from updating or starting, and games that need it may refuse to run.')
+        ,@('HKLM-Run', 'NVIDIA App', '"C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe" --minimized', $true, 'C:\Program Files\NVIDIA Corporation\NVIDIA App\CEF\NVIDIA App.exe', $true, 'NVIDIA Corporation', '', '')
+        ,@('HKCU-Run', 'Contoso Updater', '"C:\Program Files\Contoso\Updater\updater.exe" /tray', $false, 'C:\Program Files\Contoso\Updater\updater.exe', $false, '', '', '')
+    ) | ForEach-Object {
+        $machine = ($_[0] -like 'HKLM*')
+        [pscustomobject]@{ Scope = $_[0]; Name = $_[1]; Command = $_[2]; Enabled = $_[3]; Machine = $machine; Location = "$(if ($machine) { 'HKLM:\SOFTWARE' } else { 'HKCU:\Software' })\Microsoft\Windows\CurrentVersion\Run"
+            Source = "$(if ($machine) { 'HKLM:\SOFTWARE' } else { 'HKCU:\Software' })\Microsoft\Windows\CurrentVersion\Run"; Target = $_[4]; TargetExists = $_[5]; FileMissing = (-not $_[5]); Company = $_[6]; Protection = $_[7]; ProtectionReason = $_[8] }
+    }
     $confCtx = [pscustomobject]@{ Build = '26200'; Passed = (New-Object 'System.Collections.Generic.HashSet[string]'); Failed = (New-Object 'System.Collections.Generic.HashSet[string]') }
     foreach ($k in @($states.Keys)) { if ($states[$k].State -eq 'On') { $null = $confCtx.Passed.Add([string]$k) } }
     $os = [pscustomobject]@{ Caption = 'Microsoft Windows 11 Pro'; EditionId = 'Professional'; DisplayVersion = '25H2'; Build = 26200; Ubr = 6584; FullBuild = '26200.6584'; LastBootUpTime = $script:MockNow.AddDays(-2); Uptime = [timespan]::FromDays(2) }
@@ -418,6 +426,27 @@ function script:Get-IgwtExploitProtectionInventory {
     }
 }
 
+function script:Get-IgwtSecSettings {
+    # Real shape of Get-IgwtSecSettings (DECISIONS SM3): fictional rows of every source kind.
+    param([string]$Category, [string]$Search, [switch]$ConfiguredOnly, [string[]]$SourceKind, [switch]$NoCache, [hashtable]$Imported)
+    $el = { param($id, $kind, $label, $more) New-IgwtSecSettingElement -Id $id -Kind $kind -Label $label -More $more }
+    $tri = { param($els) @{ Mode = 'tristate'; Elements = @($els) } }
+    $rows = @(
+        New-IgwtSecSettingRow -Fields @{ Id = 'admx:SmartScreen:EdgeConfigureSmartScreen:Machine'; SourceKind = 'admx'; Category = @('SmartScreen', 'Microsoft Edge'); Name = 'Configure Windows Defender SmartScreen'; Class = 'Machine'; Explain = 'Turns SmartScreen on in Microsoft Edge so users are warned about phishing and unknown downloads.'; SupportedOn = 'Microsoft Edge on Windows 10 or later'; ValueSpec = (& $tri @()); State = 'Enabled'; Origin = 'LocalPolicy'; CurrentText = 'Enabled'; Writer = 'localPolicy' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'admx:LanmanWorkstation:Pol_EnableInsecureGuestLogons:Machine'; SourceKind = 'admx'; Category = @('SMB client (Lanman Workstation)'); Name = 'Enable insecure guest logons'; Class = 'Machine'; Explain = 'Lets the SMB client connect to shares with guest access.'; ValueSpec = (& $tri @()); State = 'NotConfigured'; Origin = 'NotConfigured'; CurrentText = 'Not configured'; Writer = 'localPolicy' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'admx:WindowsDefender:Scan_ScanParameters:Machine'; SourceKind = 'admx'; Category = @('Microsoft Defender Antivirus', 'Scan'); Name = 'Specify the scan type for scheduled scans'; Class = 'Machine'; ValueSpec = (& $tri @((& $el 'ScanParameters' 'enum' 'Scan type' @{ Choices = @([pscustomobject]@{ Value = 'Quick scan'; Label = 'Quick scan'; Index = 0; Refused = '' }, [pscustomobject]@{ Value = 'Full scan'; Label = 'Full scan'; Index = 1; Refused = '' }) }))); State = 'Configured'; Origin = 'DomainGpo'; CurrentText = 'Set by a domain policy'; ReadOnly = $true; ReadOnlyReason = 'Set by a domain Group Policy; change it there.' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'admx:DeviceGuard:VirtualizationBasedSecurity:Machine'; SourceKind = 'admx'; Category = @('Device Guard and VBS'); Name = 'Turn On Virtualization Based Security'; Class = 'Machine'; Risk = 'high'; Restart = 'reboot'; SideEffects = @([pscustomobject]@{ text = 'Drivers that are not compatible with memory integrity can stop working.'; url = 'https://learn.microsoft.com/' }); ValueSpec = (& $tri @((& $el 'HvciDrop' 'enum' 'Memory integrity' @{ Choices = @([pscustomobject]@{ Value = 'Disabled'; Label = 'Disabled'; Index = 0; Refused = '' }, [pscustomobject]@{ Value = 'Enabled with UEFI lock'; Label = 'Enabled with UEFI lock'; Index = 1; Refused = 'A UEFI lock cannot be removed by software, so iG never sets it.' }, [pscustomobject]@{ Value = 'Enabled without lock'; Label = 'Enabled without lock'; Index = 2; Refused = '' }) }))); State = 'NotConfigured'; Origin = 'NotConfigured'; CurrentText = 'Not configured'; Writer = 'localPolicy' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'defender:CloudBlockLevel'; SourceKind = 'defender'; Category = @('Microsoft Defender Antivirus', 'Cloud protection'); Name = 'Cloud block level'; ValueSpec = @{ Mode = 'value'; Elements = @(& $el 'CloudBlockLevel' 'enum' 'Cloud block level' @{ Choices = @([pscustomobject]@{ Value = 0; Label = 'Default'; Index = 0; Refused = '' }, [pscustomobject]@{ Value = 2; Label = 'High'; Index = 1; Refused = '' }) }) }; Current = 2; CurrentText = 'High'; State = 'Configured'; Origin = 'DefenderLocal'; Writer = 'defender' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'defender:DisableRealtimeMonitoring'; SourceKind = 'defender'; Category = @('Microsoft Defender Antivirus', 'Real-time protection'); Name = 'Real-time protection'; CurrentText = 'On'; State = 'Configured'; Origin = 'TamperProtection'; ReadOnly = $true; ReadOnlyReason = 'Tamper Protection is on; Windows blocks this change.' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'asr:56a863a9-875e-4185-98a7-b882c64b5ce5'; SourceKind = 'asr'; Category = @('Microsoft Defender Antivirus', 'Attack surface reduction'); Name = 'Block abuse of exploited vulnerable signed drivers'; ValueSpec = @{ Mode = 'value'; Elements = @(& $el 'mode' 'enum' 'Mode' @{ Choices = @([pscustomobject]@{ Value = 'Block'; Label = 'Block'; Index = 0; Refused = '' }, [pscustomobject]@{ Value = 'Audit'; Label = 'Audit'; Index = 1; Refused = '' }) }) }; Current = 'Block'; CurrentText = 'Block'; State = 'Configured'; Origin = 'DefenderLocal'; Writer = 'asr' }
+        New-IgwtSecSettingRow -Fields @{ Id = 'exclusion:Path'; SourceKind = 'exclusionList'; Category = @('Microsoft Defender Antivirus', 'Exclusions'); Name = 'Excluded files and folders'; Current = @('D:\Games\Contoso'); CurrentText = '1 entry'; State = 'Configured'; Origin = 'DefenderLocal'; Writer = 'exclusion'; ValueSpec = @{ Mode = 'value'; Elements = @(& $el 'Path' 'list' 'Entries' @{ RemoveOnly = $true }) } }
+        New-IgwtSecSettingRow -Fields @{ Id = 'secpol:System Access:LockoutBadCount'; SourceKind = 'secpolicy'; Category = @('Local security policy', 'Account policies'); Name = 'Account lockout threshold'; Current = '10'; CurrentText = '10'; State = 'Configured'; Origin = 'SystemValue'; Writer = 'secpol'; ValueSpec = @{ Mode = 'value'; Elements = @(& $el 'value' 'decimal' 'Invalid logon attempts' @{ Min = 0; Max = 999 }) } }
+        New-IgwtSecSettingRow -Fields @{ Id = 'audit:{0CCE9215-69AE-11D9-BED3-505054503030}'; SourceKind = 'audit'; Category = @('Audit policy'); Name = 'Logon'; Current = 'SuccessAndFailure'; CurrentText = 'Success and Failure'; State = 'Configured'; Origin = 'SystemValue'; Writer = 'audit'; ValueSpec = (ConvertTo-IgwtSecSettingValueSpec -SourceKind audit) }
+        New-IgwtSecSettingRow -Fields @{ Id = 'deviceguard:2'; SourceKind = 'deviceguardState'; Category = @('Device Guard and VBS', 'Running state'); Name = 'Memory integrity'; CurrentText = 'Running'; State = 'Configured'; Origin = 'SystemValue'; Configured = $true; ReadOnly = $true; ReadOnlyReason = 'This row shows state only; change it with the Device Guard policies.' }
+    )
+    [pscustomobject]@{ Rows = $rows; Status = [pscustomobject]@{ EditionFamily = 'Professional'; DomainPolicyRead = 'NotNeeded'; Managed = $false; Elevated = $true; Is64BitProcess = $true; Tamper = 'On' } }
+}
+
 function script:Get-IgwtPolicyBrowserData {
     # 600 synthetic policies in a small category tree; a few configured.
     $cats = @('Windows Components > Microsoft Defender Antivirus', 'Windows Components > Microsoft Defender Antivirus > Real-time Protection', 'Windows Components > Windows Update > Manage end user experience', 'Windows Components > Windows Update > Legacy Policies', 'System > Power Management > Sleep Settings', 'Network > DNS Client', 'Windows Components > Game DVR', 'Control Panel > Personalization')
@@ -479,6 +508,40 @@ function script:Get-IgwtForensicLoggingState {
     }
 }
 
+function script:Get-IgwtRegistryLeftovers {
+    # Demo registry cleaner scan: fictional programs, every kind of row, in the real result shape (DECISIONS RG3).
+    [CmdletBinding()]
+    param($CancelToken, [string[]]$Category)
+    $null = $CancelToken, $Category
+    $ev = { param($check, $result, $detail) [pscustomobject]@{ Check = $check; Result = $result; Detail = $detail } }
+    $mk = {
+        param($n, $cat, $kind, $hive, $path, $value, $program, $owner, $conf, $evidence, $selectable, $reason)
+        [pscustomobject]@{
+            Id = ('{0:x16}' -f (1000 + $n)); Category = $cat; Kind = $kind; Hive = $hive; Sid = $(if ($hive -eq 'HKCU') { 'S-1-5-21-1000-1000-1000-1001' } else { '' }); View = $(if ($hive) { '64' } else { '' })
+            Path = $path; ValueName = $value; RuleName = ''; Program = $program; OwnerHint = $owner; Confidence = $conf; Evidence = @($evidence); RemovalTool = $null
+            Size = 4; Includes = @(); Selectable = $selectable; Reason = $reason; ScanId = 'mockscan01'
+        }
+    }
+    $u = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    $f = @(
+        (& $mk 1 'uninstall' 'regKeyTree' 'HKLM' "$u\ContosoPhotoStudio" '' 'Contoso Photo Studio 4' 'ContosoPhotoStudio' 'Safe' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Contoso\Photo Studio\uninst.app missing'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it'), (& $ev 'NotProtected' 'Pass' 'no protected group, exclusion or live check matches')) $true '')
+        (& $mk 2 'appPath' 'regKeyTree' 'HKLM' 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\photostudio.app' '' 'Contoso Photo Studio 4' 'photostudio.app' 'Safe' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Contoso\Photo Studio\photostudio.app missing'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it')) $true '')
+        (& $mk 3 'run' 'regValue' 'HKCU' 'Software\Microsoft\Windows\CurrentVersion\Run' 'FabrikamLauncher' 'Fabrikam Game Launcher' 'FabrikamLauncher' 'Safe' @((& $ev 'PathMissing' 'Pass' 'D:\Games\Fabrikam\launcher.app missing on D:'), (& $ev 'NoOwner' 'Pass' 'nothing installed refers to it')) $true '')
+        (& $mk 4 'softwareKey' 'regKeyTree' 'HKCU' 'Software\Fabrikam\Game Launcher' '' 'Fabrikam Game Launcher' 'Fabrikam' 'Review' @((& $ev 'FolderMissing' 'Pass' 'no folder named Fabrikam in Program Files or AppData'), (& $ev 'NameOnly' 'Review' 'only the key name links it to the program')) $true '')
+        (& $mk 5 'progId' 'regKeyTree' 'HKLM' 'SOFTWARE\Classes\Northwind.MediaFile.1' '' 'Northwind Media Player' 'Northwind.MediaFile.1' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files (x86)\Northwind\player.app missing'), (& $ev 'OtherHandler' 'Review' '.nwm still names this handler')) $true '')
+        (& $mk 6 'uninstall' 'regKeyTree' 'HKLM' "$u\WoodgroveAntivirus" '' 'Woodgrove Antivirus' 'WoodgroveAntivirus' 'Protected' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Woodgrove\av.app missing'), (& $ev 'SecuritySoftware' 'Protected' 'Woodgrove Antivirus: left by security software')) $false 'Security software: use the vendor''s removal tool.')
+        (& $mk 7 'service' 'reportOnly' 'HKLM' 'SYSTEM\CurrentControlSet\Services\TailspinUpdate' '' 'Tailspin Update Service' 'TailspinUpdate' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Tailspin\update.app missing')) $false 'iG does not remove services; you can disable it in Manage.')
+        (& $mk 8 'task' 'reportOnly' '' '\Tailspin\Daily update' '' 'Daily update' '\Tailspin\' 'Review' @((& $ev 'PathMissing' 'Pass' 'C:\Program Files\Tailspin\update.app missing')) $false 'iG does not remove scheduled tasks; you can disable it in Manage.')
+    )
+    $f[5].RemovalTool = [pscustomobject]@{ Name = ''; Url = ''; Text = 'Woodgrove publishes no removal tool that iG could confirm; contact Woodgrove support.' }
+    $f[6] | Add-Member -NotePropertyName Facts -NotePropertyValue ([pscustomobject]@{ Name = 'TailspinUpdate'; DisplayName = 'Tailspin Update Service'; ImagePath = 'C:\Program Files\Tailspin\update.app'; Service = $null })
+    $f[7] | Add-Member -NotePropertyName Facts -NotePropertyValue ([pscustomobject]@{ TaskPath = '\Tailspin\'; Name = 'Daily update'; Actions = @('C:\Program Files\Tailspin\update.app /daily') })
+    [pscustomobject]@{
+        Generated = $script:MockNow.ToString('o'); ScanId = 'mockscan01'; Findings = $f; Skipped = [ordered]@{ installed = 412; protected = 96 }; Cancelled = $false; Elapsed = 6.2
+        Notes = @(); User = [pscustomobject]@{ Sid = 'S-1-5-21-1000-1000-1000-1001'; Source = 'process' }
+    }
+}
+
 function script:Get-IgwtJournalTimeline {
     # Demo journal: one preset session still in effect, one module change, one reverted change.
     param($Journal)
@@ -489,8 +552,9 @@ function script:Get-IgwtJournalTimeline {
         [pscustomobject]@{ Key = 's1|2'; Session = 's1'; SessionTitle = 'Preset:competitive (3 item(s))'; Origin = 'preset'; When = $t0; Outcome = 'ok'; Step = 2; Op = 'change'; Item = 'sec.autorun-off'; Target = 'action|sec.autorun-off|0|registry'; Result = 'Committed'; Error = ''; Before = 'absent'; After = 'DWord 255'; EntryId = 'e2'; InEffect = $true; OneWay = $false }
         [pscustomobject]@{ Key = 's2|1'; Session = 's2'; SessionTitle = 'Invoke-IgwtManagedChange service Fax Disabled'; Origin = 'module'; When = $t1; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'backup snapshot-20261030-201540.json'; EntryId = 'e3'; InEffect = $false; OneWay = $false }
         [pscustomobject]@{ Key = 's3|1'; Session = 's3'; SessionTitle = 'Revert session: Invoke-IgwtManagedChange'; Origin = 'revert'; When = $t2; Outcome = 'ok'; Step = 1; Op = 'restore'; Item = 'module:Invoke-IgwtManagedChange'; Target = 'module|Invoke-IgwtManagedChange|0f3a'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = ''; EntryId = 'e4'; InEffect = $false; OneWay = $false }
+        [pscustomobject]@{ Key = 's4|1'; Session = 's4'; SessionTitle = 'Registry cleanup (1 entry)'; Origin = 'regClean'; When = '2026-10-31T10:12:00.0000000Z'; Outcome = 'ok'; Step = 1; Op = 'change'; Item = 'regclean:uninstall'; Target = 'regclean|regKeyTree|HKLM|-|64|SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AdventureWorksTrial'; Result = 'Committed'; Error = ''; Before = '(in its snapshot)'; After = 'absent'; EntryId = 'e5'; InEffect = $true; OneWay = $false }
     )
-    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 19; Sessions = 3; Baselines = 3; Tracked = 2; Rows = $rows }
+    [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 20; Sessions = 4; Baselines = 4; Tracked = 3; Rows = $rows }
 }
 
 function script:Get-IgwtHomeCardInput {

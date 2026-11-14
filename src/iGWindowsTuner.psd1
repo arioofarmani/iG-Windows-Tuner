@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '3.6.5'
+    ModuleVersion        = '3.8.1'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -16,11 +16,12 @@
         'Get-IgwtHealthReport', 'Format-IgwtHealthReport', 'Export-IgwtHealthReport', 'Get-IgwtHardwareSummary', 'Get-IgwtAntiCheatReadiness',
         'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
         'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',
-        'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled',
+        'Get-IgwtStartupItem', 'Set-IgwtStartupItemEnabled', 'Get-IgwtStartupRemovePlan', 'Test-IgwtSecSettingValue', 'Get-IgwtSecSettings', 'Get-IgwtSecSettingDetail', 'Get-IgwtSecSettingChangePlan', 'Format-IgwtSecSettingPlan', 'Invoke-IgwtSecSettingChange', 'Invoke-IgwtSecSettingSecpolStep', 'Invoke-IgwtSecSettingAuditStep', 'Invoke-IgwtSecSettingAsrChange', 'Format-IgwtStartupRemovePlan', 'Remove-IgwtStartupItem',
         'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Get-IgwtLogEntries', 'Set-IgwtLogSink',
         'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
         'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
         'Get-IgwtDiskUsage', 'Format-IgwtBytes',
+        'Get-IgwtRegCleanExclusions', 'Save-IgwtRegCleanExclusions', 'Get-IgwtRegistryLeftovers', 'Get-IgwtRegCleanFinding', 'Get-IgwtRegCleanPlan', 'Format-IgwtRegCleanPlan', 'Invoke-IgwtRegistryCleanup',
         'Convert-IgwtDataToV2', 'Convert-IgwtSnapshotToV2', 'Get-IgwtHardwareTagDefinitions',
         'Get-IgwtHardwareFacts', 'Get-IgwtHardwareProfile', 'Get-IgwtHardwareOverlays', 'Resolve-IgwtPresetSelection', 'Test-IgwtHardwareCatalog',
         'Get-IgwtAsrCatalog', 'Get-IgwtAsrStatus', 'Get-IgwtAsrRecommendationPlan', 'Invoke-IgwtAsrChange', 'Test-IgwtAsrExclusion', 'Test-IgwtAsrCatalog',

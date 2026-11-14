@@ -14,10 +14,11 @@ Describe 'GUI layout' {
         foreach ($h in 'ManageServiceGridHost', 'ManageTaskGridHost', 'ManageAppGridHost', 'ManagePersistGridHost', 'FwGridHost') { @($script:Xaml.SelectNodes("//w:ContentControl[@*[local-name()='Name']='$h']", $script:Ns)).Count | Should -Be 1 -Because $h }
         @($script:Xaml.SelectNodes("//w:Button[starts-with(@Tag,'sort:')]", $script:Ns)).Count | Should -Be 0 -Because 'SmartGrid replaced the old sort header buttons'
     }
-    It 'lists the Firewall Manager under Security, after the ASR Center and the Defender settings' {
+    It 'lists the Firewall Manager under Security, after the ASR Center, the Defender settings and the Security settings (3.8)' {
         $nav = @($script:Xaml.SelectNodes("//w:ListBox[@*[local-name()='Name']='NavList']/w:ListBoxItem", $script:Ns) | ForEach-Object { $_.Tag })
-        $nav[[array]::IndexOf($nav, 'Security') + 3] | Should -Be 'Firewall'
-        InModuleScope iGWindowsTuner { foreach ($p in 'Gamer', 'Sysadmin') { $o = @((Get-IgwtPersonaProfile -Name $p).NavOrder); if ($o.Count) { $o[[array]::IndexOf($o, 'Defender') + 1] | Should -Be 'Firewall' -Because $p } } }
+        $nav[[array]::IndexOf($nav, 'Security') + 3] | Should -Be 'SecSettings'
+        $nav[[array]::IndexOf($nav, 'Security') + 4] | Should -Be 'Firewall'
+        InModuleScope iGWindowsTuner { foreach ($p in 'Gamer', 'Sysadmin') { $o = @((Get-IgwtPersonaProfile -Name $p).NavOrder); if ($o.Count) { $o[[array]::IndexOf($o, 'Defender') + 1] | Should -Be 'SecSettings' -Because $p; $o[[array]::IndexOf($o, 'Defender') + 2] | Should -Be 'Firewall' -Because $p } } }
     }
     It 'builds Firewall rows with status, source, lock and risk fields and offers every quick filter of the spec' {
         InModuleScope iGWindowsTuner {

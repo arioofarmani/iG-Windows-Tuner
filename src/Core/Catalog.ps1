@@ -501,5 +501,7 @@ function Test-IgwtCatalog {
     foreach ($e in @(Test-IgwtManageCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtToolkitCatalog)) { $errors.Add([string]$e) }
     foreach ($e in @(Test-IgwtFirewallKnowledgeBase)) { $errors.Add([string]$e) }
+    foreach ($e in @(Test-IgwtRegCleanProtectedCatalog)) { $errors.Add([string]$e) }
+    foreach ($e in @(Test-IgwtSecSettingsCatalog)) { $errors.Add([string]$e) }
     return $errors.ToArray()
 }

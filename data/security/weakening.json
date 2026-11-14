@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "description": "Values the Security Settings Manager refuses in addition to data\\policy\\denylist.json (DECISIONS SM14). key and valueName are case-insensitive regular expressions anchored to the whole name; values lists refused data, or any. source pending means the Learn page was not confirmed at build time; the value is refused anyway.",
+  "entries": [
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\Installer",
+      "valueName": "AlwaysInstallElevated",
+      "values": [ "1" ],
+      "reason": "Installs every package with system rights; a known privilege escalation.",
+      "source": "https://learn.microsoft.com/en-us/windows/win32/msi/alwaysinstallelevated",
+      "class": "Both"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\PowerShell\\\\(ScriptBlockLogging|ModuleLogging|Transcription)",
+      "valueName": "EnableScriptBlockLogging|EnableModuleLogging|EnableTranscripting",
+      "values": [ "0", "delete" ],
+      "reason": "Turns PowerShell logging off, which hides script activity from defenders.",
+      "source": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_logging_windows",
+      "class": "Both"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\LanmanWorkstation",
+      "valueName": "AllowInsecureGuestAuth",
+      "values": [ "1" ],
+      "reason": "Allows insecure guest logons to SMB shares.",
+      "source": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/enable-insecure-guest-logons-smb2-and-smb3",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Services\\\\LanmanServer\\\\Parameters",
+      "valueName": "SMB1",
+      "values": [ "1" ],
+      "reason": "Turns the SMBv1 server on.",
+      "source": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows NT\\\\Terminal Services",
+      "valueName": "UserAuthentication",
+      "values": [ "0" ],
+      "reason": "Turns off Network Level Authentication for Remote Desktop.",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows NT\\\\Terminal Services",
+      "valueName": "fEncryptRPCTraffic",
+      "values": [ "0" ],
+      "reason": "Turns off secure RPC for Remote Desktop.",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\System",
+      "valueName": "RunAsPPL",
+      "values": [ "0" ],
+      "reason": "Turns LSA protection off.",
+      "source": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\Kernel DMA Protection",
+      "valueName": "DeviceEnumerationPolicy",
+      "values": [ "2" ],
+      "reason": "Allows all external devices to use DMA (Allow all).",
+      "source": "https://learn.microsoft.com/en-us/windows/security/hardware-security/kernel-dma-protection-for-thunderbolt",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\CredentialsDelegation\\\\AllowDefaultCredentials",
+      "valueName": ".*",
+      "values": [ "\\*", "\\*/\\*" ],
+      "reason": "Delegates default credentials to every server.",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Control\\\\Lsa",
+      "valueName": "LimitBlankPasswordUse",
+      "values": [ "0" ],
+      "reason": "Lets accounts with a blank password sign in over the network.",
+      "source": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/accounts-limit-local-account-use-of-blank-passwords-to-console-logon-only",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Control\\\\Lsa",
+      "valueName": "NoLMHash",
+      "values": [ "0" ],
+      "reason": "Stores the weak LAN Manager hash of new passwords.",
+      "source": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/network-security-do-not-store-lan-manager-hash-value-on-next-password-change",
+      "class": "Machine"
+    }
+  ]
+}

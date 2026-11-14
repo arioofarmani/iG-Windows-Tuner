@@ -166,6 +166,9 @@
                     <ListBoxItem Tag="Defender" AutomationProperties.Name="Defender settings" ToolTip="Security > Defender settings: every Microsoft Defender Antivirus setting, also the hidden ones, and every Defender Group Policy">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE9E9;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Defender settings" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
+                    <ListBoxItem Tag="SecSettings" AutomationProperties.Name="Security settings" AutomationProperties.AutomationId="NavSecSettings" ToolTip="Security > Security settings: every security policy, Defender preference, ASR rule, security option and audit setting in one list, with where each value comes from">
+                        <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE72E;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Security settings" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="Firewall" AutomationProperties.Name="Firewall" ToolTip="Security > Firewall: every firewall rule with risk views, safe rule actions, the new-rule wizard and the profiles">
                         <StackPanel Orientation="Horizontal" Margin="28,0,0,0"><TextBlock Style="{StaticResource Icon}" Text="&#xE774;" FontSize="14" Margin="0,0,10,0" Foreground="{DynamicResource BrushTextMuted}"/><TextBlock Text="Firewall" FontSize="{DynamicResource FontSizeSmall}"/></StackPanel>
                     </ListBoxItem>
@@ -194,6 +197,9 @@
                     </ListBoxItem>
                     <ListBoxItem Tag="Cleaner" AutomationProperties.Name="Cleaner" ToolTip="Scan, then clean temp files, caches and logs with allow-list rules">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" Margin="0,0,12,0"/><TextBlock Text="Cleaner"/></StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="RegistryCleaner" AutomationProperties.Name="Registry cleaner" AutomationProperties.AutomationId="NavRegistryCleaner" ToolTip="Find and remove registry entries left behind by programs that are no longer installed (backed up and restorable)">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE71D;" Margin="0,0,12,0"/><TextBlock Text="Registry cleaner"/></StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Storage" AutomationProperties.Name="Storage" ToolTip="Windows Storage Sense policies (automatic cleanup by Windows itself)">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xEDA2;" Margin="0,0,12,0"/><TextBlock Text="Storage Sense"/></StackPanel>
@@ -1719,6 +1725,78 @@
                     <ContentControl x:Name="CleanerListHost" Grid.Row="2" Focusable="False"/>
                 </Grid>
 
+                <!-- Registry cleaner (DECISIONS RG23) -->
+                <!-- Security settings (3.8, DECISIONS SM33) -->
+                <Grid x:Name="PageSecSettings" AutomationProperties.AutomationId="PageSecSettings" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <DockPanel>
+                            <Button x:Name="SecRefreshButton" AutomationProperties.AutomationId="SecRefreshButton" DockPanel.Dock="Right" Content="Refresh" VerticalAlignment="Top" Margin="0" ToolTip="Read every security setting again (read-only)."/>
+                            <TextBlock Style="{StaticResource TextTitle}" Text="Security settings"/>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Every security setting an administrator can configure here, its current value and where it comes from. Changes are staged, previewed, journaled and can be undone. Settings set by a domain, MDM or Tamper Protection are read-only."/>
+                        <TextBlock x:Name="SecStatusText" AutomationProperties.AutomationId="SecStatusText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,8" Text="Not read yet."/>
+                    </StackPanel>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="340"/>
+                        </Grid.ColumnDefinitions>
+                        <ContentControl x:Name="SecSettingsListHost" AutomationProperties.AutomationId="SecSettingsListHost" Grid.Column="0" Focusable="False"/>
+                        <Border Grid.Column="1" Style="{StaticResource Card}" Margin="8,0,0,0">
+                            <DockPanel>
+                                <Button x:Name="SecStageButton" AutomationProperties.AutomationId="SecStageButton" DockPanel.Dock="Bottom" Content="Stage this change" IsEnabled="False" Margin="0,8,0,0" ToolTip="Check the value and add it to the staged changes. Nothing changes until you apply." ToolTipService.ShowOnDisabled="True"/>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="SecSettingsDetailHost" AutomationProperties.AutomationId="SecSettingsDetailHost"/>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                    <DockPanel Grid.Row="2" Margin="0,8,0,0">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="SecPreviewButton" AutomationProperties.AutomationId="SecPreviewButton" Content="Preview..." IsEnabled="False" ToolTip="Show what the staged changes would do (read-only)." ToolTipService.ShowOnDisabled="True"/>
+                            <Button x:Name="SecApplyButton" AutomationProperties.AutomationId="SecApplyButton" Style="{StaticResource AccentButton}" Content="Apply..." IsEnabled="False" ToolTip="Preview, confirm and apply the staged changes as one journaled change with undo." ToolTipService.ShowOnDisabled="True"/>
+                            <Button x:Name="SecClearButton" AutomationProperties.AutomationId="SecClearButton" Content="Clear" IsEnabled="False" Margin="0" ToolTip="Remove every staged change." ToolTipService.ShowOnDisabled="True"/>
+                        </StackPanel>
+                        <TextBlock x:Name="SecStagedText" AutomationProperties.AutomationId="SecStagedText" Style="{StaticResource TextMuted}" VerticalAlignment="Center" TextWrapping="Wrap" Text="Nothing staged."/>
+                    </DockPanel>
+                </Grid>
+
+                <Grid x:Name="PageRegistryCleaner" AutomationProperties.AutomationId="PageRegistryCleaner" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Button x:Name="RegScanButton" AutomationProperties.AutomationId="RegScanButton" Content="Scan" ToolTip="Look for entries left behind by programs that are no longer installed. A scan changes nothing."/>
+                                <Button x:Name="RegCancelButton" AutomationProperties.AutomationId="RegCancelButton" Content="Cancel" IsEnabled="False" Margin="0" ToolTip="Stop the scan after the current entry and show what was checked so far." ToolTipService.ShowOnDisabled="True"/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource TextTitle}" Text="Registry cleaner"/>
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Finds entries left behind by programs that are no longer installed. Nothing is selected until you choose it. Every removal is backed up and can be restored."/>
+                    </StackPanel>
+                    <WrapPanel Grid.Row="1" Margin="0,10,0,8" VerticalAlignment="Center">
+                        <Button x:Name="RegSelectSafeButton" AutomationProperties.AutomationId="RegSelectSafeButton" Content="Select all Safe" IsEnabled="False" ToolTip="Tick every removable Safe entry, also entries hidden by the search or a filter." ToolTipService.ShowOnDisabled="True"/>
+                        <Button x:Name="RegClearButton" AutomationProperties.AutomationId="RegClearButton" Content="Clear selection" IsEnabled="False" ToolTip="Untick every entry." ToolTipService.ShowOnDisabled="True"/>
+                        <Button x:Name="RegRemoveButton" AutomationProperties.AutomationId="RegRemoveButton" Style="{StaticResource AccentButton}" Content="Remove selected..." IsEnabled="False" ToolTip="Preview the ticked entries, then remove them after your confirmation. Every removal is backed up and journaled." ToolTipService.ShowOnDisabled="True"/>
+                        <Button x:Name="RegRestoreButton" AutomationProperties.AutomationId="RegRestoreButton" Content="Restore last cleanup..." ToolTip="Restore the entries of the last registry cleanup, after a preview." ToolTipService.ShowOnDisabled="True"/>
+                        <Button x:Name="RegExclusionsButton" AutomationProperties.AutomationId="RegExclusionsButton" Content="Exclusions..." ToolTip="Show the entries you asked never to see again, and take entries off that list." ToolTipService.ShowOnDisabled="True"/>
+                        <TextBlock x:Name="RegNoteText" AutomationProperties.AutomationId="RegNoteText" Style="{StaticResource TextMuted}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" Text="No scan yet."/>
+                    </WrapPanel>
+                    <ContentControl x:Name="RegListHost" AutomationProperties.AutomationId="RegListHost" Grid.Row="2" Focusable="False"/>
+                    <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,8,0,0">
+                        <TextBlock x:Name="RegDetailText" AutomationProperties.AutomationId="RegDetailText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" MaxHeight="120" Text="Select an entry to see all of its evidence."/>
+                    </Border>
+                </Grid>
+
                 <!-- Disk analyzer -->
                 <Grid x:Name="PageDisk" Visibility="Collapsed">
                     <Grid.RowDefinitions>
@@ -1768,9 +1846,25 @@
                             <Button x:Name="StartupRefreshButton" DockPanel.Dock="Right" Content="Refresh" Margin="0" VerticalAlignment="Top" ToolTip="Re-read the startup entries (read-only)."/>
                             <TextBlock Style="{StaticResource TextTitle}" Text="Startup apps"/>
                         </DockPanel>
-                        <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Toggling uses the StartupApproved mechanism (like Task Manager); entries are never deleted, and every change is snapshotted. Machine-wide entries need administrator rights." Margin="0,0,0,10"/>
+                        <TextBlock Style="{StaticResource TextMuted}" Text="Entries from the Run keys and Startup folders. Turning one off works like Task Manager. Delete makes a backup first, so Undo or Backups &amp; Logs can restore it. Windows components and security products can be turned off but not deleted. Entries for all users need administrator rights." TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button x:Name="StartupOnButton" Content="Turn on" IsEnabled="False" ToolTip="Start the selected entries with Windows again." AutomationProperties.Name="Turn on the selected startup entries"/>
+                            <Button x:Name="StartupOffButton" Content="Turn off" IsEnabled="False" ToolTip="Stop the selected entries from starting with Windows (nothing is deleted)." AutomationProperties.Name="Turn off the selected startup entries"/>
+                            <Button x:Name="StartupDeleteButton" Content="Delete..." IsEnabled="False" Style="{DynamicResource DangerButton}" ToolTip="Delete the selected entries. A backup is made first." AutomationProperties.Name="Delete the selected startup entries"/>
+                            <Button x:Name="StartupOpenButton" Content="Open file location" IsEnabled="False" ToolTip="Show the file in File Explorer (it is not started)." AutomationProperties.Name="Open the file location of the selected startup entry"/>
+                            <Button x:Name="StartupCopyButton" Content="Copy command" IsEnabled="False" ToolTip="Copy the command lines of the selected entries." AutomationProperties.Name="Copy the command of the selected startup entries"/>
+                        </WrapPanel>
                     </StackPanel>
-                    <ContentControl x:Name="StartupListHost" Grid.Row="1" Focusable="False"/>
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ContentControl x:Name="StartupListHost" Grid.Row="0" Focusable="False"/>
+                        <Border Grid.Row="1" Style="{DynamicResource Card}" Margin="0,8,0,0" Padding="12,8">
+                            <TextBlock x:Name="StartupDetailText" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Select an entry to see its file, company and where it is registered. Right-click for all actions."/>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Backups and logs -->

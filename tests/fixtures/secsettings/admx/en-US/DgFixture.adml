@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Fixture</displayName>
+  <description>Synthetic Device Guard fixture</description>
+  <resources>
+    <stringTable>
+      <string id="DeviceGuard">Device Guard</string>
+      <string id="VbsShaped">Turn on virtualization based security (fixture)</string>
+      <string id="VbsShaped_Help">Synthetic VBS-shaped policy.</string>
+      <string id="Off">Disabled</string>
+      <string id="WithLock">Enabled with UEFI lock</string>
+      <string id="NoLock">Enabled without lock</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="VbsShaped">
+        <dropdownList refId="HvciDrop" defaultItem="2">Memory integrity</dropdownList>
+        <dropdownList refId="FakeDrop" defaultItem="0">Fake isolation</dropdownList>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

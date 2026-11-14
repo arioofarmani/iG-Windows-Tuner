@@ -14,9 +14,11 @@ $script:IgwtGuiControlNames = @(
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
     'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
-    'StartupRefreshButton', 'StartupListHost', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
+    'StartupRefreshButton', 'StartupListHost', 'StartupOnButton', 'StartupOffButton', 'StartupDeleteButton', 'StartupOpenButton', 'StartupCopyButton', 'StartupDetailText', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
     'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalResetButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
+    'PageSecSettings', 'SecRefreshButton', 'SecStatusText', 'SecSettingsListHost', 'SecSettingsDetailHost', 'SecStageButton', 'SecPreviewButton', 'SecApplyButton', 'SecClearButton', 'SecStagedText',
+    'PageRegistryCleaner', 'RegScanButton', 'RegCancelButton', 'RegSelectSafeButton', 'RegClearButton', 'RegRemoveButton', 'RegRestoreButton', 'RegExclusionsButton', 'RegNoteText', 'RegListHost', 'RegDetailText',
     'PageDisk', 'DiskPathBox', 'DiskAnalyzeButton', 'DiskCancelButton', 'DiskOpenButton', 'DiskSummaryText', 'DiskFolderListHost', 'DiskFileListHost',
     'PageAsr', 'AsrRefreshButton', 'AsrPromoteButton', 'AsrRecommendButton', 'AsrSummaryIcon', 'AsrSummaryText', 'AsrTabs', 'AsrGridHost', 'AsrDetName', 'AsrDetMeta', 'AsrDetDescription', 'AsrDetPanel',
     'AsrDetImpactIcon', 'AsrDetImpactLevel', 'AsrDetImpact', 'AsrModeNotConfigured', 'AsrModeAudit', 'AsrModeWarn', 'AsrModeBlock', 'AsrModeHelp', 'AsrSetModeButton', 'AsrExclusionList', 'AsrExclusionBox', 'AsrGlobalBox',
@@ -328,6 +330,22 @@ function Initialize-IgwtGuiDiagnostics {
 
 #region Background worker
 
+function Get-IgwtGuiWorkerInboxModule {
+    <#
+    .SYNOPSIS
+        The Windows modules the worker runspaces load, those present on this PC. Only one Defender
+        module: Defender and ConfigDefender export the same commands, the module loaded last wins,
+        and Defender is a frozen copy that Defender platform updates do not refresh (it
+        lacks the parameters of newer preferences that ConfigDefender has).
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+    $present = @('NetSecurity', 'NetAdapter', 'NetTCPIP', 'DnsClient', 'NetQos', 'NetConnection', 'ScheduledTasks', 'ConfigDefender', 'Defender') |
+        Where-Object { Test-Path -LiteralPath (Join-Path $PSHOME "Modules\$_") }
+    return @($present | Where-Object { -not ($_ -eq 'Defender' -and $present -contains 'ConfigDefender') })
+}
+
 function Initialize-IgwtGuiWorker {
     <#
     .SYNOPSIS
@@ -342,8 +360,7 @@ function Initialize-IgwtGuiWorker {
     # The Windows CIM modules load with the pool, not on first use: when parallel jobs auto-loaded
     # NetSecurity at the same moment, its type data was missing and firewall rules came back as raw
     # CIM objects (numbers instead of names, no rule name, every program "Any").
-    $inbox = @('NetSecurity', 'NetAdapter', 'NetTCPIP', 'DnsClient', 'NetQos', 'NetConnection', 'ScheduledTasks', 'ConfigDefender', 'Defender') |
-        Where-Object { Test-Path -LiteralPath (Join-Path $PSHOME "Modules\$_") }
+    $inbox = @(Get-IgwtGuiWorkerInboxModule)
     if (@($inbox).Count) { $iss.ImportPSModule([string[]]@($inbox)) }
     $iss.ImportPSModule(@((Join-Path $script:IgwtModuleRoot 'iGWindowsTuner.psd1')))
     # Log and progress entries reach the UI thread through this queue (set once per runspace here;
@@ -638,7 +655,7 @@ function Update-IgwtGuiFromData {
     # The page updates run one per UI step (together they took about 400 ms, a visible freeze when the data
     # arrived). They read $script:Gui.Data, never a local of this function: the steps run later.
     Invoke-IgwtGuiChunked -Key 'data.pages' -Size 1 -Items @(
-        { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }) }
+        { Set-IgwtGuiGridRows -Name 'StartupList' -Rows @($script:Gui.Data.Startup | ForEach-Object { New-IgwtGuiStartupRow -Entry $_ -CanToggle ([bool]$script:Gui.IsAdmin) }); Update-IgwtGuiStartupDetails -Rows @(Get-IgwtGridSelection -Grid $script:Gui.Grids.StartupList) }
         { Update-IgwtGuiSnapshots -Snapshots $script:Gui.Data.Snapshots }
         { if ($script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         # The home card inputs (journal, unfinished changes, drift): at start and after every refresh.
@@ -719,7 +736,7 @@ function Update-IgwtGuiDashboard {
     } else { Set-IgwtGuiTile -Name 'Health' -Value '-' -Note 'Press Refresh to run the health checks' -Tone 'Info' }
 
     # Your changes.
-    $snaps = @($Data.Snapshots | Where-Object { $_ }).Count
+    $snaps = @($Data.Snapshots | Where-Object { $_ -and (Test-IgwtSnapshotHasChange -Snapshot $_) }).Count
     if ($Data.Pending) {
         $what = $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart Windows' } else { 'Sign out and back in' })
         Set-IgwtGuiTile -Name 'Changes' -Value $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart needed' } else { 'Sign-out needed' }) -Note "To finish $(@($Data.Pending.Tweaks).Count) change(s)" -Tone 'Warn'
@@ -754,15 +771,15 @@ $script:IgwtGuiDashShortcuts = @{
 }
 
 function Update-IgwtGuiDashRecent {
-    <# .SYNOPSIS The dashboard's last three changes with Undo, and the persona shortcuts. #>
+    <# .SYNOPSIS The dashboard's last three changes with Undo (a snapshot in which nothing changed is not one), and the persona shortcuts. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only; Undo asks first and runs through the engine.')]
     [CmdletBinding()]
     param([object[]]$Snapshots = @())
     $c = $script:Gui.C
     $canUndo = (-not (Test-IgwtReadOnly)) -and [bool]$script:Gui.IsAdmin
-    $rows = @(@($Snapshots | Where-Object { $_ } | Select-Object -First 3) | ForEach-Object {
+    $rows = @(@($Snapshots | Where-Object { $_ -and (Test-IgwtSnapshotHasChange -Snapshot $_) } | Select-Object -First 3) | ForEach-Object {
             $r = New-IgwtGuiSnapshotRow -Snapshot $_
-            [pscustomobject]@{ Title = $(if ([string]$r.Detail) { [string]$r.Detail } else { [string]$r.Operation }); When = "$($r.When)  |  $($r.KindText)"; Tip = [string]$r.Path; Path = [string]$_.Path; CanUndo = $canUndo
+            [pscustomobject]@{ Title = "$(if ([string]$r.Detail) { [string]$r.Detail } else { [string]$r.Operation })$(if ([int]$r.Failed) { " ($($r.Failed) did not apply)" })"; When = "$($r.When)  |  $($r.KindText)"; Tip = [string]$r.Path; Path = [string]$_.Path; CanUndo = $canUndo
                 UndoTip = $(if ($canUndo) { 'Restore the values from before this change (asks first; the undo gets its own snapshot).' } elseif (Test-IgwtReadOnly) { 'Read-only mode: nothing can be undone here.' } else { 'Undo needs administrator rights.' }) }
         })
     $c.DashRecentList.ItemsSource = $rows
@@ -787,11 +804,14 @@ function Update-IgwtGuiSnapshots {
     Set-IgwtGuiGridRows -Name 'SnapshotList' -Rows @($list | ForEach-Object { New-IgwtGuiSnapshotRow -Snapshot $_ })
     # Status line (3.3 C1): how many snapshots, the last change and any failures.
     $c = $script:Gui.C
-    if ($list.Count) {
-        $last = New-IgwtGuiSnapshotRow -Snapshot $list[0]
-        $failed = @($list | Where-Object { $_.PSObject.Properties['Failed'] -and [int]$_.Failed -gt 0 }).Count
-        $c.BackupSummaryText.Text = "$($list.Count) snapshot$(if ($list.Count -ne 1) { 's' }); last change $($last.When): $(if ($last.Detail) { $last.Detail } else { $last.Operation }).$(if ($failed) { " $failed with failures." } else { '' }) Every one can be reverted."
-    } else { $c.BackupSummaryText.Text = 'No changes yet. Every change you apply writes a snapshot here first.' }
+    $changes = @($list | Where-Object { Test-IgwtSnapshotHasChange -Snapshot $_ })
+    $attempts = $list.Count - $changes.Count
+    $attemptText = $(if ($attempts) { " $attempts attempt$(if ($attempts -ne 1) { 's' }) changed nothing, so there is nothing to revert there." } else { '' })
+    if ($changes.Count) {
+        $last = New-IgwtGuiSnapshotRow -Snapshot $changes[0]
+        $failed = @($changes | Where-Object { $_.PSObject.Properties['Failed'] -and [int]$_.Failed -gt 0 }).Count
+        $c.BackupSummaryText.Text = "$($list.Count) snapshot$(if ($list.Count -ne 1) { 's' }); last change $($last.When): $(if ($last.Detail) { $last.Detail } else { $last.Operation }).$(if ($failed) { " $failed with failures." } else { '' }) Every change can be reverted.$attemptText"
+    } else { $c.BackupSummaryText.Text = "No changes yet. Every change you apply writes a snapshot here first.$attemptText" }
 }
 
 function Update-IgwtGuiTweakList {
@@ -868,6 +888,7 @@ function Update-IgwtGuiButtons {
     $c.CleanRunButton.IsEnabled = (-not $busy) -and [bool]$script:Gui.CleanScan -and @(Get-IgwtGuiCleanerSelection).Count -gt 0 -and -not (Test-IgwtReadOnly)
     if (Test-IgwtReadOnly) { $c.CleanRunButton.ToolTip = Get-IgwtGuiChangeBlockReason -What 'delete files' }
     $c.CleanCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -like 'Invoke-IgwtCleaner*'
+    Update-IgwtGuiRegCleanButtons
     $c.DiskAnalyzeButton.IsEnabled = -not $busy
     $c.DiskCancelButton.IsEnabled = $busy -and [bool]$script:Gui.Cts -and $jobCommand -eq 'Get-IgwtDiskUsage'
     Update-IgwtGuiAsrButtons
@@ -2629,7 +2650,7 @@ function Invoke-IgwtGuiDefenderChange {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
         if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The setting was not changed: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and $res.Changes -gt 0) {
+        elseif ($res -and @($res.Results).Count) {
             $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
             $tail = $(if ($res.Snapshot) { "`n`nSnapshot: $($res.Snapshot)" } else { '' })
             $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + $tail) -Icon $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 'Warning' } else { 'Information' })
@@ -2712,8 +2733,8 @@ function Set-IgwtGuiFocusMode {
 $script:IgwtGuiNavGroups = [ordered]@{
     'Start'    = @('Dashboard', 'Presets')
     'Optimize' = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'System')
-    'Secure'   = @('Security', 'Asr', 'Defender', 'Firewall', 'Policy', 'Risk Zone')
-    'Clean'    = @('Cleaner', 'Storage', 'Disk', 'Startup')
+    'Secure'   = @('Security', 'Asr', 'Defender', 'SecSettings', 'Firewall', 'Policy', 'Risk Zone')
+    'Clean'    = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup')
     'Manage'   = @('Manage', 'Toolkit')
     'Diagnose' = @('Diagnostics', 'NetTest', 'Inspect')
     'History'  = @('Backups', 'Rejected', 'About')
@@ -2770,7 +2791,7 @@ function Set-IgwtGuiPersona {
     $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
     # The ASR Center and the Defender settings are part of Security: keep them directly under
     # Security in every persona.
-    $subs = @(foreach ($tag in 'Asr', 'Defender', 'Firewall') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
+    $subs = @(foreach ($tag in 'Asr', 'Defender', 'SecSettings', 'Firewall') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
     $subs = @($subs | Where-Object { $_ })
     if ($subs.Count) {
         $rest = New-Object System.Collections.Generic.List[object]
@@ -3040,7 +3061,7 @@ function Get-IgwtGuiBreadcrumb {
     $label = $Page
     if ($item -and $item.Content -is [System.Windows.Controls.Panel]) { $tb = @($item.Content.Children | Where-Object { $_ -is [System.Windows.Controls.TextBlock] -and $_.Style -ne $script:Gui.Window.TryFindResource('Icon') })[-1]; if ($tb) { $label = [string]$tb.Text } }
     $parts = @($group)
-    if ($Page -in 'Asr', 'Defender', 'Firewall') { $parts += 'Security' }
+    if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { $parts += 'Security' }
     $parts += $label
     return (@($parts | Where-Object { $_ }) -join "  $([char]0x203A)  ")
 }
@@ -3052,7 +3073,7 @@ function Show-IgwtGuiPage {
     $script:Gui.CurrentPage = $Page
     $c.Breadcrumb.Text = Get-IgwtGuiBreadcrumb -Page $Page
     # The Security sub-pages carry the breadcrumb in their title (Security > Firewall).
-    $c.Breadcrumb.Visibility = $(if ($Page -in 'Asr', 'Defender', 'Firewall') { 'Collapsed' } else { 'Visible' })
+    $c.Breadcrumb.Visibility = $(if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { 'Collapsed' } else { 'Visible' })
     if ($script:Gui.Window -and $script:Gui.Window.IsLoaded) { Set-IgwtGuiViewValue -Name 'LastPage' -Value $Page }
     if ($script:Gui.DiagnosticsPath -and $script:Gui.Window) {
         # Page switch time: from the click to the next idle UI thread (the page is laid out and painted).
@@ -3062,7 +3083,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     $isTweakPage = $script:IgwtCategories -contains $Page
     $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
@@ -3087,6 +3108,8 @@ function Show-IgwtGuiPage {
         'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
+        'SecSettings' { $c.PageSecSettings.Visibility = 'Visible'; if (-not $script:Gui.SecLoaded -and $script:Gui.Runspace) { Start-IgwtGuiSecSettingsLoad } }
+        'RegistryCleaner' { $c.PageRegistryCleaner.Visibility = 'Visible'; if ($script:Gui.RegClean -and -not $script:Gui.RegClean.RemovedLoaded -and $script:Gui.Runspace) { $null = Start-IgwtGuiRegCleanRemovedLoad } }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
         'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
@@ -3119,6 +3142,11 @@ function Save-IgwtGuiScreenshots {
     Update-IgwtGuiFromData -Data $data
     # Read-only data for the cleaner and disk analyzer pages (scan deletes nothing).
     Set-IgwtGuiCleanerScan -Scan (Invoke-IgwtCleanerScan -Level Standard)
+    # The registry cleaner (read-only scan) and its removed entries from the change journal.
+    try { Set-IgwtGuiRegCleanScan -Scan (Get-IgwtRegistryLeftovers); Set-IgwtGuiRegCleanTimeline -Timeline (Get-IgwtJournalTimeline) }
+    catch { Write-Warning "Registry cleaner data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
+    # Security settings (read-only).
+    try { Set-IgwtGuiSecSettingsData -Result (Get-IgwtSecSettings) } catch { Write-Warning "Security settings unavailable for screenshots: $($_.Exception.Message)" }
     # The change journal (read-only).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
     # The home card (read-only inputs).
@@ -3212,6 +3240,28 @@ function Save-IgwtGuiScreenshots {
             $script:Gui.C.PageDashboard.ScrollToVerticalOffset(560)
             & $capture 'b'
             $script:Gui.C.PageDashboard.ScrollToVerticalOffset(0)
+        }
+        # Startup apps with one entry selected: the details line and the enabled actions (DECISIONS SA7).
+        if ($page -eq 'Startup' -and $script:Gui.Grids.StartupList) {
+            $sg = $script:Gui.Grids.StartupList.C.Grid
+            $pick = @($sg.ItemsSource | Where-Object { $_.Note } | Select-Object -First 1)
+            if ($pick.Count) { $sg.SelectedItem = $pick[0] } elseif (@($sg.ItemsSource).Count) { $sg.SelectedIndex = 0 }
+            & $capture 'b'
+            $sg.UnselectAll()
+        }
+        # Security settings with one editable setting selected: the detail pane with its editor (SM33).
+        if ($page -eq 'SecSettings' -and $script:Gui.Grids.SecSettingsList) {
+            $sg = $script:Gui.Grids.SecSettingsList.C.Grid
+            $pick = @($sg.ItemsSource | Where-Object { $_.AccessKey -eq 'Editable' -and $_.SourceKind -eq 'admx' } | Select-Object -First 1)
+            if ($pick.Count) { $sg.SelectedItem = $pick[0] } elseif (@($sg.ItemsSource).Count) { $sg.SelectedIndex = 0 }
+            & $capture 'b'
+            $sg.UnselectAll()
+        }
+        # The registry cleaner's Removed view (grouped by cleanup, then category).
+        if ($page -eq 'RegistryCleaner' -and $script:Gui.Grids.RegList) {
+            Set-IgwtGridChip -Grid $script:Gui.Grids.RegList -ChipId 'removed'
+            & $capture 'b'
+            Set-IgwtGridChip -Grid $script:Gui.Grids.RegList -ChipId 'removed' -On $false
         }
         # The Firewall Manager has a second view worth checking: the Rules tab with a rule that has findings.
         if ($page -eq 'Firewall' -and $script:Gui.Grids.Firewall) {
@@ -3316,6 +3366,9 @@ function Show-IgwtGui {
     Add-IgwtGuiStartupMark -Name 'asr'
     Initialize-IgwtGuiPolicyPage
     Add-IgwtGuiStartupMark -Name 'policy'
+    Initialize-IgwtGuiRegistryCleanerPage
+    Initialize-IgwtGuiSecSettingsPage
+    Add-IgwtGuiStartupMark -Name 'registryCleaner'
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
     $c.AboutBuildText.Text = Get-IgwtGuiBuildInfo
@@ -3454,7 +3507,9 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.JournalRevertAllButton -Event 'Click' -Handler { Start-IgwtGuiJournalRevert -Scope All }
     Register-IgwtGuiHandler -Control $c.BackupRevertSelectedButton -Event 'Click' -Handler {
             $sel = (Get-IgwtGuiGridItem -Name SnapshotList)
-            if ($sel) { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path } else { Set-IgwtGuiStatus 'Select a snapshot first.' }
+            if (-not $sel) { Set-IgwtGuiStatus 'Select a snapshot first.' }
+            elseif ($sel.PSObject.Properties['HasChange'] -and -not $sel.HasChange) { Set-IgwtGuiStatus 'That attempt changed nothing, so there is nothing to revert.' }
+            else { Invoke-IgwtGuiRevert -SnapshotPath $sel.Path }
         }
     Register-IgwtGuiHandler -Control $c.RevertSnapshotButton -Event 'Click' -Handler {
             $dlg = New-Object Microsoft.Win32.OpenFileDialog
@@ -3571,6 +3626,11 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.DefPolicyApplyButton -Event 'Click' -Handler { Invoke-IgwtGuiDefenderPolicyChange }
     Register-IgwtGuiHandler -Control $c.DefDocButton -Event 'Click' -Handler { $u = [string]$script:Gui.C.DefDocButton.Tag; if ($u) { Open-IgwtGuiPath -Target $u } }
     Register-IgwtGuiHandler -Control $c.StartupRefreshButton -Event 'Click' -Handler { Start-IgwtGuiRefresh }
+    Register-IgwtGuiHandler -Control $c.StartupOnButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'on' }
+    Register-IgwtGuiHandler -Control $c.StartupOffButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'off' }
+    Register-IgwtGuiHandler -Control $c.StartupDeleteButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'delete' }
+    Register-IgwtGuiHandler -Control $c.StartupOpenButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'open' }
+    Register-IgwtGuiHandler -Control $c.StartupCopyButton -Event 'Click' -Handler { Invoke-IgwtGridAction -Grid $script:Gui.Grids.StartupList -ActionId 'copy' }
     Register-IgwtGuiHandler -Control $script:Gui.Grids.StartupList.Root -RoutedEvent ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent) -Handler {
             param($eventSource, $e)
             $cb = $e.OriginalSource

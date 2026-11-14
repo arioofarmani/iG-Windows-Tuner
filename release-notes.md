@@ -1,32 +1,22 @@
-# AegisTune (iG Windows Tuner) 3.6.5
+# iG Windows Tuner 3.8.1
 
-Released 2026-11-05. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
+Released 2026-11-13. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
 
-A bug-fix release for 3.6.0. If 3.6.0 refused your changes with "The change journal is read-only ... 'Journal' is not protected", this fixes it. Your journal and backups stay as they are: nothing needs to be repaired.
+Three new tools, all built on the change journal: every change is previewed, backed up, read back and can be undone with one click.
+
+### Added
+
+- **Registry cleaner** (Clean > Registry cleaner): finds entries left behind by programs that are no longer installed (uninstall entries, App Paths, file associations, Open with, startup entries, Software keys, firewall rules) and shows the evidence for each one. Safe entries are proven leftovers; Review entries are for you to decide. Nothing is selected until you choose it. Windows, security products, drivers, anti-cheats and runtimes are never offered; leftovers of security products point to the vendor's removal tool. Every removal is backed up (a .reg file and the journal) and can be restored per entry or per cleanup. It makes no speed claims.
+- **Startup apps: full control**: delete one or several entries with a backup and Undo, turn several on or off at once, open the file location, copy the command, and see the company and the file each entry starts. Windows components and security products can be turned off but not deleted; anti-cheat entries get a warning.
+- **Security settings** (Security > Security settings): every security Group Policy from Windows' own definitions, every Defender preference, the ASR rules, the exclusion lists, security options, audit policy and Device Guard state in one list, with the current value and where it comes from. Each setting gets the editor its definition needs. Changes are written like the Group Policy editor, roll back on failure and can be undone. Values set by a domain, MDM or Tamper Protection are read-only; values that would turn a protection off, UEFI locks and lockout-risk settings are refused; VBS, memory integrity, Credential Guard, LSA protection and BitLocker policies need prerequisite checks and a typed confirmation.
+- Command line: -RegScan, -RegClean, -RegRestore, -Startup, -StartupRemove, -SecSettings, -SecSetting, -SecSettingSet, -SecSettingRemoveExclusion (every changing verb has -DryRun).
 
 ### Fixed
 
-- **Every change was refused** with "'Journal' is not protected", although the folder was protected correctly. The check took read access for standard users as write access. It now checks only the rights that can really change a file. Reverting from a snapshot used the same check and benefits too.
-- **"Cannot index into a null array"** repeated in the log while the journal was refused. The journal tab, the drift check and the home card now keep working and say what is wrong.
-- The journal tab could fail on a change without a backup, such as a restore point.
-
-### New
-
-- **Set this journal aside** (Backups & Logs > Change journal): only if a journal really fails its check, for example after someone edited it. It used to block every change with no way out. Now, after you confirm, it is moved aside (nothing is deleted) and the next change starts a new protected journal.
-
-### What 3.6 brought
-
-A change journal with exact undo per change, per session or for everything; confidence badges; presets with a preview; the update drift guardian; and the home card. See docs\CHANGELOG.md.
-
-### Known issues
-
-- Firewall > Overview > Recent changes shows `System.Windows.Controls.DockPanel` instead of the change. Backups & Logs lists the changes correctly.
-- A Defender setting your Windows version does not support (for example AiAgentProtection) fails with "A parameter cannot be found" and can still appear under recent changes; nothing was changed.
+- Defender settings are written through the current Defender module, so newer settings such as AiAgentProtection save; a write that changed nothing no longer offers Undo, and a write that could not be read back keeps it.
 
 ### Good to know
 
-- Used and confirmed working on a real PC by the author. A full end-to-end run in Windows Sandbox is still to come, so try one small change first.
-
-### Install
-
-Download iGWindowsTuner-3.6.5.zip, check it against SHA256SUMS, extract it, and run Start-iGWindowsTuner.cmd. Files from a downloaded zip carry Mark-of-the-Web: review them, then Unblock-File if you trust them.
+- Real apply-and-restore runs of these tools in Windows Sandbox are still to do; everything was tested with the full headless suite (1,460 tests).
+- Microsoft security baseline values are not bundled yet.
+- Guides: docs\REGISTRY_CLEANER.md, docs\SECURITY_SETTINGS.md. Full list: docs\CHANGELOG.md.

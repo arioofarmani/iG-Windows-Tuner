@@ -55,6 +55,16 @@ if (-not $SkipDefenderScan) {
         Write-Output $out.Trim()
         Write-Output "MpCmdRun exit code: $code (0 = no threats found)"
         if ($code -ne 0) { $failed = $true }
+        # The registry cleaner files (DECISIONS RG30) are also scanned one by one, so a detection
+        # names the file that a heuristic flags.
+        $focus = @(Get-ChildItem -LiteralPath (Join-Path $root 'src\Cleaner') -Filter 'RegistryCleaner*.ps1' -File) + @(Get-Item -LiteralPath (Join-Path $root 'src\Core\PrivateFolder.ps1'))
+        foreach ($f in $focus) {
+            $fo = & $mp -Scan -ScanType 3 -File $f.FullName 2>&1 | Out-String
+            $fc = $LASTEXITCODE
+            Add-Content -LiteralPath (Join-Path $artifacts 'defender-scan.txt') -Value ("$($f.Name): exit code $fc`r`n" + $fo) -Encoding UTF8
+            Write-Output "MpCmdRun $($f.Name): exit code $fc"
+            if ($fc -ne 0) { $failed = $true }
+        }
     } else { Write-Output 'MpCmdRun.exe not found; scan skipped.' }
 }
 

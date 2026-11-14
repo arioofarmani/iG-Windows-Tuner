@@ -30,6 +30,16 @@ Describe 'Forbidden techniques are absent from shipped code' {
         Get-Matches '(?i)(Register-ScheduledTask|New-ScheduledTask|schtasks|New-Service|sc\.exe\s+create|__EventFilter|Register-WmiEvent|Register-CimIndicationEvent)' | Should -BeNullOrEmpty
         Get-Matches '(?i)Set-ItemProperty.*CurrentVersion\\Run' | Should -BeNullOrEmpty
     }
+    It 'writes a startup entry only to restore iG''s own backup (DECISIONS SA4)' {
+        # Run-key values and Startup-folder files are written back only by Restore-IgwtStartupEntry.
+        $file = Join-Path $script:IgwtProjectRoot 'src\Core\StartupApps.ps1'
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$null)
+        $writers = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | Where-Object {
+            $_.Extent.Text -match '(?i)Set-IgwtRegistryValue\s+-Path\s+\$src\.Location|Copy-Item\s[^\r\n]*-Destination\s+\$file\b'
+        } | ForEach-Object { $_.Name })
+        $writers | Should -Be @('Restore-IgwtStartupEntry')
+        Get-Matches '(?i)Set-IgwtRegistryValue\s+-Path\s+\$src\.Location' | ForEach-Object { $_ | Should -Match '^StartupApps\.ps1:' }
+    }
     It 'never hides windows' { Get-Matches '(?i)WindowStyle\s+Hidden|-w\s+hidden|CreateNoWindow' | Should -BeNullOrEmpty }
     It 'never changes machine or user execution policy' { Get-Matches '(?i)Set-ExecutionPolicy' | Should -BeNullOrEmpty }
     It 'never touches AMSI, ETW, real-time protection, Tamper Protection or Defender exclusions' {
@@ -233,4 +243,36 @@ Describe 'Cleaning engine stays non-recursive and never closes apps' {
         @(Get-Matches '(?i)&\s*\$exe\s+/delete-driver\s+\$Inf\s+2>&1\s*$' $script:CleanerCode).Count | Should -Be 1
     }
     It 'never takes ownership or rewrites ACLs' { Get-Matches '(?i)(takeown|icacls|Set-Acl)' $script:CleanerCode | Should -BeNullOrEmpty }
+}
+
+Describe 'Registry cleaner stays narrow and does not look like an AV killer (DECISIONS RG17, RG30)' {
+    BeforeAll {
+        $script:CleanerCode = @($script:Code | Where-Object { $_.DirectoryName -like '*\src\Cleaner' })
+        $script:RegCleanWriters = @($script:CleanerCode | Where-Object { $_.Name -in 'RegistryCleanerProvider.ps1', 'RegistryCleanerPlan.ps1' })
+        # Vendor, EDR and anti-cheat names exist only in the data file (read here, never written into a test literal).
+        $doc = Get-Content -LiteralPath (Join-Path $script:IgwtProjectRoot 'data\registry\protected.json') -Raw | ConvertFrom-Json
+        $names = New-Object System.Collections.Generic.List[string]
+        foreach ($g in @($doc.groups)) {
+            foreach ($v in @($g.vendors | Where-Object { $_ })) { foreach ($part in (([string]$v.name) -split '\s*[()]\s*|\s+and\s+')) { if ($part.Trim().Length -ge 3) { $names.Add($part.Trim()) } } }
+            if ($g.id -eq 'antiCheat') { foreach ($p in @($g.displayNamePatterns) + @($g.servicePatterns)) { $n = ([string]$p).Trim('*').Trim(); if ($n.Length -ge 4) { $names.Add($n) } } }
+        }
+        $script:VendorNames = @($names | Select-Object -Unique)
+    }
+    It 'has the provider and plan files to check' {
+        $script:RegCleanWriters.Count | Should -Be 2
+        $script:VendorNames.Count | Should -BeGreaterThan 20
+    }
+    It 'never uses DeleteSubKeyTree or reg.exe in src\Cleaner' {
+        Get-Matches '(?i)DeleteSubKeyTree' $script:CleanerCode | Should -BeNullOrEmpty
+        Get-Matches '(?i)\breg(\.exe)?\s+(add|delete|export|import|load|unload|copy|restore|save)\b|reg\.exe' $script:CleanerCode | Should -BeNullOrEmpty
+    }
+    It 'names no security vendor, EDR or anti-cheat product in the provider and plan files' {
+        foreach ($n in $script:VendorNames) {
+            Get-Matches ('(?i)(?<![A-Za-z0-9])' + [regex]::Escape($n) + '(?![A-Za-z0-9])') $script:RegCleanWriters | Should -BeNullOrEmpty -Because $n
+        }
+    }
+    It 'queries no SecurityCenter2 and holds no service write in the provider and plan files' {
+        Get-Matches '(?i)SecurityCenter2|AntiVirusProduct|LaunchProtected' $script:RegCleanWriters | Should -BeNullOrEmpty
+        Get-Matches '(?i)\b(Stop|Start|Set|New|Remove|Restart|Suspend|Resume)-Service\b|ServiceController|Win32_Service|\bsc(\.exe)?\s+(config|stop|delete|create|start)\b|ChangeStartMode|StopService' $script:RegCleanWriters | Should -BeNullOrEmpty
+    }
 }

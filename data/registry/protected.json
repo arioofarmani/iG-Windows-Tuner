@@ -1,0 +1,630 @@
+{
+  "schemaVersion": 2,
+  "kind": "regCleanProtected",
+  "description": "Protected set of the registry cleaner (DECISIONS RG11, RG12, RG15). Anything matching a group is never offered for removal; securityVendors matches are shown as Protected with the removal tool. Names (publisher, display name) only ever add protection, they never make an entry removable (RG5). Validated by Test-IgwtRegCleanProtectedCatalog inside Test-IgwtCatalog.",
+  "patternRules": "Wildcards are PowerShell -like patterns, case-insensitive. keyPatterns match HIVE\\path (HKLM\\..., HKCU\\..., HK*\\ for both); the 32-bit view uses the same logical path. pathPatterns start with a drive, a %Variable% or *\\ followed by a folder of at least 4 characters. Name patterns never start with a wildcard. signerPatterns start with CN= or O=. categoryRootsAllowed: category roots (data\\registry\\categories.json) that the group keyPatterns would cover but must not; entries below them are protected by entry-level rules only.",
+  "alsoRead": [ "data\\manage\\services.json", "data\\firewall\\apps.json" ],
+  "unverified": "Vendor, anti-cheat and hardware names, signer names and the removal tool pages are not first-party Microsoft data (DECISIONS RG28 items 6, 7, 11): used only to protect; re-check the tool pages before a release.",
+  "groups": [
+    {
+      "id": "microsoft",
+      "kind": "microsoft",
+      "basis": "microsoft",
+      "reason": "Windows, Microsoft components and Windows Installer data: removing them can break Windows or installed Microsoft software.",
+      "keyPatterns": [
+        "HK*\\SOFTWARE\\Microsoft\\*",
+        "HK*\\SOFTWARE\\Microsoft",
+        "HK*\\SOFTWARE\\Classes\\Installer\\*",
+        "HK*\\SOFTWARE\\Classes\\Installer",
+        "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Installer\\*",
+        "*\\Policies\\*",
+        "HK*\\SOFTWARE\\Policies\\*",
+        "HK*\\SOFTWARE\\Policies",
+        "HKLM\\SYSTEM\\*",
+        "HK*\\SOFTWARE\\Classes\\CLSID\\*",
+        "HK*\\SOFTWARE\\Classes\\CLSID",
+        "HK*\\SOFTWARE\\Classes\\Interface\\*",
+        "HK*\\SOFTWARE\\Classes\\Interface",
+        "HK*\\SOFTWARE\\Classes\\TypeLib\\*",
+        "HK*\\SOFTWARE\\Classes\\TypeLib",
+        "HK*\\SOFTWARE\\Classes\\AppID\\*",
+        "HK*\\SOFTWARE\\Classes\\AppID"
+      ],
+      "valueNamePatterns": [],
+      "servicePatterns": [],
+      "signerPatterns": [
+        "CN=Microsoft Windows",
+        "CN=Microsoft Corporation",
+        "CN=Microsoft Windows Publisher",
+        "CN=Microsoft Windows Hardware Compatibility Publisher",
+        "CN=Microsoft Windows Early Launch Anti-malware Publisher"
+      ],
+      "pathPatterns": [ "%windir%\\*", "%SystemRoot%\\*" ],
+      "publisherPatterns": [ "Microsoft Corporation" ],
+      "displayNamePatterns": [],
+      "categoryRootsAllowed": [
+        "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+        "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce"
+      ],
+      "packagePublisherIds": [ "8wekyb3d8bbwe", "cw5n1h2txyewy" ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys",
+        "https://learn.microsoft.com/en-us/windows/win32/msi/uninstall-registry-key",
+        "https://learn.microsoft.com/en-us/windows/win32/msi/arpsystemcomponent",
+        "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature?view=powershell-5.1"
+      ]
+    },
+    {
+      "id": "securityVendors",
+      "kind": "securityVendors",
+      "basis": "vendor",
+      "reason": "Security software: removing part of it can leave the PC without working protection. Use the vendor removal tool instead.",
+      "keyPatterns": [],
+      "valueNamePatterns": [],
+      "servicePatterns": [],
+      "signerPatterns": [],
+      "pathPatterns": [],
+      "publisherPatterns": [],
+      "displayNamePatterns": [],
+      "vendors": [
+        {
+          "id": "defender",
+          "name": "Microsoft Defender",
+          "type": "windows",
+          "publisherPatterns": [],
+          "displayNamePatterns": [ "Microsoft Defender*", "Windows Defender*" ],
+          "pathPatterns": [
+            "%ProgramFiles%\\Windows Defender\\*",
+            "%ProgramFiles%\\Windows Defender Advanced Threat Protection\\*",
+            "%ProgramData%\\Microsoft\\Windows Defender\\*"
+          ],
+          "keyPatterns": [ "HKLM\\SOFTWARE\\Microsoft\\Windows Defender*" ],
+          "removalTool": { "name": "", "url": "", "text": "Microsoft Defender Antivirus is part of Windows and is not removed; iG never removes its entries." }
+        },
+        {
+          "id": "bitdefender",
+          "name": "Bitdefender",
+          "type": "consumer",
+          "publisherPatterns": [ "Bitdefender*" ],
+          "displayNamePatterns": [ "Bitdefender*" ],
+          "pathPatterns": [ "*\\Bitdefender\\*", "*\\Bitdefender Agent\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Bitdefender*" ],
+          "removalTool": {
+            "name": "Bitdefender Uninstall Tool",
+            "url": "https://www.bitdefender.com/consumer/support/answer/2791/",
+            "text": "Use the Bitdefender Uninstall Tool from the Bitdefender support page."
+          }
+        },
+        {
+          "id": "kaspersky",
+          "name": "Kaspersky",
+          "type": "consumer",
+          "publisherPatterns": [ "Kaspersky*", "AO Kaspersky Lab*" ],
+          "displayNamePatterns": [ "Kaspersky*" ],
+          "pathPatterns": [ "*\\Kaspersky Lab\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\KasperskyLab*" ],
+          "removalTool": {
+            "name": "Kaspersky removal tool (kavremover)",
+            "url": "https://support.kaspersky.com/common/uninstall/1464",
+            "text": "Use the Kaspersky removal tool (kavremover) from the Kaspersky support page."
+          }
+        },
+        {
+          "id": "eset",
+          "name": "ESET",
+          "type": "consumer",
+          "publisherPatterns": [ "ESET*" ],
+          "displayNamePatterns": [ "ESET*" ],
+          "pathPatterns": [ "*\\ESET\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\ESET\\*", "HK*\\SOFTWARE\\ESET" ],
+          "removalTool": {
+            "name": "ESET Uninstaller",
+            "url": "https://support.eset.com/en/kb2289-uninstall-eset-manually-using-the-eset-uninstaller-tool",
+            "text": "Use the ESET Uninstaller from the ESET support page."
+          }
+        },
+        {
+          "id": "norton",
+          "name": "Norton (Gen Digital)",
+          "type": "consumer",
+          "publisherPatterns": [ "Norton*", "NortonLifeLock*", "Gen Digital*" ],
+          "displayNamePatterns": [ "Norton*" ],
+          "pathPatterns": [ "*\\Norton\\*", "*\\NortonLifeLock\\*", "*\\Norton Security\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Norton*", "HK*\\SOFTWARE\\NortonLifeLock*" ],
+          "removalTool": {
+            "name": "Norton Remove and Reinstall tool",
+            "url": "https://support.norton.com/sp/en/us/home/current/solutions/v60392881",
+            "text": "Use the Norton Remove and Reinstall tool from the Norton support page."
+          }
+        },
+        {
+          "id": "avast",
+          "name": "Avast",
+          "type": "consumer",
+          "publisherPatterns": [ "Avast*" ],
+          "displayNamePatterns": [ "Avast*" ],
+          "pathPatterns": [ "*\\Avast Software\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Avast Software*" ],
+          "removalTool": {
+            "name": "Avast Uninstall Utility",
+            "url": "https://www.avast.com/uninstall-utility",
+            "text": "Use the Avast Uninstall Utility from the Avast support page."
+          }
+        },
+        {
+          "id": "avg",
+          "name": "AVG",
+          "type": "consumer",
+          "publisherPatterns": [ "AVG Technologies*", "AVG*" ],
+          "displayNamePatterns": [ "AVG*" ],
+          "pathPatterns": [ "%ProgramFiles%\\AVG\\*", "%ProgramFiles(x86)%\\AVG\\*", "%ProgramData%\\AVG\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\AVG\\*", "HK*\\SOFTWARE\\AVG" ],
+          "removalTool": { "name": "AVG Uninstall Tool", "url": "https://support.avg.com/kA60N0000004aGy", "text": "Use the AVG Uninstall Tool from the AVG support page." }
+        },
+        {
+          "id": "avira",
+          "name": "Avira",
+          "type": "consumer",
+          "publisherPatterns": [ "Avira*" ],
+          "displayNamePatterns": [ "Avira*" ],
+          "pathPatterns": [ "*\\Avira\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Avira*" ],
+          "removalTool": { "name": "", "url": "", "text": "Avira publishes no removal tool that iG could confirm; contact Avira support." }
+        },
+        {
+          "id": "mcafee",
+          "name": "McAfee",
+          "type": "consumer",
+          "publisherPatterns": [ "McAfee*" ],
+          "displayNamePatterns": [ "McAfee*" ],
+          "pathPatterns": [ "*\\McAfee\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\McAfee*" ],
+          "removalTool": {
+            "name": "McAfee Consumer Product Removal tool (MCPR)",
+            "url": "https://www.mcafee.com/support/s/article/000001616",
+            "text": "Use the McAfee Consumer Product Removal tool (MCPR) from the McAfee support page."
+          }
+        },
+        {
+          "id": "trendmicro",
+          "name": "Trend Micro",
+          "type": "consumer",
+          "publisherPatterns": [ "Trend Micro*" ],
+          "displayNamePatterns": [ "Trend Micro*" ],
+          "pathPatterns": [ "*\\Trend Micro\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\TrendMicro*" ],
+          "removalTool": {
+            "name": "Trend Micro Uninstall Tool",
+            "url": "https://helpcenter.trendlife.com/en-us/article/tmka-11879/",
+            "text": "Use the Trend Micro Uninstall Tool from the Trend Micro support page."
+          }
+        },
+        {
+          "id": "sophos",
+          "name": "Sophos",
+          "type": "consumer",
+          "publisherPatterns": [ "Sophos*" ],
+          "displayNamePatterns": [ "Sophos*" ],
+          "pathPatterns": [ "*\\Sophos\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Sophos*" ],
+          "removalTool": {
+            "name": "Sophos Home uninstall help",
+            "url": "https://support.home.sophos.com/hc/en-us/articles/115005679923",
+            "text": "Use the Sophos Home uninstall steps from the Sophos support page."
+          }
+        },
+        {
+          "id": "malwarebytes",
+          "name": "Malwarebytes",
+          "type": "consumer",
+          "publisherPatterns": [ "Malwarebytes*" ],
+          "displayNamePatterns": [ "Malwarebytes*" ],
+          "pathPatterns": [ "*\\Malwarebytes\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Malwarebytes*" ],
+          "removalTool": {
+            "name": "Malwarebytes Support Tool",
+            "url": "https://help.malwarebytes.com/hc/en-us/articles/31589401118747",
+            "text": "Use the Malwarebytes Support Tool from the Malwarebytes support page."
+          }
+        },
+        {
+          "id": "withsecure",
+          "name": "WithSecure",
+          "type": "consumer",
+          "publisherPatterns": [ "WithSecure*" ],
+          "displayNamePatterns": [ "WithSecure*" ],
+          "pathPatterns": [ "*\\WithSecure\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\WithSecure*" ],
+          "removalTool": {
+            "name": "WithSecure Uninstallation Tool",
+            "url": "https://community.withsecure.com/en/kb/articles/29433-how-to-uninstall-server-security-using-the-withsecure-uninstallation-tool",
+            "text": "Use the WithSecure Uninstallation Tool from the WithSecure support page."
+          }
+        },
+        {
+          "id": "fsecure",
+          "name": "F-Secure",
+          "type": "consumer",
+          "publisherPatterns": [ "F-Secure*" ],
+          "displayNamePatterns": [ "F-Secure*" ],
+          "pathPatterns": [ "*\\F-Secure\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\F-Secure*" ],
+          "removalTool": {
+            "name": "F-Secure Uninstallation Tool",
+            "url": "https://community.f-secure.com/common-home-en/kb/articles/5439",
+            "text": "Use the F-Secure Uninstallation Tool from the F-Secure support page."
+          }
+        },
+        {
+          "id": "gdata",
+          "name": "G DATA",
+          "type": "consumer",
+          "publisherPatterns": [ "G DATA*" ],
+          "displayNamePatterns": [ "G DATA*" ],
+          "pathPatterns": [ "*\\G DATA\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\G DATA*" ],
+          "removalTool": {
+            "name": "G DATA Product Cleaner",
+            "url": "https://www.gdata.de/help-en/tools/ProductCleaner/",
+            "text": "Use the G DATA Product Cleaner from the G DATA support page."
+          }
+        },
+        {
+          "id": "panda",
+          "name": "Panda Security",
+          "type": "consumer",
+          "publisherPatterns": [ "Panda Security*", "Panda Software*" ],
+          "displayNamePatterns": [ "Panda*" ],
+          "pathPatterns": [ "*\\Panda Security\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Panda Security*", "HK*\\SOFTWARE\\Panda Software*" ],
+          "removalTool": {
+            "name": "Panda manual uninstallation",
+            "url": "https://www.pandasecurity.com/en/support/card?id=50035",
+            "text": "Use the Panda uninstaller from the Panda Security support page."
+          }
+        },
+        {
+          "id": "watchguard",
+          "name": "WatchGuard Endpoint Security",
+          "type": "edr",
+          "publisherPatterns": [ "WatchGuard*" ],
+          "displayNamePatterns": [ "WatchGuard*" ],
+          "pathPatterns": [ "*\\WatchGuard\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\WatchGuard*" ],
+          "removalTool": {
+            "name": "WatchGuard supported uninstallers",
+            "url": "https://www.watchguard.com/help/docs/help-center/en-US/Content/en-US/Endpoint-Security/troubleshooting/support-uninstallers_epp.html",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "webroot",
+          "name": "Webroot (OpenText)",
+          "type": "consumer",
+          "publisherPatterns": [ "Webroot*" ],
+          "displayNamePatterns": [ "Webroot*" ],
+          "pathPatterns": [ "*\\Webroot\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Webroot*" ],
+          "removalTool": { "name": "", "url": "", "text": "Webroot publishes no removal tool that iG could confirm; contact Webroot support." }
+        },
+        {
+          "id": "crowdstrike",
+          "name": "CrowdStrike Falcon",
+          "type": "edr",
+          "publisherPatterns": [ "CrowdStrike*" ],
+          "displayNamePatterns": [ "CrowdStrike*" ],
+          "pathPatterns": [ "*\\CrowdStrike\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\CrowdStrike*" ],
+          "servicePatterns": [ "CSAgent", "CSFalconService" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "sentinelone",
+          "name": "SentinelOne",
+          "type": "edr",
+          "publisherPatterns": [ "SentinelOne*", "Sentinel Labs*" ],
+          "displayNamePatterns": [ "SentinelOne*", "Sentinel Agent*" ],
+          "pathPatterns": [ "*\\SentinelOne\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Sentinel Labs*", "HK*\\SOFTWARE\\SentinelOne*" ],
+          "servicePatterns": [ "SentinelAgent", "SentinelStaticEngine", "SentinelHelperService" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "symantec",
+          "name": "Symantec Endpoint Protection and Carbon Black",
+          "type": "edr",
+          "publisherPatterns": [ "Symantec*", "Carbon Black*", "VMware Carbon Black*" ],
+          "displayNamePatterns": [ "Symantec Endpoint Protection*", "Carbon Black*", "VMware Carbon Black*" ],
+          "pathPatterns": [ "*\\Symantec\\*", "*\\Symantec Shared\\*", "*\\Confer\\*", "*\\CarbonBlack\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Symantec*", "HK*\\SOFTWARE\\CarbonBlack*" ],
+          "servicePatterns": [ "SepMasterService", "RepMgr", "CbDefense" ],
+          "removalTool": {
+            "name": "CleanWipe",
+            "url": "https://knowledge.broadcom.com/external/article/178870",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "emsisoft",
+          "name": "Emsisoft",
+          "type": "consumer",
+          "publisherPatterns": [ "Emsisoft*" ],
+          "displayNamePatterns": [ "Emsisoft*" ],
+          "pathPatterns": [ "*\\Emsisoft\\*", "*\\Emsisoft Anti-Malware\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Emsisoft*" ],
+          "removalTool": {
+            "name": "Emsiclean",
+            "url": "https://www.emsisoft.com/en/help/1787/how-do-i-completely-uninstall-an-emsisoft-product/",
+            "text": "Use the Emsiclean tool from the Emsisoft support page."
+          }
+        },
+        {
+          "id": "comodo",
+          "name": "Comodo (Xcitium)",
+          "type": "consumer",
+          "publisherPatterns": [ "COMODO*", "Xcitium*" ],
+          "displayNamePatterns": [ "COMODO*", "Xcitium*" ],
+          "pathPatterns": [ "*\\COMODO\\*", "*\\Xcitium\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\COMODO*", "HK*\\SOFTWARE\\Xcitium*" ],
+          "removalTool": { "name": "", "url": "", "text": "Comodo (Xcitium) publishes no removal tool that iG could confirm; contact Comodo (Xcitium) support." }
+        },
+        {
+          "id": "cylance",
+          "name": "Cylance (BlackBerry)",
+          "type": "edr",
+          "publisherPatterns": [ "Cylance*", "BlackBerry Cylance*" ],
+          "displayNamePatterns": [ "Cylance*", "CylancePROTECT*" ],
+          "pathPatterns": [ "*\\Cylance\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Cylance*" ],
+          "servicePatterns": [ "CylanceSvc" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "cortex",
+          "name": "Cortex XDR (Palo Alto Networks)",
+          "type": "edr",
+          "publisherPatterns": [ "Palo Alto Networks*" ],
+          "displayNamePatterns": [ "Cortex XDR*", "Traps*" ],
+          "pathPatterns": [ "*\\Palo Alto Networks\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Palo Alto Networks*" ],
+          "servicePatterns": [ "cyserver", "CyveraService" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "checkpoint",
+          "name": "Check Point Endpoint Security",
+          "type": "edr",
+          "publisherPatterns": [ "Check Point*" ],
+          "displayNamePatterns": [ "Check Point*" ],
+          "pathPatterns": [ "*\\CheckPoint\\*", "*\\Check Point\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\CheckPoint*" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "fortinet",
+          "name": "Fortinet FortiClient",
+          "type": "edr",
+          "publisherPatterns": [ "Fortinet*" ],
+          "displayNamePatterns": [ "FortiClient*", "FortiEDR*" ],
+          "pathPatterns": [ "*\\Fortinet\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Fortinet*" ],
+          "servicePatterns": [ "FA_Scheduler", "FortiEDRCollectorService" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "cisco",
+          "name": "Cisco Secure Endpoint",
+          "type": "edr",
+          "publisherPatterns": [ "Cisco Systems*" ],
+          "displayNamePatterns": [ "Cisco Secure Endpoint*", "Cisco AMP*" ],
+          "pathPatterns": [ "*\\Cisco\\AMP\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Cisco\\AMP*" ],
+          "servicePatterns": [ "CiscoAMP*" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        },
+        {
+          "id": "elastic",
+          "name": "Elastic Endpoint",
+          "type": "edr",
+          "publisherPatterns": [ "Elasticsearch*", "Elastic N.V.*" ],
+          "displayNamePatterns": [ "Elastic Agent*", "Elastic Endpoint*" ],
+          "pathPatterns": [ "*\\Elastic\\Agent\\*", "*\\Elastic\\Endpoint\\*" ],
+          "keyPatterns": [ "HK*\\SOFTWARE\\Elastic*" ],
+          "servicePatterns": [ "ElasticEndpoint", "Elastic Agent" ],
+          "removalTool": {
+            "name": "",
+            "url": "",
+            "text": "Ask your administrator: this is a managed security product and is removed with the tools of its management console."
+          }
+        }
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/windows/win32/services/protecting-anti-malware-services-",
+        "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/elam-driver-submission"
+      ]
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware",
+      "basis": "igwt",
+      "reason": "Driver and hardware software: devices, audio, input or graphics stop working when its entries are removed.",
+      "keyPatterns": [ "HK*\\SOFTWARE\\Khronos\\*", "HK*\\SOFTWARE\\Khronos" ],
+      "valueNamePatterns": [],
+      "servicePatterns": [],
+      "signerPatterns": [],
+      "pathPatterns": [],
+      "publisherPatterns": [
+        "Intel*",
+        "Advanced Micro Devices*",
+        "AMD*",
+        "NVIDIA*",
+        "Realtek*",
+        "Qualcomm*",
+        "MediaTek*",
+        "Broadcom*",
+        "Marvell*",
+        "Killer*",
+        "Rivet Networks*",
+        "Logitech*",
+        "Razer*",
+        "Corsair*",
+        "SteelSeries*",
+        "ASUS*",
+        "MSI*",
+        "Micro-Star*",
+        "GIGABYTE*",
+        "ASRock*",
+        "Dell*",
+        "HP*",
+        "Hewlett*",
+        "Lenovo*",
+        "Synaptics*",
+        "ELAN*",
+        "Conexant*",
+        "Creative*",
+        "Dolby*",
+        "DTS*",
+        "Waves*"
+      ],
+      "displayNamePatterns": [],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/inf-version-section" ]
+    },
+    {
+      "id": "antiCheat",
+      "kind": "antiCheat",
+      "basis": "igwt",
+      "reason": "Anti-cheat software: games refuse to start when its services, drivers or keys are missing.",
+      "keyPatterns": [ "HK*\\SOFTWARE\\EasyAntiCheat*", "HK*\\SOFTWARE\\BattlEye*", "HK*\\SOFTWARE\\Riot Vanguard*", "HK*\\SOFTWARE\\FACEIT*", "HK*\\SOFTWARE\\Even Balance*" ],
+      "valueNamePatterns": [],
+      "servicePatterns": [
+        "vgc",
+        "vgk",
+        "EasyAntiCheat",
+        "EasyAntiCheat_EOS",
+        "BEService",
+        "BEDaisy",
+        "FACEIT",
+        "FACEITService",
+        "EAAntiCheatService",
+        "atvi-randgrid_sr",
+        "PnkBstrA",
+        "PnkBstrB",
+        "PnkBstrK",
+        "ESEADriver2",
+        "npggsvc",
+        "xhunter1",
+        "mhyprot2",
+        "mhyprot3"
+      ],
+      "signerPatterns": [],
+      "pathPatterns": [ "*\\Riot Vanguard\\*", "*\\EasyAntiCheat\\*", "*\\BattlEye\\*", "*\\FACEIT\\*", "*\\Even Balance\\*" ],
+      "publisherPatterns": [ "BattlEye*", "Even Balance*", "FACEIT*", "Easy Anti-Cheat*" ],
+      "displayNamePatterns": [ "Riot Vanguard*", "Easy Anti-Cheat*", "EasyAntiCheat*", "BattlEye*", "FACEIT*", "PunkBuster*", "EA AntiCheat*", "EA Anti-Cheat*" ],
+      "sources": [ "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/hklm-system-currentcontrolset-services-registry-tree" ]
+    },
+    {
+      "id": "runtimes",
+      "kind": "runtimes",
+      "basis": "microsoft",
+      "reason": "Shared runtime: other programs and games still use it after the program that installed it is gone.",
+      "keyPatterns": [
+        "HKLM\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes*",
+        "HKLM\\SOFTWARE\\Microsoft\\NET Framework Setup\\*",
+        "HKLM\\SOFTWARE\\Microsoft\\.NETFramework\\*",
+        "HK*\\SOFTWARE\\dotnet\\*",
+        "HK*\\SOFTWARE\\dotnet",
+        "HKLM\\SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}*",
+        "HKLM\\SOFTWARE\\Microsoft\\DirectX*",
+        "HKLM\\SOFTWARE\\Microsoft\\XNA\\*",
+        "HK*\\SOFTWARE\\JavaSoft\\*",
+        "HK*\\SOFTWARE\\JavaSoft",
+        "HK*\\SOFTWARE\\OpenAL*",
+        "HK*\\SOFTWARE\\NVIDIA Corporation\\PhysX*"
+      ],
+      "valueNamePatterns": [],
+      "servicePatterns": [],
+      "signerPatterns": [],
+      "pathPatterns": [],
+      "publisherPatterns": [ "Oracle*", "Eclipse Adoptium*", "Azul Systems*" ],
+      "displayNamePatterns": [
+        "Microsoft Visual C++*",
+        "Microsoft .NET*",
+        "Microsoft ASP.NET*",
+        "Microsoft Windows Desktop Runtime*",
+        "Windows App Runtime*",
+        "Microsoft Windows App Runtime*",
+        "Microsoft Edge WebView2*",
+        "Microsoft XNA*",
+        "DirectX*",
+        "Java*",
+        "OpenAL*",
+        "NVIDIA PhysX*"
+      ],
+      "packageNamePatterns": [ "Microsoft.WindowsAppRuntime*", "Microsoft.VCLibs*", "Microsoft.NET.Native*", "Microsoft.UI.Xaml*" ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist",
+        "https://learn.microsoft.com/en-us/dotnet/framework/install/how-to-determine-which-versions-are-installed",
+        "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution",
+        "https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/deploy-overview"
+      ]
+    },
+    {
+      "id": "launchers",
+      "kind": "launchers",
+      "basis": "igwt",
+      "reason": "Game launcher: games, sign-in and updates depend on it (see also data\\firewall\\apps.json).",
+      "keyPatterns": [
+        "HK*\\SOFTWARE\\Valve\\*",
+        "HK*\\SOFTWARE\\Valve",
+        "HK*\\SOFTWARE\\Epic Games\\*",
+        "HK*\\SOFTWARE\\Epic Games",
+        "HK*\\SOFTWARE\\EpicGames\\*",
+        "HK*\\SOFTWARE\\Blizzard Entertainment\\*",
+        "HK*\\SOFTWARE\\Electronic Arts\\*",
+        "HK*\\SOFTWARE\\Ubisoft\\*",
+        "HK*\\SOFTWARE\\GOG.com\\*"
+      ],
+      "valueNamePatterns": [],
+      "servicePatterns": [],
+      "signerPatterns": [],
+      "pathPatterns": [ "*\\Steam\\*", "*\\Epic Games\\*", "*\\Battle.net\\*", "*\\EA Desktop\\*", "*\\Ubisoft Game Launcher\\*", "*\\GOG Galaxy\\*" ],
+      "publisherPatterns": [ "Valve*", "Epic Games*", "Blizzard Entertainment*", "Electronic Arts*", "Ubisoft*", "GOG*" ],
+      "displayNamePatterns": [ "Steam", "Epic Games Launcher*", "Battle.net*", "EA app*", "EA Desktop*", "Ubisoft Connect*", "GOG GALAXY*", "Xbox*" ],
+      "sources": []
+    }
+  ]
+}

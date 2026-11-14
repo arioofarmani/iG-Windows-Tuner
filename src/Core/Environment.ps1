@@ -2,7 +2,7 @@
 # Module-wide settings: data folders, registry redirection (used only by the test suite)
 # and the interactive-user hive mapping used when elevation happens under a different account.
 
-$script:IgwtVersion = '3.6.5'
+$script:IgwtVersion = '3.8.1'
 
 $script:IgwtSettings = @{
     DataRoot         = (Join-Path $env:ProgramData 'iGWindowsTuner')
@@ -125,6 +125,10 @@ function Clear-IgwtCatalogCaches {
     $script:IgwtKernelInspectorCache = $null
     $script:IgwtServiceRuleCache = $null
     $script:IgwtNicKeywordCache = $null
+    $script:IgwtRegCleanProtectedCache = $null
+    $script:IgwtRegCleanCategoryCache = $null
+    $script:IgwtSecSettingsData = $null
+    $script:IgwtSecSettingOverlapCache = $null
 }
 
 function Get-IgwtEnvironment {

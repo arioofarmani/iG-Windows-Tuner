@@ -83,7 +83,7 @@ function Get-IgwtFirewallAudit {
     $findings = & $step 'Findings' { Get-IgwtFirewallFindings -Rows $rows -Context $ctx -Listeners $Listeners -DefaultEnabled $defaultEnabled }
     $relations = & $step 'Precedence' { Get-IgwtFirewallConflicts -Rows $rows }
     $exposure = & $step 'Exposure' { @(Get-IgwtFirewallExposureMap -Rows $rows -Listeners @($Listeners | Where-Object { $_ })) }
-    $recent = & $step 'History' { @(Get-IgwtSnapshotList | Where-Object { [string]$_.Operation -like 'Firewall*' } | Select-Object -First 8 | ForEach-Object { [pscustomobject]@{ Path = [string]$_.Path; Created = $_.Created; Operation = [string]$_.Operation; Detail = $(if ($_.Detail) { [string]$_.Detail } else { [string]$_.Operation }); Rules = @($_.Entries | ForEach-Object { [string]$_.Name }) } }) }
+    $recent = & $step 'History' { @(Get-IgwtSnapshotList | Where-Object { [string]$_.Operation -like 'Firewall*' -and (Test-IgwtSnapshotHasChange -Snapshot $_) } | Select-Object -First 8 | ForEach-Object { [pscustomobject]@{ Path = [string]$_.Path; Created = $_.Created; Operation = [string]$_.Operation; Detail = $(if ($_.Detail) { [string]$_.Detail } else { [string]$_.Operation }); Rules = @($_.Entries | ForEach-Object { [string]$_.Name }) } }) }
     $summary = & $step 'Summary' { Get-IgwtFirewallAuditSummary -Rows $rows }
     $total = $sw.ElapsedMilliseconds
     Write-IgwtLog -Message ("Firewall audit: {0} rules in {1} ms ({2})" -f $rows.Count, $total, (@($timing.Keys | ForEach-Object { "$_ $($timing[$_]) ms" }) -join ', '))

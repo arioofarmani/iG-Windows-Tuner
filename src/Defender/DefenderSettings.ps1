@@ -210,15 +210,16 @@ function Test-IgwtDefenderSettingValue {
 }
 
 function Get-IgwtDefenderSettingChoices {
-    <# .SYNOPSIS The selectable values of a bool or enum setting (Value, Label, Allowed, Why), for editors. Empty for typed values. #>
+    <# .SYNOPSIS The selectable values of a bool or enum setting (Value, Label, Allowed, Why), for editors: none is allowed when this PC cannot write the setting. Empty for typed values. #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Definition, [AllowNull()]$Current)
     $opts = @()
     if ([string]$Definition.type -eq 'bool') { $opts = @($true, $false) }
     elseif ([string]$Definition.type -eq 'enum') { $opts = @(Get-IgwtDefenderEnumValues -Definition $Definition | ForEach-Object { [long]$_.v }) }
     else { return @() }
+    $block = Get-IgwtDefenderSettingWriteBlock -Definition $Definition
     foreach ($o in $opts) {
-        $why = Test-IgwtDefenderSettingValue -Definition $Definition -Value $o -Current $Current
+        $why = $(if ($block) { $block } else { Test-IgwtDefenderSettingValue -Definition $Definition -Value $o -Current $Current })
         [pscustomobject]@{ Value = $o; Label = (Format-IgwtDefenderSettingValue -Definition $Definition -Value $o); Allowed = (-not $why); Why = [string]$why }
     }
 }
@@ -235,15 +236,17 @@ function Get-IgwtDefenderSettingChangePlan {
     <#
     .SYNOPSIS
         Dry run of Invoke-IgwtDefenderSettingChange: for each setting the current and new value,
-        whether it changes, and why it is refused (rules of Test-IgwtDefenderSettingValue, Defender
-        not active, or a policy or MDM that sets it). Read-only.
+        whether it changes, and why it is refused (rules of Test-IgwtDefenderSettingValue, a setting
+        this PC cannot write, Defender not active, or a policy or MDM that sets
+        it). Without the Defender commands every setting is refused; nothing throws. Read-only.
     .PARAMETER Setting
         Property name to value, for example @{ CloudBlockLevel = 'High'; ScanScheduleTime = '03:30' }.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$Setting)
     if ($Setting.Count -eq 0) { throw 'No Defender setting given.' }
-    $pref = Get-IgwtMpPreferenceSafe
+    $pref = $null
+    try { $pref = Get-IgwtMpPreferenceSafe } catch { Write-Verbose "Defender preferences unavailable: $($_.Exception.Message)" }
     $active = Test-IgwtDefenderActive
     $admx = $null
     try { $admx = Get-IgwtAdmxCatalog } catch { Write-Verbose "ADMX catalog unavailable: $($_.Exception.Message)" }
@@ -251,9 +254,10 @@ function Get-IgwtDefenderSettingChangePlan {
         $def = Get-IgwtDefenderSettingDefinition -Name ([string]$k)
         $mp = [string]$def.mp
         $value = ConvertTo-IgwtDefenderSettingValue -Definition $def -Value $Setting[$k]
-        $reported = [bool]$pref.PSObject.Properties[$mp]
+        $reported = ($null -ne $pref -and [bool]$pref.PSObject.Properties[$mp])
         $cur = $(if ($reported) { ConvertFrom-IgwtMpRawValue -Definition $def -Raw $pref.$mp } else { $null })
         $why = Test-IgwtDefenderSettingValue -Definition $def -Value $value -Current $cur
+        if (-not $why) { $why = Get-IgwtDefenderSettingWriteBlock -Definition $def }
         $pd = $null
         if ($def.policy -and $admx) { $pd = @($admx.Policies | Where-Object { $_.Id -eq [string]$def.policy }) | Select-Object -First 1 }
         $source = Get-IgwtDefenderSettingSource -Setting $def -PolicyDefinition $pd
@@ -320,25 +324,35 @@ function Invoke-IgwtDefenderSettingChange {
             $actions = @([ordered]@{ index = 0; type = 'defenderSetting'; fingerprint = "defenderSetting|$($row.Property)"; data = [ordered]@{ mp = $row.Property; value = $row.CurrentValue } })
             $change = "$($row.Current) -> $($row.New)"
             Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Applied' -Message $change
+            # Only the write itself decides 'Failed'. Once Set-MpPreference returned, the value may
+            # have changed, so a read-back error keeps the entry 'Applied' (with its undo).
             try {
                 Invoke-IgwtMpPreferenceWrite -Definition $def -Value $row.NewValue -Confirm:$false
+            } catch {
+                Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Failed' -Message $_.Exception.Message
+                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Failed'; Message = $_.Exception.Message })
+                Write-IgwtLog -Level Error -Message "Defender $($row.Property): $($_.Exception.Message)"
+                continue
+            }
+            try {
                 $after = ConvertFrom-IgwtMpRawValue -Definition $def -Raw (Get-IgwtMpPreferenceSafe).($row.Property)
                 if (Test-IgwtDefenderValueEqual -Definition $def -A $after -B $row.NewValue) {
                     $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Applied'; Message = '' })
                     Write-IgwtLog -Message "Defender $($row.Property): $change. Snapshot: $($snap.Path)"
                 } else {
                     $msg = "Defender still reports $(Format-IgwtDefenderSettingValue -Definition $def -Value $after): Tamper Protection or a policy keeps the earlier value."
+                    Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'NotApplied' -Message $msg
                     $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'NotApplied'; Message = $msg })
                     Write-IgwtLog -Level Warn -Message "Defender $($row.Property): $msg"
                 }
             } catch {
-                Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions $actions -Result 'Failed' -Message $_.Exception.Message
-                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Failed'; Message = $_.Exception.Message })
-                Write-IgwtLog -Level Error -Message "Defender $($row.Property): $($_.Exception.Message)"
+                $msg = "Written, but the new value could not be read back: $($_.Exception.Message)"
+                $results.Add([pscustomobject]@{ Target = $row.Name; Change = $change; Result = 'Applied'; Message = $msg })
+                Write-IgwtLog -Level Warn -Message "Defender $($row.Property): $change. $msg Snapshot: $($snap.Path)"
             }
         }
     }
-    return [pscustomobject]@{ Snapshot = $(if ($snap) { $snap.Path } else { $null }); Changes = $todo.Count; Results = $results.ToArray() }
+    return [pscustomobject]@{ Snapshot = $(if ($snap) { $snap.Path } else { $null }); Changes = @($results | Where-Object { $_.Result -eq 'Applied' }).Count; Results = $results.ToArray() }
 }
 
 function Restore-IgwtDefenderSettingSnapshot {
@@ -348,7 +362,9 @@ function Restore-IgwtDefenderSettingSnapshot {
         checked against the catalog (only settings the editor changes) and values against the
         setting type; the current values are saved in a new 'Defender' snapshot first. An earlier
         value that would turn a protection off or lower a protection level is not written back
-        (result Kept): the protection stays on, as with the Defender policy presets.
+        (result Kept): the protection stays on, as with the Defender policy presets. Only Applied
+        entries are restored: a write that failed or did not read back changed nothing, and writing
+        its earlier value could overwrite a later change.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$SnapshotPath)
@@ -357,7 +373,7 @@ function Restore-IgwtDefenderSettingSnapshot {
     $doc = Read-IgwtSnapshot -Path $SnapshotPath
     if ([string]$doc.operation -ne 'Defender') { throw 'This is not a Defender settings snapshot.' }
     $seen = @{}
-    $entries = @($doc.entries | Where-Object { $_ -and [string]$_.result -in 'Applied', 'Failed' } | Where-Object { $k = [string]$_.tweakId; if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true } })
+    $entries = @($doc.entries | Where-Object { $_ -and [string]$_.result -eq 'Applied' } | Where-Object { $k = [string]$_.tweakId; if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true } })
     [array]::Reverse($entries)
     $results = New-Object System.Collections.Generic.List[object]
     if ($entries.Count -eq 0 -or -not $PSCmdlet.ShouldProcess("$($entries.Count) Defender setting(s) from $(Split-Path $SnapshotPath -Leaf)", 'Revert')) { return [pscustomobject]@{ Snapshot = $null; Results = @() } }
@@ -366,6 +382,7 @@ function Restore-IgwtDefenderSettingSnapshot {
     foreach ($e in $entries) {
         $tid = [string]$e.tweakId
         foreach ($a in @($e.actions | Where-Object { $_ })) {
+            $undoActions = $null
             try {
                 if ([string]$a.type -ne 'defenderSetting') { throw "Unknown Defender snapshot action '$($a.type)'." }
                 $def = Get-IgwtDefenderSettingDefinition -Name ([string]$a.data.mp)
@@ -381,10 +398,15 @@ function Restore-IgwtDefenderSettingSnapshot {
                         continue
                     }
                 }
-                Add-IgwtSnapshotEntry -Snapshot $undo -TweakId $tid -Actions @([ordered]@{ index = 0; type = 'defenderSetting'; fingerprint = "defenderSetting|$($def.mp)"; data = [ordered]@{ mp = [string]$def.mp; value = $cur } }) -Result 'Applied' -Message 'before revert'
-                if (-not (Test-IgwtDefenderValueEqual -Definition $def -A $cur -B $value)) { Invoke-IgwtMpPreferenceWrite -Definition $def -Value $value -Confirm:$false }
+                # A value that is already right writes nothing, so the undo snapshot records nothing for it.
+                if (-not (Test-IgwtDefenderValueEqual -Definition $def -A $cur -B $value)) {
+                    $undoActions = @([ordered]@{ index = 0; type = 'defenderSetting'; fingerprint = "defenderSetting|$($def.mp)"; data = [ordered]@{ mp = [string]$def.mp; value = $cur } })
+                    Add-IgwtSnapshotEntry -Snapshot $undo -TweakId $tid -Actions $undoActions -Result 'Applied' -Message 'before revert'
+                    Invoke-IgwtMpPreferenceWrite -Definition $def -Value $value -Confirm:$false
+                }
                 $results.Add([pscustomobject]@{ Id = $tid; Result = 'Reverted'; Message = '' })
             } catch {
+                if ($undoActions) { Add-IgwtSnapshotEntry -Snapshot $undo -TweakId $tid -Actions $undoActions -Result 'Failed' -Message $_.Exception.Message }
                 $results.Add([pscustomobject]@{ Id = $tid; Result = 'Failed'; Message = $_.Exception.Message })
                 Write-IgwtLog -Level Error -Message "Defender revert of ${tid}: $($_.Exception.Message)"
             }

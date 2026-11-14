@@ -25,6 +25,49 @@ function Get-IgwtMpPreferenceSafe {
     return (Get-IgwtCached -Key 'mp:pref' -ScriptBlock { Get-MpPreference -ErrorAction Stop })
 }
 
+function Get-IgwtMpWriteParameterInfo {
+    <#
+    .SYNOPSIS
+        What Set-MpPreference accepts on this PC, read from the command itself and cached:
+        Available (the command exists) and Names (its parameters). Never throws: without the Defender
+        commands (another antivirus, a stripped image) Available is false. Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    return (Get-IgwtCached -Key 'mpwrite:parameters' -TtlSeconds 900 -ScriptBlock {
+            $names = @()
+            try {
+                $cmd = Get-Command -Name 'Set-MpPreference' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($cmd) { $names = @($cmd.Parameters.Keys | ForEach-Object { [string]$_ }) }
+            } catch { Write-Verbose "Set-MpPreference could not be read: $($_.Exception.Message)" }
+            [pscustomobject]@{ Available = ($names.Count -gt 0); Names = $names }
+        })
+}
+
+function Test-IgwtMpPreferenceWritable {
+    <# .SYNOPSIS True when Set-MpPreference on this PC has a parameter for this preference (case-insensitive). Never throws. Read-only. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $info = Get-IgwtMpWriteParameterInfo
+    return ([bool]$info.Available -and @($info.Names) -contains $Name)
+}
+
+function Get-IgwtDefenderSettingWriteBlock {
+    <#
+    .SYNOPSIS
+        Why this PC cannot write a catalog setting that goes through Set-MpPreference (edit set or
+        parser), as plain text, or $null when it can. Settings with another route are not its concern:
+        Test-IgwtDefenderSettingValue explains those. Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Definition)
+    if ([string]$Definition.edit -notin 'set', 'parser') { return $null }
+    if (-not [bool](Get-IgwtMpWriteParameterInfo).Available) { return 'The Microsoft Defender commands are not available on this PC (another antivirus may have replaced Defender), so this setting cannot be changed here.' }
+    if (Test-IgwtMpPreferenceWritable -Name ([string]$Definition.mp)) { return $null }
+    return 'Windows on this PC does not support changing this setting yet.'
+}
+
 function Get-IgwtMpStatusSafe {
     [CmdletBinding()]
     param()
@@ -116,16 +159,23 @@ function Get-IgwtDefenderSettings {
         Every catalog Defender setting that exists on this platform version: category, current
         value (raw and as shown), the protective value, status (On, Off, Below, Optional, Info), who
         manages it, the ADMX policy, how it can be changed and the values the editor may set.
-        Settings that Get-MpPreference does not report are left out. Read-only.
+        Settings that Get-MpPreference does not report are left out; a setting this PC's
+        Set-MpPreference cannot write is listed as not changeable here (Supported false). Read-only.
+    .PARAMETER Category
+        Only settings of this catalog category.
+    .PARAMETER PolicyIndex
+        ADMX policy id -> policy (built here when not given).
     #>
     [CmdletBinding()]
-    param([string]$Category)
+    param([string]$Category, [hashtable]$PolicyIndex)
     $cat = Get-IgwtDefenderSettingCatalog
     $pref = $null; $err = ''
     try { $pref = Get-IgwtMpPreferenceSafe } catch { $err = $_.Exception.Message }
     if (-not $pref) { throw "Defender preferences are unavailable: $err" }
     $admx = $null
     try { $admx = Get-IgwtAdmxCatalog } catch { Write-Verbose "ADMX catalog unavailable: $($_.Exception.Message)" }
+    # 3.8 (DECISIONS SM35): one id lookup table instead of a scan of every policy per setting.
+    if (-not $PolicyIndex -and $admx) { $PolicyIndex = @{}; foreach ($p in @($admx.Policies)) { if ($p -and -not $PolicyIndex.ContainsKey([string]$p.Id)) { $PolicyIndex[[string]$p.Id] = $p } } }
     $catNames = @{}
     foreach ($c in @($cat.categories)) { $catNames[[string]$c.id] = [string]$c.name }
     foreach ($s in @($cat.settings)) {
@@ -133,23 +183,28 @@ function Get-IgwtDefenderSettings {
         if (-not $pref.PSObject.Properties[[string]$s.mp]) { continue }
         $cur = ConvertFrom-IgwtMpRawValue -Definition $s -Raw $pref.([string]$s.mp)
         $pd = $null
-        if ($s.policy -and $admx) { $pd = @($admx.Policies | Where-Object { $_.Id -eq [string]$s.policy }) | Select-Object -First 1 }
+        if ($s.policy -and $PolicyIndex) { $pd = $PolicyIndex[[string]$s.policy] }
         $source = Get-IgwtDefenderSettingSource -Setting $s -PolicyDefinition $pd
         $edit = [string]$s.edit
+        $block = Get-IgwtDefenderSettingWriteBlock -Definition $s
+        # A value nobody can change here is not something to act on: shown as information, not as a gap.
+        $status = Get-IgwtDefenderSettingStatus -Definition $s -Value $cur
+        if ($block -and $status -ne 'On') { $status = 'Info' }
         $change = switch ($edit) {
             'parser' { 'Network Inspection parser: turned on with -DefenderParsersOn or -DefenderSet (never off).' }
             'set' { $(if ($source -eq 'Local') { "-DefenderSet `"$($s.mp)=<value>`" (snapshot, revert in Backups)." } else { "Set by $source; change it there$(if ($pd -and $source -like '*GPO*') { " or with -PolicySet $($pd.Id)" })." }) }
             'policy' { "Group Policy only: -PolicySet $($s.policy)." }
             default { $(if ($s.note) { [string]$s.note } else { 'Shown only.' }) }
         }
+        if ($block) { $change = $block }
         [pscustomobject]@{
             Category = [string]$s.category; CategoryName = [string]$catNames[[string]$s.category]; Name = [string]$s.name; Property = [string]$s.mp
             Kind = [string]$s.kind; Type = [string]$s.type; Edit = $edit
             Current = $cur; Display = (Format-IgwtDefenderSettingValue -Definition $s -Value $cur)
             Protective = $s.on; ProtectiveDisplay = $(if ($null -ne $s.on) { Format-IgwtDefenderSettingValue -Definition $s -Value (ConvertTo-IgwtDefenderSettingValue -Definition $s -Value $s.on) } else { '' })
-            Status = (Get-IgwtDefenderSettingStatus -Definition $s -Value $cur); Hint = [string]$s.hint; Note = [string]$s.note
+            Status = $status; Hint = [string]$s.hint; Note = [string]$s.note
             Source = $source; Policy = $(if ($pd) { $pd.Id } elseif ($s.policy) { [string]$s.policy } else { '' })
-            Editable = ($edit -in 'set', 'parser' -and $source -eq 'Local')
+            Editable = ($edit -in 'set', 'parser' -and $source -eq 'Local' -and -not $block); Supported = (-not $block)
             Choices = @(Get-IgwtDefenderSettingChoices -Definition $s -Current $cur)
             Unit = [string]$s.unit; Min = $s.min; Max = $s.max
             Doc = (Get-IgwtDefenderSettingDoc -Definition $s)
@@ -166,7 +221,7 @@ function Get-IgwtDefenderSettings {
                 Category = 'advanced'; CategoryName = [string]$catNames['advanced']; Name = [string]$p.Name; Property = [string]$p.Name
                 Kind = 'info'; Type = 'text'; Edit = 'readonly'; Current = $p.Value; Display = $shown; Protective = $null; ProtectiveDisplay = ''
                 Status = 'Info'; Hint = 'A Defender preference this version of iG Windows Tuner does not describe yet.'; Note = $note
-                Source = 'Local'; Policy = ''; Editable = $false; Choices = @(); Unit = ''; Min = $null; Max = $null
+                Source = 'Local'; Policy = ''; Editable = $false; Supported = $true; Choices = @(); Unit = ''; Min = $null; Max = $null
                 Doc = [string]$cat.docs.mp; Change = $note
             }
         }
@@ -185,6 +240,8 @@ function Invoke-IgwtMpPreferenceWrite {
     Assert-IgwtWritable -Operation 'Invoke-IgwtMpPreferenceWrite'
     $mp = [string]$Definition.mp
     if ([string]$Definition.edit -ne 'set') { throw "Defender $mp is not written by the settings editor." }
+    $block = Get-IgwtDefenderSettingWriteBlock -Definition $Definition
+    if ($block) { throw $block }
     $arg = @{ ErrorAction = 'Stop' }
     switch ([string]$Definition.type) {
         'bool' { $arg[$mp] = [bool]$Value }
@@ -204,7 +261,8 @@ function Set-IgwtDefenderParsersOn {
     .SYNOPSIS
         Turns ON Network Inspection parsers, inbound connection filtering, datagram processing and
         the DNS sinkhole that are off (catalog kind 'parser'), with Set-MpPreference. One-way by
-        design: iG Windows Tuner never turns an inspection parser off, so there is no revert.
+        design: iG Windows Tuner never turns an inspection parser off, so there is no revert. A parser
+        this PC's Set-MpPreference cannot write is skipped and named in the result (Unsupported).
     .PARAMETER Name
         Limit to these Get-MpPreference properties (default: every parser that is off).
     #>
@@ -221,6 +279,11 @@ function Set-IgwtDefenderParsersOn {
         if ($unknown.Count) { throw "Not a Network Inspection parser setting: $($unknown -join ', ')." }
         $parsers = @($parsers | Where-Object { $Name -contains $_.mp })
     }
+    $unsupported = @($parsers | Where-Object { Get-IgwtDefenderSettingWriteBlock -Definition $_ })
+    if ($unsupported.Count) {
+        $parsers = @($parsers | Where-Object { $unsupported -notcontains $_ })
+        Write-IgwtLog -Level Warn -Message "Network Inspection parsers this PC cannot change: $(@($unsupported | ForEach-Object { [string]$_.name }) -join ', ')"
+    }
     $todo = @($parsers | Where-Object { [string]$pref.([string]$_.mp) -ne [string]$_.on })
     $done = New-Object System.Collections.Generic.List[string]
     foreach ($p in $todo) {
@@ -231,7 +294,7 @@ function Set-IgwtDefenderParsersOn {
         $done.Add([string]$p.name)
     }
     if ($done.Count) { Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false; Write-IgwtLog -Message "Network Inspection turned on: $($done -join ', ')" }
-    return [pscustomobject]@{ TurnedOn = $done.ToArray(); AlreadyOn = @($parsers | Where-Object { $todo -notcontains $_ } | ForEach-Object { [string]$_.name }) }
+    return [pscustomobject]@{ TurnedOn = $done.ToArray(); AlreadyOn = @($parsers | Where-Object { $todo -notcontains $_ } | ForEach-Object { [string]$_.name }); Unsupported = @($unsupported | ForEach-Object { [string]$_.name }) }
 }
 
 #endregion

@@ -1,0 +1,1 @@
+{ "VirtualizationBasedSecurityStatus": 2, "AvailableSecurityProperties": [1, 2, 3, 7], "SecurityServicesConfigured": [2, 5], "SecurityServicesRunning": [2, 5], "CodeIntegrityPolicyEnforcementStatus": 2 }

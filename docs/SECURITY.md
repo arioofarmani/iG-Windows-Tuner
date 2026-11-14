@@ -46,3 +46,5 @@ A revert writes values back with administrator rights, so the snapshot files are
 ## Reporting a problem
 
 If iG Windows Tuner changed something it should not have, open **Backups & Logs**: every change is in a JSON snapshot and in `%ProgramData%\iGWindowsTuner\Logs`. `-RevertAll -Snapshot <file>` restores any snapshot. The System Restore point created before each apply is a second line of defense.
+
+The Security Settings Manager (3.8.1) shows the Windows PowerShell 'Turn on Script Execution' policy read-only, so the machine and user execution policies stay as they are (DECISIONS SM16).

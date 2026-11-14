@@ -16,6 +16,8 @@ Describe '3.3 professional pass: remaining sections' {
             foreach ($t in $Tags) { $grouped | Should -Contain $t -Because "$t needs a navigation group" }
             Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = '#group:Start' }) | Should -BeTrue
             Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = 'Dashboard' }) | Should -BeFalse
+            $clean = @($script:IgwtGuiNavGroups['Clean'])
+            [array]::IndexOf($clean, 'RegistryCleaner') | Should -Be ([array]::IndexOf($clean, 'Cleaner') + 1) -Because 'Registry cleaner sits in Clean, after Cleaner (RG23)'
         }
     }
 
