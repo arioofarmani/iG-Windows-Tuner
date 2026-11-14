@@ -185,21 +185,20 @@ Prefer the command line? Start with what changes nothing:
 
 You should not have to take our word for it, so here is what the scanners say, including the part that is less tidy, and how to check the app yourself.
 
-### VirusTotal results for 3.6.5
+### VirusTotal results for 3.8.1
 
 | File | Result | What it is |
 |---|---|---|
-| [`iGWindowsTuner.ps1`](https://www.virustotal.com/gui/file/a0ae584f95081ed1340bfafc892579e7bf9be3501cd09af74b632242581413d8?nocache=1) | ✅ **0 of 60** vendors flagged it | The main script |
-| [`Start-iGWindowsTuner.cmd`](https://www.virustotal.com/gui/file/11e4ed3e3adc09c146683c668c5fd401ef2ab0c6afea93c7dfd673046cc66110?nocache=1) | ✅ **0 of 60** vendors flagged it | The 721-byte launcher |
-| [`iGWindowsTuner-3.6.5.zip`](https://www.virustotal.com/gui/file/3ff339c805e8b8f61de5792111e8611d2042ecd60039b0f76eb3b6edb9d40f7e) | ⚠️ **6 of 66** vendors flagged it | The complete release package |
+| [`iGWindowsTuner-3.8.1.zip`](https://www.virustotal.com/gui/file/7d27fc4ab3a63a1d992f59c513698a8b2c078e9408bab0f7a17951f0f8c4aa9d?nocache=1) | ⚠️ **6 of 65** vendors flagged it | The complete release package |
+| [`Start-iGWindowsTuner.cmd`](https://www.virustotal.com/gui/file/11e4ed3e3adc09c146683c668c5fd401ef2ab0c6afea93c7dfd673046cc66110?nocache=1) | ✅ **0 of 60** vendors flagged it | The 721-byte launcher (unchanged since 3.6.5, same file) |
 
-Results checked on 6 November 2026 for 3.6.5. The 3.8.1 results will be added here after its scan. They can change, so open the links for the current numbers.
+Results checked on 14 November 2026. The 3.8.1 main script has not been scanned on its own yet; the [3.6.5 main script](https://www.virustotal.com/gui/file/a0ae584f95081ed1340bfafc892579e7bf9be3501cd09af74b632242581413d8?nocache=1) scanned clean (0 of 60). Results can change, so open the links for the current numbers.
 
-**About the 6 flags on the zip.** Arcabit, BitDefender, Emsisoft, GData and VIPRE report the same heuristic name, `CMD:Heur.BZC.PZQ.Boxter`, and CTX reports `Zip.unknown.boxter`. "Heur" means a rule matched a pattern, not that the file matched known malware. We believe this is a false positive, but you can judge for yourself:
+**About the 6 flags on the zip.** Arcabit, BitDefender, Emsisoft, GData and VIPRE report the same heuristic name, `Heur.BZC.PZQ.Boxter`, and CTX reports `Zip.unknown.boxter`: the same six vendors and the same rule as for 3.6.5. "Heur" means a rule matched a pattern, not that the file matched known malware. We believe this is a false positive, but you can judge for yourself:
 
 - The zip holds exactly one command script, the launcher above, and it scans clean by itself.
 - That launcher starts PowerShell with `-ExecutionPolicy Bypass`, for that one process only, because the scripts are not signed. Your machine and user execution policies are never changed. [Read all 12 lines](Start-iGWindowsTuner.cmd).
-- Antivirus results are not proof either way, and the two clean results above cover only those two files. If a flag concerns you, read the source or try the app in a virtual machine first.
+- Antivirus results are not proof either way, and the clean result above covers only the launcher. If a flag concerns you, read the source or try the app in a virtual machine first.
 
 ### Check it yourself
 
