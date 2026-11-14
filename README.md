@@ -214,7 +214,6 @@ Get-FileHash .\iGWindowsTuner-3.6.5.zip -Algorithm SHA256
 - **No persistence.** No service and no scheduled task. Checks run while the app is open.
 - **Readable.** PowerShell and JSON, plus small C# helpers in plain source, compiled on your PC. Nothing is downloaded or decoded at run time.
 - **Tested.** 1,076 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
-- **Honest limits.** The automated tests use mocks and a test registry. Version 3.6.5 has been used on a real gaming PC, but a full end-to-end run in Windows Sandbox is still to come. An administrator who rewrites the whole journal consistently cannot be detected.
 
 > [!IMPORTANT]
 > System tuning can affect stability, security and compatibility. Create a backup before significant changes, measure before and after, and check that your games still work. The built-in undo is not a replacement for a complete backup. This project is a preview, provided as-is.
