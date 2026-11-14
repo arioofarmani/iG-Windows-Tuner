@@ -6,10 +6,10 @@
 
 Tune performance, security and privacy for competitive gaming, with every change previewed, recorded and reversible.
 
-[![Latest release](https://img.shields.io/badge/release-v3.6.5-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v3.8.1-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
 ![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
-![Tests](https://img.shields.io/badge/tests-1%2C076%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/tests-1%2C460%20passing-2EA44F)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-see%20the%20results-394EFF)](#is-it-safe-to-run)
@@ -19,7 +19,7 @@ Tune performance, security and privacy for competitive gaming, with every change
 <table>
 <tr>
 <td align="center" width="25%"><h3>129</h3>catalog items, each with its sources</td>
-<td align="center" width="25%"><h3>1,076</h3>automated tests</td>
+<td align="center" width="25%"><h3>1,460</h3>automated tests</td>
 <td align="center" width="25%"><h3>3 levels</h3>of undo: change, session or everything</td>
 <td align="center" width="25%"><h3>0</h3>telemetry, services or scheduled tasks</td>
 </tr>
@@ -32,6 +32,25 @@ Tune performance, security and privacy for competitive gaming, with every change
 Most Windows optimizers ask you to trust a list of tweaks. iG Windows Tuner works differently: every setting cites its source, every change is previewed, the result is read back from Windows, and the value from before can be restored exactly, including values that did not exist.
 
 It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are documented as [rejected](docs/REJECTED_TWEAKS.md), with the reason.
+
+## New in 3.8.1
+
+Three new tools, built on the same change journal as everything else: previewed, backed up, read back and undoable.
+
+<table>
+<tr>
+<td width="33%"><img src="docs/screenshots/3.8/registry-cleaner.png" alt="Registry cleaner: entries left behind by uninstalled programs, grouped by program and category, each marked Safe or Review with its evidence"></td>
+<td width="33%"><img src="docs/screenshots/3.8/security-settings.png" alt="Security settings: every security policy, Defender preference, ASR rule and audit setting with its value, origin and an editor for the selected setting"></td>
+<td width="33%"><img src="docs/screenshots/3.8/startup-apps.png" alt="Startup apps: turn entries on or off, delete them with a backup, open the file location and see a missing file"></td>
+</tr>
+<tr>
+<td valign="top"><b>Registry cleaner.</b> Finds entries left behind by programs that are gone, shows the evidence, and removes only what you tick. Every removal is backed up and can be restored. Windows, security software, drivers, anti-cheats and runtimes are never offered. No speed claims.</td>
+<td valign="top"><b>Security settings.</b> Every security Group Policy, Defender preference, ASR rule, security option and audit setting in one list, with where its value comes from. Domain, MDM and Tamper Protection values stay read-only; values that turn protection off are refused.</td>
+<td valign="top"><b>Startup apps.</b> Turn entries on or off, or delete them with a backup and Undo. Open the file location, copy the command and spot entries whose file is missing.</td>
+</tr>
+</table>
+
+<sub>The 3.8.1 screenshots are offscreen renders with sample data (fictional programs and hardware).</sub>
 
 ## Why people use it
 
@@ -99,6 +118,7 @@ iG Windows Tuner is built for people who want to know exactly what changed and g
 | **Anti-cheat information** | Per item; gaming presets use safe items only | Not described | States compatibility with VAC | Not described |
 | **Firewall rule manager** | Yes, with risk findings | Not described | Not described | Not described |
 | **Group Policy browser and editor** | Yes | Not described | Shows its policies in gpedit | Not described |
+| **Registry cleaner with restore** | Leftovers only, with evidence and a backup | Not described | Not described | Not described |
 
 ### When another tool is the better choice
 
@@ -125,6 +145,7 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 - Firewall Manager: every rule classified, risk findings, conflict analysis, an open ports map and safe fixes
 - Firewall log reader, time-boxed forensic logging that restores every setting, and evidence export with SHA256 hashes
 - Group Policy browser, security and audit policy, and compliance baselines
+- Security settings manager: every security setting with its origin, an editor for each value kind and typed confirmation for high-risk changes such as VBS and BitLocker
 
 **Safety net**
 - Change journal: every change by session, hash-chained so edits are detected
@@ -134,7 +155,9 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 - Changes that cannot be undone (removed apps, cleaned files) are recorded and marked as such
 
 **Maintenance and diagnostics**
-- Cleaner with allow-listed rules, disk analyzer and startup apps
+- Cleaner with allow-listed rules and disk analyzer
+- Registry cleaner for leftovers of uninstalled programs, with evidence, backups and restore
+- Startup apps: turn on or off, or delete with a backup and Undo
 - Services, scheduled tasks, apps and persistence inspector
 - Reliability, crashes, boot time, drivers, DPC/ISR, and an HTML health report
 - App installs through winget, Windows features and previewed repair fixes
@@ -143,7 +166,7 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 
 **Requirements:** Windows 11 24H2 or newer (build 26100+). Windows PowerShell 5.1 is included with Windows; nothing else to install.
 
-1. Download `iGWindowsTuner-3.6.5.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
+1. Download `iGWindowsTuner-3.8.1.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
 2. Extract it. Files from a downloaded zip carry Mark-of-the-Web: review them, then run `Unblock-File` if you trust them.
 3. Run `Start-iGWindowsTuner.cmd`.
 4. Look around first. Without administrator rights the app is read-only, and nothing changes until you press **Apply**.
@@ -170,7 +193,7 @@ You should not have to take our word for it, so here is what the scanners say, i
 | [`Start-iGWindowsTuner.cmd`](https://www.virustotal.com/gui/file/11e4ed3e3adc09c146683c668c5fd401ef2ab0c6afea93c7dfd673046cc66110?nocache=1) | ✅ **0 of 60** vendors flagged it | The 721-byte launcher |
 | [`iGWindowsTuner-3.6.5.zip`](https://www.virustotal.com/gui/file/3ff339c805e8b8f61de5792111e8611d2042ecd60039b0f76eb3b6edb9d40f7e) | ⚠️ **6 of 66** vendors flagged it | The complete release package |
 
-Results checked on 6 November 2026. They can change, so open the links for the current numbers.
+Results checked on 6 November 2026 for 3.6.5. The 3.8.1 results will be added here after its scan. They can change, so open the links for the current numbers.
 
 **About the 6 flags on the zip.** Arcabit, BitDefender, Emsisoft, GData and VIPRE report the same heuristic name, `CMD:Heur.BZC.PZQ.Boxter`, and CTX reports `Zip.unknown.boxter`. "Heur" means a rule matched a pattern, not that the file matched known malware. We believe this is a false positive, but you can judge for yourself:
 
@@ -180,10 +203,10 @@ Results checked on 6 November 2026. They can change, so open the links for the c
 
 ### Check it yourself
 
-**Confirm your download is the published file.** The result must be `3FF339C805E8B8F61DE5792111E8611D2042ECD60039B0F76EB3B6EDB9D40F7E`:
+**Confirm your download is the published file.** The result must be `7D27FC4AB3A63A1D992F59C513698A8B2C078E9408BAB0F7A17951F0F8C4AA9D`:
 
 ```powershell
-Get-FileHash .\iGWindowsTuner-3.6.5.zip -Algorithm SHA256
+Get-FileHash .\iGWindowsTuner-3.8.1.zip -Algorithm SHA256
 ```
 
 **Look without changing anything.** Read-only mode blocks every change inside the app's engine:
@@ -213,7 +236,7 @@ Get-FileHash .\iGWindowsTuner-3.6.5.zip -Algorithm SHA256
 - **No telemetry.** The network is used only when you ask: the network test, DNS benchmark and winget.
 - **No persistence.** No service and no scheduled task. Checks run while the app is open.
 - **Readable.** PowerShell and JSON, plus small C# helpers in plain source, compiled on your PC. Nothing is downloaded or decoded at run time.
-- **Tested.** 1,076 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
+- **Tested.** 1,460 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
 
 > [!IMPORTANT]
 > System tuning can affect stability, security and compatibility. Create a backup before significant changes, measure before and after, and check that your games still work. The built-in undo is not a replacement for a complete backup. This project is a preview, provided as-is.
@@ -224,6 +247,7 @@ Get-FileHash .\iGWindowsTuner-3.6.5.zip -Algorithm SHA256
 - [Tweak catalog and evidence](docs/TWEAKS.md) · [Presets](docs/PRESETS.md) · [Rejected tweaks and why](docs/REJECTED_TWEAKS.md)
 - [Anti-cheat compatibility](docs/ANTICHEAT.md) · [Security and design principles](docs/SECURITY.md)
 - [Firewall Manager](docs/FIREWALL.md) · [Firewall logs and forensics](docs/FIREWALL_LOGS.md)
+- [Registry cleaner](docs/REGISTRY_CLEANER.md) · [Security settings](docs/SECURITY_SETTINGS.md)
 - [Design decisions](docs/DECISIONS.md) · [Independent reviews](docs/REVIEW.md) · [Testing](docs/TESTING.md) · [Changelog](docs/CHANGELOG.md)
 
 ## Contributing
