@@ -266,6 +266,7 @@ function Invoke-IgwtJournalCompaction {
     $cp.hash = Get-IgwtJournalCheckpointHash -Checkpoint $cp
     $p = Join-Path (Get-IgwtJournalFolder) 'checkpoint.json'
     [System.IO.File]::WriteAllText("$p.tmp", (ConvertTo-Json -InputObject $cp -Compress -Depth 14), (New-Object System.Text.UTF8Encoding($false)))
+    Set-IgwtAdminOwner -Path "$p.tmp"
     Move-Item -LiteralPath "$p.tmp" -Destination $p -Force
     foreach ($f in $fold) { Remove-Item -LiteralPath $f -Force }
     $script:IgwtJournal = $null
@@ -280,6 +281,7 @@ function Write-IgwtJournalHead {
     param([Parameter(Mandatory = $true)][long]$Seq, [Parameter(Mandatory = $true)][string]$Hash)
     $p = Join-Path (Get-IgwtJournalFolder) 'head.json'
     [System.IO.File]::WriteAllText("$p.tmp", (ConvertTo-Json -InputObject ([ordered]@{ seq = $Seq; hash = $Hash }) -Compress), (New-Object System.Text.UTF8Encoding($false)))
+    Set-IgwtAdminOwner -Path "$p.tmp"
     Move-Item -LiteralPath "$p.tmp" -Destination $p -Force
 }
 
@@ -341,7 +343,7 @@ function Add-IgwtJournalEntry {
     $dir = Get-IgwtJournalFolder
     if (-not (Test-Path -LiteralPath $dir)) {
         $null = New-Item -ItemType Directory -Path $dir -Force
-        if (-not $script:IgwtSettings.TestMode) { Protect-IgwtDataRoot -Path $dir -Confirm:$false }
+        if (-not $script:IgwtSettings.TestMode) { Protect-IgwtDataRoot -Path $dir -Confirm:$false; Set-IgwtAdminOwner -Path $dir }
     }
     $segment = $j.Segment
     $segLines = [int]$j.SegmentLines
@@ -381,6 +383,8 @@ function Add-IgwtJournalEntry {
         catch [System.IO.IOException] { if ($try -ge 5) { throw }; Start-Sleep -Milliseconds (40 * $try) }
     }
     try { $fs.Write($bytes, 0, $bytes.Length); $fs.Flush($true) } finally { $fs.Dispose() }
+    # A new segment file: Administrators as owner, so the trust check accepts it (review 3.8.1 S1).
+    if ($segLines -eq 0) { Set-IgwtAdminOwner -Path $segment }
     $j.Hash = Get-IgwtJournalHash -Line $line; $j.Seq = [long]$o.seq; $j.Count = $j.Seq; $j.Status = 'Ok'
     $j.Segment = $segment; $j.SegmentLines = $segLines + $prefix.Count + 1; $j.NeedsBreak = $false
     Write-IgwtJournalHead -Seq $j.Seq -Hash $j.Hash

@@ -67,6 +67,7 @@ function Save-IgwtSnapshot {
     $json = ConvertTo-Json -InputObject $Snapshot.Document -Depth 25
     $tmp = "$($Snapshot.Path).tmp"
     [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
+    Set-IgwtAdminOwner -Path $tmp
     Move-Item -LiteralPath $tmp -Destination $Snapshot.Path -Force
 }
 

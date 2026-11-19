@@ -126,6 +126,7 @@ function New-IgwtPrivateBackupFolder {
     } catch {
         throw "Backup failed: the private folder could not be created ($($_.Exception.Message)); nothing changed."
     }
+    Set-IgwtAdminOwner -Path $full
     $ok = $false
     $why = 'its permissions are not the private ones'
     try { $ok = Test-IgwtPrivateFolderSecurity -Security (Get-IgwtDirectorySecurity -Path $full) -UserSid $UserSid } catch { $why = "its permissions cannot be read ($($_.Exception.Message))" }

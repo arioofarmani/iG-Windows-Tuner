@@ -231,14 +231,21 @@ function Protect-IgwtDataRoot {
     }
 }
 
+# SYSTEM, Administrators and TrustedInstaller: the only owners and the only writers of a file iG
+# restores from (review 3.8.1 S1). The current user is NOT trusted: with UAC admin approval the
+# non-elevated and the elevated token share the user SID, so a file the user's own non-elevated
+# programs create would otherwise pass.
+$script:IgwtTrustedPrincipals = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+
 function Test-IgwtSecurityDescriptorTrusted {
     <#
     .SYNOPSIS
-        True when a file or folder security descriptor is owned by SYSTEM, Administrators,
-        TrustedInstaller or the current user and gives low-privilege groups no write access. Reading
-        is fine: only the exact write bits count (the composite Modify and FullControl also contain
-        read bits, so a mask built from them takes "Users: read" for write access). Works on SIDs,
-        so it does not depend on the Windows language. Pure.
+        True when a file or folder security descriptor is owned by SYSTEM, Administrators or
+        TrustedInstaller and gives write access to nobody else. Reading is fine: only the exact
+        write bits count (the composite Modify and FullControl also contain read bits, so a mask
+        built from them takes "Users: read" for write access). Inherit-only entries (for example
+        CREATOR OWNER on a folder) do not apply to the object itself and are skipped. Works on
+        SIDs, so it does not depend on the Windows language. Pure.
     #>
     [CmdletBinding()]
     [OutputType([bool])]
@@ -246,18 +253,73 @@ function Test-IgwtSecurityDescriptorTrusted {
     $sidType = [System.Security.Principal.SecurityIdentifier]
     $owner = $Acl.GetOwner($sidType)
     if ($null -eq $owner) { return $false }
-    $trustedOwners = @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464', [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
-    if ($trustedOwners -notcontains $owner.Value) { return $false }
-    # Everyone, Authenticated Users, Users, Interactive, Guests.
-    $lowPriv = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-32-546')
+    if ($script:IgwtTrustedPrincipals -notcontains $owner.Value) { return $false }
     # WriteData, AppendData, WriteExtendedAttributes, DeleteSubdirectoriesAndFiles, WriteAttributes, Delete,
     # ChangePermissions, TakeOwnership, and the generic GENERIC_ALL and GENERIC_WRITE.
     [long]$writeBits = 0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
     foreach ($rule in $Acl.GetAccessRules($true, $true, $sidType)) {
         if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
-        if ($lowPriv -contains $rule.IdentityReference.Value -and (([long][int]$rule.FileSystemRights) -band $writeBits) -ne 0) { return $false }
+        if (($rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
+        if ($script:IgwtTrustedPrincipals -notcontains $rule.IdentityReference.Value -and (([long][int]$rule.FileSystemRights) -band $writeBits) -ne 0) { return $false }
     }
     return $true
+}
+
+function Test-IgwtPathTrustedChain {
+    <#
+    .SYNOPSIS
+        True when a file and every folder above it, up to and including -Root, pass
+        Test-IgwtTrustedFile, and the file lies under -Root. A trusted file in a folder that a
+        standard user can write could be replaced, so every level counts (review 3.8.1 S1).
+        Read-only.
+    .PARAMETER Path
+        The file (or folder) to check.
+    .PARAMETER Root
+        The protected folder the chain must end at (for example the data root).
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Root)
+    try {
+        $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+        $top = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
+    } catch { return $false }
+    if (-not [string]::Equals($full, $top, [System.StringComparison]::OrdinalIgnoreCase) -and -not (Test-IgwtPathUnder -Path $full -Parent $top)) { return $false }
+    $p = $full
+    while ($true) {
+        if (-not (Test-IgwtTrustedFile -Path $p)) { return $false }
+        if ([string]::Equals($p, $top, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        $parent = [System.IO.Path]::GetDirectoryName($p)
+        if (-not $parent -or $parent.Length -ge $p.Length) { return $false }
+        $p = $parent.TrimEnd('\')
+    }
+}
+
+function Set-IgwtAdminOwner {
+    <#
+    .SYNOPSIS
+        Makes Administrators the owner of a file iG just wrote (snapshot, journal), when elevated.
+        Windows normally does this already; with the policy "Default owner for objects created by
+        members of the Administrators group" set to "Object creator", the file would be owned by
+        the user and then refused by Test-IgwtSecurityDescriptorTrusted. A failure is logged, not
+        thrown: the trust check refuses the file later with a clear reason.
+    .PARAMETER Path
+        The file or folder.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Sets the owner of a file the tool itself just wrote.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ($script:IgwtSettings.TestMode -or -not (Test-IgwtIsAdmin)) { return }
+    try {
+        $admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+        $isDir = [System.IO.Directory]::Exists($Path)
+        $cur = $(if ($isDir) { [System.IO.Directory]::GetAccessControl($Path, [System.Security.AccessControl.AccessControlSections]::Owner) } else { [System.IO.File]::GetAccessControl($Path, [System.Security.AccessControl.AccessControlSections]::Owner) })
+        if ($cur.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq $admins.Value) { return }
+        # A new security object with only the owner set: Persist writes only the modified section, so the DACL stays as it is.
+        $sd = $(if ($isDir) { New-Object System.Security.AccessControl.DirectorySecurity } else { New-Object System.Security.AccessControl.FileSecurity })
+        $sd.SetOwner($admins)
+        if ($isDir) { [System.IO.Directory]::SetAccessControl($Path, $sd) } else { [System.IO.File]::SetAccessControl($Path, $sd) }
+    } catch { Write-Verbose "Owner of ${Path} not set to Administrators: $($_.Exception.Message)" }
 }
 
 function Test-IgwtTrustedFile {
