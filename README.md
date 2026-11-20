@@ -9,7 +9,7 @@ Tune performance, security and privacy for competitive gaming, with every change
 [![Latest release](https://img.shields.io/badge/release-v3.8.2-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
 ![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
-![Tests](https://img.shields.io/badge/tests-1%2C534%20passing-2EA44F)
+[![CI](https://github.com/arioofarmani/iG-Windows-Tuner/actions/workflows/ci.yml/badge.svg)](https://github.com/arioofarmani/iG-Windows-Tuner/actions/workflows/ci.yml)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-see%20the%20results-394EFF)](#is-it-safe-to-run)
