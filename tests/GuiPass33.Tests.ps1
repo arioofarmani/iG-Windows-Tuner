@@ -7,20 +7,18 @@ BeforeAll {
 # 3.3 phase 5, the remaining sections: grouped navigation (X11), dashboard (D1, D2), presets
 # compare (O3), network test history (N1, N2), compliance (R1), log viewer (L1), About (B1).
 Describe '3.3 professional pass: remaining sections' {
-    It 'puts every navigation page in a group' {
+    It 'puts every 3.x page in exactly one 4.0 section (D1)' {
         $tags = @([regex]::Matches($script:Xaml, '<ListBoxItem Tag="([^"]+)"') | ForEach-Object { [System.Net.WebUtility]::HtmlDecode($_.Groups[1].Value) })
         $tags.Count | Should -BeGreaterThan 20
         InModuleScope iGWindowsTuner -Parameters @{ Tags = $tags } {
             param($Tags)
-            $grouped = @($script:IgwtGuiNavGroups.Values | ForEach-Object { $_ })
-            foreach ($t in $Tags) { $grouped | Should -Contain $t -Because "$t needs a navigation group" }
-            Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = '#group:Start' }) | Should -BeTrue
-            Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = 'Dashboard' }) | Should -BeFalse
-            $clean = @($script:IgwtGuiNavGroups['Clean'])
-            [array]::IndexOf($clean, 'RegistryCleaner') | Should -Be ([array]::IndexOf($clean, 'Cleaner') + 1) -Because 'Registry cleaner sits in Clean, after Cleaner (RG23)'
+            foreach ($t in $Tags) { @($script:IgwtGuiSections | Where-Object { $_.Pages -contains $t }).Count | Should -Be 1 -Because "$t needs one section" }
+            Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = '#group:More' }) | Should -BeTrue
+            Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = 'section:Home' }) | Should -BeFalse
+            $clean = @(@($script:IgwtGuiSections | Where-Object { $_.Id -eq 'Clean' })[0].Pages)
+            [array]::IndexOf($clean, 'RegistryCleaner') | Should -Be ([array]::IndexOf($clean, 'Cleaner') + 1) -Because 'Registry cleaner sits in Clean, after the file cleaner (RG23)'
         }
     }
-
     It 'never shows an empty "Fix:" route (D2)' {
         InModuleScope iGWindowsTuner {
             (New-IgwtGuiSecurityCheckRow -Check ([pscustomobject]@{ Status = 'Fail'; Name = 'x'; Value = 'Off'; Fix = 'Tweak'; Target = ''; Hint = 'h' })).Route | Should -Be ''

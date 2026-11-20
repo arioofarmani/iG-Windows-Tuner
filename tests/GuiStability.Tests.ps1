@@ -93,10 +93,12 @@ Describe 'Window stability helpers (headless)' {
                 [object]::ReferenceEquals((Get-IgwtGuiNavHeader -Text 'Start'), $a) | Should -BeTrue -Because 'a second call returns the same item'
                 [object]::ReferenceEquals((Get-IgwtGuiNavHeader -Text 'Secure'), $a) | Should -BeFalse
                 Test-IgwtGuiNavHeader -Item $a | Should -BeTrue
-                # The persona code plans the order first and skips the rebuild when it is unchanged (the nav items are not detached).
-                $src = (Get-Command Set-IgwtGuiPersona).ScriptBlock.ToString()
+                # The section navigation (4.0 D1) plans the order first and skips the rebuild when it is unchanged (the nav items are not detached).
+                $src = (Get-Command Update-IgwtGuiSectionNav).ScriptBlock.ToString()
                 $src | Should -Match '\$same = \(\$plan\.Count -eq \$nav\.Items\.Count\)'
-                $src | Should -Match 'if \(-not \$same\) \{\s+\$nav\.Items\.Clear\(\)'
+                $src | Should -Match 'if \(-not \$same\) \{'
+                $src | Should -Match '\$nav\.Items\.Clear\(\)'
+                (Get-Command Set-IgwtGuiPersona).ScriptBlock.ToString() | Should -Match 'Update-IgwtGuiSectionNav'
             } finally { $script:Gui = $saved }
         }
     }

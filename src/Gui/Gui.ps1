@@ -8,12 +8,12 @@ $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
     'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
-    'Banner', 'BannerText', 'NavList', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
+    'Banner', 'BannerText', 'NavList', 'SectionTabs', 'ShowAdvancedBox', 'PageHome', 'HomeHost', 'PageOptimize', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
     'SessionCloseAppsBox', 'SessionStartButton', 'SessionStopButton', 'SessionStatusText', 'PresetPickBox', 'PresetCustomizeButton', 'PresetDuplicateButton', 'PresetExportButton', 'PresetImportButton', 'PresetDeleteButton',
-    'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost',
+    'TweakPageTitle', 'TweakPageSubtitle', 'TweakGridHost', 'TweakSimpleViewButton',
     'StartupRefreshButton', 'StartupListHost', 'StartupOnButton', 'StartupOffButton', 'StartupDeleteButton', 'StartupOpenButton', 'StartupCopyButton', 'StartupDetailText', 'BackupRevertLastButton', 'BackupRevertSelectedButton', 'OpenBackupsButton', 'OpenLogsButton', 'SnapshotListHost',
     'RejectedListHost', 'BackupSummaryText', 'RejectedSummaryText', 'PolTabs', 'PolComplianceTab', 'PolBaselineButton', 'PolBaselineText', 'PolComplianceHost', 'NetEmptyCard', 'NetResultPanel', 'NetHistoryHost', 'BackupTabs', 'HomeCard', 'HomeCardTitle', 'HomeCardText', 'HomeCardOverline', 'HomeCardDoButton', 'HomeCardSnoozeButton', 'HomeCardSnoozeWeekButton', 'HomeCardWhyButton', 'HomeCardPagesButton', 'BackupJournalTab', 'JournalStatusText', 'JournalRevertEntryButton', 'JournalRevertSessionButton', 'JournalRevertAllButton', 'JournalResetButton', 'JournalListHost', 'BackupLogTab', 'LogListHost', 'AboutText', 'AboutBuildText', 'AboutCopyButton', 'AboutChangelogExpander', 'AboutChangelogText', 'AboutNoticesExpander', 'AboutNoticesText',
     'PageCleaner', 'CleanScanButton', 'CleanRunButton', 'CleanCancelButton', 'CleanLevelBox', 'CleanOptInBox', 'CleanSummaryText', 'CleanerListHost',
@@ -766,6 +766,8 @@ function Update-IgwtGuiDashboard {
     $more = $ordered.Count - $top.Count
     $c.DashMoreText.Text = "$more more item(s) in the sections below."
     $c.DashMoreText.Visibility = $(if ($more -gt 0) { 'Visible' } else { 'Collapsed' })
+    # 4.0 Home (D2) shows the same data.
+    if ($c.PageHome -and $c.PageHome.Visibility -eq 'Visible') { Update-IgwtGuiHomePage }
 }
 
 # Dashboard shortcuts per persona (3.3 D1): page tag and label.
@@ -829,14 +831,29 @@ function Update-IgwtGuiTweakList {
     # search lifts (Update-IgwtGuiTweakScope), so searching still covers every category.
     $rows = @(foreach ($t in $script:Gui.Catalog) {
             $st = $script:Gui.Data.States[$t.id]
-            $personaOk = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $t -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($t.id) -or ($st -and $st.State -in 'On', 'Partial' -and [string]$t.level -in 'Expert', 'Lab')
-            if ($personaOk -and $script:Gui.FocusMode -and [string]$t.level -ne 'Standard' -and -not $script:Gui.Staged.ContainsKey($t.id)) { $personaOk = $false }
-            if ($personaOk) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin -Confidence $(if ($script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] }) }
+            if (Test-IgwtGuiTweakShown -Tweak $t -State $st) { New-IgwtGuiTweakRow -Tweak $t -State $st -Changed ([bool]$script:Gui.Data.Changed[$t.id]) -Staged ([string]$script:Gui.Staged[$t.id]) -IsAdmin $script:Gui.IsAdmin -Confidence $(if ($script:Gui.Data.Confidence) { $script:Gui.Data.Confidence[[string]$t.id] }) }
         })
     $grid = $script:Gui.Grids.Tweaks
     Set-IgwtGridRows -Grid $grid -Rows $rows
     Update-IgwtGuiTweakHeader
     Update-IgwtGuiPending
+    # The 4.0 Optimize page shows the same rows (D3).
+    if ($script:Gui.C -and $script:Gui.C.PageOptimize -and $script:Gui.C.PageOptimize.Visibility -eq 'Visible') { Update-IgwtGuiOptimizeList }
+}
+
+function Test-IgwtGuiTweakShown {
+    <#
+    .SYNOPSIS
+        Whether an item is listed: the persona shows it, or it is staged, or an Expert or Lab item is
+        on; Focus mode lists Standard items (and staged ones) only. Shared by the table and Optimize.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Tweak, $State)
+    $id = [string]$Tweak.id
+    $ok = (-not $script:Gui.Persona) -or (Test-IgwtItemVisible -Tweak $Tweak -Persona $script:Gui.Persona) -or $script:Gui.Staged.ContainsKey($id) -or ($State -and $State.State -in 'On', 'Partial' -and [string]$Tweak.level -in 'Expert', 'Lab')
+    if ($ok -and $script:Gui.FocusMode -and [string]$Tweak.level -ne 'Standard' -and -not $script:Gui.Staged.ContainsKey($id)) { $ok = $false }
+    return [bool]$ok
 }
 
 function Update-IgwtGuiTweakScope {
@@ -1284,29 +1301,41 @@ function Invoke-IgwtGuiToggle {
     <# .SYNOPSIS Handles a toggle click on a tweak row. #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$CheckBox)
-    $id = [string]$CheckBox.Tag
-    $row = @($script:Gui.Grids.Tweaks.Index.Rows) | Where-Object { $_.Id -eq $id } | Select-Object -First 1
-    if (-not $row) { return }
-    $want = [bool]$CheckBox.IsChecked
-    $isOn = ($row.State -eq 'On')
-    $t = $script:Gui.Catalog | Where-Object { $_.id -eq $id } | Select-Object -First 1
-    if ($want -eq $isOn) {
-        Set-IgwtGuiStage -Id $id -Mode $null
-    } elseif ($want) {
-        if ([string]$t.evidence.tier -eq 'R') {
-            if (-not (Show-IgwtGuiRiskDialog -Tweak $t)) { Update-IgwtGuiTweakList; return }
-        } elseif ($t.expert) {
-            $answer = Show-IgwtGuiMessage -Text ("EXPERT TOGGLE`n`n$($t.warning)`n`n$($t.description)`n`nStage this change anyway?") -Title 'iG Windows Tuner - expert toggle' -Buttons 'YesNo' -Icon 'Warning'
-            if ($answer -ne 'Yes') { Update-IgwtGuiTweakList; return }
-        }
-        # Only items confirmed in their dialog may be applied with the risk acknowledgement.
-        if ([string]$t.evidence.tier -eq 'R' -or $t.expert) { $script:Gui.Acked[$id] = $true }
-        Set-IgwtGuiStage -Id $id -Mode 'on'
-    } else {
-        Set-IgwtGuiStage -Id $id -Mode 'off'
-    }
+    $null = Invoke-IgwtGuiStageToggle -Id ([string]$CheckBox.Tag) -Want ([bool]$CheckBox.IsChecked)
     Update-IgwtGuiTweakList
     Update-IgwtGuiDetails
+}
+
+function Invoke-IgwtGuiStageToggle {
+    <#
+    .SYNOPSIS
+        Stages what a switch asks for (on, off, or nothing when it returns to the current state). Risk
+        Zone and Expert items need their confirmation first. Shared by the table and the 4.0 Optimize
+        page, so both stage the same way. Returns $false when the user declined (the switch goes back).
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Id, [Parameter(Mandatory = $true)][bool]$Want)
+    $st = $(if ($script:Gui.Data) { $script:Gui.Data.States[$Id] })
+    if (-not $st) { return $false }
+    $isOn = ([string]$st.State -eq 'On')
+    $t = $script:Gui.Catalog | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($Want -eq $isOn) {
+        Set-IgwtGuiStage -Id $Id -Mode $null
+    } elseif ($Want) {
+        if ([string]$t.evidence.tier -eq 'R') {
+            if (-not (Show-IgwtGuiRiskDialog -Tweak $t)) { return $false }
+        } elseif ($t.expert) {
+            $answer = Show-IgwtGuiMessage -Text ("EXPERT TOGGLE`n`n$($t.warning)`n`n$($t.description)`n`nStage this change anyway?") -Title 'iG Windows Tuner - expert toggle' -Buttons 'YesNo' -Icon 'Warning'
+            if ($answer -ne 'Yes') { return $false }
+        }
+        # Only items confirmed in their dialog may be applied with the risk acknowledgement.
+        if ([string]$t.evidence.tier -eq 'R' -or $t.expert) { $script:Gui.Acked[$Id] = $true }
+        Set-IgwtGuiStage -Id $Id -Mode 'on'
+    } else {
+        Set-IgwtGuiStage -Id $Id -Mode 'off'
+    }
+    return $true
 }
 
 function Get-IgwtGuiStagedSets {
@@ -2445,12 +2474,11 @@ function Export-IgwtGuiNetReport {
 #region Defender settings
 
 function Select-IgwtGuiNavPage {
-    <# .SYNOPSIS Selects a navigation entry by its tag (the page then shows through the selection handler). #>
+    <# .SYNOPSIS Opens a page by its 3.x id (kept for callers; 4.0 navigation by section, Open-IgwtGuiPage). #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window navigation only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Tag)
-    $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq $Tag }) | Select-Object -First 1
-    if ($it) { $script:Gui.C.NavList.SelectedItem = $it }
+    Open-IgwtGuiPage -Page $Tag
 }
 
 function Set-IgwtGuiDefenderView {
@@ -2748,7 +2776,6 @@ function Invoke-IgwtGuiDefenderPolicyChange {
 #region Persona
 
 # Pages hidden in focus mode (3.3 C11): expert tools and reference lists.
-$script:IgwtGuiFocusHidden = @('Inspect', 'Policy', 'Risk Zone', 'Rejected')
 
 function Set-IgwtGuiFocusMode {
     <# .SYNOPSIS Focus mode on or off (display only): expert pages, dashboard details and items above Standard are hidden. #>
@@ -2765,16 +2792,6 @@ function Set-IgwtGuiFocusMode {
     if (-not $NoSave) { Set-IgwtGuiStatus $(if ($On) { 'Focus mode on: expert pages, details and advanced items are hidden. Nothing on the PC changed.' } else { 'Focus mode off: everything is shown again.' }) }
 }
 
-# Navigation groups (3.3 X11). Pages not listed fall into "More".
-$script:IgwtGuiNavGroups = [ordered]@{
-    'Start'    = @('Dashboard', 'Presets')
-    'Optimize' = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'System')
-    'Secure'   = @('Security', 'Asr', 'Defender', 'SecSettings', 'Firewall', 'Policy', 'Risk Zone')
-    'Clean'    = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup')
-    'Manage'   = @('Manage', 'Toolkit')
-    'Diagnose' = @('Diagnostics', 'NetTest', 'Inspect')
-    'History'  = @('Backups', 'Rejected', 'About')
-}
 
 function New-IgwtGuiNavHeader {
     <# .SYNOPSIS A group label for the navigation list (not selectable). #>
@@ -2813,51 +2830,10 @@ function Set-IgwtGuiPersona {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window layout only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Name)
-    $c = $script:Gui.C
     $p = Get-IgwtPersonaProfile -Name $Name
     $script:Gui.Persona = $p
-    $nav = $c.NavList
-    $selected = $nav.SelectedItem
-    $items = @($nav.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) })
-    if (-not $script:Gui.NavDefault) { $script:Gui.NavDefault = @($items | ForEach-Object { [string]$_.Tag }) }
-    $order = @($p.NavOrder)
-    if ($order.Count -eq 0) { $order = @($script:Gui.NavDefault) }
-    $rank = @{}
-    for ($i = 0; $i -lt $order.Count; $i++) { $rank[[string]$order[$i]] = $i }
-    $sorted = @($items | Sort-Object @{ Expression = { $t = [string]$_.Tag; if ($rank.ContainsKey($t)) { $rank[$t] } else { 1000 + [array]::IndexOf($script:Gui.NavDefault, $t) } } })
-    # The ASR Center and the Defender settings are part of Security: keep them directly under
-    # Security in every persona.
-    $subs = @(foreach ($tag in 'Asr', 'Defender', 'SecSettings', 'Firewall') { @($sorted | Where-Object { [string]$_.Tag -eq $tag }) | Select-Object -First 1 })
-    $subs = @($subs | Where-Object { $_ })
-    if ($subs.Count) {
-        $rest = New-Object System.Collections.Generic.List[object]
-        foreach ($it in $sorted) {
-            if (@($subs | Where-Object { [object]::ReferenceEquals($_, $it) }).Count) { continue }
-            $rest.Add($it)
-            if ([string]$it.Tag -eq 'Security') { foreach ($s in $subs) { $rest.Add($s) } }
-        }
-        foreach ($s in $subs) { if (-not $rest.Contains($s)) { $rest.Add($s) } }
-        $sorted = $rest.ToArray()
-    }
-    foreach ($it in $sorted) { $it.Visibility = $(if (([string]$it.Tag -eq 'Risk Zone' -and -not $p.ShowRiskZone) -or ($script:Gui.FocusMode -and $script:IgwtGuiFocusHidden -contains [string]$it.Tag)) { 'Collapsed' } else { 'Visible' }) }
-    # Grouped navigation: groups follow the persona's order (the rank of their first page); a label
-    # starts each group that has a visible page. The new order is planned first, the label items are reused,
-    # and the list is only touched when the order changed (no needless detaching of its items).
-    $groupOf = @{}; foreach ($k in $script:IgwtGuiNavGroups.Keys) { foreach ($tag in $script:IgwtGuiNavGroups[$k]) { $groupOf[$tag] = $k } }
-    $groups = New-Object System.Collections.Generic.List[string]
-    foreach ($it in $sorted) { $k = $(if ($groupOf.ContainsKey([string]$it.Tag)) { $groupOf[[string]$it.Tag] } else { 'More' }); if (-not $groups.Contains($k)) { $groups.Add($k) } }
-    $plan = New-Object System.Collections.Generic.List[object]
-    foreach ($k in $groups) {
-        $members = @($sorted | Where-Object { $(if ($groupOf.ContainsKey([string]$_.Tag)) { $groupOf[[string]$_.Tag] } else { 'More' }) -eq $k })
-        if (@($members | Where-Object { $_.Visibility -eq 'Visible' }).Count) { $plan.Add((Get-IgwtGuiNavHeader -Text $k)) }
-        foreach ($it in $members) { $plan.Add($it) }
-    }
-    $same = ($plan.Count -eq $nav.Items.Count)
-    for ($n = 0; $same -and $n -lt $plan.Count; $n++) { if (-not [object]::ReferenceEquals($plan[$n], $nav.Items[$n])) { $same = $false } }
-    if (-not $same) {
-        $nav.Items.Clear()
-        foreach ($x in $plan) { $null = $nav.Items.Add($x) }
-    }    if ($selected -and $selected.Visibility -eq 'Visible') { $nav.SelectedItem = $selected } else { $nav.SelectedItem = @($nav.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) -and $_.Visibility -eq 'Visible' })[0] }
+    # 4.0 (D1): the navigation lists sections; the persona orders them by its page order.
+    Update-IgwtGuiSectionNav
     if ($script:Gui.Data) { Update-IgwtGuiTweakList }
     Set-IgwtGuiStatus "Persona: $($p.Name). $($p.Hint)"
 }
@@ -3074,11 +3050,11 @@ function Show-IgwtGuiTweakInCategory {
     <# .SYNOPSIS Switches to the category page of a catalog item and selects it. #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Id)
-    $c = $script:Gui.C
     $t = @($script:Gui.Catalog | Where-Object { $_.id -eq $Id }) | Select-Object -First 1
     if (-not $t) { return }
-    $nav = @($c.NavList.Items | Where-Object { [string]$_.Tag -eq [string]$t.category }) | Select-Object -First 1
-    if ($nav) { $c.NavList.SelectedItem = $nav }
+    # The table view of the category (its grid holds the selection).
+    $script:Gui.OptimizeTable = $true
+    Open-IgwtGuiPage -Page ([string]$t.category)
     # Show the item even when chips or a search would hide it.
     Clear-IgwtGridFilters -Grid $script:Gui.Grids.Tweaks
     $row = @($script:Gui.Grids.Tweaks.C.Grid.ItemsSource | Where-Object { $_.Id -eq $Id }) | Select-Object -First 1
@@ -3092,13 +3068,12 @@ function Get-IgwtGuiBreadcrumb {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][string]$Page)
-    $group = @($script:IgwtGuiNavGroups.Keys | Where-Object { $script:IgwtGuiNavGroups[$_] -contains $Page })[0]
-    $item = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq $Page })[0]
-    $label = $Page
-    if ($item -and $item.Content -is [System.Windows.Controls.Panel]) { $tb = @($item.Content.Children | Where-Object { $_ -is [System.Windows.Controls.TextBlock] -and $_.Style -ne $script:Gui.Window.TryFindResource('Icon') })[-1]; if ($tb) { $label = [string]$tb.Text } }
-    $parts = @($group)
-    if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { $parts += 'Security' }
-    $parts += $label
+    # 4.0 (D1): Section > page, from the section map.
+    $s = Get-IgwtGuiSectionOf -Page $Page
+    $parts = @()
+    if ($s) { $parts += [string]$s.Title }
+    $label = Get-IgwtGuiPageLabel -Page $Page
+    if (-not $s -or $s.Pages.Count -gt 1) { $parts += $label }
     return (@($parts | Where-Object { $_ }) -join "  $([char]0x203A)  ")
 }
 
@@ -3119,11 +3094,22 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageHome', 'PageOptimize', 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    # 4.0 (D3): the Optimize categories open the new Optimize page unless the table view was chosen.
+    $optimize = @($script:IgwtGuiSections | Where-Object { $_.Id -eq 'Optimize' })[0].Pages
+    if ($optimize -contains $Page -and -not $script:Gui.OptimizeTable) {
+        $c.DetailsColumn.Width = New-Object System.Windows.GridLength(0); $c.DetailsPane.Visibility = 'Collapsed'; $c.SecuritySwitch.Visibility = 'Collapsed'
+        $script:Gui.Category = $Page
+        $c.PageOptimize.Visibility = 'Visible'
+        Show-IgwtGuiOptimizePage -Category $Page
+        return
+    }
     $isTweakPage = $script:IgwtCategories -contains $Page
-    $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(380) } else { New-Object System.Windows.GridLength(0) })
+    $c.DetailsColumn.Width = $(if ($isTweakPage) { New-Object System.Windows.GridLength(320) } else { New-Object System.Windows.GridLength(0) })
     $c.DetailsPane.Visibility = $(if ($isTweakPage) { 'Visible' } else { 'Collapsed' })
-    $c.SecuritySwitch.Visibility = $(if ($Page -eq 'Security') { 'Visible' } else { 'Collapsed' })
+    # The section tabs replace the old Security button row (review 3.8.1 M12).
+    $c.SecuritySwitch.Visibility = 'Collapsed'
+    $c.TweakSimpleViewButton.Visibility = $(if ($optimize -contains $Page) { 'Visible' } else { 'Collapsed' })
     if ($isTweakPage) {
         $script:Gui.Category = $Page
         $c.PageTweaks.Visibility = 'Visible'
@@ -3132,6 +3118,7 @@ function Show-IgwtGuiPage {
         return
     }
     switch ($Page) {
+        'Home' { $c.PageHome.Visibility = 'Visible'; Update-IgwtGuiHomePage }
         'Dashboard' { $c.PageDashboard.Visibility = 'Visible' }
         'Presets' { $c.PagePresets.Visibility = 'Visible'; Update-IgwtGuiPresetCards }
         'Asr' { $c.PageAsr.Visibility = 'Visible'; if (-not $script:Gui.AsrStatus -and $script:Gui.Runspace) { Start-IgwtGuiAsrRefresh } }
@@ -3345,11 +3332,11 @@ function Save-IgwtGuiScreenshots {
     $timings = New-Object System.Collections.Generic.List[object]
     # The text check of each rendered view (not part of the startup and page timings).
     $textScan = @{ Checked = 0; Watch = (New-Object System.Diagnostics.Stopwatch); Leaks = (New-Object System.Collections.Generic.List[object]); FilledLists = (New-Object 'System.Collections.Generic.HashSet[string]'); EmptyLists = (New-Object 'System.Collections.Generic.HashSet[string]') }
-    foreach ($item in @($script:Gui.C.NavList.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) })) {
-        $page = [string]$item.Tag
+    # Every page of every section, Advanced tools included (4.0 D1: the navigation lists sections).
+    $script:Gui.ShowAdvanced = $true
+    foreach ($page in @($script:IgwtGuiSections | ForEach-Object { $_.Pages })) {
         $pageWatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $script:Gui.C.NavList.SelectedItem = $item
-        Show-IgwtGuiPage -Page $page
+        Open-IgwtGuiPage -Page $page
         if ($script:IgwtCategories -contains $page -and @($script:Gui.Grids.Tweaks.C.Grid.ItemsSource).Count -gt 0) {
             $script:Gui.Grids.Tweaks.C.Grid.SelectedIndex = 0
             Update-IgwtGuiDetails
@@ -3542,6 +3529,9 @@ function Show-IgwtGui {
     Initialize-IgwtGuiDiagnostics -Path $DiagnosticsPath
     Update-IgwtGuiPresetCards
 
+    # Advanced tools in the navigation: hidden until turned on (4.0 D1).
+    $script:Gui.ShowAdvanced = [bool]$script:Gui.ViewState.ShowAdvanced
+    $c.ShowAdvancedBox.IsChecked = $script:Gui.ShowAdvanced
     # Persona
     $c.PersonaBox.ItemsSource = @('Gamer', 'PowerUser', 'Sysadmin')
     $c.PersonaBox.SelectedItem = (Get-IgwtPersona)
@@ -3555,9 +3545,9 @@ function Show-IgwtGui {
         }
 
     # Navigation and page wiring
-    Register-IgwtGuiHandler -Control $c.NavList -Event 'SelectionChanged' -Handler { $item = $script:Gui.C.NavList.SelectedItem; if ($item -and -not (Test-IgwtGuiNavHeader -Item $item)) { Show-IgwtGuiPage -Page ([string]$item.Tag) } }
-    Register-IgwtGuiHandler -Control $c.SecAsrButton -Event 'Click' -Handler { $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Asr' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } }
-    Register-IgwtGuiHandler -Control $c.AsrHardeningButton -Event 'Click' -Handler { $it = @($script:Gui.C.NavList.Items | Where-Object { [string]$_.Tag -eq 'Security' }) | Select-Object -First 1; if ($it) { $script:Gui.C.NavList.SelectedItem = $it } }
+    Register-IgwtGuiHandler -Control $c.NavList -Event 'SelectionChanged' -Handler { if ($script:Gui.NavSuppress) { return }; $item = $script:Gui.C.NavList.SelectedItem; if ($item -and ([string]$item.Tag).StartsWith('section:')) { Show-IgwtGuiSection -Id ([string]$item.Tag).Substring(8) } }
+    Register-IgwtGuiHandler -Control $c.SecAsrButton -Event 'Click' -Handler { Open-IgwtGuiPage -Page 'Asr' }
+    Register-IgwtGuiHandler -Control $c.AsrHardeningButton -Event 'Click' -Handler { Open-IgwtGuiPage -Page 'Security' }
     Register-IgwtGuiHandler -Control $c.SecDefenderButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Defender' }
     Register-IgwtGuiHandler -Control $c.AsrDefenderButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Defender' }
     Register-IgwtGuiHandler -Control $c.DefHardeningButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Security' }
@@ -3566,8 +3556,10 @@ function Show-IgwtGui {
     Set-IgwtGuiFocusMode -On ([bool]$script:Gui.ViewState.FocusMode) -NoSave
     Register-IgwtGuiHandler -Control $c.FocusModeBox -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On ([bool]$script:Gui.C.FocusModeBox.IsChecked) }
     Register-IgwtGuiHandler -Control $c.FocusPill -Event 'Click' -Handler { Set-IgwtGuiFocusMode -On $false }
-    # 3.6 (DECISIONS T18): the Dashboard with the home card is the landing page; lists still remember their views.
-    Select-IgwtGuiNavPage -Tag 'Dashboard'
+    Register-IgwtGuiHandler -Control $c.TweakSimpleViewButton -Event 'Click' -Handler { $script:Gui.OptimizeTable = $false; Open-IgwtGuiPage -Page ([string]$script:Gui.Category) }
+    Register-IgwtGuiHandler -Control $c.ShowAdvancedBox -Event 'Click' -Handler { Set-IgwtGuiShowAdvanced -On ([bool]$script:Gui.C.ShowAdvancedBox.IsChecked) }
+    # 4.0 (D2): Home is the landing page; lists still remember their views.
+    Open-IgwtGuiPage -Page 'Home'
     Initialize-IgwtGuiTweakGrid
     Add-IgwtGuiStartupMark -Name 'tweakGrid'
     Update-IgwtGuiNetHistory

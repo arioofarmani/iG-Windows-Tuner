@@ -229,7 +229,7 @@ Sets NetworkThrottlingIndex to 0xFFFFFFFF. Since Windows Vista, MMCSS can limit 
 - <https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service>
 - <https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics>
 
-*Evidence notes:* Value lives in the documented MMCSS SystemProfile key; its effect is legacy and situational.
+*Evidence notes:* Value lives in the documented MMCSS SystemProfile key, but the cited Microsoft pages do not describe NetworkThrottlingIndex itself; its effect is legacy and situational on current NICs, so measure it (review 3.8.1 section 4).
 
 **Revert:** Revert restores the exact values captured in the JSON snapshot taken right before apply (including values that did not exist). Windows default for HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\NetworkThrottlingIndex: 10.
 
@@ -1416,7 +1416,9 @@ Sets the documented Storage Sense policies: Storage Sense on, run weekly, and cl
 
 ### Storage Sense: empty Recycle Bin items after 30 days
 
-`storage.recycle-bin-30-days` | Standard | Tier A | risk low | restart: none | Anti-cheat safe | reversible: full | impact: performance none, latency none, security 0
+`storage.recycle-bin-30-days` | Standard | Tier A | risk low | restart: none | Anti-cheat safe | reversible: partial | impact: performance none, latency none, security 0
+
+**Side effects:** Items that Storage Sense empties from the Recycle Bin are gone for good: undo restores the setting, not the items.
 
 *Lets Storage Sense permanently delete Recycle Bin items older than 30 days. Works only while Storage Sense is on.*
 
@@ -1436,7 +1438,9 @@ Sets the documented Recycle Bin threshold policy to 30 days, the same choice off
 
 ### Storage Sense: delete unopened Downloads after 60 days
 
-`storage.downloads-60-days` | Expert | Tier A | risk medium | restart: none | Anti-cheat safe | reversible: full | impact: performance none, latency none, security 0
+`storage.downloads-60-days` | Expert | Tier A | risk medium | restart: none | Anti-cheat safe | reversible: partial | impact: performance none, latency none, security 0
+
+**Side effects:** Files that Storage Sense deletes are gone for good: undo restores the setting, not the files.
 
 > **Warning:** Storage Sense deletes files in Downloads that were not opened for 60 days, without the Recycle Bin. Move files you want to keep first.
 

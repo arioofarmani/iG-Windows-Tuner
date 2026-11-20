@@ -50,3 +50,34 @@ Describe 'Review 4.0 TW-LSA: Reset to Windows default keeps LSA protection on' {
         [string]$a.default | Should -Not -Be '<absent>'
     }
 }
+
+Describe 'Review 4.0 TW-3 to TW-12: catalog claims match what the items do' {
+    BeforeAll { $script:Cat = @(Get-IgwtCatalog -Force) }
+    It 'marks the Storage Sense deletion items as partly reversible, with the side effect stated' {
+        foreach ($id in 'storage.downloads-60-days', 'storage.recycle-bin-30-days') {
+            $t = @($script:Cat | Where-Object { $_.id -eq $id })[0]
+            $t.reversible | Should -Be 'partial' -Because "$id deletes files"
+            [string]$t.sideEffects | Should -Match 'gone for good'
+        }
+    }
+    It 'says that the network throttling sources do not describe the value, and keeps it Measure it' {
+        $t = @($script:Cat | Where-Object { $_.id -eq 'sched.network-throttling-off' })[0]
+        $t.evidence.tier | Should -Be 'B'
+        [string]$t.evidence.notes | Should -Match 'do not describe NetworkThrottlingIndex'
+    }
+    It 'blocks the processor idle Risk Zone item on laptops, like the other battery-draining items' {
+        $o = @((Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'data\hardware\overlays.json') -Raw | ConvertFrom-Json).overlays | Where-Object { @($_.tags) -contains 'formfactor.laptop' -and @($_.block) -contains 'net.wifi-disable' })[0]
+        # By setting, not by id: a Risk Zone id in 'block' fails the overlay check on data folders without riskzone.json.
+        @($o.block) | Should -Not -Contain 'risk.processor-idle-disable'
+        $setting = [string](@((Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'data\tweaks\riskzone.json') -Raw | ConvertFrom-Json).tweaks | Where-Object { $_.id -eq 'risk.processor-idle-disable' })[0].actions[0].setting)
+        $setting | Should -Not -BeNullOrEmpty
+        @($o.blockMatching | Where-Object { $_.type -eq 'powercfgSetting' } | ForEach-Object { @($_.setting) }) | Should -Contain $setting
+    }
+    It 'keeps the edition limits, anti-cheat flag and laptop blocks fixed in 3.8.2' {
+        foreach ($id in 'sec.network-protection', 'privacy.keep-drivers', 'privacy.update-active-hours', 'privacy.defer-feature-90', 'privacy.defer-feature-365') {
+            @((@($script:Cat | Where-Object { $_.id -eq $id })[0]).editions) | Should -Not -Contain 'Core' -Because "$id is ignored on Home"
+            @((@($script:Cat | Where-Object { $_.id -eq $id })[0]).editions).Count | Should -BeGreaterThan 0
+        }
+        (@($script:Cat | Where-Object { $_.id -eq 'sec.kernel-shadow-stacks' })[0]).antiCheat | Should -Not -Be 'safe'
+    }
+}

@@ -30,6 +30,15 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - New controls for the redesigned pages: page header, filter chips, status pills, info bars, setting rows with an On/Off word, status tiles, the next-step card, history session cards and a details panel that moves below the list in narrow windows.
 - The bottom bar is the one place to apply changes: it says how many changes are ready (also to screen readers), with Discard, Preview and Apply.
 
+### Navigation, Home and Optimize (section 3)
+
+- The navigation has seven sections: Home, Play, Optimize, Security, Network, Clean and History, with Advanced tools and Settings at the bottom. Sections with several pages show them as tabs.
+- Advanced tools (expert inspectors, Group Policy, services and tasks, Toolkit, Risk Zone) are hidden until you turn on "Show Advanced tools" in the Display menu; a link to one of them turns it on.
+- Home greets you with one next step, three status tiles, your recent changes with Undo and "Before you play". The health checks are one tab away.
+- Optimize is one page: category chips, a search, each setting with a plain description, its evidence and an On/Off switch, and a details panel with what changes and how to undo it. The full table is one click away.
+- Every text box and list box has a name for screen readers.
+- Catalog: the Storage Sense deletion items say that deleted files cannot be restored; the processor idle Risk Zone item is blocked on laptops.
+
 ### Fixed (section 2)
 
 - A second Apply click while the first apply was still starting could apply the same changes twice.

@@ -78,6 +78,8 @@ function Update-IgwtGuiHomeCard {
     $c.HomeCardDoButton.ToolTip = $(if (-not $c.HomeCardDoButton.IsEnabled) { Get-IgwtGuiChangeBlockReason -What 'fix this' } else { 'Opens a preview first; nothing changes until you confirm.' })
     [System.Windows.Automation.AutomationProperties]::SetName($c.HomeCard, "Next best action: $($card.Title)")
     $c.HomeCard.Visibility = 'Visible'
+    # 4.0 Home (D2) shows this card as its next step.
+    if ($c.PageHome -and $c.PageHome.Visibility -eq 'Visible') { Update-IgwtGuiHomePage }
 }
 
 function Set-IgwtGuiHomeSnooze {

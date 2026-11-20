@@ -290,7 +290,9 @@ function New-IgwtSplitView {
     $g = New-Object System.Windows.Controls.Grid
     $panel = New-Object System.Windows.Controls.Border
     $panel.SetResourceReference([System.Windows.FrameworkElement]::StyleProperty, 'DetailsPanel')
-    $panel.Child = $Details
+    # The details scroll on their own; as a bottom sheet they take at most 280 px, so the list stays usable.
+    $sv = New-Object System.Windows.Controls.ScrollViewer; $sv.VerticalScrollBarVisibility = 'Auto'; $sv.HorizontalScrollBarVisibility = 'Disabled'; $sv.Content = $Details
+    $panel.Child = $sv
     $null = Set-IgwtUiName -Element $panel -Name 'Details'
     $null = $g.Children.Add($Main); $null = $g.Children.Add($panel)
     $g.Tag = [pscustomobject]@{ Main = $Main; Panel = $panel; Breakpoint = $Breakpoint; Mode = '' }
@@ -316,14 +318,14 @@ function Set-IgwtSplitLayout {
         $Grid.ColumnDefinitions.Add($c1); $Grid.ColumnDefinitions.Add($c2)
         [System.Windows.Controls.Grid]::SetColumn($st.Main, 0); [System.Windows.Controls.Grid]::SetRow($st.Main, 0)
         [System.Windows.Controls.Grid]::SetColumn($st.Panel, 1); [System.Windows.Controls.Grid]::SetRow($st.Panel, 0)
-        $st.Panel.Margin = [System.Windows.Thickness]::new(16, 0, 0, 0)
+        $st.Panel.Margin = [System.Windows.Thickness]::new(16, 0, 0, 0); $st.Panel.ClearValue([System.Windows.FrameworkElement]::MaxHeightProperty)
     } else {
         $r1 = New-Object System.Windows.Controls.RowDefinition; $r1.Height = $conv.ConvertFromString('*')
         $r2 = New-Object System.Windows.Controls.RowDefinition; $r2.Height = $conv.ConvertFromString('Auto')
         $Grid.RowDefinitions.Add($r1); $Grid.RowDefinitions.Add($r2)
         [System.Windows.Controls.Grid]::SetColumn($st.Main, 0); [System.Windows.Controls.Grid]::SetRow($st.Main, 0)
         [System.Windows.Controls.Grid]::SetColumn($st.Panel, 0); [System.Windows.Controls.Grid]::SetRow($st.Panel, 1)
-        $st.Panel.Margin = [System.Windows.Thickness]::new(0, 16, 0, 0)
+        $st.Panel.Margin = [System.Windows.Thickness]::new(0, 16, 0, 0); $st.Panel.MaxHeight = 280
     }
     $st.Mode = $mode
     return $mode
