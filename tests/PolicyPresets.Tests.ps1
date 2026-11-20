@@ -139,6 +139,28 @@ Describe 'Policy presets' {
             $null = InModuleScope iGWindowsTuner -Parameters @{ R = $r.Record } { param($R) Restore-IgwtPolicyPreset -Record $R -NoRefresh }
             $script:Audit['{0CCE922B-69AE-11D9-BED3-505054503030}'] | Should -Be 'None'
         }
+        It 'review 3.8.1 P-21: a batch that fails half-way has its record as the undo reference and can be undone' {
+            if (-not $script:HaveAdmx) { Set-ItResult -Skipped -Because 'no PolicyDefinitions'; return }
+            InModuleScope iGWindowsTuner { $d = Get-IgwtJournalFolder; if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force }; $script:IgwtJournal = $null }
+            # Audit is applied first; then the security policy stage fails.
+            Mock -ModuleName iGWindowsTuner Invoke-IgwtSecedit {
+                $cfg = $Arguments[[array]::IndexOf($Arguments, '/cfg') + 1]
+                if ($Arguments[0] -eq '/export') { InModuleScope iGWindowsTuner -Parameters @{ P = $cfg; S = $script:SecDb } { param($P, $S) Write-IgwtSecurityInfFile -Path $P -Sections $S -WhatIf:$false }; return [pscustomobject]@{ ExitCode = 0; Output = '' } }
+                throw 'secedit failed'
+            }
+            { InModuleScope iGWindowsTuner { Invoke-IgwtPolicyPreset -Id 'audit-logging' -NoRefresh } } | Should -Throw
+            $script:Audit['{0CCE922B-69AE-11D9-BED3-505054503030}'] | Should -Be 'Success' -Because 'the audit stage ran before the failure'
+            $ref = InModuleScope iGWindowsTuner { $script:IgwtJournal = $null; @((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'moduleRef' })[0]['ref'] }
+            $ref | Should -BeLike '*\State\policy-preset-*.json' -Because 'the record, not the first backup, is the undo reference'
+            (Get-Content -LiteralPath $ref -Raw | ConvertFrom-Json).auditBackup | Should -Not -BeNullOrEmpty -Because 'the record is rewritten after each stage'
+            $null = InModuleScope iGWindowsTuner -Parameters @{ R = $ref } { param($R) Restore-IgwtPolicyPreset -Record $R -NoRefresh }
+            $script:Audit['{0CCE922B-69AE-11D9-BED3-505054503030}'] | Should -Be 'None'
+        }
+        It 'review 3.8.1 S1: Restore-IgwtPolicyPreset refuses a record outside the State folder' {
+            $f = Join-Path $TestDrive 'policy-preset-planted.json'
+            Set-Content -LiteralPath $f -Value '{"kind":"igwt-policy-preset","preset":"x"}' -Encoding UTF8
+            { InModuleScope iGWindowsTuner -Parameters @{ F = $f } { param($F) Restore-IgwtPolicyPreset -Record $F -NoRefresh } } | Should -Throw "*protected State folder*"
+        }
         It 'refuses the whole preset when a lockout safeguard fires and writes nothing' {
             if (-not $script:HaveAdmx) { Set-ItResult -Skipped -Because 'no PolicyDefinitions'; return }
             Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'ario'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }

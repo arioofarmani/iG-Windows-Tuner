@@ -217,10 +217,21 @@ function Invoke-IgwtPolicyBatch {
     if (-not $todo.Count) { return [pscustomobject]@{ Id = $plan.Preset.id; Changed = 0; Record = $null; Verified = $true; Mismatch = @(); Skipped = @($plan.Rows | Where-Object { $_.Status -eq 'Unavailable' }) } }
     if (-not $PSCmdlet.ShouldProcess($plan.Preset.name, "Apply $($todo.Count) policy setting(s)")) { return $null }
     $record = [ordered]@{ kind = 'igwt-policy-preset'; preset = [string]$plan.Preset.id; created = (Get-Date).ToString('o'); gpoBackup = $null; auditBackup = $null; secpolBackup = $null; parsersTurnedOn = @(); settings = @($todo | ForEach-Object { $_.Name }) }
+    # The record is the undo reference: written and registered BEFORE the first backup records its own
+    # reference (the first one wins), and rewritten after each stage, so a batch that fails half-way can
+    # still be undone from the journal (review 3.8.1 P-21; 3.6 R8).
+    if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
+    $stateDir = Get-IgwtDataPath -Kind State
+    if (-not (Test-Path -LiteralPath $stateDir)) { $null = New-Item -ItemType Directory -Path $stateDir -Force }
+    $recFile = Join-Path $stateDir ("policy-preset-{0}.json" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
+    $saveRecord = { [System.IO.File]::WriteAllText($recFile, (ConvertTo-IgwtJson -InputObject $record), (New-Object System.Text.UTF8Encoding($false))); Set-IgwtAdminOwner -Path $recFile }
+    & $saveRecord
+    Set-IgwtModuleOperationRef -Path $recFile
     $polRows = @($todo | Where-Object { $_.Kind -in 'admx', 'registry' })
     $classes = @($polRows | ForEach-Object { $_.Class } | Select-Object -Unique)
     if ($polRows.Count) {
         $record.gpoBackup = Backup-IgwtLocalGpo -Reason "before policy preset $($plan.Preset.id)"
+        & $saveRecord
         foreach ($cls in $classes) {
             $before = @((Read-IgwtRegistryPol -Path (Get-IgwtLocalPolPath -Class $cls)).Entries)
             $after = @(Update-IgwtPolEntries -Entries $before -Ops @($polRows | Where-Object { $_.Class -eq $cls } | ForEach-Object { $_.Ops }))
@@ -230,22 +241,18 @@ function Invoke-IgwtPolicyBatch {
     if (@($todo | Where-Object Kind -EQ 'mppref').Count) {
         $names = @($todo | Where-Object Kind -EQ 'mppref' | ForEach-Object { $_.Ops } | Select-Object -Unique)
         $record.parsersTurnedOn = @((Set-IgwtDefenderParsersOn -Name $names -AcknowledgeManaged:$AcknowledgeManaged).TurnedOn)
+        & $saveRecord
     }
     if (@($todo | Where-Object Kind -EQ 'audit').Count) {
         $changes = @{}; foreach ($r in @($todo | Where-Object Kind -EQ 'audit')) { $changes[[string]$r.Setting.guid] = [string]$r.Setting.setting }
         $record.auditBackup = (Set-IgwtAuditPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged).Backup
+        & $saveRecord
     }
     if (@($todo | Where-Object Kind -EQ 'secpol').Count) {
         $changes = @($todo | Where-Object Kind -EQ 'secpol' | ForEach-Object { ConvertFrom-IgwtSecurityChangeText -Text ("{0}={1}" -f $_.Setting.key, $_.Setting.value) })
         $record.secpolBackup = (Set-IgwtSecurityPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged).Backup
+        & $saveRecord
     }
-    if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
-    $stateDir = Get-IgwtDataPath -Kind State
-    if (-not (Test-Path -LiteralPath $stateDir)) { $null = New-Item -ItemType Directory -Path $stateDir -Force }
-    $recFile = Join-Path $stateDir ("policy-preset-{0}.json" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
-    # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
-    Set-IgwtModuleOperationRef -Path $recFile
-    [System.IO.File]::WriteAllText($recFile, (ConvertTo-IgwtJson -InputObject $record), (New-Object System.Text.UTF8Encoding($false)))
     Write-IgwtLog -Message "Policy preset $($plan.Preset.id): $($todo.Count) setting(s). Record: $recFile"
     $mismatch = @()
     if ($polRows.Count -and -not $NoRefresh) {
@@ -268,6 +275,8 @@ function Restore-IgwtPolicyPreset {
     param([Parameter(Mandatory = $true)][string]$Record, [switch]$NoRefresh)
     Assert-IgwtWritable -Operation 'Restore-IgwtPolicyPreset'
     if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Restore-IgwtPolicyPreset' -Parameters $PSBoundParameters) }
+    # Only a record in iG's own protected State folder is used (review 3.8.1 S1).
+    if (-not (Test-IgwtPathUnder -Path $Record -Parent (Get-IgwtDataPath -Kind State) -Strict) -or -not (Test-IgwtPathTrustedChain -Path $Record -Root (Get-IgwtDataPath -Kind Root))) { throw "'$Record' is not a policy preset record in iG's protected State folder; nothing was changed." }
     $r = Read-IgwtJsonFile -Path $Record
     if ([string]$r.kind -ne 'igwt-policy-preset') { throw "'$Record' is not a policy preset record." }
     if (-not $PSCmdlet.ShouldProcess([string]$r.preset, 'Revert policy preset')) { return $null }
