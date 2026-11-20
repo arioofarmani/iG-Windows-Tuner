@@ -80,3 +80,21 @@ Describe '3.9 B4: Explorer restart and pending feature states' {
         }
     }
 }
+
+Describe '3.9 B4: protected services (review FW-4)' {
+    It 'protects elevation, sign-in, Wi-Fi and gaming services on every path' {
+        InModuleScope iGWindowsTuner {
+            foreach ($n in 'Appinfo', 'NgcSvc', 'TokenBroker', 'wlidsvc', 'WlanSvc', 'Wcmsvc', 'iphlpsvc', 'GamingServices', 'XblAuthManager', 'ClipSVC') {
+                Get-IgwtServiceProtection -Name $n | Should -Not -BeNullOrEmpty -Because $n
+            }
+            { Assert-IgwtServiceAllowed -Name 'Appinfo' } | Should -Throw '*protected*'
+        }
+    }
+    It 'still lets you undo an earlier change to a service that is protected now' {
+        InModuleScope iGWindowsTuner {
+            { Set-IgwtServiceStartupType -Name 'WlanSvc' -StartupType 'Disabled' -WhatIf } | Should -Throw '*protected*' -Because 'a new change is refused'
+            { Set-IgwtServiceStartupType -Name 'WlanSvc' -StartupType 'Automatic' -ForRestore -WhatIf } | Should -Not -Throw -Because 'the undo puts back what Windows had'
+            { Set-IgwtServiceStartupType -Name 'WinDefend' -StartupType 'Disabled' -ForRestore -WhatIf } | Should -Throw '*protected*' -Because 'core security services were never changeable'
+        }
+    }
+}
