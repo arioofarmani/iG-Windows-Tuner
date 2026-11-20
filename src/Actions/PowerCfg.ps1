@@ -142,7 +142,8 @@ function Restore-IgwtPowerCfgSchemeSnapshot {
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     $prev = ([string]$Snapshot.previousActive).ToLowerInvariant()
     if ($prev -notmatch "^$script:IgwtGuidPattern$") { throw 'Snapshot does not contain a valid scheme GUID.' }
-    if (-not (Test-IgwtPowerSchemeExists -Guid $prev)) { Write-IgwtLog -Level Warn -Message "Previous power scheme $prev no longer exists; leaving the current scheme active."; return }
+    # A revert that cannot restore the plan fails visibly instead of reporting success (review 3.8.1 P-1).
+    if (-not (Test-IgwtPowerSchemeExists -Guid $prev)) { throw "The power plan that was active before ($prev) no longer exists, so it was not switched back. Choose a power plan in Settings > System > Power; the current plan stays active." }
     if ($PSCmdlet.ShouldProcess($prev, 'Re-activate previous power scheme')) {
         $r = Invoke-IgwtPowerCfg -Arguments @('/setactive', $prev)
         if ($r.ExitCode -ne 0) { throw "powercfg /setactive failed: $($r.Output)" }
@@ -227,7 +228,7 @@ function Restore-IgwtPowerCfgSettingSnapshot {
     $scheme = ([string]$Snapshot.scheme).ToLowerInvariant()
     if ($scheme -notmatch "^$script:IgwtGuidPattern$") { throw 'Snapshot does not contain a valid scheme GUID.' }
     if ($null -eq $Snapshot.ac) { return }
-    if (-not (Test-IgwtPowerSchemeExists -Guid $scheme)) { Write-IgwtLog -Level Warn -Message "Power scheme $scheme no longer exists; $($Action.label) not restored."; return }
+    if (-not (Test-IgwtPowerSchemeExists -Guid $scheme)) { throw "The power plan $scheme no longer exists, so $($Action.label) was not restored in it." }
     Set-IgwtPowerSettingIndex -Scheme $scheme -Subgroup $Action.subgroup -Setting $Action.setting -AC $Snapshot.ac -DC $Snapshot.dc
 }
 

@@ -1,22 +1,25 @@
-# iG Windows Tuner 3.8.1
+# iG Windows Tuner 3.8.2
 
-Released 2026-11-13. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
+Released 2026-11-20. Windows 11 (build 26100 or later), Windows PowerShell 5.1.
 
-Three new tools, all built on the change journal: every change is previewed, backed up, read back and can be undone with one click.
+A security and undo release: fixes from an independent review of 3.8.1. No new features.
 
-### Added
+### Security
 
-- **Registry cleaner** (Clean > Registry cleaner): finds entries left behind by programs that are no longer installed (uninstall entries, App Paths, file associations, Open with, startup entries, Software keys, firewall rules) and shows the evidence for each one. Safe entries are proven leftovers; Review entries are for you to decide. Nothing is selected until you choose it. Windows, security products, drivers, anti-cheats and runtimes are never offered; leftovers of security products point to the vendor's removal tool. Every removal is backed up (a .reg file and the journal) and can be restored per entry or per cleanup. It makes no speed claims.
-- **Startup apps: full control**: delete one or several entries with a backup and Undo, turn several on or off at once, open the file location, copy the command, and see the company and the file each entry starts. Windows components and security products can be turned off but not deleted; anti-cheat entries get a warning.
-- **Security settings** (Security > Security settings): every security Group Policy from Windows' own definitions, every Defender preference, the ASR rules, the exclusion lists, security options, audit policy and Device Guard state in one list, with the current value and where it comes from. Each setting gets the editor its definition needs. Changes are written like the Group Policy editor, roll back on failure and can be undone. Values set by a domain, MDM or Tamper Protection are read-only; values that would turn a protection off, UEFI locks and lockout-risk settings are refused; VBS, memory integrity, Credential Guard, LSA protection and BitLocker policies need prerequisite checks and a typed confirmation.
-- Command line: -RegScan, -RegClean, -RegRestore, -Startup, -StartupRemove, -SecSettings, -SecSetting, -SecSettingSet, -SecSettingRemoveExclusion (every changing verb has -DryRun).
+- **Planted backups are no longer restored.** A program without admin rights could plant a backup file that iG would then restore with administrator rights, for example turning UAC off. iG now restores only its own backups from its protected Backups folder, and "Revert from file" refuses files from anywhere else.
+- **One guard for every policy change.** UEFI-lock values and values that lower a protection are refused everywhere, not only in Security settings.
 
 ### Fixed
 
-- Defender settings are written through the current Defender module, so newer settings such as AiAgentProtection save; a write that changed nothing no longer offers Undo, and a write that could not be read back keeps it.
+- Undo now works for a policy change that failed half-way, and a revert no longer says "Reverted" when a network adapter, device or power plan was missing.
+- Policy values "false" are written as false.
+- The security score fails a protection that a policy turns off.
+- Firewall: Recent changes shows its rows again; editing a rule keeps its protocol; the "Share files" template opens only port 445.
+- The preview applies exactly what it showed; the Group Policy Undo asks first; forensic Stop keeps working after a busy moment.
+- Catalog corrections for Recall, SMB signing on Home, Pro-only policies and laptops.
+- Mouse and keyboard changes apply without signing out.
 
 ### Good to know
 
-- Real apply-and-restore runs of these tools in Windows Sandbox are still to do; everything was tested with the full headless suite (1,460 tests).
-- Microsoft security baseline values are not bundled yet.
-- Guides: docs\REGISTRY_CLEANER.md, docs\SECURITY_SETTINGS.md. Full list: docs\CHANGELOG.md.
+- Real apply-and-restore runs of these fixes in Windows Sandbox are still to do; everything was tested with the full headless suite (1,534 tests).
+- Full list: docs\CHANGELOG.md. Design notes: docs\DECISIONS.md (V1 to V13).

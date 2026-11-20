@@ -4,7 +4,7 @@
 
 129 tweaks: 75 Tier A (documented by Microsoft or the vendor), 35 Tier B (situational; measure before and after), 19 Tier R (rejected tweaks offered in the Risk Zone at your own risk). Presets: C = Competitive, B = Balanced, H = Hardened.
 
-Levels: 59 Standard, 47 Advanced, 3 Expert, 20 Lab. Standard is for everyone; Advanced is for power users; Expert needs an acknowledgement; Lab items knowingly break something (anti-cheat, a security feature) and are never in a preset.
+Levels: 59 Standard, 46 Advanced, 4 Expert, 20 Lab. Standard is for everyone; Advanced is for power users; Expert needs an acknowledgement; Lab items knowingly break something (anti-cheat, a security feature) and are never in a preset.
 
 | Category | Tier A | Tier B | Tier R | Total |
 |---|---|---|---|---|
@@ -1089,7 +1089,9 @@ Sets EnableTransparency = 0, MinAnimate = "0" and TaskbarAnimations = 0. Windows
 
 ### AI features off (Recall, Click to Do, Paint AI)
 
-`privacy.ai-features-off` | Standard | Tier A | risk low | restart: reboot | Anti-cheat safe | reversible: full | impact: performance none, latency none, security +
+`privacy.ai-features-off` | Standard | Tier A | risk low | restart: reboot | Anti-cheat safe | reversible: partial | impact: performance none, latency none, security +
+
+**Side effects:** On a Copilot+ PC, Windows removes Recall and deletes the snapshots it saved when AllowRecallEnablement is 0 (Policy CSP WindowsAI). Reverting makes Recall available again, but deleted snapshots cannot be brought back.
 
 *Applies Microsoft's documented policies to disable Recall, Click to Do and Paint's generative AI features.*
 
@@ -1473,7 +1475,7 @@ Sets the documented Downloads threshold policy to 60 days. When Storage Sense ru
 | `sec.cfa-audit` | Controlled Folder Access (Audit mode) | Advanced | B | low | none | HF | safe |
 | `sec.cfa-allow-games` | Controlled Folder Access: allow detected games | Advanced | B | low | none | - | safe |
 | `sec.asr-safe-mode-block` | Attack surface reduction: block rebooting into Safe Mode (Block) | Advanced | A | low | none | F | safe |
-| `sec.kernel-shadow-stacks` | Kernel-mode hardware-enforced stack protection | Advanced | B | medium | reboot | - | safe |
+| `sec.kernel-shadow-stacks` | Kernel-mode hardware-enforced stack protection | Expert | B | medium | reboot | - | **Anti-cheat: unknown** |
 | `sec.defender-sandbox` | Run Microsoft Defender Antivirus in a sandbox | Advanced | A | low | reboot | - | safe |
 | `sec.uac-always-notify` | UAC: Always notify | Standard | A | low | none | HF | safe |
 | `sec.uac-on` | User Account Control on | Standard | A | low | reboot | CBHSELPF | safe |
@@ -1826,7 +1828,9 @@ Sets the ASR rule "Block rebooting machine in Safe Mode" to Block. Ransomware us
 
 ### Kernel-mode hardware-enforced stack protection
 
-`sec.kernel-shadow-stacks` | Advanced | Tier B | risk medium | restart: reboot | Anti-cheat safe | reversible: full | impact: performance none, latency none, security +
+`sec.kernel-shadow-stacks` | Expert | Tier B | risk medium | restart: reboot | Anti-cheat: unknown | reversible: full | impact: performance none, latency none, security +
+
+> **Warning:** Some anti-cheat drivers have been incompatible with kernel shadow stacks: a game may refuse to start until you turn this off again. FACEIT and Riot Vanguard require memory integrity but do not document this setting; test each online game after a restart.
 
 *CET shadow stacks for kernel drivers. Needs HVCI; some older anti-cheat drivers were incompatible. Test games, measure.*
 
@@ -2082,7 +2086,7 @@ Sets RequireSecuritySignature = 1 for the SMB client and server and keeps the SM
 
 **Changes**
 
-- Registry `HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters\RequireSecuritySignature` = `1` (DWord); Windows default `<absent>`; absent means `1`
+- Registry `HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters\RequireSecuritySignature` = `1` (DWord); Windows default `<absent>`
 - Registry `HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\RequireSecuritySignature` = `1` (DWord); Windows default `<absent>`
 - Optional feature `SMB1Protocol` = `Disabled`; default `Disabled`
 

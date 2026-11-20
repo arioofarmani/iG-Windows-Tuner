@@ -23,6 +23,34 @@ function Get-IgwtHostExecutable {
     return $path
 }
 
+function ConvertTo-IgwtCommandLineArgument {
+    <#
+    .SYNOPSIS
+        One argument quoted for a Windows command line so the new process reads it back exactly
+        (CommandLineToArgvW rules): backslashes before a quote and at the end are doubled, quotes
+        are escaped. A path ending in "\" no longer swallows the next argument, and a value with
+        quotes cannot add parameters (review 3.8.1 CLI-01). Pure.
+    .PARAMETER Value
+        The argument.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowEmptyString()][string]$Value)
+    if ($Value -and $Value -notmatch '[\s"]') { return $Value }
+    $sb = New-Object System.Text.StringBuilder
+    $null = $sb.Append('"')
+    $slashes = 0
+    foreach ($c in $Value.ToCharArray()) {
+        if ($c -eq '\') { $slashes++; continue }
+        if ($c -eq '"') { $null = $sb.Append('\', 2 * $slashes + 1); $null = $sb.Append('"') }
+        else { if ($slashes) { $null = $sb.Append('\', $slashes) }; $null = $sb.Append($c) }
+        $slashes = 0
+    }
+    if ($slashes) { $null = $sb.Append('\', 2 * $slashes) }
+    $null = $sb.Append('"')
+    return $sb.ToString()
+}
+
 function Start-IgwtElevated {
     <#
     .SYNOPSIS
@@ -43,9 +71,7 @@ function Start-IgwtElevated {
         [switch]$Wait
     )
     $exe = Get-IgwtHostExecutable
-    $quoted = foreach ($a in $ArgumentList) {
-        if ($a -match '[\s"]') { '"' + ($a -replace '"', '\"') + '"' } else { $a }
-    }
+    $quoted = foreach ($a in $ArgumentList) { ConvertTo-IgwtCommandLineArgument -Value ([string]$a) }
     $allArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $ScriptPath)) + @($quoted)
     if (-not $PSCmdlet.ShouldProcess("$exe $($allArgs -join ' ')", 'Start elevated (UAC prompt)')) { return $null }
     try {

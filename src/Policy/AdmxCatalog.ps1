@@ -109,7 +109,7 @@ function Get-IgwtAdmxPresentation {
         $label = $(if ($c['label']) { $c['label'].InnerText } else { $c.InnerText })
         # 3.8 (DECISIONS SM7, additive): decimalTextBox spin and spinStep, comboBox suggestions.
         $suggest = @(foreach ($s in $c.ChildNodes) { if ($s.NodeType -eq 'Element' -and $s.LocalName -eq 'suggestion') { ([string]$s.InnerText).Trim() } })
-        $map[$rid] = [pscustomobject]@{ Kind = $c.LocalName; Spin = ($c.GetAttribute('spin') -ne 'false'); SpinStep = $(if ($c.HasAttribute('spinStep')) { [uint64]$c.GetAttribute('spinStep') } else { [uint64]1 }); Suggestions = $suggest; Label = ([string]$label).Trim(); Default = $(if ($c.HasAttribute('defaultValue')) { $c.GetAttribute('defaultValue') } elseif ($c.HasAttribute('defaultChecked')) { $c.GetAttribute('defaultChecked') } elseif ($c.HasAttribute('defaultItem')) { $c.GetAttribute('defaultItem') } else { $null }) }
+        $map[$rid] = [pscustomobject]@{ Kind = $c.LocalName; Spin = ($c.GetAttribute('spin') -ne 'false'); SpinStep = $(if ($c.HasAttribute('spinStep')) { [uint64]$c.GetAttribute('spinStep') } else { [uint64]1 }); Suggestions = $suggest; Label = ([string]$label).Trim(); Default = $(if ($c.HasAttribute('defaultValue')) { $c.GetAttribute('defaultValue') } elseif ($c.HasAttribute('defaultChecked')) { ConvertTo-IgwtStrictBool -Value $c.GetAttribute('defaultChecked') -Label 'defaultChecked' } elseif ($c.HasAttribute('defaultItem')) { $c.GetAttribute('defaultItem') } else { $null }) }
     }
     return $map
 }

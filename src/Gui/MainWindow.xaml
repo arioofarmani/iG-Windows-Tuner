@@ -816,7 +816,7 @@
                     </StackPanel>
                     <TabControl x:Name="FwTabs" Grid.Row="1" Margin="0,10,0,0">
                         <TabItem x:Name="FwOverviewTab" Header="Overview" ToolTip="What needs attention, the nine rule groups, quick wins, open ports and recent changes">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                            <ScrollViewer x:Name="FwOvScroll" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
                                 <StackPanel>
                                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                                         <DockPanel>

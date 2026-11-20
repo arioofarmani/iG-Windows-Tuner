@@ -19,19 +19,42 @@ function Get-IgwtSecSettingOpRefusal {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][ValidateSet('Machine', 'User')][string]$Class, [Parameter(Mandatory = $true)]$Op)
+    if ([string]$Op.Op -eq 'Set') {
+        $deny = Test-IgwtPolicyOpAllowed -Op $Op -Class $Class
+        if ($deny) { return [string]$deny }
+        return ''
+    }
+    return (Get-IgwtPolicyLockOrWeakeningReason -Op $Op -Class $Class)
+}
+
+function Get-IgwtPolicyLockOrWeakeningReason {
+    <#
+    .SYNOPSIS
+        Why a registry operation is refused by a UEFI-lock tuple (settings-meta.json uefiLockValues)
+        or a weakening entry (weakening.json), or ''. Matched on class (when given), key, value
+        name and value, never on the value alone. A Set is checked against both; a Delete or
+        Remove only against weakening entries that list 'delete'. Used by every policy write path
+        through Test-IgwtPolicyOpAllowed (review 3.8.1 P-26, P-28). Pure.
+    .PARAMETER Op
+        @{ Op; Key; ValueName; Value }.
+    .PARAMETER Class
+        Machine or User, or empty to match entries of either class (the cautious choice).
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)]$Op, [AllowEmptyString()][string]$Class = '')
     $data = Get-IgwtSecSettingsData
     $value = [string](@($Op.Value) -join ',')
+    $classOk = { param($c) (-not $Class) -or [string]$c -eq 'Both' -or [string]$c -eq $Class }
     if ([string]$Op.Op -eq 'Set') {
-        $deny = Test-IgwtPolicyOpAllowed -Op $Op
-        if ($deny) { return [string]$deny }
         foreach ($t in @($data.Meta.uefiLockValues)) {
-            if ([string]$t.class -eq $Class -and [string]::Equals([string]$t.key, [string]$Op.Key, [System.StringComparison]::OrdinalIgnoreCase) -and [string]::Equals([string]$t.valueName, [string]$Op.ValueName, [System.StringComparison]::OrdinalIgnoreCase) -and [string]$t.value -eq $value) {
+            if ((& $classOk $t.class) -and [string]::Equals([string]$t.key, [string]$Op.Key, [System.StringComparison]::OrdinalIgnoreCase) -and [string]::Equals([string]$t.valueName, [string]$Op.ValueName, [System.StringComparison]::OrdinalIgnoreCase) -and [string]$t.value -eq $value) {
                 return "$($t.label): a UEFI lock cannot be removed by software, so iG never sets it."
             }
         }
     }
     foreach ($w in @($data.Weakening.entries)) {
-        if ([string]$w.class -ne 'Both' -and [string]$w.class -ne $Class) { continue }
+        if (-not (& $classOk $w.class)) { continue }
         if ([string]$Op.Key -notmatch "^(?i)(?:$($w.key))$" -or [string]$Op.ValueName -notmatch "^(?i)(?:$($w.valueName))$") { continue }
         $vals = @($w.values | ForEach-Object { [string]$_ })
         if ([string]$Op.Op -eq 'Set' -and ($vals -contains 'any' -or $vals -contains $value -or @($vals | Where-Object { $_ -match '[\\*]' -and $value -match "^(?:$_)$" }).Count)) { return [string]$w.reason }

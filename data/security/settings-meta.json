@@ -88,6 +88,14 @@
       "value": 1,
       "label": "LSA protection enabled with UEFI lock",
       "source": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
+    },
+    {
+      "class": "Machine",
+      "key": "SYSTEM\\CurrentControlSet\\Control\\Lsa",
+      "valueName": "RunAsPPL",
+      "value": 1,
+      "label": "LSA protection enabled with UEFI lock (registry value)",
+      "source": "https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection"
     }
   ],
   "tamperLocked": {

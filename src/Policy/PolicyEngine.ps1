@@ -7,6 +7,28 @@
 
 $script:IgwtPolicyDenylist = $null
 
+function ConvertTo-IgwtStrictBool {
+    <#
+    .SYNOPSIS
+        A true/false value from a bool, a number (0/1) or text (true/false, yes/no, on/off, 1/0,
+        any case); anything else throws. PowerShell's own [bool] makes every non-empty string True,
+        so "false" would be written as true (review 3.8.1 P-01, P-08). Pure.
+    .PARAMETER Value
+        The value to read.
+    .PARAMETER Label
+        The setting's name, for the error message.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()]$Value, [string]$Label = 'value')
+    if ($Value -is [bool]) { return $Value }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [uint32]) { if ([long]$Value -in 0, 1) { return ([long]$Value -eq 1) } }
+    $s = ([string]$Value).Trim()
+    if ($s -match '^(?i:true|yes|on|1)$') { return $true }
+    if ($s -match '^(?i:false|no|off|0)$') { return $false }
+    throw "'$s' is not true or false for '$Label'."
+}
+
 #region Registry operations
 
 function Get-IgwtPolicyRegistryOps {
@@ -76,7 +98,8 @@ function Get-IgwtPolicyRegistryOps {
             }
             'multiText' { & $add 'Set' $e.Key $e.ValueName 'MultiString' @(@($v) | ForEach-Object { [string]$_ }) }
             'boolean' {
-                $on = [bool]$v
+                # Strict: in PowerShell [bool]'false' is True (any non-empty string), review 3.8.1 P-01.
+                $on = ConvertTo-IgwtStrictBool -Value $v -Label ([string]$e.Label)
                 $val = $(if ($on) { $e.TrueValue } else { $e.FalseValue })
                 if ($val) { & $addValue $e.Key $e.ValueName $val } else { & $add 'Set' $e.Key $e.ValueName 'DWord' ([uint32]$(if ($on) { 1 } else { 0 })) }
                 & $addList $(if ($on) { $e.TrueList } else { $e.FalseList })
@@ -125,9 +148,19 @@ function Get-IgwtPolicyDenylist {
 }
 
 function Test-IgwtPolicyOpAllowed {
-    <# .SYNOPSIS The denylist reason when an operation would turn off a security protection, or $null. #>
+    <#
+    .SYNOPSIS
+        The reason a Set is never written, or $null: the policy denylist (turns a security
+        protection off), a UEFI-lock value (cannot be removed by software) or a weakening entry.
+        The one write guard of every policy path: -PolicySet, presets, baseline, policy bridge,
+        secpol Registry Values and the Security Settings Manager (review 3.8.1 P-26, P-28).
+    .PARAMETER Op
+        @{ Op; Key; ValueName; Value }.
+    .PARAMETER Class
+        Machine or User when known; empty matches entries of either class.
+    #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Op)
+    param([Parameter(Mandatory = $true)]$Op, [AllowEmptyString()][string]$Class = '')
     if ($Op.Op -ne 'Set') { return $null }
     foreach ($d in @(Get-IgwtPolicyDenylist)) {
         if ([string]$Op.Key -notmatch "^(?i)(?:$($d.key))$") { continue }
@@ -135,6 +168,8 @@ function Test-IgwtPolicyOpAllowed {
         $vals = @($d.values | ForEach-Object { [string]$_ })
         if ($vals -contains 'any' -or $vals -contains ([string](@($Op.Value) -join ','))) { return [string]$d.reason }
     }
+    $why = Get-IgwtPolicyLockOrWeakeningReason -Op $Op -Class $Class
+    if ($why) { return $why }
     return $null
 }
 

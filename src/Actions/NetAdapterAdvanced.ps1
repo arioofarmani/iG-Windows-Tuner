@@ -115,11 +115,14 @@ function Restore-IgwtNetAdapterAdvancedSnapshot {
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     $adapters = @()
     try { $adapters = @(Get-NetAdapter -Physical -ErrorAction Stop) } catch { $adapters = @() }
+    $missing = New-Object System.Collections.Generic.List[string]
     foreach ($item in @($Snapshot.items)) {
         $a = $adapters | Where-Object { [string]$_.InterfaceGuid -eq [string]$item.scope } | Select-Object -First 1
-        if (-not $a) { Write-IgwtLog -Level Warn -Message "Adapter $($item.adapter) is no longer present; $($item.keyword) not restored."; continue }
+        # Reported after the others are restored, never skipped silently (review 3.8.1 R-1).
+        if (-not $a) { $missing.Add("$($item.adapter) ($($item.keyword))"); continue }
         $keyword = [string]$item.keyword
         if ([string]$item.mode -ne 'keyword') { $keyword = '' }
         Set-IgwtAdapterPropertyValue -AdapterName $a.Name -Keyword $keyword -DisplayName ([string]$item.displayName) -Mode ([string]$item.mode) -Value ([string]$item.value)
     }
+    if ($missing.Count) { throw "Network adapter $($missing -join ', ') is not present, so its value was not restored. Connect it and revert again; everything else was restored." }
 }

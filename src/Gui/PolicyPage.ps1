@@ -203,6 +203,17 @@ function Invoke-IgwtGuiPolicySet {
 function Invoke-IgwtGuiPolicyUndo {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Backup)
+    # A whole-GPO restore also undoes every later policy change, so it is refused when a newer backup exists
+    # and is never run without a confirmation (review 3.8.1 PP-1).
+    $dir = Split-Path -Parent $Backup
+    $leaf = Split-Path -Leaf $Backup
+    $newer = @()
+    try { $newer = @(Get-ChildItem -LiteralPath $dir -Directory -Filter 'gpo-*' -ErrorAction Stop | Where-Object { [string]::CompareOrdinal($_.Name, $leaf) -gt 0 }) } catch { $newer = @() }
+    if ($newer.Count) {
+        $null = Show-IgwtGuiMessage -Text "The Local Group Policy was changed again after this change. Undo it from the change journal (Backups & Logs > Change journal), which keeps the later changes." -Title 'iG Windows Tuner - Group Policy' -Buttons 'OK' -Icon 'Information'
+        return
+    }
+    if ((Show-IgwtGuiMessage -Text 'Restore the Local Group Policy to how it was before this change?' -Title 'iG Windows Tuner - Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Restore-IgwtLocalGpo' -Parameters @{ BackupPath = $Backup } -Blocking -BusyText 'Restoring the Local Group Policy backup...' -OnComplete {
         param($out, $errs)
         if (@($errs).Count) { Show-IgwtGuiError -Message "Undo failed: $(@($errs)[0])" -Context 'Policy' } else { Show-IgwtGuiToast -Text 'The Local Group Policy was restored.' -Tone Info }

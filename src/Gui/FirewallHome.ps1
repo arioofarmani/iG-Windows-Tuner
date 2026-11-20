@@ -135,7 +135,21 @@ function Update-IgwtGuiFirewallOverview {
     # Recent changes with Undo.
     $recent = @($a.RecentChanges | Where-Object { $_ })
     $c.FwOvRecentEmpty.Visibility = $(if ($recent.Count) { 'Collapsed' } else { 'Visible' })
-    $c.FwOvRecentList.ItemsSource = @($recent | ForEach-Object { New-IgwtGuiRecentChangeRow -Snapshot $_ })
+    Set-IgwtGuiFirewallRecentRows -List $c.FwOvRecentList -Snapshots $recent
+}
+
+function Set-IgwtGuiFirewallRecentRows {
+    <#
+    .SYNOPSIS
+        Fills the recent changes list with one element per snapshot. Items.Add, not ItemsSource: a
+        function's output is wrapped in a PSObject and an array keeps that wrapper, so ItemsSource would
+        get no UIElement and show the text "System.Windows.Controls.DockPanel". A method argument is unwrapped.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$List, [object[]]$Snapshots = @())
+    $List.Items.Clear()
+    foreach ($s in $Snapshots) { $null = $List.Items.Add((New-IgwtGuiRecentChangeRow -Snapshot $s)) }
 }
 
 function New-IgwtGuiExposureRow {

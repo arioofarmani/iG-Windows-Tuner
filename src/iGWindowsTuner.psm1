@@ -18,7 +18,7 @@ Export-ModuleMember -Function (
     'Get-IgwtCatalog', 'Get-IgwtTweak', 'Get-IgwtPreset', 'Get-IgwtGameDefinitions', 'Get-IgwtInstalledGames', 'Get-IgwtRejectedTweaks',
     'Test-IgwtCatalog', 'Get-IgwtTweakRevertDescription',
     'New-IgwtContext', 'Get-IgwtTweakState', 'Get-IgwtAllTweakStates', 'Get-IgwtPlan', 'Get-IgwtPresetPlan',
-    'Invoke-IgwtApply', 'Invoke-IgwtRevert', 'Get-IgwtSnapshotList',
+    'Invoke-IgwtApply', 'Invoke-IgwtRevert', 'Get-IgwtSnapshotList', 'Find-IgwtLatestSnapshotEntry',
     'Get-IgwtHealthReport', 'Format-IgwtHealthReport', 'Export-IgwtHealthReport', 'Get-IgwtHardwareSummary', 'Get-IgwtAntiCheatReadiness',
     'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
     'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',

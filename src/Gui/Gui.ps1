@@ -32,7 +32,7 @@ $script:IgwtGuiControlNames = @(
     'ManagePersistSummary', 'ManagePersistGridHost', 'ManagePersistDetail', 'ManagePersistDisableButton', 'ManagePersistExportButton',
     'ManageOpenFirewallButton', 'ManageHostsText', 'SecFirewallButton',
     'PageFirewall', 'FwNewRuleButton', 'FwRefreshButton', 'FwSummaryIcon', 'FwSummaryText', 'FwNoticeText', 'FwTabs', 'FwImportButton', 'FwExportButton', 'FwExportPolicyButton', 'FwGridHost',
-    'FwOverviewTab', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvRoleBox', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
+    'FwOverviewTab', 'FwOvScroll', 'FwRulesTab', 'FwConnectionsTab', 'FwConnRefreshButton', 'FwConnText', 'FwConnHost', 'FwDefaultsTab', 'FwDefaultsText', 'FwDefaultsHost', 'FwOvScopeButton', 'FwOvExportOverridesButton', 'FwOvRoleBox', 'FwOvUpdatedText', 'FwOvStatusText', 'FwOvAttentionCard', 'FwOvAttentionIcon', 'FwOvAttentionTitle', 'FwOvAttentionText', 'FwOvReviewButton', 'FwOvQuickCard', 'FwOvQuickText', 'FwOvQuickButton', 'FwOvTiles', 'FwOvOriginChart', 'FwOvOriginText', 'FwOvDirChart', 'FwOvDirText', 'FwOvExposureText', 'FwOvExposureHost', 'FwOvRecentEmpty', 'FwOvRecentList', 'FwGroupList', 'FwViewList', 'FwViewEmpty', 'FwBulkButton', 'FwReportButton', 'FwDetSummary', 'FwDetChips', 'FwDetFindingsTitle', 'FwDetFindings', 'FwDetWhyExists', 'FwDetOrigin', 'FwDetMoveButton', 'FwDetNotBloatedButton', 'FwDetPrecedence', 'FwDetHistory',
     'FwDetName', 'FwDetMeta', 'FwDetRiskBox', 'FwDetRisk', 'FwEnableButton', 'FwDisableButton', 'FwAllowButton', 'FwBlockButton', 'FwEditButton', 'FwDuplicateButton', 'FwDeleteButton', 'FwDetWhy', 'FwDetText',
     'FwProfilesPanel', 'FwProfileList', 'FwNetworkList', 'FwProfileNote', 'FwLogButton',
     'FwLogTab', 'FwLogFollowButton', 'FwLogNoteButton', 'FwLogReadButton', 'FwLogStatusText', 'FwLogAddressBox', 'FwLogPortBox', 'FwLogProcessBox', 'FwLogFromBox', 'FwLogToBox', 'FwLogApplyButton', 'FwLogFilterError',
@@ -1335,13 +1335,26 @@ function Invoke-IgwtGuiPreview {
         Set-IgwtGuiStatus 'Preview ready.'
         $accept = ''
         if ($script:Gui.IsAdmin) { $accept = 'Apply these changes' }
-        if (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - preview (dry run, nothing changed)' -Text $text -AcceptText $accept) { Invoke-IgwtGuiApply -SkipConfirm }
+        if (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - preview (dry run, nothing changed)' -Text $text -AcceptText $accept) { Invoke-IgwtGuiApply -SkipConfirm -Previewed $sets }
     }
+}
+
+function Test-IgwtGuiStagedSetsEqual {
+    <# .SYNOPSIS True when two staged sets (Apply, Off, Reset id lists) hold the same ids, order ignored. Pure. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$A, [Parameter(Mandatory = $true)]$B)
+    foreach ($k in 'Apply', 'Off', 'Reset') {
+        $x = (@($A.$k | ForEach-Object { [string]$_ } | Sort-Object -Unique) -join '|')
+        $y = (@($B.$k | ForEach-Object { [string]$_ } | Sort-Object -Unique) -join '|')
+        if ($x -ne $y) { return $false }
+    }
+    return $true
 }
 
 function Invoke-IgwtGuiApply {
     [CmdletBinding()]
-    param([switch]$SkipConfirm)
+    param([switch]$SkipConfirm, $Previewed)
     if (-not $script:Gui.IsAdmin) {
         $a = Show-IgwtGuiMessage -Text 'Applying changes requires administrator rights. Restart iG Windows Tuner as administrator now? Your staged changes will need to be staged again.' -Buttons 'YesNo' -Icon 'Question'
         if ($a -eq 'Yes') { Invoke-IgwtGuiElevate }
@@ -1350,6 +1363,12 @@ function Invoke-IgwtGuiApply {
     $sets = Get-IgwtGuiStagedSets
     $total = $sets.Apply.Count + $sets.Off.Count + $sets.Reset.Count
     if ($total -eq 0) { return }
+    # "Apply these changes" from the preview applies only what the preview showed: when the staged changes
+    # differ now (changed while the preview job ran), the normal confirmation is shown (review 3.8.1 G-02).
+    if ($SkipConfirm -and $Previewed -and -not (Test-IgwtGuiStagedSetsEqual -A $Previewed -B $sets)) {
+        $SkipConfirm = $false
+        Set-IgwtGuiStatus 'The staged changes differ from the preview; confirm the current list.'
+    }
     $expert = @($sets.Apply | Where-Object { $id = $_; ($script:Gui.Catalog | Where-Object { $_.id -eq $id }).expert })
     $unconfirmed = @($expert | Where-Object { -not $script:Gui.Acked.ContainsKey([string]$_) })
     if ($unconfirmed.Count) {
@@ -3127,11 +3146,109 @@ function Add-IgwtGuiStartupMark {
     $script:IgwtGuiStartupMarks[$Name] = [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds)
 }
 
+# Text that shows an object instead of its value (a .NET type name or a hashtable printed by ToString).
+# Each rule is a shape, not a word: "System32", "HKLM\System\..." and a winget id such as Microsoft.PowerShell
+# stay clean. Windows really shows indirect strings such as "@{Microsoft.Foo_1.0?ms-resource://...}" for some
+# firewall rules, so the hashtable rule needs "name=" right after the brace.
+$script:IgwtGuiTextLeakRules = @(
+    [pscustomobject]@{ Id = 'TypeName'; Regex = [regex]'^\s*System\.[A-Z]\w*(\.[A-Z_]\w*)*(\+\w+)*(`\d+)?(\[.*\])?\s*$' }
+    [pscustomobject]@{ Id = 'FrameworkType'; Regex = [regex]'(?<![\w.\\])System\.(Windows\.(Controls|Media|Documents|Data|Shapes)\.[A-Z]|Collections\.[A-Z]|Management\.Automation\.[A-Z]|__ComObject)' }
+    [pscustomobject]@{ Id = 'ArrayType'; Regex = [regex]'(?<![\w.\\])System\.[A-Z]\w*(\.[A-Z]\w*)*\[\]' }
+    [pscustomobject]@{ Id = 'PowerShellType'; Regex = [regex]'^\s*Microsoft\.PowerShell\.(Commands|Cmdletization|Internal)\.[A-Z]' }
+    [pscustomobject]@{ Id = 'CimType'; Regex = [regex]'^\s*Microsoft\.Management\.Infrastructure\.[A-Z]' }
+    [pscustomobject]@{ Id = 'Hashtable'; Regex = [regex]'^\s*@\{\s*([A-Za-z_][\w ]*=|\}\s*$)' }
+    [pscustomobject]@{ Id = 'PSCustomObject'; Regex = [regex]'^\s*PSCustomObject\b' }
+)
+
+function Get-IgwtGuiTextLeakRule {
+    <#
+    .SYNOPSIS
+        Returns the id of the rule a visible text breaks when it looks like a leaked type name or
+        hashtable ("System.Windows.Controls.DockPanel", "@{Id=1}"), or $null when the text is fine.
+        Multi-line text is checked line by line.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([AllowEmptyString()][AllowNull()][string]$Text)
+    if (-not $Text -or $Text -notmatch 'System\.|Microsoft\.|@\{|PSCustomObject') { return $null }
+    foreach ($line in ($Text -split '\r?\n')) {
+        foreach ($rule in $script:IgwtGuiTextLeakRules) { if ($rule.Regex.IsMatch($line)) { return [string]$rule.Id } }
+    }
+    return $null
+}
+
+function Find-IgwtGuiRenderedLeak {
+    <#
+    .SYNOPSIS
+        Walks the visual and logical tree under an element that has been laid out and checks every
+        visible text: TextBlock, TextBox, string content, string tooltips and the items of lists that
+        have no template. Collapsed and hidden parts are skipped.
+    .OUTPUTS
+        Checked (texts looked at), Leaks (Text, Rule, Control), FilledLists and EmptyLists (names of the
+        named lists with and without items).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Root)
+    $leaks = New-Object System.Collections.Generic.List[object]
+    $empty = New-Object System.Collections.Generic.List[string]
+    $filled = New-Object System.Collections.Generic.List[string]
+    $seenText = New-Object 'System.Collections.Generic.HashSet[string]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[object]'
+    $stack = New-Object 'System.Collections.Generic.Stack[object]'
+    $checked = 0
+    $stack.Push($Root)
+    while ($stack.Count) {
+        $n = $stack.Pop()
+        if (-not $seen.Add($n)) { continue }
+        $texts = New-Object System.Collections.Generic.List[string]
+        if ($n -is [System.Windows.FrameworkElement]) {
+            if ($n.Visibility -ne [System.Windows.Visibility]::Visible) { continue }
+            if ($n.ToolTip -is [string]) { $texts.Add($n.ToolTip) }
+        }
+        if ($n -is [System.Windows.Controls.TextBlock]) { $texts.Add($n.Text) }
+        elseif ($n -is [System.Windows.Controls.TextBox]) { $texts.Add($n.Text) }
+        elseif ($n -is [System.Windows.Controls.ContentControl] -or $n -is [System.Windows.Controls.ContentPresenter]) { if ($n.Content -is [string]) { $texts.Add($n.Content) } }
+        $isList = $n -is [System.Windows.Controls.ItemsControl]
+        if ($isList) {
+            if ($n.Name) { if ($n.Items.Count) { $filled.Add([string]$n.Name) } else { $empty.Add([string]$n.Name) } }
+            # A DataGrid shows columns and only builds the visible rows: its cells are in the visual tree.
+            if ($n -isnot [System.Windows.Controls.DataGrid] -and $n -isnot [System.Windows.Controls.Primitives.DataGridCellsPresenter] -and $n -isnot [System.Windows.Controls.Primitives.DataGridColumnHeadersPresenter]) {
+                $plain = -not ($n.ItemTemplate -or $n.ItemTemplateSelector -or $n.DisplayMemberPath)
+                $count = 0
+                foreach ($item in $n.Items) {
+                    if (++$count -gt 200) { break }
+                    if ($item -is [System.Windows.DependencyObject]) { $stack.Push($item) }
+                    elseif ($plain -and $null -ne $item) { $texts.Add("$item") }
+                }
+            }
+        }
+        if ($n -is [System.Windows.Media.Visual] -or $n -is [System.Windows.Media.Media3D.Visual3D]) {
+            $kids = [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($n)
+            for ($i = 0; $i -lt $kids; $i++) { $stack.Push([System.Windows.Media.VisualTreeHelper]::GetChild($n, $i)) }
+        }
+        if (-not $isList) {
+            foreach ($kid in [System.Windows.LogicalTreeHelper]::GetChildren($n)) {
+                if ($kid -is [System.Windows.DependencyObject]) { $stack.Push($kid) } elseif ($kid -is [string]) { $texts.Add($kid) }
+            }
+        }
+        foreach ($t in $texts) {
+            if (-not $t) { continue }
+            $checked++
+            $rule = Get-IgwtGuiTextLeakRule -Text $t
+            if ($rule -and $seenText.Add($t)) {
+                $leaks.Add([pscustomobject]@{ Text = $(if ($t.Length -gt 200) { $t.Substring(0, 200) } else { $t }); Rule = $rule; Control = (@($n.GetType().Name, $(if ($n -is [System.Windows.FrameworkElement]) { $n.Name })) -join ' ').Trim() })
+            }
+        }
+    }
+    return [pscustomobject]@{ Checked = $checked; Leaks = $leaks.ToArray(); FilledLists = $filled.ToArray(); EmptyLists = $empty.ToArray() }
+}
+
 function Save-IgwtGuiScreenshots {
     <#
     .SYNOPSIS
         Loads live data synchronously and renders each navigation page of the already-initialized
-        window to PNG with RenderTargetBitmap (no window is shown). Read-only.
+        window to PNG with RenderTargetBitmap (no window is shown). Read-only. Every rendered view is
+        also checked for text that looks like a leaked type name; text-leaks.json holds the result.
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Folder, [double]$Scale = 1.0, [switch]$WithNetworkTest)
@@ -3209,6 +3326,8 @@ function Save-IgwtGuiScreenshots {
     $index = 0
     # Page switch time offscreen: from selecting the page to its first complete layout (no paint; 3.3 phase 7).
     $timings = New-Object System.Collections.Generic.List[object]
+    # The text check of each rendered view (not part of the startup and page timings).
+    $textScan = @{ Checked = 0; Watch = (New-Object System.Diagnostics.Stopwatch); Leaks = (New-Object System.Collections.Generic.List[object]); FilledLists = (New-Object 'System.Collections.Generic.HashSet[string]'); EmptyLists = (New-Object 'System.Collections.Generic.HashSet[string]') }
     foreach ($item in @($script:Gui.C.NavList.Items | Where-Object { -not (Test-IgwtGuiNavHeader -Item $_) })) {
         $page = [string]$item.Tag
         $pageWatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -3233,6 +3352,13 @@ function Save-IgwtGuiScreenshots {
             $fs = [System.IO.File]::Create($file)
             try { $enc.Save($fs) } finally { $fs.Dispose() }
             $saved.Add($file)
+            $textScan.Watch.Start()
+            $scan = Find-IgwtGuiRenderedLeak -Root $root
+            $textScan.Watch.Stop()
+            $textScan.Checked += $scan.Checked
+            foreach ($leak in $scan.Leaks) { $textScan.Leaks.Add([pscustomobject]@{ Image = $name; Text = $leak.Text; Rule = $leak.Rule; Control = $leak.Control }) }
+            foreach ($list in $scan.FilledLists) { $null = $textScan.FilledLists.Add($list) }
+            foreach ($list in $scan.EmptyLists) { $null = $textScan.EmptyLists.Add($list) }
         }
         & $capture ''
         # The dashboard continues below the fold: recent changes and shortcuts.
@@ -3284,11 +3410,17 @@ function Save-IgwtGuiScreenshots {
             try { Set-IgwtGuiForensicState -State (Get-IgwtForensicLoggingState) } catch { Write-Verbose "Forensic demo not shown: $($_.Exception.Message)" }
             & $capture 'e'
             $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwOverviewTab
+            # The overview continues below the fold: open ports and recent changes with Undo.
+            $root.UpdateLayout()
+            $script:Gui.C.FwOvScroll.ScrollToEnd()
+            & $capture 'f'
+            $script:Gui.C.FwOvScroll.ScrollToHome()
         }
         $index++
     }
     $timings.ToArray() | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $Folder 'page-timings.json') -Encoding UTF8
-    if ($script:IgwtGuiStartWatch) { [ordered]@{ WindowBuiltMs = $windowBuiltMs; AllPagesMs = [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds); Steps = $script:IgwtGuiStartupMarks } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Folder 'startup-timing.json') -Encoding UTF8 }
+    [ordered]@{ Checked = $textScan.Checked; Leaks = $textScan.Leaks.ToArray(); FilledLists = @($textScan.FilledLists | Sort-Object); EmptyLists = @($textScan.EmptyLists | Where-Object { -not $textScan.FilledLists.Contains($_) } | Sort-Object); ScanMs = [math]::Round($textScan.Watch.Elapsed.TotalMilliseconds) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Folder 'text-leaks.json') -Encoding UTF8
+    if ($script:IgwtGuiStartWatch) { [ordered]@{ WindowBuiltMs = $windowBuiltMs; AllPagesMs = [math]::Round($script:IgwtGuiStartWatch.Elapsed.TotalMilliseconds - $textScan.Watch.Elapsed.TotalMilliseconds); Steps = $script:IgwtGuiStartupMarks } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Folder 'startup-timing.json') -Encoding UTF8 }
     return $saved.ToArray()
 }
 

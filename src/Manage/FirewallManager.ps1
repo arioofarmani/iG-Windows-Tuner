@@ -581,6 +581,54 @@ function Get-IgwtFirewallRuleDefinition {
     }
 }
 
+function Test-IgwtFirewallRuleDefinition {
+    <#
+    .SYNOPSIS
+        Validates a saved rule definition (snapshot or import) before a revert writes it (review
+        3.8.1 S1, defense in depth): name and display name, direction, action, profiles, edge
+        traversal and interface type from their fixed sets, protocol (name or 0-255), program as a
+        full path, owner and package as SIDs, no control characters. Ports and addresses are left
+        to New-/Set-NetFirewallRule, which validate them, so built-in rules with keywords iG does
+        not list still revert. Returns the problems (empty when valid). It does not judge whether
+        the rule is wise: a revert must be able to recreate exactly the rule that was there. Pure.
+    .PARAMETER Definition
+        The definition (dictionary or object) from Get-IgwtFirewallRuleDefinition.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory = $true)]$Definition)
+    $d = $Definition
+    $get = { param($n) if ($d -is [System.Collections.IDictionary]) { $d[$n] } else { $d.$n } }
+    $errs = New-Object System.Collections.Generic.List[string]
+    $name = [string](& $get 'name')
+    if (-not $name -or $name.Length -gt 255 -or $name -match '[\x00-\x1F]') { $errs.Add('name is missing or not valid') }
+    $dn = [string](& $get 'displayName')
+    if (-not $dn.Trim() -or $dn.Length -gt 1024) { $errs.Add('display name is missing or too long') }
+    if ([string](& $get 'direction') -notin 'Inbound', 'Outbound') { $errs.Add('direction is not Inbound or Outbound') }
+    $act = [string](& $get 'action')
+    if ($act -and $act -notin 'Allow', 'Block', 'NotConfigured') { $errs.Add("action '$act' is not valid") }
+    $prof = @(([string](& $get 'profile')) -split ',\s*' | Where-Object { $_ })
+    if (@($prof | Where-Object { $_ -notin 'Domain', 'Private', 'Public', 'Any', 'NotApplicable' }).Count) { $errs.Add("profile '$($prof -join ', ')' is not valid") }
+    $proto = [string](& $get 'protocol')
+    if ($proto -and $script:IgwtFirewallProtocols -notcontains $proto -and -not ($proto -match '^\d{1,3}$' -and [int]$proto -le 255)) { $errs.Add("protocol '$proto' is not valid") }
+    $prog = [string](& $get 'program')
+    if ($prog -and $prog -notin 'Any', 'System' -and ($prog -notmatch '^(%[A-Za-z0-9_()]+%|[A-Za-z]:)\\' -or $prog.IndexOfAny([IO.Path]::GetInvalidPathChars()) -ge 0)) { $errs.Add('program is not a full path') }
+    $svc = [string](& $get 'service')
+    if ($svc -and $svc -ne 'Any' -and $svc -notmatch '^[\w\.\-\$ ]{1,256}$') { $errs.Add('service name is not valid') }
+    foreach ($k in 'localPort', 'remotePort', 'localAddress', 'remoteAddress') { if (@(& $get $k | Where-Object { [string]$_ -match '[\x00-\x1F]' }).Count) { $errs.Add("$k has control characters") } }
+    $edge = [string](& $get 'edgeTraversal')
+    if ($edge -and $edge -notin 'Block', 'Allow', 'DeferToUser', 'DeferToApp') { $errs.Add("edge traversal '$edge' is not valid") }
+    $it = [string](& $get 'interfaceType')
+    if ($it -and @($it -split ',\s*' | Where-Object { $_ -notin 'Any', 'Wired', 'Wireless', 'RemoteAccess' }).Count) { $errs.Add("interface type '$it' is not valid") }
+    $own = [string](& $get 'owner')
+    if ($own -and $own -notmatch '^S-1-[0-9-]+$') { $errs.Add('owner is not a SID') }
+    $pkg = [string](& $get 'package')
+    if ($pkg -and $pkg -notmatch '^S-1-15-[0-9-]+$') { $errs.Add('package is not an app container SID') }
+    foreach ($t in 'displayName', 'group') { if ([string](& $get $t) -match '[\x00-\x1F]') { $errs.Add("$t has control characters") } }
+    if ([string](& $get 'description') -match '[\x00-\x08\x0B\x0C\x0E-\x1F]') { $errs.Add('description has control characters') }
+    return $errs.ToArray()
+}
+
 function ConvertTo-IgwtFirewallRuleParameters {
     <#
     .SYNOPSIS
@@ -775,6 +823,8 @@ function Restore-IgwtFirewallSnapshot {
                         $def = $a.definition
                         if (-not $def) { throw 'The snapshot has no rule definition.' }
                         if ([string]$def.name -ne $name) { throw 'The snapshot definition does not match the rule.' }
+                        $bad = @(Test-IgwtFirewallRuleDefinition -Definition $def)
+                        if ($bad.Count) { throw "The saved rule definition is not valid ($($bad -join '; ')); nothing was changed." }
                         if ($exists) {
                             Add-IgwtSnapshotEntry -Snapshot $undo -TweakId "firewall:revert:$n" -Actions @([ordered]@{ index = 0; type = 'firewallManager'; op = 'changed'; name = $name; definition = (Get-IgwtFirewallRuleDefinition -Name $name) }) -Result 'Applied' -Message 'before revert'
                             $p = ConvertTo-IgwtFirewallRuleParameters -Definition $def -ForSet

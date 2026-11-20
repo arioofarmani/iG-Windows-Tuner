@@ -37,10 +37,15 @@ function New-IgwtRegistryPart {
 }
 
 function Get-IgwtInterruptDevices {
-    <# .SYNOPSIS Present PCI devices of a class (Display, Net, USB host controllers), read-only. #>
+    <#
+    .SYNOPSIS
+        Present PCI devices of a class (Display, Net, USB host controllers), read-only. Only working
+        devices (Status OK) unless -IncludeFailed: a restore must also reach a device that stopped
+        working after a change, which is exactly when the old value is needed (review 3.8.1 CP-1).
+    #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$Class)
-    $devices = @(Get-PnpDevice -Class $Class -PresentOnly -ErrorAction SilentlyContinue | Where-Object { [string]$_.InstanceId -like 'PCI\*' -and [string]$_.Status -eq 'OK' })
+    param([Parameter(Mandatory = $true)][string]$Class, [switch]$IncludeFailed)
+    $devices = @(Get-PnpDevice -Class $Class -PresentOnly -ErrorAction SilentlyContinue | Where-Object { [string]$_.InstanceId -like 'PCI\*' -and ($IncludeFailed -or [string]$_.Status -eq 'OK') })
     if ($Class -eq 'USB') { $devices = @($devices | Where-Object { [string]$_.FriendlyName -match '(?i)host controller' }) }
     return $devices
 }
@@ -49,10 +54,11 @@ function Get-IgwtCompositeParts {
     <#
     .SYNOPSIS
         The concrete registry/service parts of a composite action. Parts that cannot be applied
-        on this PC carry a Reason (shown as Not applicable).
+        on this PC carry a Reason (shown as Not applicable). -IncludeFailed also lists devices that
+        are present but not working (restore only, review 3.8.1 CP-1).
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Action, $Context)
+    param([Parameter(Mandatory = $true)]$Action, $Context, [switch]$IncludeFailed)
     switch ([string]$Action.type) {
         'storageSense' {
             $def = $script:IgwtStorageSenseSettings[[string]$Action.setting]
@@ -90,7 +96,7 @@ function Get-IgwtCompositeParts {
             if ($class -eq 'USB' -and $Context -and $Context.HardwareProfile -and [string]$Context.HardwareProfile.Facts.systemDisk.bus -eq 'USB') {
                 return @([pscustomobject]@{ Key = 'usb-boot'; Kind = 'none'; Label = 'USB host controllers'; Reason = 'Windows runs from a USB disk; its host controller is never changed.'; Action = $null })
             }
-            $devices = @(Get-IgwtInterruptDevices -Class $class)
+            $devices = @(Get-IgwtInterruptDevices -Class $class -IncludeFailed:$IncludeFailed)
             if ($devices.Count -eq 0) { return @([pscustomobject]@{ Key = 'none'; Kind = 'none'; Label = "$class devices"; Reason = "No present PCI $class device."; Action = $null }) }
             $parts = foreach ($d in $devices) {
                 $base = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($d.InstanceId)\Device Parameters\Interrupt Management"
@@ -152,13 +158,16 @@ function Restore-IgwtCompositeSnapshot {
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     if (-not $PSCmdlet.ShouldProcess([string]$Action.type, 'Restore snapshot')) { return }
     $current = @{}
-    foreach ($p in @(Get-IgwtCompositeParts -Action $Action -Context $Context)) { $current[[string]$p.Key] = $p }
+    foreach ($p in @(Get-IgwtCompositeParts -Action $Action -Context $Context -IncludeFailed)) { $current[[string]$p.Key] = $p }
     $saved = @($Snapshot.parts | Where-Object { $_ })
     [array]::Reverse($saved)
+    $missing = New-Object System.Collections.Generic.List[string]
     foreach ($s in $saved) {
         $p = $current[[string]$s.key]
-        if (-not $p -or $p.Kind -eq 'none') { Write-IgwtLog -Level Warn -Message "$($Action.type): '$($s.key)' is no longer present; not restored."; continue }
+        # A part that is gone is reported, never skipped silently: a revert that cannot restore it fails (review 3.8.1 R-1).
+        if (-not $p -or $p.Kind -eq 'none') { $missing.Add([string]$s.key); continue }
         if ($p.Kind -eq 'service') { Restore-IgwtServiceSnapshot -Action $p.Action -Snapshot $s.data -Context $Context }
         else { Restore-IgwtRegistrySnapshot -Action $p.Action -Snapshot $s.data -Context $Context }
     }
+    if ($missing.Count) { throw "$($Action.type): $($missing -join ', ') is not present, so its value was not restored. Connect or enable it and revert again; everything else was restored." }
 }

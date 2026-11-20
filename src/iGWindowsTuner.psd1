@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '3.8.1'
+    ModuleVersion        = '3.8.2'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -12,7 +12,7 @@
         'Get-IgwtCatalog', 'Get-IgwtTweak', 'Get-IgwtPreset', 'Get-IgwtGameDefinitions', 'Get-IgwtInstalledGames', 'Get-IgwtRejectedTweaks',
         'Test-IgwtCatalog', 'Get-IgwtTweakRevertDescription',
         'New-IgwtContext', 'Get-IgwtTweakState', 'Get-IgwtAllTweakStates', 'Get-IgwtPlan', 'Get-IgwtPresetPlan',
-        'Invoke-IgwtApply', 'Invoke-IgwtRevert', 'Get-IgwtSnapshotList',
+        'Invoke-IgwtApply', 'Invoke-IgwtRevert', 'Get-IgwtSnapshotList', 'Find-IgwtLatestSnapshotEntry',
         'Get-IgwtHealthReport', 'Format-IgwtHealthReport', 'Export-IgwtHealthReport', 'Get-IgwtHardwareSummary', 'Get-IgwtAntiCheatReadiness',
         'Get-IgwtNvidiaGuidance', 'Get-IgwtOsInfo', 'Get-IgwtPreflight', 'Get-IgwtPendingRestartState',
         'Test-IgwtIsAdmin', 'Start-IgwtElevated', 'Test-IgwtSystemProtectionEnabled', 'New-IgwtRestorePoint',

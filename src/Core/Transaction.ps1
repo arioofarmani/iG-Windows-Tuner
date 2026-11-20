@@ -526,6 +526,11 @@ function Invoke-IgwtChangeStep {
         $result.Result = 'Committed'
     } catch {
         $result.Message = $_.Exception.Message
+        # A module writer that failed after it recorded its backup (Set-IgwtModuleOperationRef): the step keeps
+        # that reference, so Undo-IgwtChangeGroup can restore from it (review 3.8.1 E1).
+        if ([string]$Target['provider'] -eq 'module' -and -not ($result.Applied -is [System.Collections.IDictionary]) -and $script:IgwtModuleStep -and [string]$script:IgwtModuleStep.Ref) {
+            $result.Applied = [ordered]@{ ref = [string]$script:IgwtModuleStep.Ref; action = '' }
+        }
         $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'failed'; session = $Session.Id; step = $step; group = $Group; op = $Kind; item = [string]$Target['item']; target = $Target; error = $result.Message; readBack = $(if ($result.ReadBack) { @{ ok = [bool]$result.ReadBack.Ok; state = [string]$result.ReadBack.State } } else { $null }) })
     }
     $Session.Results.Add($result)
@@ -586,11 +591,13 @@ function Get-IgwtJournalSessions {
     foreach ($e in $Journal.Entries) {
         $sid = [string]$e['session']
         if (-not $sid) { continue }
-        if (-not $map.Contains($sid)) { $map[$sid] = [pscustomobject]@{ Id = $sid; Origin = $null; Title = ''; StartedUtc = ''; EndedUtc = ''; Outcome = ''; Ended = $false; Recovered = $false; Steps = [ordered]@{} } }
+        if (-not $map.Contains($sid)) { $map[$sid] = [pscustomobject]@{ Id = $sid; Origin = $null; Title = ''; StartedUtc = ''; EndedUtc = ''; Outcome = ''; Ended = $false; Recovered = $false; RecoveryIncomplete = $false; Steps = [ordered]@{} } }
         $s = $map[$sid]
         switch ([string]$e['kind']) {
             'sessionStart' { $s.Origin = $e['origin']; $s.Title = [string]$e['title']; $s.StartedUtc = [string]$e['tsUtc'] }
-            'sessionEnd' { $s.Ended = $true; $s.EndedUtc = [string]$e['tsUtc']; $s.Outcome = [string]$e['outcome']; if ($e.ContainsKey('by')) { $s.Recovered = $true } }
+            # A recovery marks the session recovered only when it restored everything; an incomplete one keeps
+            # it offered (review 3.8.1 E2).
+            'sessionEnd' { $s.Ended = $true; $s.EndedUtc = [string]$e['tsUtc']; $s.Outcome = [string]$e['outcome']; if ($e.ContainsKey('by')) { $s.Recovered = ([string]$e['outcome'] -eq 'recovered'); $s.RecoveryIncomplete = -not $s.Recovered } }
             'intent' { $s.Steps[[string]$e['step']] = [pscustomobject]@{ Step = [int]$e['step']; Group = [string]$e['group']; Op = [string]$e['op']; Item = [string]$e['item']; Target = $e['target']; Desired = [string]$e['desired']; Before = $e['before']; Applied = $null; After = $null; Result = 'InDoubt'; Error = ''; EntryId = [string]$e['id'] } }
             'committed' { $st = $s.Steps[[string]$e['step']]; if ($st) { $st.Result = 'Committed'; $st.Applied = $e['applied']; $st.After = $e['after']; $st.EntryId = [string]$e['id'] } }
             'failed' { $st = $s.Steps[[string]$e['step']]; if ($st) { $st.Result = 'Failed'; $st.Error = [string]$e['error'] } }
@@ -616,7 +623,9 @@ function Get-IgwtIncompleteChangeSession {
     param($Journal)
     foreach ($s in @(Get-IgwtJournalSessions -Journal $Journal)) {
         if ($s.Recovered) { continue }
-        $open = @(if ($s.Ended) { @($s.Steps.Values | Where-Object { $_.Result -eq 'InDoubt' }) } else { @($s.Steps.Values | Where-Object { $_.Result -in 'Committed', 'InDoubt', 'RollbackFailed', 'Failed' }) })
+        # Ended normally: steps in doubt, and steps whose rollback failed (review 3.8.1 E3). Never ended, or a
+        # recovery that did not finish: every step that may have changed something (E2).
+        $open = @(if ($s.Ended -and -not $s.RecoveryIncomplete) { @($s.Steps.Values | Where-Object { $_.Result -in 'InDoubt', 'RollbackFailed' }) } else { @($s.Steps.Values | Where-Object { $_.Result -in 'Committed', 'InDoubt', 'RollbackFailed', 'Failed' }) })
         if ($s.Ended -and -not $open.Count) { continue }
         [pscustomobject]@{ Id = $s.Id; Title = $s.Title; Origin = $s.Origin; StartedUtc = $s.StartedUtc; Steps = $open }
     }

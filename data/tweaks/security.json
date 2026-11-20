@@ -271,7 +271,7 @@
       "sideEffects": "",
       "requires": "none",
       "appliesTo": { "minBuild": 26100, "conditions": [ "defenderActive" ] },
-      "editions": [],
+      "editions": [ "Professional", "Enterprise", "Education" ],
       "hardware": { "tags": [], "excludeTags": [] },
       "scope": "Defender",
       "managedBy": [ "local" ],
@@ -565,8 +565,9 @@
       "category": "Security",
       "group": "Core isolation",
       "order": 56,
-      "level": "Advanced",
+      "level": "Expert",
       "hint": "CET shadow stacks for kernel drivers. Needs HVCI; some older anti-cheat drivers were incompatible. Test games, measure.",
+      "warning": "Some anti-cheat drivers have been incompatible with kernel shadow stacks: a game may refuse to start until you turn this off again. FACEIT and Riot Vanguard require memory integrity but do not document this setting; test each online game after a restart.",
       "description": "Sets the KernelShadowStacks scenario to enabled (the value behind Windows Security > Core isolation > Kernel-mode Hardware-enforced Stack Protection). Requires memory integrity and a CET-capable CPU (Intel 11th gen+). Windows refuses to enable it when incompatible drivers are present. Test each of your games after the reboot and measure performance.",
       "evidence": {
         "tier": "B",
@@ -575,7 +576,7 @@
       },
       "impact": { "performance": "none", "latency": "none", "security": "+" },
       "risk": "medium",
-      "antiCheat": "safe",
+      "antiCheat": "unknown",
       "reversible": "full",
       "sideEffects": "",
       "requires": "reboot",
@@ -925,8 +926,7 @@
           "name": "RequireSecuritySignature",
           "valueType": "DWord",
           "on": 1,
-          "default": "<absent>",
-          "absentValue": 1
+          "default": "<absent>"
         },
         {
           "type": "registry",

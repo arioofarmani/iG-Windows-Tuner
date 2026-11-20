@@ -264,13 +264,13 @@ function script:Get-IgwtAsrStatus {
         $code = @{ Block = 1; Audit = 2; Warn = 6; NotConfigured = 0 }[$mode]
         [pscustomobject]@{ Id = [string]$r.id; Key = [string]$r.key; Name = [string]$r.name; Category = [string]$r.category; MsCategory = [string]$r.msCategory; Mode = $mode; Code = $code; Source = $(if ($mode -eq 'NotConfigured') { 'NotSet' } else { 'Local' }); ManagedByPolicy = $false
             Recommended = [string]$r.recommendedMode; MeetsRecommendation = $true; AllowedModes = @(@('NotConfigured', 'Audit') + $(if ($r.supportsWarn) { @('Warn') } else { @() }) + @('Block')); SupportsWarn = [bool]$r.supportsWarn; RequiresCloud = [bool]$r.requiresCloud; CloudMissing = $false
-            ServerOnly = [bool]$r.serverOnly; AppliesTo = [string]$r.appliesTo; Hint = [string]$r.hint; Description = [string]$r.description; GamerImpact = [string]$r.gamerImpact; GamerImpactLevel = [string]$r.gamerImpactLevel; Notes = [string]$r.notes; Exclusions = @(); ExclusionsVerified = 'yes'; Sources = @($r.sources) }
+            ServerOnly = [bool]$r.serverOnly; AppliesTo = [string]$r.appliesTo; Hint = [string]$r.hint; Description = [string]$r.description; GamerImpact = [string]$r.gamerImpact; GamerImpactLevel = [string]$r.gamerImpactLevel; Notes = [string]$r.notes; Exclusions = @('C:\Games\Demo\DemoShooter\shooter.exe'); ExclusionsVerified = 'yes'; Sources = @($r.sources) }
     }
     $rules = @($rules)
     $count = { param($m) @($rules | Where-Object Mode -EQ $m).Count }
     [pscustomobject]@{ DefenderActive = $true; CloudProtection = $true; TamperProtected = $true; Elevated = $true; Error = ''; Rules = $rules; UnknownRules = @()
-        GlobalExclusions = [pscustomobject]@{ Readable = $true; Paths = @(); Note = '' }
-        Summary = [pscustomobject]@{ Block = (& $count 'Block'); Warn = (& $count 'Warn'); Audit = (& $count 'Audit'); Off = 0; NotConfigured = (& $count 'NotConfigured'); BelowRecommendation = 0; StandardInBlock = 3; StandardTotal = 3; PolicyManaged = 0; RulesWithExclusions = 0 } }
+        GlobalExclusions = [pscustomobject]@{ Readable = $true; Paths = @('C:\Games\Demo\Launcher\launcher.exe'); Note = '' }
+        Summary = [pscustomobject]@{ Block = (& $count 'Block'); Warn = (& $count 'Warn'); Audit = (& $count 'Audit'); Off = 0; NotConfigured = (& $count 'NotConfigured'); BelowRecommendation = 0; StandardInBlock = 3; StandardTotal = 3; PolicyManaged = 0; RulesWithExclusions = $rules.Count } }
 }
 
 function script:Get-IgwtAsrAudit {

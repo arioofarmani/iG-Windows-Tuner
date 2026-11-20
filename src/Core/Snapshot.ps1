@@ -67,6 +67,7 @@ function Save-IgwtSnapshot {
     $json = ConvertTo-Json -InputObject $Snapshot.Document -Depth 25
     $tmp = "$($Snapshot.Path).tmp"
     [System.IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($false)))
+    Set-IgwtAdminOwner -Path $tmp
     Move-Item -LiteralPath $tmp -Destination $Snapshot.Path -Force
 }
 
@@ -124,12 +125,50 @@ function Test-IgwtSnapshotHasChange {
     return $false
 }
 
+function Test-IgwtLegacyRootTrusted {
+    <#
+    .SYNOPSIS
+        True when the data root of pre-release preview builds (%ProgramData%\AegisTune) and its
+        Backups folder exist and are protected (owned by SYSTEM or Administrators, writable by
+        nobody else). iG never creates or protects that folder, and standard users may create
+        folders in %ProgramData%, so an unprotected one is never listed or restored from (review
+        3.8.1 S1). Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    $root = [string]$script:IgwtSettings.LegacyDataRoot
+    $b = Get-IgwtDataPath -Kind LegacyBackups
+    if (-not $root -or -not $b -or -not (Test-Path -LiteralPath $b -PathType Container)) { return $false }
+    return (Test-IgwtPathTrustedChain -Path $b -Root $root)
+}
+
+function Test-IgwtSnapshotLocationTrusted {
+    <#
+    .SYNOPSIS
+        True when a snapshot file lies in iG's own Backups folder (or a protected legacy Backups
+        folder) and the file and every folder up to that data root are protected (review 3.8.1
+        S1). A snapshot anywhere else, for example a downloaded file, is never restored. Read-only.
+    .PARAMETER Path
+        The snapshot file.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $own = Get-IgwtDataPath -Kind Backups
+    if ((Test-IgwtPathUnder -Path $Path -Parent $own -Strict) -and (Test-IgwtPathTrustedChain -Path $Path -Root (Get-IgwtDataPath -Kind Root))) { return $true }
+    $legacy = Get-IgwtDataPath -Kind LegacyBackups
+    if ($legacy -and (Test-IgwtPathUnder -Path $Path -Parent $legacy -Strict) -and (Test-IgwtPathTrustedChain -Path $Path -Root ([string]$script:IgwtSettings.LegacyDataRoot))) { return $true }
+    return $false
+}
+
 function Get-IgwtSnapshotList {
     <# .SYNOPSIS Snapshot files, newest first, with their operation and entries. #>
     [CmdletBinding()]
     param()
-    # Backups written by pre-release preview builds stay in their data root and are listed too.
-    $dirs = @(Get-IgwtDataPath -Kind Backups; Get-IgwtDataPath -Kind LegacyBackups) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+    # Backups written by pre-release preview builds stay in their data root and are listed too, but only
+    # when that folder is protected (review 3.8.1 S1).
+    $dirs = @(Get-IgwtDataPath -Kind Backups; $(if (Test-IgwtLegacyRootTrusted) { Get-IgwtDataPath -Kind LegacyBackups })) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
     if ($dirs.Count -eq 0) { return @() }
     $files = @($dirs | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter 'snapshot-*.json' -File }) | Sort-Object Name -Descending
     $catalog = @()
@@ -167,6 +206,9 @@ function Read-IgwtSnapshot {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { throw "Snapshot not found: $Path" }
+    if (-not (Test-IgwtSnapshotLocationTrusted -Path $Path)) {
+        throw "Snapshot '$Path' is not in iG's protected Backups folder (or that folder is not protected). iG restores only its own backups; nothing was changed."
+    }
     if (-not (Test-IgwtTrustedFile -Path $Path)) {
         throw "Snapshot '$Path' is not trusted (it must be owned by Administrators/SYSTEM and not writable by standard users). Refusing to restore from it."
     }

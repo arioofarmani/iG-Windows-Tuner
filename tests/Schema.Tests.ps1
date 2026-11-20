@@ -325,9 +325,11 @@ Describe 'v1 snapshots after migration' {
         @($listed[0].Applied | Sort-Object) | Should -Be @('gfx.game-mode', 'gfx.windowed-optimizations', 'input.pointer-precision-off', 'sec.autorun-off')
     }
     It 'refuses snapshot schemas it does not know' {
-        $bad = Join-Path $TestDrive 'snapshot-bad-schema.json'
+        # Inside the Backups folder, so the schema check (not the location check, review 3.8.1 S1) refuses it.
+        $bad = Join-Path $script:Backups 'snapshot-bad-schema.json'
         (Get-Content -LiteralPath $script:SnapPath -Raw).Replace('"schema":  1', '"schema":  3') | Set-Content -LiteralPath $bad -Encoding UTF8
-        { InModuleScope iGWindowsTuner -Parameters @{ P = $bad } { param($P) Read-IgwtSnapshot -Path $P } } | Should -Throw '*unsupported format*'
+        try { { InModuleScope iGWindowsTuner -Parameters @{ P = $bad } { param($P) Read-IgwtSnapshot -Path $P } } | Should -Throw '*unsupported format*' }
+        finally { Remove-Item -LiteralPath $bad -Force }
     }
     It 'reverts one tweak from the v1 snapshot by id' {
         Write-AfterApplyState
@@ -366,7 +368,13 @@ Describe 'v1 snapshots after migration' {
             ($n.actions | ConvertTo-Json -Depth 20 -Compress) | Should -Be ($e.actions | ConvertTo-Json -Depth 20 -Compress) -Because $e.tweakId
         }
         Write-AfterApplyState
-        $r = Invoke-IgwtRevert -SnapshotPath $copy -Context $script:Ctx
+        # A copy outside the Backups folder is never restored (review 3.8.1 S1); the same copy inside it is.
+        { Invoke-IgwtRevert -SnapshotPath $copy -Context $script:Ctx } | Should -Throw "*not in iG's protected Backups folder*"
+        $inside = Join-Path $script:Backups ('snapshot-20991231-235959-000-Apply-c0ffee.json')
+        Copy-Item -LiteralPath $copy -Destination $inside
+        $r = Invoke-IgwtRevert -SnapshotPath $inside -Context $script:Ctx
+        Remove-Item -LiteralPath $inside -Force
+        if ($r.Snapshot -and (Test-Path -LiteralPath $r.Snapshot)) { Remove-Item -LiteralPath $r.Snapshot -Force }
         @($r.Results | Where-Object Result -EQ 'Reverted').Count | Should -Be 4
         (Get-TestValue 'HKCU:\Control Panel\Mouse' 'MouseSpeed').Value | Should -Be '1'
     }

@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.8.2 (2026-11-20)
+
+Security and undo fixes from an independent review of 3.8.1 (DECISIONS V1 to V13). No new features.
+
+### Security
+
+- **Planted backups are no longer restored** (V1-V3): a backup file was trusted when the current user owned it, and with UAC on, programs without admin rights run as that same user, so a planted file could be restored with administrator rights (turning UAC off, adding startup entries or firewall rules). Now only files owned by SYSTEM, Administrators or TrustedInstaller, inside iG's own protected Backups folder, are restored; the old AegisTune folder is used only when it is protected; "Revert from file" refuses files from anywhere else. Firewall reverts also check the saved rule definition before writing it.
+- **One write guard for every policy path** (V7): UEFI-lock values (such as RunAsPPL=1) and protection-lowering values are refused by -PolicySet, presets, baseline apply and security policy, not only by the Security Settings Manager.
+
+### Fixed
+
+- A policy, audit or security policy change that failed half-way can now be undone with the backup it made (V4, V5).
+- Policy values "false" were written as true (V6).
+- The security score counted a protection turned off by policy as "Managed" instead of failing it (V8).
+- Reverts reported "Reverted" when a network adapter, a device or a power plan was missing; they now fail and name what was missing, and the GPU interrupt restore also reaches a device that stopped working (V9).
+- Firewall: the Recent changes list showed "System.Windows.Controls.DockPanel" (fix from the 3.6.6 branch); editing a rule with a protocol such as GRE turned it into Any; the "Share files" template allowed every TCP port instead of 445 (V10).
+- The preview's "Apply these changes" could apply a different list than it showed; the Group Policy Undo toast restored the whole policy without asking; a forensic Stop refused as busy stopped working (V11).
+- Catalog: the Recall item is marked partly reversible (Windows deletes its snapshots); SMB signing on Home; five Pro-only policy items limited to Pro, Enterprise and Education; laptops no longer get Wi-Fi off or hibernation off; kernel shadow stacks warn about anti-cheat (V12).
+- Mouse and keyboard changes now apply without signing out (the helper never compiled); unfinished recoveries stay offered; -Revert -DryRun matches the real revert; the elevated relaunch passes paths ending in a backslash correctly; read-only refusals exit 7; -RemoveExclusion asks first (V13).
+
+### Known limits
+
+- Restore points still use only BEGIN_SYSTEM_CHANGE; pairing it with END needs a Windows Sandbox test (review C1).
+- Real apply-and-restore runs of these fixes in Windows Sandbox are still to do.
+
 ## 3.8.1 (2026-11-13)
 
 Registry Analyzer & Cleaner (DECISIONS RG1 to RG34; guide: docs\REGISTRY_CLEANER.md), full control over startup apps (SA1 to SA10) and the Security Settings Manager (SM1 to SM44; guide: docs\SECURITY_SETTINGS.md). 3.8.0 was never released on its own; its work is part of 3.8.1.
