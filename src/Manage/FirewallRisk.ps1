@@ -98,10 +98,21 @@ function Get-IgwtFirewallRiskState {
     <# .SYNOPSIS Data the risk checks need for all rows: duplicate counts, local-only ports and the Windows default enabled set. #>
     [CmdletBinding()]
     param([object[]]$Rows = @(), [Parameter(Mandatory = $true)]$Context, [string[]]$DefaultEnabled)
-    $dupKey = { param($r) ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}' -f $r.Direction, $r.Action, ([string]$r.Program).ToLowerInvariant(), $r.Service, $r.Package, $r.Protocol, $r.LocalPort, $r.RemotePort, $r.RemoteAddress, $r.Profiles) }
+    # Every field that changes what a rule matches (review 3.8.1 FW-3: local address, interface type and edge
+    # traversal were missing, so different rules were called duplicates).
+    $dupKey = { param($r) ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}|{12}' -f $r.Direction, $r.Action, ([string]$r.Program).ToLowerInvariant(), $r.Service, $r.Package, $r.Protocol, $r.LocalPort, $r.RemotePort, $r.RemoteAddress, $r.Profiles, $r.LocalAddress, $r.InterfaceType, $r.EdgeTraversal) }
     $dupCandidate = { param($r) [string]$r.Origin -in 'UserInstalled', 'CustomRules' -and -not [string]$r.Owner -and -not [string]$r.Package -and [string]$r.Protocol -ne '' -and -not $r.Locked }
     $counts = @{}
-    foreach ($r in $Rows) { if (& $dupCandidate $r) { $k = & $dupKey $r; if ($counts.ContainsKey($k)) { $counts[$k]++ } else { $counts[$k] = 1 } } }
+    # One copy of each group is kept (the lowest rule name): only the others are flagged, so "Disable" on every
+    # flagged row never turns off all copies (FW-3).
+    $keeper = @{}
+    foreach ($r in $Rows) {
+        if (& $dupCandidate $r) {
+            $k = & $dupKey $r
+            if ($counts.ContainsKey($k)) { $counts[$k]++ } else { $counts[$k] = 1 }
+            if (-not $keeper.ContainsKey($k) -or [string]::CompareOrdinal([string]$r.Name, [string]$keeper[$k]) -lt 0) { $keeper[$k] = [string]$r.Name }
+        }
+    }
     $local = @{ TCP = @(); UDP = @() }
     foreach ($p in $Context.Kb.Ports) { if ($p.localOnly) { $local[[string]$p.protocol] += [string]$p.port } }
     $defaults = $null
@@ -110,7 +121,7 @@ function Get-IgwtFirewallRiskState {
     $toSet = { param($list) $h = New-Object 'System.Collections.Generic.HashSet[int]'; foreach ($n in @($list)) { $null = $h.Add([int]$n) }; , $h }
     $sets = @{ '__local' = @{ TCP = (& $toSet $local.TCP); UDP = (& $toSet $local.UDP) } }
     if ($Context.Kb.PortSets) { foreach ($p in $Context.Kb.PortSets.PSObject.Properties) { $sets[$p.Name] = @{ TCP = (& $toSet $p.Value.tcp); UDP = (& $toSet $p.Value.udp) } } }
-    [pscustomobject]@{ DupCounts = $counts; DupKey = $dupKey; DupCandidate = $dupCandidate; LocalPorts = [pscustomobject]@{ tcp = $local.TCP; udp = $local.UDP }; DefaultEnabled = $defaults
+    [pscustomobject]@{ DupCounts = $counts; DupKeeper = $keeper; DupKey = $dupKey; DupCandidate = $dupCandidate; LocalPorts = [pscustomobject]@{ tcp = $local.TCP; udp = $local.UDP }; DefaultEnabled = $defaults
         PortSets = $sets; Writable = (ConvertTo-IgwtFirewallWildcardRegex -Pattern $Context.Writable); WritableExceptions = (ConvertTo-IgwtFirewallWildcardRegex -Pattern $Context.WritableExceptions) }
 }
 
@@ -156,7 +167,7 @@ function Get-IgwtFirewallRowFacts {
         edgeTraversal = ([string]$r.EdgeTraversal -in 'Allow', 'DeferToUser', 'DeferToApp')
         localServiceRemoteAny = ([string]$r.RemoteAddress -eq 'Any' -and $ranges.Count -and (& $inSet $State.PortSets['__local']))
         disabledSecurityRelevant = $false
-        duplicate = ((& $State.DupCandidate $r) -and $State.DupCounts[(& $State.DupKey $r)] -gt 1)
+        duplicate = ((& $State.DupCandidate $r) -and $State.DupCounts[(& $State.DupKey $r)] -gt 1 -and -not ($State.PSObject.Properties['DupKeeper'] -and [string]$State.DupKeeper[(& $State.DupKey $r)] -eq [string]$r.Name))
         broadPortRange = ($ports -gt 1000); noDescription = (-not $owned -and -not ([string]$r.Description).Trim())
     }
     if (-not $r.Enabled -and [string]$r.Origin -eq 'CoreServices' -and [string]$r.Store -notin 'StaticServiceStore', 'ConfigurableServiceStore') {
