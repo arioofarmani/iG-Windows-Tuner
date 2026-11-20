@@ -106,3 +106,105 @@ Describe 'Review 3.8.1 S1: Set-IgwtAdminOwner' {
         }
     }
 }
+
+Describe 'Review 3.8.1 S1: snapshots are restored only from the protected Backups folder' {
+    BeforeAll {
+        $script:R381Doc = { param($Op) [ordered]@{ schema = 2; tool = 'iG Windows Tuner'; version = '3.8.1'; id = [guid]::NewGuid().ToString(); created = '2026-11-19T10:00:00Z'; operation = $Op; detail = ''; catalogSchema = 3; hardwareTags = @(); entries = @() } }
+    }
+    AfterEach { Set-IgwtEnvironment -TestMode -DataRoot (Join-Path $TestDrive 'IgwtData') }
+
+    It 'refuses a snapshot file outside the Backups folder, even a trusted one' {
+        $out = Join-Path $TestDrive 'Downloads'
+        $null = New-Item -ItemType Directory -Path $out -Force
+        $f = Join-Path $out 'snapshot-20991231-000000-000-Apply-aaaaaa.json'
+        Set-Content -LiteralPath $f -Value ((& $script:R381Doc 'Apply') | ConvertTo-Json -Depth 5) -Encoding UTF8
+        { InModuleScope iGWindowsTuner -Parameters @{ F = $f } { param($F) Read-IgwtSnapshot -Path $F } } | Should -Throw "*not in iG's protected Backups folder*"
+        { Invoke-IgwtRevert -SnapshotPath $f } | Should -Throw "*not in iG's protected Backups folder*"
+    }
+    It 'refuses a snapshot in Backups when a folder above it is not protected' {
+        InModuleScope iGWindowsTuner -Parameters @{ D = $script:R381Doc } {
+            param($D)
+            $b = Get-IgwtDataPath -Kind Backups
+            $null = New-Item -ItemType Directory -Path $b -Force
+            $f = Join-Path $b 'snapshot-20991231-000000-000-Apply-bbbbbb.json'
+            Set-Content -LiteralPath $f -Value ((& $D 'Apply') | ConvertTo-Json -Depth 5) -Encoding UTF8
+            try {
+                Mock Test-IgwtTrustedFile { $Path -notlike '*\Backups' }
+                { Read-IgwtSnapshot -Path $f } | Should -Throw "*not in iG's protected Backups folder*"
+                Mock Test-IgwtTrustedFile { $true }
+                (Read-IgwtSnapshot -Path $f).operation | Should -Be 'Apply'
+            } finally { Remove-Item -LiteralPath $f -Force }
+        }
+    }
+    It 'lists and restores from the legacy AegisTune folder only when it is protected' {
+        $legacy = Join-Path $TestDrive 'LegacyR381'
+        $null = New-Item -ItemType Directory -Path (Join-Path $legacy 'Backups') -Force
+        $f = Join-Path $legacy 'Backups\snapshot-20991231-000000-000-Apply-cccccc.json'
+        $doc = & $script:R381Doc 'Apply'; $doc.tool = 'AegisTune'
+        Set-Content -LiteralPath $f -Value ($doc | ConvertTo-Json -Depth 5) -Encoding UTF8
+        Set-IgwtEnvironment -TestMode -DataRoot (Join-Path $TestDrive 'R381Root') -LegacyDataRoot $legacy
+        InModuleScope iGWindowsTuner -Parameters @{ F = $f; L = $legacy } {
+            param($F, $L)
+            Mock Test-IgwtTrustedFile { $Path -ne $L }
+            Test-IgwtLegacyRootTrusted | Should -BeFalse
+            @(Get-IgwtSnapshotList | ForEach-Object { $_.Path }) | Should -Not -Contain $F
+            { Read-IgwtSnapshot -Path $F } | Should -Throw "*not in iG's protected Backups folder*"
+            Mock Test-IgwtTrustedFile { $true }
+            Test-IgwtLegacyRootTrusted | Should -BeTrue
+            @(Get-IgwtSnapshotList | ForEach-Object { $_.Path }) | Should -Contain $F
+        }
+    }
+    It 'Revert -Last never picks a planted legacy file' {
+        $legacy = Join-Path $TestDrive 'LegacyR381b'
+        $null = New-Item -ItemType Directory -Path (Join-Path $legacy 'Backups') -Force
+        $doc = & $script:R381Doc 'Apply'; $doc.tool = 'AegisTune'
+        $doc.entries = @([ordered]@{ tweakId = 'gfx.game-mode'; result = 'Applied'; message = ''; time = '2026-11-19T10:00:00Z'; actions = @() })
+        Set-Content -LiteralPath (Join-Path $legacy 'Backups\snapshot-20991231-000000-000-Apply-dddddd.json') -Value ($doc | ConvertTo-Json -Depth 6) -Encoding UTF8
+        Set-IgwtEnvironment -TestMode -DataRoot (Join-Path $TestDrive 'R381Root2') -LegacyDataRoot $legacy
+        InModuleScope iGWindowsTuner -Parameters @{ L = $legacy } {
+            param($L)
+            Mock Test-IgwtTrustedFile { $Path -ne $L }
+            { Invoke-IgwtRevert -Last } | Should -Throw '*No apply snapshot found*'
+        }
+    }
+}
+
+Describe 'Review 3.8.1 S1: firewall restores validate the saved rule definition' {
+    BeforeAll {
+        $script:R381Def = { [ordered]@{ name = '{11111111-2222-3333-4444-555555555555}'; displayName = 'Test rule'; description = ''; group = ''; enabled = $true; direction = 'Inbound'; action = 'Allow'; profile = 'Private, Public'; program = '%SystemRoot%\system32\svchost.exe'; service = 'RpcSs'; package = ''; protocol = 'TCP'; localPort = @('RPC'); remotePort = @(); localAddress = @(); remoteAddress = @('LocalSubnet'); edgeTraversal = 'Block'; owner = ''; interfaceType = 'Any' } }
+    }
+    It 'accepts a real-looking built-in definition with keyword ports and addresses' {
+        InModuleScope iGWindowsTuner -Parameters @{ D = (& $script:R381Def) } { param($D) @(Test-IgwtFirewallRuleDefinition -Definition $D).Count | Should -Be 0 }
+    }
+    It 'refuses values outside the fixed sets, a relative program, a bad SID and control characters' {
+        InModuleScope iGWindowsTuner -Parameters @{ Mk = $script:R381Def } {
+            param($Mk)
+            $cases = @(
+                @{ k = 'edgeTraversal'; v = 'Everything' }, @{ k = 'direction'; v = 'Both' }, @{ k = 'action'; v = 'Permit' },
+                @{ k = 'profile'; v = 'Home' }, @{ k = 'protocol'; v = 'GRE' }, @{ k = 'protocol'; v = '300' },
+                @{ k = 'program'; v = 'evil.exe' }, @{ k = 'owner'; v = 'Administrators' }, @{ k = 'package'; v = 'S-1-5-18' },
+                @{ k = 'interfaceType'; v = 'Bluetooth' }, @{ k = 'displayName'; v = "a`nb" }, @{ k = 'name'; v = '' }
+            )
+            foreach ($c in $cases) {
+                $d = & $Mk; $d[$c.k] = $c.v
+                @(Test-IgwtFirewallRuleDefinition -Definition $d).Count | Should -BeGreaterThan 0 -Because "$($c.k) = $($c.v)"
+            }
+            $ok = & $Mk; $ok.protocol = '47'; $ok.localPort = @(); @(Test-IgwtFirewallRuleDefinition -Definition $ok).Count | Should -Be 0 -Because 'a protocol number is valid'
+        }
+    }
+    It 'a revert with an invalid saved definition changes nothing and reports Failed' {
+        InModuleScope iGWindowsTuner -Parameters @{ Mk = $script:R381Def } {
+            param($Mk)
+            $bad = & $Mk; $bad.edgeTraversal = 'Everything'
+            $doc = [pscustomobject]@{ operation = 'Firewall'; entries = @([pscustomobject]@{ tweakId = 'firewall:1'; result = 'Applied'; actions = @([pscustomobject]@{ type = 'firewallManager'; op = 'deleted'; name = $bad.name; definition = $bad }) }) }
+            Mock Read-IgwtSnapshot { $doc }
+            Mock Get-NetFirewallRule { @() }
+            Mock New-NetFirewallRule { }
+            Mock Set-NetFirewallRule { }
+            $r = Restore-IgwtFirewallSnapshot -SnapshotPath 'C:\x\snapshot-x.json' -Confirm:$false
+            @($r.Results)[0].Result | Should -Be 'Failed'
+            @($r.Results)[0].Message | Should -BeLike '*not valid*'
+            Should -Invoke New-NetFirewallRule -Times 0 -Exactly
+        }
+    }
+}
