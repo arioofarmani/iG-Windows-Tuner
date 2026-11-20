@@ -106,20 +106,23 @@ function New-IgwtManagedAction {
     <#
     .SYNOPSIS
         Validates a management change and returns the synthetic action that performs it. Throws
-        with the reason when the target is protected or the value is not allowed.
+        with the reason when the target is protected or the value is not allowed. -ForRestore (the
+        undo of an earlier change) skips the protected-service check only.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Validates and builds an in-memory action only; Invoke-IgwtManagedChange applies it.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][ValidateSet('service', 'task', 'appx', 'feature', 'capability', 'firewallRule')][string]$Kind,
-        [Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][string]$Value, [switch]$Provisioned)
+        [Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][string]$Value, [switch]$Provisioned, [switch]$ForRestore)
     if ($script:IgwtManagedValues[$Kind] -notcontains $Value) { throw "Value '$Value' is not allowed for $Kind (allowed: $($script:IgwtManagedValues[$Kind] -join ', '))." }
     $t = $Target.Trim()
     if (-not $t) { throw 'The target is empty.' }
     switch ($Kind) {
         'service' {
             if ($t -notmatch '^[\w\.\-\$ ]{1,256}$') { throw "'$t' is not a valid service name." }
+            # A restore puts back what Windows had before iG's change, so a service protected later (review 3.8.1
+            # FW-4) can still be undone; new changes are refused.
             $why = Get-IgwtServiceProtection -Name $t
-            if ($why) { throw "Service '$t' is protected: $why" }
+            if ($why -and -not $ForRestore) { throw "Service '$t' is protected: $why" }
             $svc = @(Get-CimInstance -ClassName Win32_Service -Filter "Name='$($t -replace "'", "''")'" -ErrorAction Stop) | Select-Object -First 1
             if (-not $svc) { throw "Service '$t' does not exist." }
             if ([string]$svc.ServiceType -match '(?i)driver') { throw "'$t' is a driver; iG Windows Tuner only changes Win32 services." }
@@ -276,7 +279,7 @@ function Restore-IgwtManagedSnapshot {
             try {
                 $m = $a.managed
                 if (-not $m -or $script:IgwtManagedKinds -notcontains [string]$m.kind) { throw 'Snapshot entry has no valid management kind.' }
-                $action = New-IgwtManagedAction -Kind ([string]$m.kind) -Target ([string]$m.target) -Value ([string]$m.value) -Provisioned:([bool]$m.provisioned)
+                $action = New-IgwtManagedAction -Kind ([string]$m.kind) -Target ([string]$m.target) -Value ([string]$m.value) -Provisioned:([bool]$m.provisioned) -ForRestore
                 if ([string]$action.type -ne [string]$a.type) { throw 'Snapshot action type does not match its kind.' }
                 $current = Get-IgwtManagedSnapshotData -Action $action
                 Add-IgwtSnapshotEntry -Snapshot $undo -TweakId $tid -Actions @([ordered]@{ index = 0; type = [string]$action.type; fingerprint = [string]$a.fingerprint; data = $current; managed = $m }) -Result 'Applied' -Message 'before revert'

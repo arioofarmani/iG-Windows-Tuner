@@ -240,7 +240,7 @@ function Test-IgwtV2Action {
             if (@($a.services).Count -eq 0) { $Errors.Add("${Where}: serviceSet needs services.") }
             foreach ($s in @($a.services)) {
                 if (-not $s.name -or -not $s.startupType -or -not $s.default) { $Errors.Add("${Where}: every service needs name, startupType and default.") }
-                if ($script:IgwtProtectedServices -contains [string]$s.name) { $Errors.Add("${Where}: service '$($s.name)' is protected and may not be changed.") }
+                if ($script:IgwtProtectedServices -contains [string]$s.name -or (Get-IgwtServiceProtection -Name ([string]$s.name))) { $Errors.Add("${Where}: service '$($s.name)' is protected and may not be changed.") }
             }
         }
         'powercfgAttribute' {
@@ -418,7 +418,7 @@ function Test-IgwtCatalog {
                 'powercfgSetting' { if (-not $a.subgroup -or -not $a.setting -or $null -eq $a.ac) { $errors.Add("${where}: powercfgSetting needs subgroup, setting and ac.") } }
                 'service' {
                     if (-not $a.name -or -not $a.startupType -or -not $a.default) { $errors.Add("${where}: service needs name, startupType and default.") }
-                    if ($script:IgwtProtectedServices -contains [string]$a.name) { $errors.Add("${where}: service '$($a.name)' is protected and may not be changed.") }
+                    if ($script:IgwtProtectedServices -contains [string]$a.name -or (Get-IgwtServiceProtection -Name ([string]$a.name))) { $errors.Add("${where}: service '$($a.name)' is protected and may not be changed.") }
                 }
                 'netAdapterAdvanced' { if (-not $a.keyword -or $null -eq $a.on) { $errors.Add("${where}: netAdapterAdvanced needs keyword and on.") } }
                 'netQosPolicy' { if ($null -eq $a.dscp -or -not $a.protocol) { $errors.Add("${where}: netQosPolicy needs dscp and protocol.") } }

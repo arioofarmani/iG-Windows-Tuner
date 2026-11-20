@@ -123,6 +123,19 @@ Describe 'Firewall risk findings' {
             foreach ($check in $script:IgwtFirewallRiskChecks) { $facts.ContainsKey($check) | Should -BeTrue -Because "risk check '$check' needs an evaluator" }
         }
     }
+    It 'review 3.8.1 FW-3: flags only the extra copies of a duplicate, and not rules that differ in local address' {
+        InModuleScope iGWindowsTuner {
+            $mk = { param($n, $la) [pscustomobject]@{ Name = $n; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Program = 'C:\Games\g.exe'; Service = 'Any'; Package = ''; Owner = ''; LocalPort = '27015'; RemotePort = 'Any'; RemoteAddress = 'Any'; LocalAddress = $la; InterfaceType = 'Any'; EdgeTraversal = 'Block'; Protocol = 'UDP'; Profiles = 'Private'; ProfileList = @('Private'); Origin = 'CustomRules'; Locked = $false; Description = 'x' } }
+            $rows = @((& $mk 'B-copy' 'Any'), (& $mk 'A-first' 'Any'), (& $mk 'C-copy' 'Any'), (& $mk 'D-lan' '192.168.1.0/24'))
+            $ctx = Get-IgwtFirewallClassificationContext -Role Gamer -InstalledPackages @() -Overrides ([pscustomobject]@{ Role = ''; Categories = [pscustomobject]@{}; NotBloated = @(); Ignored = [pscustomobject]@{} })
+            $state = Get-IgwtFirewallRiskState -Rows $rows -Context $ctx
+            $dup = @{}; foreach ($r in $rows) { $dup[$r.Name] = (Get-IgwtFirewallRowFacts -Row $r -Context $ctx -State $state).duplicate }
+            $dup['A-first'] | Should -BeFalse -Because 'one copy is kept'
+            $dup['B-copy'] | Should -BeTrue
+            $dup['C-copy'] | Should -BeTrue
+            $dup['D-lan'] | Should -BeFalse -Because 'a different local address is a different rule'
+        }
+    }
     It 'reads port lists and ranges and counts wide ranges' {
         InModuleScope iGWindowsTuner {
             @(ConvertTo-IgwtFirewallPortRanges -Port '80, 443, 1000-2000').Count | Should -Be 3

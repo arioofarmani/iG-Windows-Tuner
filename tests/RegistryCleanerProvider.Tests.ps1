@@ -518,7 +518,7 @@ Describe 'Registry cleaner provider, plan and writer (RG14, RG16, RG19-RG21)' {
         Mock Get-IgwtRegCleanExclusions -ModuleName iGWindowsTuner { $script:Exclusions }
         Mock Get-IgwtInteractiveUserSid -ModuleName iGWindowsTuner { 'S-1-5-21-1-2-3-1001' }
         Mock Test-IgwtIsAdmin -ModuleName iGWindowsTuner { $true }
-        Mock Get-NetFirewallRule -ModuleName iGWindowsTuner { if ($Name) { @($script:FwRules | Where-Object { $_.Name -eq @($Name)[0] }) } else { $script:FwRules } }
+        Mock Get-NetFirewallRule -ModuleName iGWindowsTuner { if ($PesterBoundParameters.ContainsKey('Name')) { @($script:FwRules | Where-Object { $_.Name -eq @($Name)[0] }) } else { $script:FwRules } }
         Mock Get-NetFirewallApplicationFilter -ModuleName iGWindowsTuner { $script:FwFilters }
         Mock Get-ScheduledTask -ModuleName iGWindowsTuner { @(foreach ($t in @($script:Fx.tasks)) { [pscustomobject]@{ TaskPath = $t.TaskPath; TaskName = $t.TaskName; State = $t.State; Actions = @($t.Actions) } }) }
         Mock Get-IgwtFirewallInventory -ModuleName iGWindowsTuner { throw 'the cleaner must not use the firewall inventory' }

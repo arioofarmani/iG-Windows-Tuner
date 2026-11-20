@@ -29,7 +29,9 @@ function Get-IgwtServiceStartup {
 function Assert-IgwtServiceAllowed {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Name)
-    if ($script:IgwtProtectedServices -contains $Name) { throw "Service '$Name' is protected (anti-cheat or core security) and is never modified by iG Windows Tuner." }
+    # One protected list for catalog items and the Manage page: the built-in names plus data\manage\services.json (review 3.8.1 FW-4).
+    $why = $(if ($script:IgwtProtectedServices -contains $Name) { 'anti-cheat or core security' } else { Get-IgwtServiceProtection -Name $Name })
+    if ($why) { throw "Service '$Name' is protected and is never modified by iG Windows Tuner: $why" }
 }
 
 function Get-IgwtServiceState {
@@ -68,8 +70,11 @@ function Get-IgwtServiceSnapshot {
 
 function Set-IgwtServiceStartupType {
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)][string]$StartupType)
-    Assert-IgwtServiceAllowed -Name $Name
+    param([Parameter(Mandatory = $true)][string]$Name, [Parameter(Mandatory = $true)][string]$StartupType, [switch]$ForRestore)
+    # A restore puts back the value Windows had before iG changed it; only the anti-cheat and core security names
+    # are refused there too (they were never changeable). New changes check the whole protected list.
+    if ($ForRestore) { if ($script:IgwtProtectedServices -contains $Name) { Assert-IgwtServiceAllowed -Name $Name } }
+    else { Assert-IgwtServiceAllowed -Name $Name }
     if (-not $PSCmdlet.ShouldProcess($Name, "Set startup type $StartupType")) { return }
     $path = "HKLM:\SYSTEM\CurrentControlSet\Services\$Name"
     switch ($StartupType) {
@@ -115,7 +120,7 @@ function Restore-IgwtServiceSnapshot {
         4 { $type = 'Disabled' }
         default { throw "Snapshot start value $($Snapshot.start) for $name is not restorable through the SCM." }
     }
-    Set-IgwtServiceStartupType -Name $name -StartupType $type
+    Set-IgwtServiceStartupType -Name $name -StartupType $type -ForRestore
     $path = "HKLM:\SYSTEM\CurrentControlSet\Services\$name"
     if ($Snapshot.delayedExists) {
         Set-IgwtRegistryValue -Path $path -Name 'DelayedAutostart' -Kind DWord -Value ([int]$Snapshot.delayed)

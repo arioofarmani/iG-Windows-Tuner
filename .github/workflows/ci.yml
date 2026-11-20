@@ -1,0 +1,58 @@
+# iG Windows Tuner: headless checks on every push to main and every pull request (3.9 B5).
+# Read-only for the repository. The runner is a disposable VM, so the test suite may run elevated
+# there (IGWT_ALLOW_ELEVATED_TESTS); on a real PC it refuses to. No secrets are used.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      IGWT_ALLOW_ELEVATED_TESTS: '1'
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Check out
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+
+      - name: Install test modules (pinned versions)
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -SkipPublisherCheck -Force
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+
+      - name: Catalog
+        run: |
+          .\tools\Test-Catalog.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Generated docs are current
+        run: |
+          .\tools\Build-Docs.ps1
+          git diff --ignore-cr-at-eol --exit-code -- docs
+          if ($LASTEXITCODE -ne 0) { Write-Error 'docs\ is out of date: run tools\Build-Docs.ps1 and commit the result.'; exit 1 }
+
+      - name: Pester and PSScriptAnalyzer
+        run: |
+          .\tools\Invoke-QualityChecks.ps1 -SkipDefenderScan
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Offscreen render with the leaked-type-name check
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\Test-GuiRender.ps1" -OutDir "$env:RUNNER_TEMP\gui-render" -Theme Dark -Scale 1
+          if ($LASTEXITCODE -ne 0) { exit 1 }

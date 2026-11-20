@@ -71,6 +71,8 @@ function Invoke-IgwtAppxApply {
     $pkg = [string]$Action.package
     $target = [string]$Action.on
     if ($Mode -eq 'default') { $target = [string]$Action.default }
+    # Store apps belong to the current account: never act on another administrator's profile (review 3.8.1 OS-1).
+    Assert-IgwtSameUser -Operation "Changing the app '$pkg'"
     $i = Get-IgwtAppxInfo -Package $pkg
     if ($target -eq 'Removed') {
         if (Test-IgwtAppxProtected -Package $pkg) { throw "App '$pkg' is protected and is never removed by iG Windows Tuner." }
@@ -88,6 +90,7 @@ function Invoke-IgwtAppxApply {
 function Restore-IgwtAppxSnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
+    Assert-IgwtSameUser -Operation "Restoring the app '$($Action.package)'"
     $i = Get-IgwtAppxInfo -Package ([string]$Action.package)
     if ([bool]$Snapshot.installed -and -not $i.Installed) { Install-IgwtAppxPackage -Action $Action -InstallLocation ([string]$Snapshot.installLocation) }
     elseif (-not [bool]$Snapshot.installed -and $i.Installed -and $PSCmdlet.ShouldProcess($Action.package, 'Remove app installed since the snapshot')) { Remove-AppxPackage -Package $i.FullName -ErrorAction Stop }
@@ -104,6 +107,8 @@ function Invoke-IgwtWinget {
     if ($script:IgwtSettings.TestMode) { throw 'TestMode safety: winget.exe must be mocked in tests.' }
     # 'export' only writes the inventory file the caller names (a temporary file).
     $readOnly = @('list', 'search', 'show', 'export', '--version')
+    # winget installs for the account it runs as: never into another administrator's profile (review 3.8.1 OS-1).
+    if ($readOnly -notcontains $Arguments[0]) { Assert-IgwtSameUser -Operation "winget $($Arguments[0])" }
     if ($readOnly -notcontains $Arguments[0] -and -not $PSCmdlet.ShouldProcess("winget $($Arguments -join ' ')", 'Run')) { return [pscustomobject]@{ ExitCode = 0; Output = '' } }
     $cmd = Get-Command -Name 'winget.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $cmd) { throw 'winget (App Installer) is not available on this PC.' }

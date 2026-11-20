@@ -524,8 +524,13 @@ function Invoke-IgwtFixStep {
             if ([string]$Step.operation -eq 'stop') {
                 Stop-Process -Name 'explorer' -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Milliseconds 1500
-            } elseif (@(Get-Process -Name 'explorer' -ErrorAction SilentlyContinue).Count -eq 0) {
-                Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe')
+            } else {
+                # Never started from this (elevated) process: the desktop shell would run with administrator rights
+                # (review 3.8.1 TK-1). Windows restarts the shell by itself; wait for it, else tell the user how.
+                for ($i = 0; $i -lt 20 -and @(Get-Process -Name 'explorer' -ErrorAction SilentlyContinue).Count -eq 0; $i++) { Start-Sleep -Milliseconds 500 }
+                if (@(Get-Process -Name 'explorer' -ErrorAction SilentlyContinue).Count -eq 0) {
+                    return [pscustomobject]@{ Step = $text; Result = 'Done'; Output = 'The desktop did not restart by itself. Press Ctrl+Shift+Esc, choose Run new task, type explorer and press Enter (leave "administrative privileges" unticked), or sign out and back in.' }
+                }
             }
             return [pscustomobject]@{ Step = $text; Result = 'Done'; Output = '' }
         }

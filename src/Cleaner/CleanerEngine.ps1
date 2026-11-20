@@ -471,8 +471,20 @@ function Invoke-IgwtCleanerClean {
     param($Scan, [string[]]$RuleId, $CancelToken)
     Assert-IgwtWritable -Operation 'Invoke-IgwtCleanerClean'
     if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtCleanerClean' -Parameters $PSBoundParameters) }
+    # Bytes this run moved to each drive's Recycle Bin (review 3.8.1 CLN-1).
+    $script:IgwtRecycleSent = @{}
     if (-not $Scan) { $Scan = $script:IgwtLastCleanerScan }
     if (-not $Scan) { throw 'Run a scan first (Invoke-IgwtCleanerScan); the cleaner only deletes what a scan found.' }
+    # Elevated with another administrator's account: per-user rules would clean that account's caches, Downloads
+    # and Recycle Bin, not the signed-in user's (review 3.8.1 OS-1). Refuse before anything is deleted.
+    if (Get-IgwtOtherAdminElevation) {
+        $perUser = @(foreach ($rs in @($Scan.Rules | Where-Object { -not $RuleId -or $RuleId -contains $_.RuleId })) {
+                $ru = Get-IgwtCleanerRule -Id $rs.RuleId
+                $roots = (@($ru.roots) + @($ru.userDataRoots) | ForEach-Object { [string]$_ }) -join ' '
+                if ([string]$rs.Method -eq 'recycleBin' -or [string]$ru.method -eq 'recycleBin' -or $ru.recycle -or $roots -match '(?i)%(LOCALAPPDATA|APPDATA|TEMP|TMP|USERPROFILE)%') { [string]$ru.name }
+            })
+        if ($perUser.Count) { Assert-IgwtSameUser -Operation "Cleaning $($perUser -join ', ')" }
+    }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $logDir = Get-IgwtDataPath -Kind Logs
     if (-not (Test-Path -LiteralPath $logDir)) { $null = New-Item -ItemType Directory -Path $logDir -Force -WhatIf:$false }

@@ -127,9 +127,16 @@ Describe 'Defender & Security Control Center' {
         }
         It 'removes a local exclusion with Remove-MpPreference and never adds one' {
             $script:Pref = Get-TestPref @{ ExclusionPath = @('C:\Temp') }
+            # The mocked removal really removes it, so the read-back (review 3.8.1 F-07) sees it gone.
+            Mock -ModuleName iGWindowsTuner Remove-MpPreference { $script:Pref.ExclusionPath = @($script:Pref.ExclusionPath | Where-Object { @($ExclusionPath) -notcontains $_ }) }
             $null = InModuleScope iGWindowsTuner { Remove-IgwtDefenderExclusion -Kind Path -Value 'c:\temp' -Confirm:$false }
             Should -Invoke -ModuleName iGWindowsTuner Remove-MpPreference -Times 1 -Exactly -ParameterFilter { @($ExclusionPath) -contains 'C:\Temp' }
             Should -Invoke -ModuleName iGWindowsTuner Add-MpPreference -Times 0
+        }
+        It 'review 3.8.1 F-07: reports a removal that did not take effect (exclusion still listed)' {
+            $script:Pref = Get-TestPref @{ ExclusionPath = @('C:\Temp') }
+            Mock -ModuleName iGWindowsTuner Remove-MpPreference { }
+            { InModuleScope iGWindowsTuner { Remove-IgwtDefenderExclusion -Kind Path -Value 'c:\temp' -Confirm:$false } } | Should -Throw '*still listed after the removal*'
         }
         It 'removes a Local GPO exclusion from Registry.pol and refuses domain or unknown ones' {
             $script:Pref = Get-TestPref

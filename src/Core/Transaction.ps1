@@ -266,6 +266,8 @@ $script:IgwtChangeProviders['module'] = @{
                 'tattoo' { if (Test-Path -LiteralPath $ref -PathType Container) { Restore-IgwtLocalGpo -BackupPath $ref -Confirm:$false } else { Restore-IgwtTattooRemoval -Path $ref -Confirm:$false } }
             }
         } finally { $script:IgwtModuleDepth-- }
+        # The module's own result (per rule, per setting, its undo snapshot), for Invoke-IgwtRevertThroughJournal (3.9 B1).
+        $script:IgwtLastModuleRestoreResult = $res
         if (Test-IgwtModuleOperationFailed -Result $res) { throw "The restore from '$ref' reported a failure." }
     }
     TestSet    = {
@@ -774,6 +776,111 @@ function Invoke-IgwtJournalRevert {
         }
     } finally { Complete-IgwtChangeSession -Session $session }
     return [pscustomobject]@{ Session = $session.Id; Results = $results.ToArray() }
+}
+
+function Get-IgwtRevertRequestPlan {
+    <#
+    .SYNOPSIS
+        The journal revert plan behind an Invoke-IgwtRevert request (3.9 B1), or an empty list when
+        the journal does not know it: -SnapshotPath finds the module change whose undo reference is
+        that file and the apply session that recorded it as its snapshot; -Id finds, for each
+        catalog item, the change iG last made to each of its targets. Read-only.
+    .PARAMETER Id
+        Catalog item ids.
+    .PARAMETER SnapshotPath
+        A 3.x snapshot file.
+    .PARAMETER Journal
+        The journal read with its entries.
+    #>
+    [CmdletBinding()]
+    param([string[]]$Id, [string]$SnapshotPath, [Parameter(Mandatory = $true)]$Journal)
+    $rows = New-Object System.Collections.Generic.List[object]
+    if ($SnapshotPath) {
+        $full = $SnapshotPath
+        try { $full = [System.IO.Path]::GetFullPath($SnapshotPath) } catch { $full = $SnapshotPath }
+        $same = { param($p) $p -and [string]::Equals([string]$p, $full, [System.StringComparison]::OrdinalIgnoreCase) }
+        foreach ($e in $Journal.Entries) {
+            $k = [string]$e['kind']
+            if ($k -eq 'committed' -and [string]$e['op'] -eq 'change' -and $e['applied'] -is [System.Collections.IDictionary] -and (Test-IgwtMapKey $e['applied'] 'ref') -and (& $same $e['applied']['ref'])) {
+                foreach ($r in @(Get-IgwtRevertPlan -EntryId ([string]$e['id']) -Journal $Journal)) { $rows.Add($r) }
+            } elseif ($k -eq 'sessionStart' -and $e['origin'] -is [System.Collections.IDictionary] -and (Test-IgwtMapKey $e['origin'] 'snapshot') -and (& $same $e['origin']['snapshot'])) {
+                foreach ($r in @(Get-IgwtRevertPlan -SessionId ([string]$e['session']) -Journal $Journal)) { $rows.Add($r) }
+            }
+        }
+    } elseif (@($Id).Count) {
+        foreach ($key in @($Journal.Last.Keys)) {
+            $e = $Journal.Last[$key]
+            if ([string]$e['kind'] -ne 'committed' -or [string]$e['op'] -ne 'change') { continue }
+            if ([string]$e['target']['provider'] -ne 'action' -or @($Id) -notcontains [string]$e['item']) { continue }
+            foreach ($r in @(Get-IgwtRevertPlan -EntryId ([string]$e['id']) -Journal $Journal)) { $rows.Add($r) }
+        }
+    }
+    $seen = @{}
+    return @($rows.ToArray() | Where-Object { $k = [string]$_.Key; if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = $true; $true } })
+}
+
+function Invoke-IgwtRevertThroughJournal {
+    <#
+    .SYNOPSIS
+        Runs an Invoke-IgwtRevert request through the change journal (3.9 B1) and returns the result
+        in Invoke-IgwtRevert's shape (Operation, Snapshot, Results with Id/Result/Message, Requires),
+        or $null when the journal does not know the request (the caller then restores directly from
+        the snapshot). A value changed since iG set it is not overwritten: it is reported as Failed
+        with a pointer to the Change journal, where the user chooses. A "Revert" snapshot record is
+        written for the reverted catalog items, so the Backups list and staging see them as reverted.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([string[]]$Id, [string]$SnapshotPath, [switch]$Last, [scriptblock]$OnProgress)
+    Assert-IgwtWritable -Operation 'Invoke-IgwtRevertThroughJournal'
+    $j = Read-IgwtJournal
+    if ($j.Status -ne 'Ok') { return $null }
+    if ($Last -and -not $SnapshotPath) {
+        $latest = @(Get-IgwtSnapshotList | Where-Object { (([string]$_.Operation -split ':')[0]) -in 'Apply', 'Preset', 'ResetDefault' -and @($_.Applied).Count -gt 0 }) | Select-Object -First 1
+        if (-not $latest) { return $null }
+        $SnapshotPath = [string]$latest.Path
+    }
+    $plan = @(Get-IgwtRevertRequestPlan -Id $Id -SnapshotPath $SnapshotPath -Journal $j)
+    if (-not $plan.Count) { return $null }
+    if (-not $PSCmdlet.ShouldProcess("$($plan.Count) value(s)", 'Revert through the change journal')) { return $null }
+    Send-IgwtProgress -Text 'Reverting through the change journal...' -Percent 0 -Callback $OnProgress
+    $title = $(if ($SnapshotPath) { "Revert $(Split-Path -Leaf $SnapshotPath)" } else { "Revert $(@($Id) -join ', ')" })
+    $script:IgwtLastModuleRestoreResult = $null
+    $res = Invoke-IgwtJournalRevert -Plan $plan -Decisions @{} -Title $title -Confirm:$false
+    # One module change (a firewall, ASR, Defender, power or management undo): return the module's own detailed
+    # result, as the direct restore did, when the journal step ran it.
+    if ($plan.Count -eq 1 -and [string]$plan[0].Target['provider'] -eq 'module' -and $null -ne $script:IgwtLastModuleRestoreResult) {
+        $inner = @($script:IgwtLastModuleRestoreResult) | Where-Object { $_ -and $_.PSObject.Properties['Results'] } | Select-Object -Last 1
+        if ($inner) {
+            $inner | Add-Member -NotePropertyName Session -NotePropertyValue ([string]$res.Session) -Force
+            if (-not $inner.PSObject.Properties['Operation']) { $inner | Add-Member -NotePropertyName Operation -NotePropertyValue 'Revert' -Force }
+            if (-not $inner.PSObject.Properties['Requires']) { $inner | Add-Member -NotePropertyName Requires -NotePropertyValue 'none' -Force }
+            Send-IgwtProgress -Text 'Done' -Percent 100 -Callback $OnProgress
+            return $inner
+        }
+    }
+    $results = New-Object System.Collections.Generic.List[object]
+    $reverted = New-Object System.Collections.Generic.List[string]
+    foreach ($g in @(@($res.Results) | Group-Object { [string]$_.Item })) {
+        $rs = @($g.Group)
+        $bad = @($rs | Where-Object { $_.Result -in 'Failed', 'Refused' })
+        $conflict = @($rs | Where-Object { $_.Result -in 'NeedsDecision', 'Conflict' })
+        if ($bad.Count) { $results.Add([pscustomobject]@{ Id = $g.Name; Result = 'Failed'; Message = (@($bad | ForEach-Object { $_.Message } | Where-Object { $_ }) -join '; ') }) }
+        elseif ($conflict.Count) { $results.Add([pscustomobject]@{ Id = $g.Name; Result = 'Failed'; Message = 'Changed since iG set it (by you, an app, a policy or Windows); nothing was overwritten. Choose what to do in Backups & Logs > Change journal.' }) }
+        else { $results.Add([pscustomobject]@{ Id = $g.Name; Result = 'Reverted'; Message = '' }); $reverted.Add([string]$g.Name) }
+    }
+    # Catalog items: their 3.x revert record and their restart requirement.
+    $catalogIds = @($reverted | Where-Object { $_ -notlike 'module:*' } | Select-Object -Unique)
+    $revSnap = $null
+    if ($catalogIds.Count) {
+        $revSnap = New-IgwtSnapshot -Operation 'Revert' -Detail 'through the change journal'
+        foreach ($tid in $catalogIds) { Add-IgwtSnapshotEntry -Snapshot $revSnap -TweakId $tid -Actions @() -Result 'Reverted' -Message 'Reverted through the change journal.' }
+    }
+    $requires = 'none'
+    $req = @(foreach ($tid in $catalogIds) { try { [string](Get-IgwtTweak -Id $tid).requires } catch { '' } })
+    if ($req -contains 'reboot') { $requires = 'reboot' } elseif ($req -contains 'logoff') { $requires = 'logoff' }
+    if ($requires -ne 'none' -and -not $script:IgwtSettings.TestMode) { Set-IgwtPendingRestartState -Requires $requires -TweakId $catalogIds }
+    Send-IgwtProgress -Text 'Done' -Percent 100 -Callback $OnProgress
+    return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $(if ($revSnap) { $revSnap.Path } else { $null }); Results = $results.ToArray(); Requires = $requires; Session = [string]$res.Session }
 }
 
 #endregion
