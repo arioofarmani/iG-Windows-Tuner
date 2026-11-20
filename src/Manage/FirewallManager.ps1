@@ -1016,6 +1016,9 @@ function Get-IgwtFirewallProfileChangeBlock {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][ValidateSet('Enabled', 'DefaultInboundAction', 'DefaultOutboundAction', 'Notifications', 'UnicastResponse', 'LogAllowed', 'LogBlocked', 'LogMaxKB')][string]$Setting, $Value)
+    # NotConfigured hands the setting back to the Windows default (firewall on, inbound Block, outbound Allow):
+    # always allowed, so an undo can return to it (review 3.8.1 FW-2).
+    if ([string]$Value -eq 'NotConfigured' -and $Setting -ne 'LogMaxKB') { return '' }
     switch ($Setting) {
         'Enabled' { if (-not [bool]$Value) { return 'iG Windows Tuner never turns the firewall off.' } }
         'DefaultInboundAction' { if ([string]$Value -ne 'Block') { return 'The default inbound action stays Block; allow programs with rules instead.' } }
@@ -1053,7 +1056,7 @@ function Set-IgwtFirewallProfileSetting {
     Add-IgwtSnapshotEntry -Snapshot $snap -TweakId "firewallProfile:$Profile`:$Setting" -Actions @([ordered]@{ index = 0; type = 'firewallProfile'; profile = $Profile; setting = $Setting; property = $prop; value = [string]$cur.$prop }) -Result 'Applied' -Message "$Setting -> $Value"
     $arg = @{ Name = $Profile; ErrorAction = 'Stop' }
     if ($Setting -eq 'LogMaxKB') { $arg[$prop] = [uint64]$Value }
-    elseif ($Setting -in 'DefaultInboundAction', 'DefaultOutboundAction') { $arg[$prop] = [string]$Value }
+    elseif ([string]$Value -eq 'NotConfigured' -or $Setting -in 'DefaultInboundAction', 'DefaultOutboundAction') { $arg[$prop] = [string]$Value }
     else { $arg[$prop] = $(if ([bool]$Value) { 'True' } else { 'False' }) }
     Set-NetFirewallProfile @arg
     Write-IgwtLog -Message "Firewall profile ${Profile}: $Setting -> $Value. Snapshot: $($snap.Path)"
@@ -1111,7 +1114,8 @@ function Restore-IgwtFirewallProfileSnapshot {
                     'firewallProfile' {
                         $setting = [string]$a.setting
                         $value = [string]$a.value
-                        $typed = $(if ($setting -in 'DefaultInboundAction', 'DefaultOutboundAction') { $value } elseif ($setting -eq 'LogMaxKB') { [int]$value } else { $value -eq 'True' })
+                        # NotConfigured stays NotConfigured (the Windows default), never an explicit False or Allow (FW-2).
+                        $typed = $(if ($value -eq 'NotConfigured' -and $setting -ne 'LogMaxKB') { 'NotConfigured' } elseif ($setting -in 'DefaultInboundAction', 'DefaultOutboundAction') { $value } elseif ($setting -eq 'LogMaxKB') { [int]$value } else { $value -eq 'True' })
                         $why = Get-IgwtFirewallProfileChangeBlock -Setting $setting -Value $typed
                         if ($why -and $setting -in 'Enabled', 'DefaultInboundAction') { $results.Add([pscustomobject]@{ Id = "$($a.profile) $setting"; Result = 'Kept'; Message = $why }); continue }
                         $null = Set-IgwtFirewallProfileSetting -Profile ([string]$a.profile) -Setting $setting -Value $typed -Confirm:$false

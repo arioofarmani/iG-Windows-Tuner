@@ -147,3 +147,22 @@ Describe '3.9 B4: firewall rule definitions keep every narrowing filter (review 
         }
     }
 }
+
+Describe '3.9 B4: firewall profile undo returns to NotConfigured (review FW-2)' {
+    It 'allows NotConfigured on every profile setting except the log size, and passes it through' {
+        InModuleScope iGWindowsTuner {
+            foreach ($s in 'Enabled', 'DefaultInboundAction', 'DefaultOutboundAction', 'Notifications', 'UnicastResponse', 'LogAllowed', 'LogBlocked') {
+                Get-IgwtFirewallProfileChangeBlock -Setting $s -Value 'NotConfigured' | Should -BeNullOrEmpty -Because $s
+            }
+            Get-IgwtFirewallProfileChangeBlock -Setting 'DefaultOutboundAction' -Value 'Sometimes' | Should -Not -BeNullOrEmpty
+            Get-IgwtFirewallProfileChangeBlock -Setting 'Enabled' -Value $false | Should -Not -BeNullOrEmpty -Because 'turning the firewall off stays refused'
+            Mock Test-IgwtRemoteSession { $false }
+            Mock Get-NetFirewallProfile { [pscustomobject]@{ Name = 'Private'; DefaultOutboundAction = 'Block'; NotifyOnListen = 'True' } }
+            Mock Set-NetFirewallProfile { }
+            $null = Set-IgwtFirewallProfileSetting -Profile Private -Setting DefaultOutboundAction -Value 'NotConfigured' -Confirm:$false
+            Should -Invoke Set-NetFirewallProfile -Times 1 -Exactly -ParameterFilter { [string]$DefaultOutboundAction -eq 'NotConfigured' }
+            $null = Set-IgwtFirewallProfileSetting -Profile Private -Setting Notifications -Value 'NotConfigured' -Confirm:$false
+            Should -Invoke Set-NetFirewallProfile -Times 1 -Exactly -ParameterFilter { [string]$NotifyOnListen -eq 'NotConfigured' }
+        }
+    }
+}
