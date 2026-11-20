@@ -199,6 +199,17 @@ Describe 'ASR exclusion path validation' {
         param($P)
         (Test-IgwtAsrExclusion -Path $P).Valid | Should -BeFalse
     }
+    It 'refuses wildcards that can stand for the Windows, profile, ProgramData or Program Files folders (F-05)' {
+        $drive = $env:SystemDrive
+        foreach ($p in @("$drive\Win*\System32\WindowsPowerShell", "$drive\Win*\*\*.exe", "$drive\W?ndows\System32\mshta.exe", "$drive\U*\me\Downloads\tool.exe",
+                "$drive\Us?rs\me\AppData\tool.exe", "$drive\Prog*Data\Vendor\tool.exe", "$drive\Program Fil*")) {
+            $r = Test-IgwtAsrExclusion -Path $p
+            $r.Valid | Should -BeFalse -Because $p
+            $r.Reason | Should -Match 'wildcard' -Because $p
+        }
+        (Test-IgwtAsrExclusion -Path 'D:\Win*\Game\game.exe').Valid | Should -BeTrue
+        (Test-IgwtAsrExclusion -Path 'D:\Games\*\launcher.exe').Valid | Should -BeTrue
+    }
     It 'refuses Downloads, Desktop, temp folders and folders in profiles or ProgramData' {
         foreach ($p in @((Join-Path $env:USERPROFILE 'Downloads\tool.exe'), (Join-Path $env:USERPROFILE 'Desktop\tool.exe'), (Join-Path $env:USERPROFILE 'AppData\Local\Temp\x.exe'),
                 (Join-Path $env:USERPROFILE 'Documents'), (Join-Path $env:USERPROFILE 'Games\*.exe'), (Join-Path $env:ProgramData 'Vendor'), (Join-Path $env:ProgramData 'Vendor\*.exe'))) {

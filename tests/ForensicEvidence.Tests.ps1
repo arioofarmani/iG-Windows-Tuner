@@ -157,9 +157,42 @@ Describe 'Evidence package' {
         @($m.sources | Where-Object { $_.status -eq 'off' }).Count | Should -Be 1
         $coc = Get-Content (Join-Path $r.Folder 'chain-of-custody.txt') -Raw
         $coc | Should -Match 'No original was moved, changed or cleared'
+        $coc | Should -Match 'Contains personal data' -Because 'the package is not redacted (review F-09)'
+        @($m.personalData).Count | Should -BeGreaterThan 0
+        $m.redacted | Should -BeFalse
         $coc | Should -Match ([regex]::Escape($r.ManifestSha256))
         (Get-FileHash $r.Zip -Algorithm SHA256).Hash.ToLowerInvariant() | Should -Be $r.ZipSha256
         Get-Content (Join-Path $r.Folder 'system\listening-ports.csv') -TotalCount 1 | Should -Be '"Protocol","LocalAddress","LocalPort","Pid","Process"'
+    }
+}
+
+Describe 'Review 4.0 F-08: the PC''s own public addresses are pseudonymized too' {
+    It 'hides addresses added as local (IPv6 with a zone, upper case, IPv4) and keeps other public ones' {
+        $r = New-Object IgwtFirewallLog.Redactor $true
+        $r.AddLocalAddress('2001:db8:5::20%12'); $r.AddLocalAddress('198.51.100.20'); $r.AddLocalAddress('not-an-ip')
+        $r.LocalAddressCount | Should -Be 2
+        $r.Ip('2001:DB8:5::20') | Should -Match '^ip-[0-9a-f]{12}$'
+        $r.Ip('198.51.100.20') | Should -Match '^ip-[0-9a-f]{12}$'
+        $r.Ip('2001:db8:9::1') | Should -Be '2001:db8:9::1'
+        $t = $r.Text('from 2001:db8:5::20 and 198.51.100.20 to 198.51.100.7')
+        $t | Should -Not -Match '2001:db8:5::20|198\.51\.100\.20\b'
+        $t | Should -Match '198\.51\.100\.7'
+        (New-Object IgwtFirewallLog.Redactor $true).Ip('198.51.100.20') | Should -Be '198.51.100.20' -Because 'without local addresses public values are kept'
+    }
+    It 'a pseudonymized export hides the PC''s public address; a raw export keeps it' {
+        foreach ($raw in $false, $true) {
+            $dest = Join-Path $TestDrive "f08-$raw"; $null = New-Item -ItemType Directory $dest
+            $r = InModuleScope iGWindowsTuner -Parameters @{ H = $script:Header; D = $dest; Raw = $raw } {
+                param($H, $D, $Raw)
+                Mock Get-IgwtLocalIpAddresses { @('198.51.100.20', 'fe80::1') }
+                $e = (ConvertFrom-IgwtFirewallLogText -Text ($H + "2026-10-29 10:00:09 ALLOW TCP 198.51.100.20 203.0.113.9 50123 443 60 - - - - - - - SEND 4120`r`n")).Entries
+                $ev = [pscustomobject]@{ Wfp = (New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Row]'); Dns = (New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Row]'); Messages = @() }
+                Export-IgwtForensicDataset -Destination $D -From ([datetime]'2026-10-29 09:00') -To ([datetime]'2026-10-29 11:00') -FirewallEntries $e.ToArray() -Events $ev -Raw:$Raw -Confirm:$false
+            }
+            $text = (Get-Content (Join-Path $r.Folder 'events-0001.jsonl') -Raw) + (Get-Content (Join-Path $r.Folder 'flows.jsonl') -Raw)
+            if ($raw) { $text | Should -Match '198\.51\.100\.20' } else { $text | Should -Not -Match '198\.51\.100\.20' }
+            $text | Should -Match '203\.0\.113\.9' -Because 'other public addresses are kept'
+        }
     }
 }
 

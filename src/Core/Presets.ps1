@@ -96,11 +96,25 @@ function ConvertTo-IgwtPresetSlug {
     return $s
 }
 
+function Test-IgwtDataFileTrusted {
+    <#
+    .SYNOPSIS
+        True when a file in iG's data folder, and every folder above it up to the data root, can be
+        changed only by SYSTEM, Administrators or TrustedInstaller. The SHA256 field of a preset is
+        unkeyed and only detects damage, so the folder ACL is the real protection (review PRE-3).
+        Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Test-IgwtPathTrustedChain -Path $Path -Root (Get-IgwtDataPath -Kind Root))
+}
+
 function Get-IgwtCustomPresets {
     <#
     .SYNOPSIS
-        Custom presets from the Presets data folder. Files whose SHA256 field does not match are
-        skipped (and logged), so a changed file is never applied.
+        Custom presets from the Presets data folder. Files whose SHA256 field does not match, or
+        that other users can change, are skipped (and logged), so a changed file is never applied.
     #>
     [CmdletBinding()]
     param()
@@ -109,6 +123,7 @@ function Get-IgwtCustomPresets {
     $index = $null; $rej = @()
     foreach ($f in (Get-ChildItem -LiteralPath $folder -Filter 'custom-*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
         try {
+            if (-not (Test-IgwtDataFileTrusted -Path $f.FullName)) { throw 'other users can change it or its folder' }
             $doc = Read-IgwtJsonFile -Path $f.FullName
             if ($null -eq $doc.PSObject.Properties['include'] -or $null -ne $doc.PSObject.Properties['tweaks']) { throw 'it has no include list (or a legacy tweaks list)' }
             if ((Get-IgwtPresetHash -Preset $doc) -ne [string]$doc.sha256) { throw 'its SHA256 field does not match the content' }
@@ -290,6 +305,7 @@ function Get-IgwtPresetRecord {
     param()
     $file = Join-Path (Get-IgwtDataPath -Kind State) 'last-preset.json'
     if (-not (Test-Path -LiteralPath $file)) { return $null }
+    if (-not (Test-IgwtDataFileTrusted -Path $file)) { Write-IgwtLog -Level Warn -Message "Ignored $file`: other users can change it (review PRE-3)."; return $null }
     try { return (Read-IgwtJsonFile -Path $file) } catch { return $null }
 }
 
@@ -360,6 +376,10 @@ function Get-IgwtSessionState {
     param()
     $file = Get-IgwtSessionFile
     if (-not (Test-Path -LiteralPath $file)) { return [pscustomobject]@{ Active = $false; Stale = $false; Started = $null; Owner = ''; Snapshot = ''; Reason = '' } }
+    if (-not (Test-IgwtDataFileTrusted -Path $file)) {
+        Write-IgwtLog -Level Warn -Message "Ignored $file`: other users can change it (review PRE-3)."
+        return [pscustomobject]@{ Active = $false; Stale = $false; Started = $null; Owner = ''; Snapshot = ''; Reason = 'The session record can be changed by other users, so it was ignored.' }
+    }
     $m = $null
     try { $m = Read-IgwtJsonFile -Path $file } catch { return [pscustomobject]@{ Active = $true; Stale = $true; Started = $null; Owner = ''; Snapshot = ''; Reason = 'The session record is unreadable.' } }
     $reason = ''

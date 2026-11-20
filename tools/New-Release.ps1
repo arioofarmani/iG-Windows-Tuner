@@ -18,6 +18,12 @@ $version = (Import-PowerShellDataFile (Join-Path $root 'src\iGWindowsTuner.psd1'
 & (Join-Path $PSScriptRoot 'Test-Catalog.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Catalog validation failed.' }
 & (Join-Path $PSScriptRoot 'Build-Docs.ps1')
+# The package is built from the last commit (git archive HEAD), and the checks below run on the
+# working folder: both must be the same, so uncommitted edits to tracked files stop the build
+# (review T-02). Build-Docs may have just changed docs\: commit them first.
+Push-Location -LiteralPath $root
+try { $dirty = @(git status --porcelain --untracked-files=no 2>$null) } finally { Pop-Location }
+if ($dirty.Count) { throw "Tracked files have uncommitted changes, so the tested files would differ from the package: $(($dirty | ForEach-Object { $_.Trim() }) -join ', '). Commit them, then build the release." }
 if (-not $SkipTests) {
     & (Join-Path $PSScriptRoot 'Invoke-QualityChecks.ps1') -SkipDefenderScan
     if ($LASTEXITCODE -ne 0) { throw 'Quality checks failed.' }
@@ -29,19 +35,23 @@ if (-not $PSCmdlet.ShouldProcess($stage, 'Create release folder')) { return }
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 $null = New-Item -ItemType Directory -Path $stage -Force
 $items = @('iGWindowsTuner.ps1', 'Start-iGWindowsTuner.cmd', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'PSScriptAnalyzerSettings.psd1', 'src', 'data', 'docs', 'tools', 'tests')
-# Only files tracked in git go into the package: the working folders also hold git-ignored local files
-# (screenshots with user names and device details, the local Sandbox configuration, logs, reports).
-$tracked = @()
+# Only the last commit goes into the package (review T-02): paths AND contents come from HEAD, so
+# git-ignored local files (screenshots with user names and device details, the local Sandbox
+# configuration, logs, reports) and uncommitted edits never reach it.
+$files = @()
 Push-Location -LiteralPath $root
-try { $tracked = @(git ls-files 2>$null) } catch { $tracked = @() } finally { Pop-Location }
-if (-not $tracked.Count) { throw 'git ls-files returned nothing: the release is built from a git checkout only (so git-ignored local files never reach the package).' }
-$files = @($tracked | Where-Object { $f = $_; @($items | Where-Object { $f -eq $_ -or $f.StartsWith("$_/") }).Count })
-foreach ($f in $files) {
-    $dest = Join-Path $stage ($f -replace '/', '\')
-    $dir = Split-Path -Parent $dest
-    if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir -Force }
-    Copy-Item -LiteralPath (Join-Path $root ($f -replace '/', '\')) -Destination $dest -Force
-}
+try { $files = @(git ls-tree -r --name-only HEAD -- @items 2>$null) } catch { $files = @() } finally { Pop-Location }
+if (-not $files.Count) { throw 'git ls-tree returned nothing: the release is built from a git checkout only.' }
+$headZip = Join-Path $dist 'igwt-head-archive.zip'
+if (Test-Path -LiteralPath $headZip) { Remove-Item -LiteralPath $headZip -Force }
+Push-Location -LiteralPath $root
+try {
+    git archive --format=zip --output="$headZip" HEAD -- @items
+    if ($LASTEXITCODE -ne 0) { throw "git archive failed (exit $LASTEXITCODE)." }
+} finally { Pop-Location }
+try { Expand-Archive -LiteralPath $headZip -DestinationPath $stage -Force } finally { Remove-Item -LiteralPath $headZip -Force -ErrorAction SilentlyContinue }
+$packaged = @(Get-ChildItem -LiteralPath $stage -Recurse -File)
+if ($packaged.Count -ne $files.Count) { throw "The archive holds $($packaged.Count) files, HEAD lists $($files.Count)." }
 # Belt and braces: nothing in the package may match the ignore rules.
 Push-Location -LiteralPath $root
 try { $ignored = @($files | git check-ignore --no-index --stdin 2>$null) } finally { Pop-Location }

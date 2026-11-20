@@ -254,15 +254,31 @@ function Test-IgwtSecurityDescriptorTrusted {
     $owner = $Acl.GetOwner($sidType)
     if ($null -eq $owner) { return $false }
     if ($script:IgwtTrustedPrincipals -notcontains $owner.Value) { return $false }
-    # WriteData, AppendData, WriteExtendedAttributes, DeleteSubdirectoriesAndFiles, WriteAttributes, Delete,
-    # ChangePermissions, TakeOwnership, and the generic GENERIC_ALL and GENERIC_WRITE.
-    [long]$writeBits = 0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000
+    return (@(Get-IgwtAclOtherWriters -Acl $Acl -Allowed $script:IgwtTrustedPrincipals).Count -eq 0)
+}
+
+# WriteData, AppendData, WriteExtendedAttributes, DeleteSubdirectoriesAndFiles, WriteAttributes, Delete,
+# ChangePermissions, TakeOwnership, and the generic GENERIC_ALL and GENERIC_WRITE.
+$script:IgwtWriteAccessBits = [long](0x2 -bor 0x4 -bor 0x10 -bor 0x40 -bor 0x100 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000)
+
+function Get-IgwtAclOtherWriters {
+    <#
+    .SYNOPSIS
+        SIDs outside -Allowed that an Allow entry gives write access to the object itself (only the
+        exact write bits count; inherit-only entries are skipped). Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory = $true)][System.Security.AccessControl.FileSystemSecurity]$Acl, [string[]]$Allowed = @())
+    $sidType = [System.Security.Principal.SecurityIdentifier]
+    $out = New-Object System.Collections.Generic.List[string]
     foreach ($rule in $Acl.GetAccessRules($true, $true, $sidType)) {
         if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
         if (($rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
-        if ($script:IgwtTrustedPrincipals -notcontains $rule.IdentityReference.Value -and (([long][int]$rule.FileSystemRights) -band $writeBits) -ne 0) { return $false }
+        $sid = $rule.IdentityReference.Value
+        if ($Allowed -notcontains $sid -and (([long][int]$rule.FileSystemRights) -band $script:IgwtWriteAccessBits) -ne 0 -and -not $out.Contains($sid)) { $out.Add($sid) }
     }
-    return $true
+    return $out.ToArray()
 }
 
 function Test-IgwtPathTrustedChain {

@@ -1552,15 +1552,15 @@ Sets RunAsPPL = 2. LSASS runs as a Protected Process Light; non-protected code c
 
 **Changes**
 
-- Registry `HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPL` = `2` (DWord); Windows default `<absent>`
+- Registry `HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPL` = `2` (DWord); Windows default `2`
 
 **Sources**
 
 - <https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection>
 
-*Evidence notes:* Value 2 is enforced on Windows 11 22H2 and later.
+*Evidence notes:* Value 2 is enforced on Windows 11 22H2 and later. Microsoft calls LSA protection enabled by default in Windows 11 and says deleting RunAsPPL turns it off, so Reset to Windows default writes 2 instead of deleting the value (review TW-LSA).
 
-**Revert:** Revert restores the exact values captured in the JSON snapshot taken right before apply (including values that did not exist). Windows default for HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPL: <absent>.
+**Revert:** Revert restores the exact values captured in the JSON snapshot taken right before apply (including values that did not exist). Windows default for HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\RunAsPPL: 2.
 
 ### NTLMv2 only (refuse LM and NTLMv1)
 

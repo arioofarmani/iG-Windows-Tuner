@@ -1461,7 +1461,9 @@ function Invoke-IgwtGuiRevert {
 function Invoke-IgwtGuiElevate {
     [CmdletBinding()]
     param()
-    $proc = Start-IgwtElevated -ScriptPath $script:Gui.ScriptPath
+    $proc = $null
+    try { $proc = Start-IgwtElevated -ScriptPath $script:Gui.ScriptPath }
+    catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning'; Set-IgwtGuiStatus 'Not elevated: other accounts can change the program files.'; return }
     if ($proc) { $script:Gui.AllowClose = $true; $script:Gui.Window.Close() }
     else { Set-IgwtGuiStatus 'Elevation was cancelled.' }
 }

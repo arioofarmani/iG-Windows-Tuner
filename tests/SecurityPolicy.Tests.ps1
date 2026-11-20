@@ -158,6 +158,13 @@ Describe 'Security policy and auditing' {
             $script:Remote = $false
             (InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Privilege Rights'; Key = 'SeDenyNetworkLogonRight'; Value = 'Guest,*S-1-5-113' }) }).Refusals.Count | Should -Be 0
         }
+        It 'refuses line breaks and control characters that would add template lines past the safeguards (P-17)' {
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Registry Values'; Key = 'MACHINE\System\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse'; Value = "4,1`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = *S-1-5-32-544" }) } } | Should -Throw '*control characters*'
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = "MinimumPasswordAge`n[Privilege Rights]"; Value = '1' }) } } | Should -Throw '*setting name*'
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = 'A=B'; Value = '1' }) } } | Should -Throw '*setting name*'
+            $t = InModuleScope iGWindowsTuner { $s = New-IgwtInfSectionTable; $s['Registry Values'] = New-IgwtInfSectionTable; $s['Registry Values']['MACHINE\X\Y'] = "4,1`n[Privilege Rights]"; try { ConvertTo-IgwtSecurityInfText -Sections $s; 'written' } catch { $_.Exception.Message } }
+            $t | Should -Match 'contains a line break'
+        }
         It 'refuses a maximum password age that expires the current password now' {
             $p = InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = 'MaximumPasswordAge'; Value = '20' }) }
             @($p.Refusals) -join ' ' | Should -Match 'would expire immediately'

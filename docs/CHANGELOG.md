@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.0.0 (in progress)
+
+The redesign release. Section 1 (groundwork) fixes the security, privacy and data-loss findings left from the 3.8.1 review (DECISIONS Y1 to Y11).
+
+### Security
+
+- Security policy values with line breaks are refused, so a value can no longer add template lines past the lockout safeguards.
+- Custom presets, the last-preset record and the Session Mode record are used only when other users cannot change them.
+- ASR exclusions refuse wildcards that could stand for the Windows, profiles, ProgramData or Program Files folders (such as `C:\Win*\...`).
+- The cleaner keeps each file open while it deletes it, so a folder above it cannot be swapped for a junction at the last moment.
+- iG refuses to ask for administrator rights when other accounts can change its program files; move it to `C:\Program Files` in that case.
+
+### Privacy
+
+- The pseudonymized firewall export also hides this PC's own public IPv4 and IPv6 addresses.
+- The evidence package lists the personal data it holds, and the app asks before collecting it.
+
+### Fixed
+
+- A registry cleanup refuses an entry that changed after the preview (for example a key that a reinstalled program filled again).
+- Reset to Windows default keeps LSA protection on instead of deleting `RunAsPPL`.
+- The release zip is built from the last commit only.
+
+### Quality
+
+- An engine-boundary test keeps the GUI from changing the PC directly.
+- A component gallery renders every control style in every theme and scale, offscreen.
+
 ## 3.9.0 (2026-11-20)
 
 One undo system, and the remaining High findings of the 3.8.1 review (DECISIONS W1 to W12).

@@ -60,7 +60,12 @@ function ConvertTo-IgwtSecurityInfText {
         if ($name -in 'Unicode', 'Version') { continue }
         $null = $sb.Append("[$name]`r`n")
         $sep = $(if ($name -eq 'Registry Values') { '=' } else { ' = ' })
-        foreach ($k in @($Sections[$name].Keys)) { $null = $sb.Append("$k$sep$($Sections[$name][$k])`r`n") }
+        if ([string]$name -match '[\r\n\[\]]') { throw 'A security template section name contains a line break or a bracket.' }
+        foreach ($k in @($Sections[$name].Keys)) {
+            # Defense in depth for every writer (presets, exports): one entry is always one line (review P-17).
+            if ("$k$($Sections[$name][$k])" -match '[\r\n]') { throw "Security template entry '$name' contains a line break; nothing was written." }
+            $null = $sb.Append("$k$sep$($Sections[$name][$k])`r`n")
+        }
     }
     $null = $sb.Append("[Version]`r`nsignature=`"`$CHICAGO`$`"`r`nRevision=1`r`n")
     return $sb.ToString()
@@ -343,6 +348,9 @@ function Get-IgwtSecurityChangePlan {
     $rows = New-Object System.Collections.Generic.List[object]
     foreach ($c in $Changes) {
         if ($c.Section -notin 'System Access', 'Privilege Rights', 'Registry Values') { throw "Section '$($c.Section)' cannot be changed." }
+        # A line break in a key or value would add template lines that the safeguards never see (review P-17).
+        if (-not ([string]$c.Key).Trim() -or [string]$c.Key -match '[\x00-\x1F\x7F=\[\]]') { throw 'A setting name is empty or contains a line break, a control character, = or a bracket.' }
+        if ([string]$c.Value -match '[\x00-\x1F\x7F]') { throw "$($c.Key): values cannot contain line breaks or other control characters." }
         if ($c.Section -eq 'System Access' -and [string]$c.Value -notmatch '^-?\d+$|^".*"$') { throw "$($c.Key): System Access values are numbers (names are quoted)." }
         if ($c.Section -eq 'Registry Values' -and [string]$c.Value -notmatch '^\d+,') { throw "$($c.Key): Registry Values need type,value (for example 4,1)." }
         foreach ($t in @($proposed, $template)) { if (-not $t.Contains($c.Section)) { $t[$c.Section] = New-IgwtInfSectionTable } }

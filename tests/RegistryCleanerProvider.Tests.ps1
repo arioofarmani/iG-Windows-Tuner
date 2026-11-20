@@ -829,6 +829,18 @@ Describe 'Registry cleaner provider, plan and writer (RG14, RG16, RG19-RG21)' {
             @((Get-Item -LiteralPath "TestRegistry:\HKLM\$($script:UninstallGone)").Property).Count | Should -Be 4
         }
 
+        It 'refuses a key that grew between the preview and the removal, even when the step''s own read sees the new data (RC-3)' {
+            $scan = Get-TestScan -Category uninstall
+            $plan = Get-IgwtRegCleanPlan -Findings @(Find-TestFinding -Scan $scan -Category 'uninstall' $script:UninstallGone)
+            # After the preview, before Remove: a program writes new settings into the key.
+            $null = New-ItemProperty -Path "TestRegistry:\HKLM\$($script:UninstallGone)" -Name 'WrittenAfterPreview' -Value 'new' -PropertyType String -Force
+            $res = Invoke-IgwtRegistryCleanup -Plan $plan -SkipRestorePoint -Confirm:$false
+            $res.Results[0].Result | Should -Be 'Refused'
+            $res.Results[0].Message | Should -Be 'changed since the preview; nothing changed.'
+            (Get-ItemProperty -LiteralPath "TestRegistry:\HKLM\$($script:UninstallGone)").WrittenAfterPreview | Should -Be 'new'
+            Remove-ItemProperty -LiteralPath "TestRegistry:\HKLM\$($script:UninstallGone)" -Name 'WrittenAfterPreview'
+        }
+
         It 'gives Failed "Nothing changed" for a value of an Unknown kind added after the preview, with the key in place' {
             $scan = Get-TestScan -Category uninstall, run
             $plan = Get-IgwtRegCleanPlan -Findings @((Find-TestFinding -Scan $scan -Category 'uninstall' $script:UninstallGone), (Find-TestFinding -Scan $scan -Category 'run' $script:RunKey 'ContosoTray'))
@@ -966,6 +978,8 @@ Describe 'Registry cleaner provider, plan and writer (RG14, RG16, RG19-RG21)' {
             $before = Get-TestKeySnapshot HKLM $script:UninstallGone
             $sid = Invoke-InIgwt {
                 param($fd)
+                # Every removal comes from a preview (plan), which records what it showed (review RC-3).
+                $fd = @((Get-IgwtRegCleanPlan -Findings @($fd)).Targets)[0]
                 $t = Get-IgwtRegCleanTarget -Finding $fd
                 $s = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'regClean'; ref = '' }) -Title 'Registry cleanup (1 entry)' -Confirm:$false
                 $script:IgwtRegCleanStep = [pscustomobject]@{ SessionId = $s.Id; Lock = $script:IgwtChangeLock; Context = (Get-IgwtRegCleanScanContext); Findings = @{ ([string]$t['key']) = $fd }; Before = @{}; Backup = ''; FirewallSnapshots = [ordered]@{} }

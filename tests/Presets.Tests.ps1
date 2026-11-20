@@ -106,6 +106,12 @@ Describe 'Custom presets' {
         @($imp.tweaks) | Should -Be @($dup.tweaks)
         { Remove-IgwtCustomPreset -Name balanced } | Should -Throw '*built-in*'
     }
+    It 'skips a custom preset that other users can change, even with a valid SHA256 field (PRE-3)' {
+        $null = Save-IgwtCustomPreset -Name 'Planted' -BasedOn balanced
+        @(Get-IgwtPreset | Where-Object { $_.id -eq 'custom-planted' }).Count | Should -Be 1
+        Mock -ModuleName iGWindowsTuner Test-IgwtDataFileTrusted { $false }
+        @(Get-IgwtPreset | Where-Object { $_.id -eq 'custom-planted' }) | Should -BeNullOrEmpty
+    }
     It 'refuses an import whose SHA256 field does not match' {
         $file = Join-Path $TestDrive 'bad-export.json'
         $null = Export-IgwtPreset -Name competitive -Path $file
@@ -144,6 +150,8 @@ Describe 'Drift report' {
         $r = InModuleScope iGWindowsTuner { Get-IgwtPresetRecord }
         $r.preset | Should -Be 'balanced'
         @($r.ids) | Should -Contain 'input.accessibility-hotkeys-off'
+        Mock -ModuleName iGWindowsTuner Test-IgwtDataFileTrusted { $false }
+        InModuleScope iGWindowsTuner { Get-IgwtPresetRecord } | Should -BeNullOrEmpty
     }
 }
 
@@ -193,6 +201,15 @@ Describe 'Session Mode' {
         $m.pid = 999999
         [System.IO.File]::WriteAllText($f, ($m | ConvertTo-Json))
         (Get-IgwtSessionState).Reason | Should -Match 'closed without ending'
+        $null = Stop-IgwtSession
+    }
+    It 'ignores a session record that other users can change (PRE-3)' {
+        $null = Start-IgwtSession -Context $script:Laptop -Owner cli
+        Mock -ModuleName iGWindowsTuner Test-IgwtDataFileTrusted { $false }
+        $st = Get-IgwtSessionState
+        $st.Active | Should -BeFalse
+        $st.Reason | Should -Match 'other users'
+        Mock -ModuleName iGWindowsTuner Test-IgwtDataFileTrusted { $true }
         $null = Stop-IgwtSession
     }
     It 'closes only apps from the session list' {

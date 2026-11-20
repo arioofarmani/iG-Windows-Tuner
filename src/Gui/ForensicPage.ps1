@@ -278,6 +278,11 @@ function Invoke-IgwtGuiForensicExport {
     if ($to -le $from) { $c.FwExpStatusText.Text = 'The end of the time range must be after its start.'; return }
     $raw = ($Kind -eq 'Dataset' -and [bool]$c.FwExpRawBox.IsChecked)
     if ($raw -and (Show-IgwtGuiMessage -Text "A raw export keeps internal addresses, user names and folder paths.`n`nUse it only on this PC and never share it. Continue?" -Title 'iG Windows Tuner - raw export' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+    if ($Kind -eq 'Evidence') {
+        # The package is not redacted, so it stays usable as evidence (review F-09).
+        $text = "The evidence package is not redacted. It contains:`n`n- " + ($script:IgwtEvidencePersonalData -join "`n- ") + "`n`nShare it only with someone you trust to handle it. For an AI or a forum, use the AI export, which hides these. Continue?"
+        if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - evidence package' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+    }
     Add-Type -AssemblyName System.Windows.Forms
     $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
     $dlg.Description = 'Pick a local folder for the export (a new subfolder is created). Exports contain sensitive data: keep them private.'

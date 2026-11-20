@@ -773,7 +773,8 @@ function Request-IgwtCliElevation {
         else { $pass.Add("-$k"); $pass.Add([string]$v) }
     }
     $pass.Add('-ElevatedRelaunch')
-    $code = Start-IgwtElevated -ScriptPath $PSCommandPath -ArgumentList $pass.ToArray() -Wait
+    try { $code = Start-IgwtElevated -ScriptPath $PSCommandPath -ArgumentList $pass.ToArray() -Wait }
+    catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 1 }
     if ($null -eq $code) { Write-IgwtCliLine 'Elevation was declined; nothing was changed.' ([ConsoleColor]::Red); exit 3 }
     exit $code
 }

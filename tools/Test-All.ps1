@@ -29,6 +29,10 @@ if (-not $SkipRender) {
     # The minimum window size (1100 x 720) at 100 and 200 %: nothing may clip.
     & (Join-Path $PSScriptRoot 'Test-GuiRender.ps1') -OutDir (Join-Path $art 'gui-render') -Theme Dark -Scale 1, 2 -Size '1100x720'
     $result.Render = $result.Render -and ($LASTEXITCODE -eq 0)
+    # Every control style once, per theme and scale (4.0 section 1.3); a style without a sample fails.
+    Write-Output '== Component gallery'
+    & (Join-Path $PSScriptRoot 'Test-GuiGallery.ps1') -OutDir (Join-Path $art 'gui-gallery') -Scale $RenderScale
+    $result.Render = $result.Render -and ($LASTEXITCODE -eq 0)
 }
 if (-not $SkipAutomation) {
     Write-Output '== UI Automation suite (read-only GUI)'

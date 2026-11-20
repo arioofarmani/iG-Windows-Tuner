@@ -404,7 +404,14 @@ function Remove-IgwtCleanerFile {
     if ($fi.Length -ne [long]$Entry.Size -or $fi.LastWriteTimeUtc.Ticks -ne [long]$Entry.LastWriteTicks) { return (& $out 'Skipped' 'changed since the scan') }
     if ((Get-IgwtCleanerFileAge -Item $fi) -lt [double]$Rule.minAgeHours) { return (& $out 'Skipped' 'younger than the minimum age') }
     if (-not $PSCmdlet.ShouldProcess($path, 'Delete file')) { return (& $out 'Skipped' 'WhatIf') }
+    $pin = $null
     try {
+        # Pin the folder chain (review CLN-2): while a handle to the file is open, Windows refuses to
+        # rename any folder above it, so a junction cannot be swapped in between this second ancestry
+        # check and the delete. Attributes-only access never conflicts with another program's sharing.
+        # If the swap happened before the open, the handle points elsewhere and the check below fails.
+        $pin = New-Object System.IO.FileStream($path, [System.IO.FileMode]::Open, [System.Security.AccessControl.FileSystemRights]::ReadAttributes, ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete), 1, [System.IO.FileOptions]::None)
+        if (-not (Test-IgwtCleanerAncestry -Path $path -Root $root)) { return (& $out 'Skipped' 'a parent folder became a reparse point') }
         if ($Rule.recycle) {
             $why = Get-IgwtRecycleRefusal -Path $path -Bytes ([long]$fi.Length)
             if ($why) { return (& $out 'Skipped' "not deleted: $why") }
@@ -426,6 +433,8 @@ function Remove-IgwtCleanerFile {
         return (& $out 'Skipped' 'in use')
     } catch {
         return (& $out 'Skipped' $_.Exception.Message)
+    } finally {
+        if ($pin) { $pin.Dispose() }
     }
 }
 
