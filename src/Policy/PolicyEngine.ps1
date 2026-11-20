@@ -148,9 +148,19 @@ function Get-IgwtPolicyDenylist {
 }
 
 function Test-IgwtPolicyOpAllowed {
-    <# .SYNOPSIS The denylist reason when an operation would turn off a security protection, or $null. #>
+    <#
+    .SYNOPSIS
+        The reason a Set is never written, or $null: the policy denylist (turns a security
+        protection off), a UEFI-lock value (cannot be removed by software) or a weakening entry.
+        The one write guard of every policy path: -PolicySet, presets, baseline, policy bridge,
+        secpol Registry Values and the Security Settings Manager (review 3.8.1 P-26, P-28).
+    .PARAMETER Op
+        @{ Op; Key; ValueName; Value }.
+    .PARAMETER Class
+        Machine or User when known; empty matches entries of either class.
+    #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$Op)
+    param([Parameter(Mandatory = $true)]$Op, [AllowEmptyString()][string]$Class = '')
     if ($Op.Op -ne 'Set') { return $null }
     foreach ($d in @(Get-IgwtPolicyDenylist)) {
         if ([string]$Op.Key -notmatch "^(?i)(?:$($d.key))$") { continue }
@@ -158,6 +168,8 @@ function Test-IgwtPolicyOpAllowed {
         $vals = @($d.values | ForEach-Object { [string]$_ })
         if ($vals -contains 'any' -or $vals -contains ([string](@($Op.Value) -join ','))) { return [string]$d.reason }
     }
+    $why = Get-IgwtPolicyLockOrWeakeningReason -Op $Op -Class $Class
+    if ($why) { return $why }
     return $null
 }
 

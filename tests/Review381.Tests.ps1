@@ -266,3 +266,24 @@ Describe 'Review 3.8.1 P-01/P-08: strict true/false parsing for policy values' {
         }
     }
 }
+
+Describe 'Review 3.8.1 P-26/P-28: one write guard for every policy path' {
+    It 'refuses UEFI-lock values in the general guard, with or without a class' {
+        InModuleScope iGWindowsTuner {
+            Test-IgwtPolicyOpAllowed -Op ([pscustomobject]@{ Op = 'Set'; Key = 'Software\Policies\Microsoft\Windows\System'; ValueName = 'RunAsPPL'; Type = 'DWord'; Value = 1 }) | Should -BeLike '*UEFI lock*'
+            Test-IgwtPolicyOpAllowed -Op ([pscustomobject]@{ Op = 'Set'; Key = 'SOFTWARE\Policies\Microsoft\Windows\DeviceGuard'; ValueName = 'LsaCfgFlags'; Type = 'DWord'; Value = 1 }) -Class Machine | Should -BeLike '*UEFI lock*'
+            Test-IgwtPolicyOpAllowed -Op ([pscustomobject]@{ Op = 'Set'; Key = 'Software\Policies\Microsoft\Windows\System'; ValueName = 'RunAsPPL'; Type = 'DWord'; Value = 2 }) | Should -BeNullOrEmpty -Because 'value 2 has no UEFI lock'
+        }
+    }
+    It 'refuses a secpol Registry Values entry that sets RunAsPPL=1 on the Lsa key' {
+        InModuleScope iGWindowsTuner {
+            $k = 'MACHINE\System\CurrentControlSet\Control\Lsa\RunAsPPL'
+            $prop = New-IgwtInfSectionTable; $prop['Registry Values'] = New-IgwtInfSectionTable
+            $prop['Registry Values'][$k] = '4,1'
+            $id = [pscustomobject]@{ Name = 'PC\a'; Sid = 'S-1-5-21-1-2-3-1001'; GroupSids = @('S-1-5-32-544'); IsRemote = $false }
+            $acc = [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @() }
+            $why = @(Test-IgwtSecurityPolicySafeguards -Proposed $prop -Changed @("Registry Values\$k") -Identity $id -Accounts $acc)
+            ($why -join ' ') | Should -BeLike '*UEFI lock*'
+        }
+    }
+}

@@ -26,9 +26,10 @@ Describe 'data\security files (SM2, SM14, SM25)' {
         '{ "parameters": [ { "name": "ContosoNewSetting", "type": "Boolean" } ] }' | Set-Content -LiteralPath $doc -Encoding ascii
         @(InModuleScope iGWindowsTuner -Parameters @{ D = $doc } { param($D) Test-IgwtSecSettingsCatalog -DocumentedPath $D }) | Should -Contain "security\settings-meta.json: the documented Defender preference parameter 'ContosoNewSetting' is not in mpCoverage."
     }
-    It 'list the three UEFI-lock tuples, each with a Learn source' {
+    It 'list the four UEFI-lock tuples, each with a Learn source' {
         $t = @(InModuleScope iGWindowsTuner { (Get-IgwtSecSettingsData).Meta.uefiLockValues })
-        @($t | ForEach-Object { "$($_.valueName)=$($_.value)" }) | Should -Be @('HypervisorEnforcedCodeIntegrity=1', 'LsaCfgFlags=1', 'RunAsPPL=1')
+        # RunAsPPL twice: the Group Policy key and the Lsa registry key that secpol and the catalog write (review 3.8.1 P-26).
+        @($t | ForEach-Object { "$($_.valueName)=$($_.value)" }) | Should -Be @('HypervisorEnforcedCodeIntegrity=1', 'LsaCfgFlags=1', 'RunAsPPL=1', 'RunAsPPL=1')
         @($t | Where-Object { $_.source -notlike 'https://learn.microsoft.com/*' }) | Should -BeNullOrEmpty
     }
     It 'match settings-meta keys exactly first, then by the longest prefix' {
