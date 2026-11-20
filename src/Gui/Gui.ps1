@@ -1335,13 +1335,26 @@ function Invoke-IgwtGuiPreview {
         Set-IgwtGuiStatus 'Preview ready.'
         $accept = ''
         if ($script:Gui.IsAdmin) { $accept = 'Apply these changes' }
-        if (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - preview (dry run, nothing changed)' -Text $text -AcceptText $accept) { Invoke-IgwtGuiApply -SkipConfirm }
+        if (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - preview (dry run, nothing changed)' -Text $text -AcceptText $accept) { Invoke-IgwtGuiApply -SkipConfirm -Previewed $sets }
     }
+}
+
+function Test-IgwtGuiStagedSetsEqual {
+    <# .SYNOPSIS True when two staged sets (Apply, Off, Reset id lists) hold the same ids, order ignored. Pure. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$A, [Parameter(Mandatory = $true)]$B)
+    foreach ($k in 'Apply', 'Off', 'Reset') {
+        $x = (@($A.$k | ForEach-Object { [string]$_ } | Sort-Object -Unique) -join '|')
+        $y = (@($B.$k | ForEach-Object { [string]$_ } | Sort-Object -Unique) -join '|')
+        if ($x -ne $y) { return $false }
+    }
+    return $true
 }
 
 function Invoke-IgwtGuiApply {
     [CmdletBinding()]
-    param([switch]$SkipConfirm)
+    param([switch]$SkipConfirm, $Previewed)
     if (-not $script:Gui.IsAdmin) {
         $a = Show-IgwtGuiMessage -Text 'Applying changes requires administrator rights. Restart iG Windows Tuner as administrator now? Your staged changes will need to be staged again.' -Buttons 'YesNo' -Icon 'Question'
         if ($a -eq 'Yes') { Invoke-IgwtGuiElevate }
@@ -1350,6 +1363,12 @@ function Invoke-IgwtGuiApply {
     $sets = Get-IgwtGuiStagedSets
     $total = $sets.Apply.Count + $sets.Off.Count + $sets.Reset.Count
     if ($total -eq 0) { return }
+    # "Apply these changes" from the preview applies only what the preview showed: when the staged changes
+    # differ now (changed while the preview job ran), the normal confirmation is shown (review 3.8.1 G-02).
+    if ($SkipConfirm -and $Previewed -and -not (Test-IgwtGuiStagedSetsEqual -A $Previewed -B $sets)) {
+        $SkipConfirm = $false
+        Set-IgwtGuiStatus 'The staged changes differ from the preview; confirm the current list.'
+    }
     $expert = @($sets.Apply | Where-Object { $id = $_; ($script:Gui.Catalog | Where-Object { $_.id -eq $id }).expert })
     $unconfirmed = @($expert | Where-Object { -not $script:Gui.Acked.ContainsKey([string]$_) })
     if ($unconfirmed.Count) {

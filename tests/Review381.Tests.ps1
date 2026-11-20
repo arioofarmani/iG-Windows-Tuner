@@ -317,3 +317,49 @@ Describe 'Review 3.8.1 R-1/CP-1/P-1: a restore that cannot reach its target fail
         }
     }
 }
+
+Describe 'Review 3.8.1 G-02/PP-1/FOR-1: GUI changes do exactly what was shown and confirmed' {
+    It 'G-02: staged sets compare by ids, order ignored' {
+        InModuleScope iGWindowsTuner {
+            $a = [pscustomobject]@{ Apply = @('a', 'b'); Off = @(); Reset = @('r') }
+            Test-IgwtGuiStagedSetsEqual -A $a -B ([pscustomobject]@{ Apply = @('b', 'a'); Off = @(); Reset = @('r') }) | Should -BeTrue
+            Test-IgwtGuiStagedSetsEqual -A $a -B ([pscustomobject]@{ Apply = @('a', 'b', 'c'); Off = @(); Reset = @('r') }) | Should -BeFalse
+            Test-IgwtGuiStagedSetsEqual -A $a -B ([pscustomobject]@{ Apply = @('a', 'b'); Off = @('x'); Reset = @('r') }) | Should -BeFalse
+        }
+    }
+    It 'PP-1: the policy toast Undo refuses when a newer GPO backup exists and asks before restoring' {
+        $b = Join-Path $TestDrive 'PolBackups'
+        $null = New-Item -ItemType Directory -Path (Join-Path $b 'gpo-20261119-100000-000') -Force
+        InModuleScope iGWindowsTuner -Parameters @{ B = $b } {
+            param($B)
+            Mock Start-IgwtGuiJob { $true }
+            Mock Show-IgwtGuiMessage { 'No' }
+            Invoke-IgwtGuiPolicyUndo -Backup (Join-Path $B 'gpo-20261119-100000-000')
+            Should -Invoke Start-IgwtGuiJob -Times 0 -Exactly -Because 'the user said No'
+            Mock Show-IgwtGuiMessage { 'Yes' }
+            Invoke-IgwtGuiPolicyUndo -Backup (Join-Path $B 'gpo-20261119-100000-000')
+            Should -Invoke Start-IgwtGuiJob -Times 1 -Exactly
+            $null = New-Item -ItemType Directory -Path (Join-Path $B 'gpo-20261119-110000-000') -Force
+            Invoke-IgwtGuiPolicyUndo -Backup (Join-Path $B 'gpo-20261119-100000-000')
+            Should -Invoke Start-IgwtGuiJob -Times 1 -Exactly -Because 'a later policy change exists; the journal keeps it'
+        }
+    }
+    It 'FOR-1: a refused automatic forensic stop clears the flag and is retried by the session clock' {
+        InModuleScope iGWindowsTuner {
+            $saved = $script:Gui
+            try {
+                $script:Gui = @{ IsAdmin = $true; Forensic = @{ State = $null; Stopping = $false; RetryStop = $false; Running = $false; Timer = $null } }
+                Mock Test-IgwtReadOnly { $false }
+                Mock Get-IgwtForensicSession { [pscustomobject]@{ Expired = $true; Corrupt = $false } }
+                Mock Start-IgwtGuiJob { $false }
+                Mock Set-IgwtGuiStatus { }
+                Mock Update-IgwtGuiForensicBanner { }
+                Invoke-IgwtGuiForensicStop -Automatic
+                $script:Gui.Forensic.Stopping | Should -BeFalse
+                $script:Gui.Forensic.RetryStop | Should -BeTrue
+                Update-IgwtGuiForensicSession
+                Should -Invoke Start-IgwtGuiJob -Times 2 -Exactly -Because 'the clock retries the restore'
+            } finally { $script:Gui = $saved }
+        }
+    }
+}

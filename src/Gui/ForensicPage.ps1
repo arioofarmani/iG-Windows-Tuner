@@ -11,7 +11,7 @@ function Initialize-IgwtGuiForensicPage {
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
-    $script:Gui.Forensic = @{ State = $null; Stopping = $false; Timer = $null }
+    $script:Gui.Forensic = @{ State = $null; Stopping = $false; RetryStop = $false; Timer = $null }
     Register-IgwtGuiHandler -Control $c.FwForRefreshButton -Event 'Click' -Handler { Start-IgwtGuiForensicRefresh }
     Register-IgwtGuiHandler -Control $c.FwForPreviewButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicPreview }
     Register-IgwtGuiHandler -Control $c.FwForStartButton -Event 'Click' -Handler { Invoke-IgwtGuiForensicPreview -Start }
@@ -191,7 +191,7 @@ function Invoke-IgwtGuiForensicStop {
     if (-not $Automatic -and (Show-IgwtGuiMessage -Text "Stop forensic logging and restore every setting it changed?`n`nCollected logs and events stay." -Title 'iG Windows Tuner - forensic logging' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     if ($script:Gui.Forensic.Stopping) { return }
     $script:Gui.Forensic.Stopping = $true
-    $null = Start-IgwtGuiJob -Command 'Stop-IgwtForensicLoggingSession' -Parameters @{ Confirm = $false } -Blocking -BusyText 'Restoring the logging settings...' -OnComplete {
+    $started = Start-IgwtGuiJob -Command 'Stop-IgwtForensicLoggingSession' -Parameters @{ Confirm = $false } -Blocking -BusyText 'Restoring the logging settings...' -OnComplete {
         param($out, $errs)
         $script:Gui.Forensic.Stopping = $false
         $r = @($out) | Select-Object -Last 1
@@ -200,6 +200,13 @@ function Invoke-IgwtGuiForensicStop {
         Update-IgwtGuiForensicSession
         Start-IgwtGuiForensicRefresh
     }
+    # Refused (another change is running): clear the flag so Stop works again, and let the session clock
+    # retry an automatic restore on its next tick (review 3.8.1 FOR-1).
+    if ($started -eq $false) {
+        $script:Gui.Forensic.Stopping = $false
+        $script:Gui.Forensic.RetryStop = [bool]$Automatic
+        if (-not $Automatic) { Set-IgwtGuiStatus 'Another change is running; stop forensic logging again when it has finished.' }
+    } else { $script:Gui.Forensic.RetryStop = $false }
 }
 
 function Update-IgwtGuiForensicSession {
@@ -211,7 +218,7 @@ function Update-IgwtGuiForensicSession {
     try { $s = Get-IgwtForensicSession } catch { Write-Verbose "Session not read: $($_.Exception.Message)" }
     Update-IgwtGuiForensicBanner -Session $s
     # Ended while the app is open: restore automatically (needs a writable, elevated window).
-    if ($s -and -not $s.Corrupt -and $s.Expired -and $script:Gui.Forensic.Running -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
+    if ($s -and -not $s.Corrupt -and $s.Expired -and ($script:Gui.Forensic.Running -or $script:Gui.Forensic.RetryStop) -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
     $script:Gui.Forensic.Running = [bool]($s -and -not $s.Expired)
 }
 
