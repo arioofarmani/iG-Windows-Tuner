@@ -57,3 +57,26 @@ Describe '3.9 B2: module writes are read back' {
         }
     }
 }
+
+Describe '3.9 B4: Explorer restart and pending feature states' {
+    It 'TK-1: the icon-cache fix never starts Explorer from the elevated app' {
+        InModuleScope iGWindowsTuner {
+            Mock Get-Process { @() } -ParameterFilter { $Name -eq 'explorer' }
+            Mock Start-Sleep { }
+            Mock Start-Process { }
+            $r = Invoke-IgwtFixStep -Step ([pscustomobject]@{ kind = 'explorer'; operation = 'start' }) -Stamp 'x'
+            Should -Invoke Start-Process -Times 0 -Exactly
+            $r.Output | Should -BeLike '*Run new task*'
+        }
+    }
+    It 'OF-1: a feature waiting for the restart reads as its new state' {
+        InModuleScope iGWindowsTuner {
+            Mock Get-WindowsOptionalFeature { [pscustomobject]@{ FeatureName = 'SMB1Protocol'; State = 'DisablePending' } }
+            Get-IgwtOptionalFeatureStateValue -Feature 'SMB1Protocol' | Should -Be 'Disabled'
+            Mock Get-WindowsOptionalFeature { [pscustomobject]@{ FeatureName = 'SMB1Protocol'; State = 'EnablePending' } }
+            Get-IgwtOptionalFeatureStateValue -Feature 'SMB1Protocol' | Should -Be 'Enabled'
+            Mock Get-WindowsOptionalFeature { [pscustomobject]@{ FeatureName = 'SMB1Protocol'; State = 'DisabledWithPayloadRemoved' } }
+            Get-IgwtOptionalFeatureStateValue -Feature 'SMB1Protocol' | Should -Be 'DisabledWithPayloadRemoved'
+        }
+    }
+}

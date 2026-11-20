@@ -7,7 +7,14 @@ function Get-IgwtOptionalFeatureStateValue {
     param([Parameter(Mandatory = $true)][string]$Feature)
     $f = Get-WindowsOptionalFeature -Online -FeatureName $Feature -ErrorAction Stop
     if (-not $f) { return $null }
-    return [string]$f.State
+    # A change waiting for the restart counts as done: DisablePending is Disabled and EnablePending is
+    # Enabled, so turning SMB1 off reads back as off and is not rolled back (review 3.8.1 OF-1). The item's
+    # "restart needed" tells the user the rest.
+    switch ([string]$f.State) {
+        'DisablePending' { return 'Disabled' }
+        'EnablePending' { return 'Enabled' }
+        default { return [string]$f.State }
+    }
 }
 
 function Get-IgwtOptionalFeatureState {
