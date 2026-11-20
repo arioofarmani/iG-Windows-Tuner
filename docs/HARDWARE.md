@@ -110,9 +110,9 @@ Microsoft documents that devices with Modern Standby only allow the Balanced pow
 
 *Blocks power-plan switches on laptops; iG Windows Tuner power items only change AC values, so battery (DC) behaviour stays.*
 
-Switching the whole power plan also changes battery (DC) behaviour, so High and Ultimate Performance plans are blocked on laptops; Microsoft's model for portables is the Balanced plan plus the power mode slider. iG Windows Tuner's power settings write AC values only, so DC battery saving is never reduced, and any future item that writes DC values is blocked too.
+Switching the whole power plan also changes battery (DC) behaviour, so High and Ultimate Performance plans are blocked on laptops; Microsoft's model for portables is the Balanced plan plus the power mode slider. iG Windows Tuner's power settings write AC values only, so DC battery saving is never reduced, and any future item that writes DC values is blocked too. Turning off the Wi-Fi adapter and hibernation are blocked as well: a laptop usually needs Wi-Fi, and hibernation saves the session when the battery runs out.
 
-- Blocks: `power.high-performance-plan`, `power.ultimate-plan`
+- Blocks: `power.high-performance-plan`, `power.ultimate-plan`, `net.wifi-disable`, `power.hibernation-off`
 - Blocks any item with an action where type = powercfgSetting; fieldPresent = dc
 - Guidance: Plug in for gaming sessions and use the power mode slider; keep the battery saver behaviour on DC.
 
