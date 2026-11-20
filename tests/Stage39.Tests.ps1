@@ -44,3 +44,16 @@ Describe '3.9 B1: Invoke-IgwtRevert runs through the change journal' {
         }
     }
 }
+
+Describe '3.9 B2: module writes are read back' {
+    It 'an ASR rule that keeps its old mode after the write is reported, not shown as applied' {
+        InModuleScope iGWindowsTuner {
+            Mock Set-IgwtAsrRule { }
+            Mock Get-IgwtAsrRuleAction { 2 }
+            Mock Clear-IgwtCache { }
+            { Set-IgwtAsrRuleMode -RuleId '56a863a9-875e-4185-98a7-b882c64b5ce5' -Mode Block -Confirm:$false } | Should -Throw '*reads back as*'
+            Mock Get-IgwtAsrRuleAction { 1 }
+            { Set-IgwtAsrRuleMode -RuleId '56a863a9-875e-4185-98a7-b882c64b5ce5' -Mode Block -Confirm:$false } | Should -Not -Throw
+        }
+    }
+}

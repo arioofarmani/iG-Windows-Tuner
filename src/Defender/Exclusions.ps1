@@ -127,6 +127,9 @@ function Remove-IgwtDefenderExclusion {
     $arg = @{ ($d.Remove) = @([string]$row.Value); ErrorAction = 'Stop' }
     Remove-MpPreference @arg
     Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false
+    # Read back: Tamper Protection for exclusions or a policy can leave it in place without an error (review 3.8.1 F-07).
+    $still = @((Get-IgwtDefenderExclusionAudit).Exclusions | Where-Object { $_.Kind -eq $Kind -and [string]::Equals([string]$_.Value, [string]$row.Value, [System.StringComparison]::OrdinalIgnoreCase) })
+    if ($still.Count) { throw "The $Kind exclusion '$Value' is still listed after the removal (Tamper Protection for exclusions or a policy may keep it)." }
     Write-IgwtLog -Level Warn -Message "Removed $Kind exclusion '$Value' from Defender (Remove-MpPreference). Re-add it by hand in Windows Security if it was needed."
     return [pscustomobject]@{ Kind = $Kind; Value = $Value; Source = 'Local preference'; Backup = $null }
 }

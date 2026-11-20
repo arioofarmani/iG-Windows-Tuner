@@ -450,9 +450,15 @@ function Set-IgwtAsrRuleMode {
         if ($null -ne (Get-IgwtAsrRuleAction -RuleId $RuleId) -and $PSCmdlet.ShouldProcess("ASR rule $RuleId", 'Remove (Not configured)')) {
             try { Remove-MpPreference -AttackSurfaceReductionRules_Ids $RuleId -ErrorAction Stop } finally { Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false }
         }
-        return
+    } else {
+        Set-IgwtAsrRule -RuleId $RuleId -Code $script:IgwtAsrSettableCodes[$Mode]
     }
-    Set-IgwtAsrRule -RuleId $RuleId -Code $script:IgwtAsrSettableCodes[$Mode]
+    if ($WhatIfPreference) { return }
+    # Read back: Tamper Protection, a policy or MDM can leave the old mode without an error (review 3.8.1 F-06).
+    Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false
+    $now = Get-IgwtAsrRuleAction -RuleId $RuleId
+    $want = $(if ($Mode -eq 'NotConfigured') { $null } else { $script:IgwtAsrSettableCodes[$Mode] })
+    if ([string]$now -ne [string]$want) { throw "ASR rule $RuleId reads back as '$now' after setting it to $Mode (Tamper Protection, a policy or MDM may control it)." }
 }
 
 function Set-IgwtAsrRuleExclusionValue {
