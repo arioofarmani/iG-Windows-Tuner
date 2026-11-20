@@ -208,3 +208,51 @@ Describe 'Review 3.8.1 S1: firewall restores validate the saved rule definition'
         }
     }
 }
+
+Describe 'Review 3.8.1 E1: a module writer that fails after its backup can be rolled back with it' {
+    It 'keeps the recorded backup reference on the failed step and gives it to the rollback' {
+        InModuleScope iGWindowsTuner {
+            $d = Get-IgwtJournalFolder; if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force }; $script:IgwtJournal = $null
+            function script:Invoke-IgwtR381Writer {
+                [CmdletBinding()] param([string]$Target)
+                $snap = New-IgwtSnapshot -Operation 'Manage' -Detail $Target
+                Save-IgwtSnapshot -Snapshot $snap
+                $script:R381Snap = $snap.Path
+                throw 'gpupdate failed after the write'
+            }
+            $script:IgwtModuleOperations['Invoke-IgwtR381Writer'] = 'snapshot'
+            $orig = $script:IgwtChangeProviders['module'].Restore
+            $script:R381Restored = @()
+            $script:IgwtChangeProviders['module'].Restore = { param($r, $data, $ctx) $null = $r; $null = $ctx; $script:R381Restored += [string]$data['applied']['ref'] }
+            try {
+                $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'test'; ref = 'E1' }) -Title 'E1 test' -Confirm:$false
+                try {
+                    $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtR381Writer' -Parameters @{ Target = 'x' } -Group 'g1' -Confirm:$false
+                    $s.Step.Result | Should -Be 'Failed'
+                    $s.Step.Applied['ref'] | Should -Be $script:R381Snap -Because 'the backup recorded before the failure is the undo reference'
+                    $errs = @(Undo-IgwtChangeGroup -Session $session -Group 'g1' -Confirm:$false)
+                    $errs.Count | Should -Be 0
+                    $script:R381Restored | Should -Be @($script:R381Snap)
+                } finally { Complete-IgwtChangeSession -Session $session }
+            } finally {
+                $script:IgwtChangeProviders['module'].Restore = $orig
+                $script:IgwtModuleOperations.Remove('Invoke-IgwtR381Writer')
+            }
+        }
+    }
+    It 'a writer that fails before any backup still has no reference (nothing to restore)' {
+        InModuleScope iGWindowsTuner {
+            $d = Get-IgwtJournalFolder; if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force }; $script:IgwtJournal = $null
+            function script:Invoke-IgwtR381Early { [CmdletBinding()] param([string]$Target) throw 'refused before any change' }
+            $script:IgwtModuleOperations['Invoke-IgwtR381Early'] = 'snapshot'
+            try {
+                $session = Start-IgwtChangeSession -Origin ([ordered]@{ type = 'test'; ref = 'E1b' }) -Title 'E1 test b' -Confirm:$false
+                try {
+                    $s = Invoke-IgwtModuleOperationStep -Session $session -Command 'Invoke-IgwtR381Early' -Parameters @{ Target = 'x' } -Group 'g2' -Confirm:$false
+                    $s.Step.Result | Should -Be 'Failed'
+                    $s.Step.Applied | Should -BeNullOrEmpty
+                } finally { Complete-IgwtChangeSession -Session $session }
+            } finally { $script:IgwtModuleOperations.Remove('Invoke-IgwtR381Early') }
+        }
+    }
+}

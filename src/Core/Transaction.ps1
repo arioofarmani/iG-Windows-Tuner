@@ -526,6 +526,11 @@ function Invoke-IgwtChangeStep {
         $result.Result = 'Committed'
     } catch {
         $result.Message = $_.Exception.Message
+        # A module writer that failed after it recorded its backup (Set-IgwtModuleOperationRef): the step keeps
+        # that reference, so Undo-IgwtChangeGroup can restore from it (review 3.8.1 E1).
+        if ([string]$Target['provider'] -eq 'module' -and -not ($result.Applied -is [System.Collections.IDictionary]) -and $script:IgwtModuleStep -and [string]$script:IgwtModuleStep.Ref) {
+            $result.Applied = [ordered]@{ ref = [string]$script:IgwtModuleStep.Ref; action = '' }
+        }
         $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'failed'; session = $Session.Id; step = $step; group = $Group; op = $Kind; item = [string]$Target['item']; target = $Target; error = $result.Message; readBack = $(if ($result.ReadBack) { @{ ok = [bool]$result.ReadBack.Ok; state = [string]$result.ReadBack.State } } else { $null }) })
     }
     $Session.Results.Add($result)
