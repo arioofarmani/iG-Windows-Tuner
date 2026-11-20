@@ -287,3 +287,33 @@ Describe 'Review 3.8.1 P-26/P-28: one write guard for every policy path' {
         }
     }
 }
+
+Describe 'Review 3.8.1 R-1/CP-1/P-1: a restore that cannot reach its target fails instead of reporting success' {
+    It 'adapter registry: restores the present adapter, then fails naming the missing one' {
+        InModuleScope iGWindowsTuner {
+            Mock Get-IgwtRegistryTargets { @([pscustomobject]@{ Scope = 'nic-present'; Path = 'HKLM:\SOFTWARE\R381\Nic'; Name = 'Value' }) }
+            Mock Restore-IgwtRegistryItem { }
+            Mock Get-IgwtRegistryBridgeTarget { $null }
+            $action = [pscustomobject]@{ type = 'adapterRegistry'; name = 'Value' }
+            $snap = [pscustomobject]@{ items = @([pscustomobject]@{ scope = 'nic-present'; exists = $true }, [pscustomobject]@{ scope = 'nic-gone'; exists = $true }) }
+            { Restore-IgwtRegistrySnapshot -Action $action -Snapshot $snap -Confirm:$false } | Should -Throw '*nic-gone*not present*'
+            Should -Invoke Restore-IgwtRegistryItem -Times 1 -Exactly
+        }
+    }
+    It 'power plan: fails when the plan that was active before no longer exists' {
+        InModuleScope iGWindowsTuner {
+            Mock Test-IgwtPowerSchemeExists { $false }
+            Mock Invoke-IgwtPowerCfg { [pscustomobject]@{ ExitCode = 0; Output = '' } }
+            $snap = [pscustomobject]@{ previousActive = '381b0d2a-0000-4000-8000-000000000001' }
+            { Restore-IgwtPowerCfgSchemeSnapshot -Action ([pscustomobject]@{ type = 'powercfgScheme' }) -Snapshot $snap -Confirm:$false } | Should -Throw '*no longer exists*'
+            Should -Invoke Invoke-IgwtPowerCfg -Times 0 -Exactly
+        }
+    }
+    It 'interrupt devices: a restore also reaches a device that stopped working' {
+        InModuleScope iGWindowsTuner {
+            Mock Get-PnpDevice { @([pscustomobject]@{ InstanceId = 'PCI\VEN_10DE&DEV_0001\1'; Status = 'Error'; FriendlyName = 'GPU' }, [pscustomobject]@{ InstanceId = 'PCI\VEN_8086&DEV_0002\2'; Status = 'OK'; FriendlyName = 'iGPU' }) }
+            @(Get-IgwtInterruptDevices -Class Display).Count | Should -Be 1 -Because 'apply only targets working devices'
+            @(Get-IgwtInterruptDevices -Class Display -IncludeFailed).Count | Should -Be 2 -Because 'restore must reach the failing GPU'
+        }
+    }
+}

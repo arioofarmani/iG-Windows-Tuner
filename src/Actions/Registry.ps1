@@ -651,11 +651,13 @@ function Restore-IgwtRegistrySnapshot {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, [Parameter(Mandatory = $true)]$Snapshot, $Context)
     $targets = @(Get-IgwtRegistryTargets -Action $Action -Context $Context)
+    $missing = New-Object System.Collections.Generic.List[string]
     foreach ($item in @($Snapshot.items)) {
         $target = $targets | Where-Object { $_.Scope -eq [string]$item.scope } | Select-Object -First 1
         if (-not $target) {
             if ($Action.type -in 'adapterRegistry', 'netAdapterPower') {
-                Write-IgwtLog -Level Warn -Message "Adapter $($item.scope) is no longer present; its value was not restored."
+                # Reported after the others are restored, never skipped silently (review 3.8.1 R-1).
+                $missing.Add([string]$item.scope)
                 continue
             }
             $target = $targets[0]
@@ -674,6 +676,7 @@ function Restore-IgwtRegistrySnapshot {
             }
         }
     }
+    if ($missing.Count) { throw "Network adapter $($missing -join ', ') is not present or not connected, so its value was not restored. Connect it and revert again; everything else was restored." }
 }
 
 #endregion

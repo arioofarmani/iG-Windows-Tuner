@@ -143,9 +143,11 @@ function Restore-IgwtDnsDohSnapshot {
     $known = @($prov.V4 + $prov.V6)
     $adapters = @()
     try { $adapters = @(Get-NetAdapter -Physical -ErrorAction Stop) } catch { $adapters = @() }
+    $missingDns = @()
     foreach ($i in @($Snapshot.interfaces)) {
         $a = $adapters | Where-Object { [string]$_.InterfaceGuid -eq [string]$i.scope } | Select-Object -First 1
-        if (-not $a) { Write-IgwtLog -Level Warn -Message "Adapter $($i.adapter) is no longer present; DNS not restored."; continue }
+        # Reported after the others are restored, never skipped silently (review 3.8.1 R-1).
+        if (-not $a) { $missingDns += [string]$i.adapter; continue }
         if (-not $i.static4 -and -not $i.static6) {
             if ($PSCmdlet.ShouldProcess($a.Name, 'Restore DNS servers from DHCP')) { Set-DnsClientServerAddress -InterfaceIndex $a.ifIndex -ResetServerAddresses -ErrorAction Stop }
         } else {
@@ -171,4 +173,5 @@ function Restore-IgwtDnsDohSnapshot {
             Remove-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction Stop
         }
     }
+    if ($missingDns.Count) { throw "Network adapter $($missingDns -join ', ') is not present, so its DNS servers were not restored. Connect it and revert again; everything else was restored." }
 }
