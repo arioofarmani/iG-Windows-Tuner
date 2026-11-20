@@ -256,3 +256,13 @@ Describe 'Review 3.8.1 E1: a module writer that fails after its backup can be ro
         }
     }
 }
+
+Describe 'Review 3.8.1 P-01/P-08: strict true/false parsing for policy values' {
+    It 'reads bools, 0/1 and the usual words, and refuses anything else' {
+        InModuleScope iGWindowsTuner {
+            foreach ($t in @($true, 1, '1', 'true', 'TRUE', 'yes', 'On', ' true ')) { ConvertTo-IgwtStrictBool -Value $t | Should -BeTrue -Because "$t" }
+            foreach ($f in @($false, 0, '0', 'false', 'False', 'no', 'OFF')) { ConvertTo-IgwtStrictBool -Value $f | Should -BeFalse -Because "$f" }
+            foreach ($x in @('maybe', '', '2', 5, $null)) { { ConvertTo-IgwtStrictBool -Value $x -Label 'Test' } | Should -Throw "*not true or false for 'Test'*" -Because "$x" }
+        }
+    }
+}
