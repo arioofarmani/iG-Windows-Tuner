@@ -495,6 +495,22 @@ function Get-IgwtGuiFirewallRuleDialogXaml {
 '@
 }
 
+function Get-IgwtGuiFirewallProtocolChoices {
+    <#
+    .SYNOPSIS
+        The protocol list of the rule dialog and the selected entry for a rule's current protocol. A
+        protocol outside the usual five (for example GRE, 47) is added as its own choice, so an edit
+        keeps it instead of silently turning the rule into Any (review 3.8.1 FWP-1). Pure.
+    .PARAMETER Current
+        The rule's protocol, or empty.
+    #>
+    [CmdletBinding()]
+    param([AllowEmptyString()][string]$Current = '')
+    $items = @('Any', 'TCP', 'UDP', 'ICMPv4', 'ICMPv6')
+    if ($Current -and $items -notcontains $Current) { $items += $Current }
+    return [pscustomobject]@{ Items = $items; Selected = $(if ($Current) { $Current } else { 'Any' }) }
+}
+
 function Show-IgwtGuiFirewallRuleDialog {
     <#
     .SYNOPSIS
@@ -531,7 +547,9 @@ function Show-IgwtGuiFirewallRuleDialog {
         $f.NameBox.Text = [string]$Rule.DisplayName
         $f.ProgramBox.Text = $(if ([string]$Rule.Program -in 'Any', '') { '' } else { [string]$Rule.Program })
         $f.DescBox.Text = [string]$Rule.Description
-        $f.ProtoBox.SelectedItem = $(if ([string]$Rule.Protocol -in 'Any', 'TCP', 'UDP', 'ICMPv4', 'ICMPv6') { [string]$Rule.Protocol } else { 'Any' })
+        $pc = Get-IgwtGuiFirewallProtocolChoices -Current ([string]$Rule.Protocol)
+        $f.ProtoBox.ItemsSource = $pc.Items
+        $f.ProtoBox.SelectedItem = $pc.Selected
         $f.LocalPortBox.Text = $(if ([string]$Rule.LocalPort -in 'Any', '') { '' } else { [string]$Rule.LocalPort })
         $f.RemotePortBox.Text = $(if ([string]$Rule.RemotePort -in 'Any', '') { '' } else { [string]$Rule.RemotePort })
         $f.RemoteAddrBox.Text = $(if ([string]$Rule.RemoteAddress -in 'Any', '') { '' } else { [string]$Rule.RemoteAddress })
@@ -637,6 +655,9 @@ function Use-IgwtGuiFirewallTemplate {
     $f.DirIn.IsChecked = ($ts.Direction -eq 'Inbound'); $f.DirOut.IsChecked = ($ts.Direction -eq 'Outbound')
     $f.ActAllow.IsChecked = ($ts.Action -eq 'Allow'); $f.ActBlock.IsChecked = ($ts.Action -eq 'Block')
     $f.ProtoBox.SelectedItem = $ts.Protocol
+    # The template's ports too: without them "Share files (SMB 445)" allowed every TCP port (review 3.8.1 FWP-2).
+    $f.LocalPortBox.Text = $(if ($ts.LocalPort -and [string]$ts.LocalPort -ne 'Any') { [string]$ts.LocalPort } else { '' })
+    $f.RemotePortBox.Text = $(if ($ts.RemotePort -and [string]$ts.RemotePort -ne 'Any') { [string]$ts.RemotePort } else { '' })
     $p = @($ts.Profiles)
     $f.ProfPrivate.IsChecked = ($p -contains 'Private' -or $p -contains 'Any'); $f.ProfPublic.IsChecked = ($p -contains 'Public' -or $p -contains 'Any'); $f.ProfDomain.IsChecked = ($p -contains 'Domain' -or $p -contains 'Any')
     $f.RemoteAddrBox.Text = $(if ($ts.RemoteAddress -and $ts.RemoteAddress -ne 'Any') { $ts.RemoteAddress } else { '' })

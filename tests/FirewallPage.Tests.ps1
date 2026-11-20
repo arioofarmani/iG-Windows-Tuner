@@ -65,6 +65,29 @@ Describe 'Firewall page: rule dialog (headless)' {
         }
     }
 
+    It 'review 3.8.1 FWP-2: a template fills its ports (Share files = SMB 445 only)' {
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }
+        InModuleScope iGWindowsTuner {
+            $f = $script:IgwtFwDlg.F
+            $ids = @(@($script:IgwtFwDlg.Templates) | ForEach-Object { $_.Id })
+            $f.TemplateBox.SelectedIndex = [array]::IndexOf($ids, 'lan-file-share') + 1
+            Use-IgwtGuiFirewallTemplate
+            $f.LocalPortBox.Text | Should -Be '445'
+            (Get-IgwtGuiFirewallDialogSettings).LocalPort | Should -Be '445'
+            $f.TemplateBox.SelectedIndex = [array]::IndexOf($ids, 'block-app-out') + 1
+            Use-IgwtGuiFirewallTemplate
+            $f.LocalPortBox.Text | Should -Be '' -Because 'a template without ports clears them'
+        }
+    }
+    It 'review 3.8.1 FWP-1: an edit keeps a protocol outside the usual list' {
+        InModuleScope iGWindowsTuner {
+            $c = Get-IgwtGuiFirewallProtocolChoices -Current '47'
+            $c.Items | Should -Contain '47'
+            $c.Selected | Should -Be '47'
+            (Get-IgwtGuiFirewallProtocolChoices -Current 'UDP').Items.Count | Should -Be 5
+            (Get-IgwtGuiFirewallProtocolChoices -Current '').Selected | Should -Be 'Any'
+        }
+    }
     It 'fills the wizard from a template' {
         if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }
         InModuleScope iGWindowsTuner {
