@@ -446,6 +446,21 @@ Describe 'Security score' {
         (@($s.Checks | Where-Object { $_.Id -eq 'firewall' })[0]).Status | Should -Be 'Managed'
         (@($s.Checks | Where-Object { $_.Id -eq 'secureBoot' })[0]).Counted | Should -BeFalse
     }
+    It 'review 3.8.1 SC-1: scores what a policy sets instead of leaving it out' {
+        $f = Get-TestFacts
+        $f.TweakStates['sec.firewall-on'] = 'ManagedByPolicy'
+        $f | Add-Member -NotePropertyName PolicyValues -NotePropertyValue @{ 'sec.firewall-on' = @([pscustomobject]@{ Name = 'EnableFirewall'; Value = 0 }, [pscustomobject]@{ Name = 'EnableFirewall'; Value = 1 }) } -Force
+        $s = ConvertTo-IgwtSecurityScore -Facts $f
+        $fw = @($s.Checks | Where-Object { $_.Id -eq 'firewall' })[0]
+        $fw.Status | Should -Be 'Fail' -Because 'one profile is turned off by policy'
+        $fw.Counted | Should -BeTrue
+        $s.Score | Should -BeLessThan 100
+        $f.PolicyValues['sec.firewall-on'] = @([pscustomobject]@{ Name = 'EnableFirewall'; Value = 1 })
+        (@((ConvertTo-IgwtSecurityScore -Facts $f).Checks | Where-Object { $_.Id -eq 'firewall' })[0]).Status | Should -Be 'Pass'
+        $f.TweakStates['sec.network-protection'] = 'ManagedByPolicy'
+        $f.PolicyValues['sec.network-protection'] = @([pscustomobject]@{ Name = 'EnableNetworkProtection'; Value = 2 })
+        (@((ConvertTo-IgwtSecurityScore -Facts $f).Checks | Where-Object { $_.Id -eq 'networkProtection' })[0]).Status | Should -Be 'Warn' -Because 'audit mode only'
+    }
     It 'treats ASR checks as not applicable when Defender is not the active antivirus' {
         $f = Get-TestFacts
         $f.Defender.Active = $false

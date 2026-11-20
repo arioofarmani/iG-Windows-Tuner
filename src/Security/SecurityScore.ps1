@@ -86,6 +86,41 @@ $script:IgwtSecurityChecks = @(
         Description = 'Credential Guard stores secrets in a VBS-isolated process. Windows 11 Pro does not include it; LSA protection gives Pro users similar protection against credential dumping.' }
 )
 
+# What a Group Policy or MDM value of a score item means (review 3.8.1 SC-1): Off = the protection is
+# turned off (the check fails), Audit = only audited (the check warns); any other value counts as on.
+# Value names are the catalog item's policyKeys; values per the Defender, Firewall and Device Guard
+# policy documentation cited in each catalog item's sources.
+$script:IgwtSecurityPolicyMeaning = @{
+    'sec.firewall-on'        = @{ Off = @{ EnableFirewall = @(0) }; Audit = @{} }
+    'sec.network-protection' = @{ Off = @{ EnableNetworkProtection = @(0) }; Audit = @{ EnableNetworkProtection = @(2) } }
+    'sec.defender-hardening' = @{ Off = @{ PUAProtection = @(0); SpynetReporting = @(0) }; Audit = @{ PUAProtection = @(2) } }
+    'sec.hvci-on'            = @{ Off = @{ EnableVirtualizationBasedSecurity = @(0) }; Audit = @{} }
+}
+
+function Get-IgwtSecurityPolicyVerdict {
+    <#
+    .SYNOPSIS
+        Pass, Warn, Fail or Managed for a score item whose value is set by Group Policy or MDM:
+        Fail when a policy value turns the protection off, Warn when it only audits, Pass when the
+        item has a known meaning and no value turns it off, Managed when the meaning is unknown
+        (review 3.8.1 SC-1: a protection turned off by policy no longer leaves the score). Pure.
+    .PARAMETER Target
+        The catalog item id.
+    .PARAMETER Values
+        The policy values read for it: objects with Name and Value.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][string]$Target, [AllowEmptyCollection()][object[]]$Values = @())
+    $m = $script:IgwtSecurityPolicyMeaning[$Target]
+    # No known meaning, or no value could be read: it cannot be judged.
+    if (-not $m -or @($Values | Where-Object { $_ }).Count -eq 0) { return 'Managed' }
+    $has = { param($map, $v) $map.ContainsKey([string]$v.Name) -and @($map[[string]$v.Name] | ForEach-Object { [string]$_ }) -contains [string]$v.Value }
+    if (@($Values | Where-Object { & $has $m.Off $_ }).Count) { return 'Fail' }
+    if (@($Values | Where-Object { & $has $m.Audit $_ }).Count) { return 'Warn' }
+    return 'Pass'
+}
+
 function Get-IgwtSecurityCheckDefinitions {
     <# .SYNOPSIS The security score checks (id, name, weight, fix route, hint, description). #>
     [CmdletBinding()]
@@ -97,7 +132,7 @@ function Get-IgwtSecurityFacts {
     <# .SYNOPSIS Collects everything the security score needs (read-only). Each source fails independently. #>
     [CmdletBinding()]
     param($Context)
-    $facts = [ordered]@{ Defender = $null; TweakStates = @{}; SecureBoot = $null; Tpm = $null; DeviceGuard = $null; Asr = $null; BitLocker = $null; Accounts = $null; SmartAppControl = $null; Edition = '' }
+    $facts = [ordered]@{ Defender = $null; TweakStates = @{}; PolicyValues = @{}; SecureBoot = $null; Tpm = $null; DeviceGuard = $null; Asr = $null; BitLocker = $null; Accounts = $null; SmartAppControl = $null; Edition = '' }
     try {
         $mp = Get-IgwtCached -Key 'mp:status' -TtlSeconds 10 -ScriptBlock { Get-MpComputerStatus -ErrorAction Stop }
         $facts.Defender = [pscustomobject]@{ Active = (Test-IgwtDefenderActive); RealTime = [bool]$mp.RealTimeProtectionEnabled; Tamper = [bool]$mp.IsTamperProtected; SignatureAge = [int]$mp.AntivirusSignatureAge; Mode = [string]$mp.AMRunningMode }
@@ -105,8 +140,17 @@ function Get-IgwtSecurityFacts {
     if (-not $Context) { $Context = New-IgwtContext }
     $facts.Edition = [string]$Context.EditionId
     foreach ($c in @($script:IgwtSecurityChecks | Where-Object { $_.Fix -eq 'Tweak' })) {
-        try { $facts.TweakStates[[string]$c.Target] = [string](Get-IgwtTweakState -Tweak (Get-IgwtTweak -Id ([string]$c.Target)) -Context $Context).State }
-        catch { $facts.TweakStates[[string]$c.Target] = 'Unknown' }
+        try {
+            $tw = Get-IgwtTweak -Id ([string]$c.Target)
+            $facts.TweakStates[[string]$c.Target] = [string](Get-IgwtTweakState -Tweak $tw -Context $Context).State
+            # The policy values themselves, so a policy that turns the protection off is scored (review 3.8.1 SC-1).
+            if ($facts.TweakStates[[string]$c.Target] -eq 'ManagedByPolicy') {
+                $facts.PolicyValues[[string]$c.Target] = @(foreach ($pk in @($tw.policyKeys | Where-Object { $_ })) {
+                        $v = Get-IgwtRegistryValue -Path ([string]$pk.path) -Name ([string]$pk.name)
+                        if ($v.Exists) { [pscustomobject]@{ Name = [string]$pk.name; Value = $v.Value } }
+                    })
+            }
+        } catch { $facts.TweakStates[[string]$c.Target] = 'Unknown' }
     }
     try { $facts.SecureBoot = (Get-IgwtSecureBootInfo).Enabled } catch { Write-Verbose 'Secure Boot state unavailable.' }
     try { $facts.Tpm = Get-IgwtTpmInfo } catch { Write-Verbose 'TPM state unavailable.' }
@@ -212,7 +256,11 @@ function ConvertTo-IgwtSecurityScore {
                         'On' { $status = 'Pass'; $value = 'On' }
                         'Partial' { $status = 'Warn'; $value = 'Partly applied' }
                         'Off' { $status = 'Fail'; $value = 'Off' }
-                        'ManagedByPolicy' { $status = 'Managed'; $value = 'Set by Group Policy or MDM' }
+                        'ManagedByPolicy' {
+                            $pv = @(); if ($Facts.PolicyValues -and $Facts.PolicyValues.ContainsKey([string]$d.Target)) { $pv = @($Facts.PolicyValues[[string]$d.Target]) }
+                            $status = Get-IgwtSecurityPolicyVerdict -Target ([string]$d.Target) -Values $pv
+                            $value = switch ($status) { 'Fail' { 'Turned off by Group Policy or MDM' } 'Warn' { 'Audit only, set by Group Policy or MDM' } 'Pass' { 'On, set by Group Policy or MDM' } default { 'Set by Group Policy or MDM' } }
+                        }
                         'NotApplicable' { $status = 'NotApplicable'; $value = 'Not applicable on this PC' }
                         default { $status = 'Unknown'; $value = 'Could not be read' }
                     }
