@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.9.0 (2026-11-20)
+
+One undo system, and the remaining High findings of the 3.8.1 review (DECISIONS W1 to W12).
+
+### Changed
+
+- **Every Revert and Undo goes through the change journal** (W1): the command line, the GUI Revert buttons, the Undo messages, staged turn-offs and Session Mode now check each value before restoring it and read it back afterwards. A value changed since iG set it (by you, an app, a policy or Windows) is no longer overwritten: the revert reports it and points to Backups & Logs > Change journal, where you choose. Backups from before 3.6 still restore directly.
+
+### Fixed
+
+- ASR rule changes and Defender exclusion removals are read back; a change that Tamper Protection or a policy kept is no longer shown as applied (W3).
+- The icon-cache fix never starts the desktop shell with administrator rights (W5).
+- Turning SMB1 or another Windows feature off is no longer rolled back while it waits for the restart (W5).
+- Protected services now include the administrator prompt (Appinfo), Windows Hello, account sign-in, Wi-Fi, Gaming Services, Xbox sign-in and Store licensing, for catalog items too; earlier changes to them can still be undone (W6).
+- One clean moves at most half of a drive's Recycle Bin size, so Windows does not purge older items (W7).
+- Firewall: duplicates compare every match field and one copy is kept; saved rules keep ICMP types, interface aliases, the IPsec filter and mappings; undoing "block outbound" can return to Not configured (W8-W10).
+- When iG runs elevated with another administrator's account, app changes, winget and per-user cleaning are refused instead of acting on the wrong profile (W11).
+
+### Quality
+
+- Crash matrix: recovery is tested after a simulated crash at four points of a change (W4).
+- Three test files that failed when run alone are fixed (W2, W9).
+- Continuous integration on GitHub Actions; the README badge shows its live status (W12).
+
+### Known limits
+
+- In an over-the-shoulder elevation the GUI still reads per-user state from the elevated account (review G-03); planned for 4.0.
+- Real apply-and-restore runs in Windows Sandbox are still to do.
+
 ## 3.8.2 (2026-11-20)
 
 Security and undo fixes from an independent review of 3.8.1 (DECISIONS V1 to V13). No new features.
