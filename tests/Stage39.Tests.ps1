@@ -98,3 +98,16 @@ Describe '3.9 B4: protected services (review FW-4)' {
         }
     }
 }
+
+Describe '3.9 B4: the Recycle Bin is never overfilled by one clean (review CLN-1)' {
+    It 'counts the whole run per drive and stops at half of the bin' {
+        InModuleScope iGWindowsTuner {
+            $script:IgwtRecycleSent = @{}
+            Test-IgwtRecycleBudgetExceeded -Drive 'C:' -Bytes 400 -MaxBytes 1000 | Should -BeFalse
+            $script:IgwtRecycleSent['C:'] = 400
+            Test-IgwtRecycleBudgetExceeded -Drive 'C:' -Bytes 100 -MaxBytes 1000 | Should -BeFalse -Because 'exactly half is allowed'
+            Test-IgwtRecycleBudgetExceeded -Drive 'C:' -Bytes 101 -MaxBytes 1000 | Should -BeTrue
+            Test-IgwtRecycleBudgetExceeded -Drive 'D:' -Bytes 101 -MaxBytes 1000 | Should -BeFalse -Because 'each drive has its own bin'
+        }
+    }
+}

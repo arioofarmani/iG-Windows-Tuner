@@ -316,6 +316,21 @@ function Get-IgwtCleanerFileAge {
     return ([DateTime]::UtcNow - $newest).TotalHours
 }
 
+function Test-IgwtRecycleBudgetExceeded {
+    <#
+    .SYNOPSIS
+        True when moving -Bytes more to a drive's Recycle Bin in this clean run would pass half of
+        the bin's maximum size ($script:IgwtRecycleSent, reset by Invoke-IgwtCleanerClean). Pure
+        apart from reading that counter.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Drive, [long]$Bytes, [Parameter(Mandatory = $true)][long]$MaxBytes)
+    if (-not $script:IgwtRecycleSent) { $script:IgwtRecycleSent = @{} }
+    $sent = $(if ($script:IgwtRecycleSent.ContainsKey($Drive)) { [long]$script:IgwtRecycleSent[$Drive] } else { 0L })
+    return (($sent + $Bytes) -gt [long]($MaxBytes / 2))
+}
+
 function Get-IgwtRecycleRefusal {
     <#
     .SYNOPSIS
@@ -340,6 +355,9 @@ function Get-IgwtRecycleRefusal {
         $maxBytes = [long]($drive.TotalSize * 0.05)
         if ($cfg -and $null -ne $cfg.PSObject.Properties['MaxCapacity']) { $maxBytes = [long]$cfg.MaxCapacity * 1MB }
         if ($Bytes -ge $maxBytes) { return 'the file is larger than this drive''s Recycle Bin' }
+        # The whole run counts, not each file alone: when the bin is full Windows deletes its oldest items for
+        # good, so one run may fill at most half of it (review 3.8.1 CLN-1).
+        if (Test-IgwtRecycleBudgetExceeded -Drive $letter -Bytes $Bytes -MaxBytes $maxBytes) { return 'this clean already moved half of the Recycle Bin''s size to it; more would push older items out of the bin for good. Empty the Recycle Bin and clean again' }
         return $null
     } catch { return "the Recycle Bin cannot be checked ($($_.Exception.Message))" }
 }
@@ -391,6 +409,9 @@ function Remove-IgwtCleanerFile {
             $why = Get-IgwtRecycleRefusal -Path $path -Bytes ([long]$fi.Length)
             if ($why) { return (& $out 'Skipped' "not deleted: $why") }
             Send-IgwtToRecycleBin -Path $path
+            $drv = ([System.IO.Path]::GetPathRoot($path)).TrimEnd('\')
+            if (-not $script:IgwtRecycleSent) { $script:IgwtRecycleSent = @{} }
+            $script:IgwtRecycleSent[$drv] = $(if ($script:IgwtRecycleSent.ContainsKey($drv)) { [long]$script:IgwtRecycleSent[$drv] } else { 0L }) + [long]$fi.Length
         } else {
             if (($fi.Attributes -band [System.IO.FileAttributes]::ReadOnly) -ne 0) {
                 if (-not $Rule.allowSystemFiles) { return (& $out 'Skipped' 'read-only file') }

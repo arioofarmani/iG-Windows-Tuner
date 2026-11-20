@@ -471,6 +471,8 @@ function Invoke-IgwtCleanerClean {
     param($Scan, [string[]]$RuleId, $CancelToken)
     Assert-IgwtWritable -Operation 'Invoke-IgwtCleanerClean'
     if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtCleanerClean' -Parameters $PSBoundParameters) }
+    # Bytes this run moved to each drive's Recycle Bin (review 3.8.1 CLN-1).
+    $script:IgwtRecycleSent = @{}
     if (-not $Scan) { $Scan = $script:IgwtLastCleanerScan }
     if (-not $Scan) { throw 'Run a scan first (Invoke-IgwtCleanerScan); the cleaner only deletes what a scan found.' }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
