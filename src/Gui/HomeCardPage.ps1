@@ -140,6 +140,7 @@ function Invoke-IgwtGuiHomeAction {
                 # The normal path: stage the items, then the normal preview; Apply runs them as one session (origin driftFix).
                 $ids = @(Get-IgwtDriftReapplyIds -Rows $pick.Rows)
                 if (-not $ids.Count) { return }
+                if (-not (Test-IgwtGuiCanRestage)) { return }
                 $script:Gui.Staged.Clear()
                 foreach ($id in $ids) { Set-IgwtGuiStage -Id $id -Mode 'on' }
                 $script:Gui.PresetOperation = 'DriftFix'
@@ -208,4 +209,4 @@ function Show-IgwtGuiDriftDialog {
     $null = $w.ShowDialog()
     if (-not $result.Action) { return $null }
     return @{ Action = $result.Action; Rows = @($boxes | Where-Object { $_.IsChecked } | ForEach-Object { $_.Tag }) }
-}
+}

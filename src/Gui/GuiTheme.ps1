@@ -7,21 +7,21 @@
 # to the tokens with DynamicResource. High Contrast takes its colours from the Windows
 # high-contrast scheme (SystemColors) and is chosen automatically when Windows uses one.
 
-$script:IgwtThemeTokens = @('Background', 'Sidebar', 'Surface', 'SurfaceAlt', 'SurfaceHover', 'Border', 'BorderStrong', 'Text', 'TextMuted', 'TextDisabled',
+$script:IgwtThemeTokens = @('Background', 'Sidebar', 'Surface', 'SurfaceAlt', 'SurfaceHover', 'SurfaceSelected', 'Border', 'BorderControl', 'BorderStrong', 'Text', 'TextMuted', 'TextDisabled',
     'Accent', 'AccentHover', 'AccentDark', 'AccentSoft', 'OnAccent', 'Focus', 'Success', 'SuccessSoft', 'Warning', 'WarningSoft', 'Danger', 'DangerSoft',
     'DangerStrong', 'OnDanger', 'Info', 'InfoSoft', 'Neutral', 'NeutralSoft', 'Overlay', 'Link')
 
 $script:IgwtThemePalettes = @{
     Dark  = @{
-        Background = '#FF15171B'; Sidebar = '#FF111317'; Surface = '#FF1E2127'; SurfaceAlt = '#FF262A31'; SurfaceHover = '#FF2D323A'; Border = '#FF2E333B'; BorderStrong = '#FF6E7681'
-        Text = '#FFF2F4F7'; TextMuted = '#FFA7B0BB'; TextDisabled = '#FF6E7681'
+        Background = '#FF111316'; Sidebar = '#FF0D0F12'; Surface = '#FF1A1D22'; SurfaceAlt = '#FF22262C'; SurfaceHover = '#FF1F2329'; SurfaceSelected = '#FF1C2A37'; Border = '#FF343A43'; BorderControl = '#FF6E7681'; BorderStrong = '#FF6E7681'
+        Text = '#FFF2F4F7'; TextMuted = '#FFA9B1BC'; TextDisabled = '#FF6E7681'
         Accent = '#FF4CC2FF'; AccentHover = '#FF7CD3FF'; AccentDark = '#FF0B5FA5'; AccentSoft = '#FF16324A'; OnAccent = '#FF04182A'; Focus = '#FF8AD8FF'
-        Success = '#FF5BD08A'; SuccessSoft = '#FF173726'; Warning = '#FFF5C451'; WarningSoft = '#FF3A3016'; Danger = '#FFFF8A93'; DangerSoft = '#FF3D1C21'
+        Success = '#FF8FE3B0'; SuccessSoft = '#FF173726'; Warning = '#FFF5C451'; WarningSoft = '#FF2A2414'; Danger = '#FFFF8A93'; DangerSoft = '#FF3D1C21'
         DangerStrong = '#FFC42B1C'; OnDanger = '#FFFFFFFF'; Info = '#FF4CC2FF'; InfoSoft = '#FF16324A'; Neutral = '#FFA7B0BB'; NeutralSoft = '#FF262A31'
         Overlay = '#B3000000'; Link = '#FF6CCBFF'
     }
     Light = @{
-        Background = '#FFF4F5F7'; Sidebar = '#FFE9ECF0'; Surface = '#FFFFFFFF'; SurfaceAlt = '#FFF0F2F5'; SurfaceHover = '#FFE3E7EC'; Border = '#FFD3D8DE'; BorderStrong = '#FF7A828C'
+        Background = '#FFF4F5F7'; Sidebar = '#FFE9ECF0'; Surface = '#FFFFFFFF'; SurfaceAlt = '#FFF0F2F5'; SurfaceHover = '#FFE6EAEF'; SurfaceSelected = '#FFDCEAF9'; Border = '#FFD3D8DE'; BorderControl = '#FF7A828C'; BorderStrong = '#FF7A828C'
         Text = '#FF1A1D21'; TextMuted = '#FF4C5560'; TextDisabled = '#FF8C949E'
         Accent = '#FF0A63BC'; AccentHover = '#FF0B53A0'; AccentDark = '#FFA9CDF2'; AccentSoft = '#FFDCEAF9'; OnAccent = '#FFFFFFFF'; Focus = '#FF0A63BC'
         Success = '#FF136B2D'; SuccessSoft = '#FFE2F3E7'; Warning = '#FF835000'; WarningSoft = '#FFFFF3D1'; Danger = '#FFB42318'; DangerSoft = '#FFFDE8E6'
@@ -30,7 +30,7 @@ $script:IgwtThemePalettes = @{
     }
 }
 
-$script:IgwtTypeScale = [ordered]@{ FontSizeCaption = 12; FontSizeSmall = 13; FontSizeBody = 14; FontSizeBodyLarge = 15; FontSizeSubtitle = 16; FontSizeTitleSmall = 18; FontSizeTitle = 22; FontSizeTitleLarge = 26; FontSizeDisplay = 30 }
+$script:IgwtTypeScale = [ordered]@{ FontSizeCaption = 12; FontSizeSmall = 13; FontSizeBody = 14; FontSizeBodyLarge = 15; FontSizeSubtitle = 16; FontSizeTitleSmall = 18; FontSizeTitle = 20; FontSizeTitleLarge = 26; FontSizeDisplay = 28 }
 $script:IgwtDensity = @{
     Comfortable = @{ GridRowHeight = 38.0; GridCellPadding = '10,7'; RowItemPadding = '14,10'; RowItemMargin = '0,0,0,4'; CardPadding = '16,14' }
     Compact     = @{ GridRowHeight = 28.0; GridCellPadding = '8,3'; RowItemPadding = '10,5'; RowItemMargin = '0,0,0,2'; CardPadding = '12,10' }
@@ -52,7 +52,7 @@ function Get-IgwtGuiPalette {
     if ($Name -eq 'HighContrast') {
         $sc = [System.Windows.SystemColors]
         $win = $sc::WindowColor; $text = $sc::WindowTextColor; $hl = $sc::HighlightColor; $hlText = $sc::HighlightTextColor; $gray = $sc::GrayTextColor; $hot = $sc::HotTrackColor
-        $map = @{ Background = $win; Sidebar = $win; Surface = $win; SurfaceAlt = $win; SurfaceHover = $win; Border = $text; BorderStrong = $text; Text = $text; TextMuted = $text; TextDisabled = $gray
+        $map = @{ Background = $win; Sidebar = $win; Surface = $win; SurfaceAlt = $win; SurfaceHover = $win; SurfaceSelected = $win; Border = $text; BorderControl = $text; BorderStrong = $text; Text = $text; TextMuted = $text; TextDisabled = $gray
             Accent = $hl; AccentHover = $hl; AccentDark = $hl; AccentSoft = $win; OnAccent = $hlText; Focus = $hl; Success = $text; SuccessSoft = $win; Warning = $text; WarningSoft = $win
             Danger = $text; DangerSoft = $win; DangerStrong = $hl; OnDanger = $hlText; Info = $text; InfoSoft = $win; Neutral = $text; NeutralSoft = $win; Overlay = $win; Link = $hot }
         foreach ($t in $script:IgwtThemeTokens) { $out[$t] = $map[$t] }

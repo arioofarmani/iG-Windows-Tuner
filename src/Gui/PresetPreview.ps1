@@ -54,6 +54,8 @@ function Show-IgwtGuiPresetPreview {
         return
     }
     if (-not (Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) preview" -Text $text -AcceptText "Stage $($todo.Count) change(s)" -CancelText 'Cancel')) { return }
+    # The staged list must not change under an Apply that is on its way (review 3.8.1 G-05).
+    if (-not (Test-IgwtGuiCanRestage)) { return }
     $script:Gui.Staged.Clear()
     foreach ($r in $todo) { Set-IgwtGuiStage -Id ([string]$r.Id) -Mode $(if ($r.Desired -eq 'default') { 'reset' } else { 'on' }) }
     $script:Gui.PresetOperation = "Preset:$($Preset.id)"

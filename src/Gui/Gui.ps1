@@ -457,7 +457,12 @@ function Start-IgwtGuiJob {
     if ($null -eq $script:Gui.Jobs) { $script:Gui.Jobs = New-Object System.Collections.Generic.List[object] }
     if ($Channel) {
         if (@($script:Gui.Jobs | Where-Object { $_.Channel -eq $Channel }).Count) { return $false }
-    } elseif ($script:Gui.Job) { Set-IgwtGuiStatus 'Busy - please wait for the current operation to finish.'; return $false }
+    } elseif ($script:Gui.Job) {
+        # A change the user asked for is never dropped silently (review 3.8.1 G-07): changes are -Blocking.
+        if ($Blocking) { Show-IgwtGuiNotStarted -What $(if ($BusyText -and $BusyText -ne 'Working...') { "'$($BusyText.TrimEnd('.'))'" } else { 'This change' }) }
+        else { Set-IgwtGuiStatus 'Busy - please wait for the current operation to finish.' }
+        return $false
+    }
     if (-not $PSCmdlet.ShouldProcess($Command, 'Run in background')) { return $false }
     $ps = [PowerShell]::Create()
     # The idle open pool with the fewest running jobs (a busy one queues the job behind its own).
@@ -865,7 +870,7 @@ function Update-IgwtGuiPending {
     [CmdletBinding()]
     param()
     $n = @($script:Gui.Staged.Keys).Count
-    $script:Gui.C.PendingText.Text = "$n pending"
+    $null = Update-IgwtGuiChangeBarText -Count $n -Target $script:Gui.C.PendingText
     Update-IgwtGuiButtons
 }
 
@@ -874,7 +879,8 @@ function Update-IgwtGuiButtons {
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
-    $busy = [bool]$script:Gui.Job
+    # An Apply on its way counts as busy from the user's Yes to the end of its batch (review 3.8.1 G-04).
+    $busy = Test-IgwtGuiApplyBusy
     $n = @($script:Gui.Staged.Keys).Count
     $c.PreviewButton.IsEnabled = (-not $busy) -and $n -gt 0
     $c.ApplyButton.IsEnabled = (-not $busy) -and $n -gt 0 -and $script:Gui.IsAdmin
@@ -1360,6 +1366,8 @@ function Invoke-IgwtGuiApply {
         if ($a -eq 'Yes') { Invoke-IgwtGuiElevate }
         return
     }
+    # One Apply at a time: a second click while the first is on its way does nothing (review 3.8.1 G-04).
+    if (Test-IgwtGuiApplyBusy) { Set-IgwtGuiStatus 'An apply is already running.'; return }
     $sets = Get-IgwtGuiStagedSets
     $total = $sets.Apply.Count + $sets.Off.Count + $sets.Reset.Count
     if ($total -eq 0) { return }
@@ -1382,11 +1390,13 @@ function Invoke-IgwtGuiApply {
         if ($expert.Count) { $msg += "`n`nIncludes EXPERT toggle(s): $($expert -join ', ')." }
         if ((Show-IgwtGuiMessage -Text $msg -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     }
-    $null = Start-IgwtGuiJob -Command 'Test-IgwtSystemProtectionEnabled' -Channel 'precheck' -BusyText 'Checking System Protection...' -Context $sets -OnComplete {
+    Set-IgwtGuiApplyPending -Pending $true
+    $started = Start-IgwtGuiJob -Command 'Test-IgwtSystemProtectionEnabled' -Channel 'precheck' -BusyText 'Checking System Protection...' -Context $sets -OnComplete {
         param($out, $errs, $ctx)
         $on = [bool](@($out) | Select-Object -Last 1)
         Complete-IgwtGuiApply -Sets $ctx -SystemProtectionOn $on
     }
+    if (-not $started) { Set-IgwtGuiApplyPending -Pending $false; Show-IgwtGuiNotStarted -What 'Apply' }
 }
 
 function Complete-IgwtGuiApply {
@@ -1399,7 +1409,7 @@ function Complete-IgwtGuiApply {
     $enableSp = $false
     if (-not $SystemProtectionOn) {
         $a = Show-IgwtGuiMessage -Text "System Protection is off for $env:SystemDrive, so no restore point can be created.`n`nYes: turn System Protection on for $env:SystemDrive and create a restore point.`nNo: continue with the JSON snapshot only.`nCancel: do not apply." -Buttons 'YesNoCancel' -Icon 'Question'
-        if ($a -eq 'Cancel') { return }
+        if ($a -eq 'Cancel') { Set-IgwtGuiApplyPending -Pending $false; return }
         if ($a -eq 'Yes') { $enableSp = $true } else { $skipRp = $true }
     }
     $operation = 'Apply'
@@ -1409,15 +1419,20 @@ function Complete-IgwtGuiApply {
     $authority = @($sets.Apply | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.PSObject.Properties['Authority'] -and $s.Authority })
     if ($authority.Count) {
         $a = Show-IgwtGuiMessage -Text "This PC is managed by a domain or MDM. These policy items can be overridden by your organization: $($authority -join ', ').`n`nYes: change them locally anyway.`nNo: apply everything else and leave them (report-only)." -Buttons 'YesNoCancel' -Icon 'Warning'
-        if ($a -eq 'Cancel') { return }
+        if ($a -eq 'Cancel') { Set-IgwtGuiApplyPending -Pending $false; return }
         $ackManaged = ($a -eq 'Yes')
     }
     $params = @{ ApplyIds = $sets.Apply; OffIds = $sets.Off; ResetIds = $sets.Reset; Operation = $operation
         SkipRestorePoint = $skipRp; EnableSystemProtection = $enableSp; AcknowledgeRisk = ($expert.Count -gt 0); AcknowledgeManaged = $ackManaged }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtGuiBatch' -Parameters $params -Blocking -BusyText 'Creating restore point and snapshot, then applying...' -OnComplete {
-        param($out, $errs)
+    # The pending mark is lifted here: the batch is the foreground job from now on, which keeps the window busy.
+    $script:Gui.ApplyPending = $false
+    # A refused start (another change running) shows its own dialog in Start-IgwtGuiJob (G-07).
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtGuiBatch' -Parameters $params -Blocking -BusyText 'Creating restore point and snapshot, then applying...' -Context $sets -OnComplete {
+        param($out, $errs, $ctx)
         $r = @($out) | Select-Object -Last 1
-        $script:Gui.Staged.Clear()
+        # Only what this batch handled leaves the staged list; changes staged meanwhile stay (review 3.8.1 G-05).
+        $left = Remove-IgwtGuiStagedIds -Sets $ctx
+        if ($left) { Set-IgwtGuiStatus "$left change(s) staged while applying are still waiting." }
         $script:Gui.PresetOperation = $null
         if ($r) {
             $ok = @($r.Results | Where-Object { $_.Result -in 'Applied', 'Reverted' }).Count
@@ -3603,6 +3618,7 @@ function Show-IgwtGui {
     Register-IgwtGuiHandler -Control $c.PresetDriftReapplyButton -Event 'Click' -Handler {
             $d = $script:Gui.Drift
             if (-not $d) { return }
+            if (-not (Test-IgwtGuiCanRestage)) { return }
             $script:Gui.Staged.Clear()
             foreach ($id in @($d.Drifted)) {
                 $dt = $script:Gui.Catalog | Where-Object { $_.id -eq [string]$id } | Select-Object -First 1
@@ -3771,11 +3787,13 @@ function Show-IgwtGui {
             if (-not ($cb -is [System.Windows.Controls.CheckBox])) { return }
             $item = $cb.DataContext
             $enable = [bool]$cb.IsChecked
-            $null = Start-IgwtGuiJob -Command 'Set-IgwtStartupItemEnabled' -Parameters @{ Scope = $item.Scope; Name = $item.Name; Enabled = $enable } -Blocking -BusyText "$(if ($enable) { 'Enabling' } else { 'Disabling' }) startup entry $($item.Name)..." -OnComplete {
+            $ok = Start-IgwtGuiJob -Command 'Set-IgwtStartupItemEnabled' -Parameters @{ Scope = $item.Scope; Name = $item.Name; Enabled = $enable } -Blocking -BusyText "$(if ($enable) { 'Enabling' } else { 'Disabling' }) startup entry $($item.Name)..." -OnComplete {
                 param($out, $errs)
                 if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Could not change the startup entry: $(@($errs)[0])" -Icon 'Error' }
                 Start-IgwtGuiRefresh
             }
+            # Nothing started: the box goes back, so the list never shows a change that did not happen (review 3.8.1 G-06).
+            if (-not $ok) { $cb.IsChecked = -not $enable }
         }
 
     # Keyboard: Ctrl+F search, F5 refresh

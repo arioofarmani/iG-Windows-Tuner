@@ -29,6 +29,7 @@ Describe 'GUI design system (3.3)' {
         InModuleScope iGWindowsTuner {
             $pairs = @(
                 @('Text', 'Background'), @('Text', 'Surface'), @('Text', 'SurfaceAlt'), @('Text', 'SurfaceHover'), @('Text', 'Sidebar'), @('Text', 'AccentSoft'),
+                @('Text', 'SurfaceSelected'), @('TextMuted', 'SurfaceHover'), @('TextMuted', 'SurfaceSelected'), @('Accent', 'SurfaceSelected'),
                 @('TextMuted', 'Background'), @('TextMuted', 'Surface'), @('TextMuted', 'SurfaceAlt'), @('TextMuted', 'Sidebar'),
                 @('Accent', 'Background'), @('Accent', 'Surface'), @('Link', 'Surface'), @('Link', 'Background'), @('OnAccent', 'Accent'), @('OnDanger', 'DangerStrong'),
                 @('Success', 'Surface'), @('Warning', 'Surface'), @('Danger', 'Surface'), @('Info', 'Surface'),
@@ -49,7 +50,8 @@ Describe 'GUI design system (3.3)' {
         InModuleScope iGWindowsTuner {
             foreach ($name in 'Dark', 'Light') {
                 $p = Get-IgwtGuiPalette -Name $name
-                foreach ($pair in @(@('Focus', 'Background'), @('Focus', 'Surface'), @('BorderStrong', 'Surface'), @('BorderStrong', 'Background'))) {
+                foreach ($pair in @(@('Focus', 'Background'), @('Focus', 'Surface'), @('Focus', 'SurfaceAlt'), @('BorderStrong', 'Surface'), @('BorderStrong', 'Background'),
+                        @('BorderControl', 'Surface'), @('BorderControl', 'Background'), @('BorderControl', 'SurfaceAlt'), @('Accent', 'SurfaceAlt'))) {
                     $ratio = Get-IgwtContrastRatio -Foreground $p[$pair[0]] -Background $p[$pair[1]]
                     $ratio | Should -BeGreaterOrEqual 3 -Because "$name $($pair[0]) on $($pair[1]) is $ratio"
                 }
@@ -59,6 +61,30 @@ Describe 'GUI design system (3.3)' {
         }
     }
 
+    It 'uses the 4.0 design values (Phase 3 section 3) for colours, type, spacing, radii and targets' {
+        InModuleScope iGWindowsTuner {
+            $dark = $script:IgwtThemePalettes.Dark
+            foreach ($kv in @{ Background = '#FF111316'; Sidebar = '#FF0D0F12'; Surface = '#FF1A1D22'; SurfaceAlt = '#FF22262C'; SurfaceHover = '#FF1F2329'; SurfaceSelected = '#FF1C2A37'; Border = '#FF343A43'; BorderControl = '#FF6E7681'; Text = '#FFF2F4F7'; TextMuted = '#FFA9B1BC'; Accent = '#FF4CC2FF'; OnAccent = '#FF04182A'; Focus = '#FF8AD8FF' }.GetEnumerator()) {
+                $dark[$kv.Key] | Should -Be $kv.Value -Because "Dark $($kv.Key)"
+            }
+            $light = $script:IgwtThemePalettes.Light
+            foreach ($kv in @{ Background = '#FFF4F5F7'; Surface = '#FFFFFFFF'; SurfaceSelected = '#FFDCEAF9'; BorderControl = '#FF7A828C'; Text = '#FF1A1D21'; TextMuted = '#FF4C5560'; Accent = '#FF0A63BC' }.GetEnumerator()) {
+                $light[$kv.Key] | Should -Be $kv.Value -Because "Light $($kv.Key)"
+            }
+            $script:IgwtTypeScale.FontSizeDisplay | Should -Be 28
+            $script:IgwtTypeScale.FontSizeTitle | Should -Be 20
+            $dict = [Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader(([xml](Get-Content -LiteralPath (Join-Path $script:IgwtModuleRoot 'Gui\Theme.xaml') -Raw)))))
+            $dict['RadiusControl'].TopLeft | Should -Be 8
+            $dict['RadiusCard'].TopLeft | Should -Be 12
+            $dict['RadiusMedium'].TopLeft | Should -Be $dict['RadiusControl'].TopLeft -Because 'the old key aliases the new value'
+            $dict['RadiusLarge'].TopLeft | Should -Be $dict['RadiusCard'].TopLeft
+            $dict['TargetMin'] | Should -Be 44
+            $dict['ChipHeight'] | Should -Be 36
+            $dict['PagePadding'].Left | Should -Be 40
+            $dict['MotionFast'].TimeSpan.TotalMilliseconds | Should -Be 150
+            foreach ($k in 'Space1', 'Space2', 'Space3', 'Space4', 'Space20', 'Space5', 'Space6', 'Space40') { $dict[$k] | Should -Not -BeNullOrEmpty -Because $k }
+        }
+    }
     It 'builds High Contrast from the Windows high-contrast colours' {
         InModuleScope iGWindowsTuner {
             $p = Get-IgwtGuiPalette -Name HighContrast

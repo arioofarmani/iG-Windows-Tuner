@@ -1996,7 +1996,7 @@
         <!-- Toasts (bottom right): results of actions, with Undo where possible -->
         <StackPanel x:Name="ToastHost" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,12" Panel.ZIndex="50" AutomationProperties.AutomationId="ToastHost"/>
 
-        <!-- Staged changes bar -->
+        <!-- ChangeBar (4.0): the one place staged changes are applied; the count is a polite live region -->
         <Border Grid.Row="3" Background="{DynamicResource BrushSurface}" BorderBrush="{DynamicResource BrushBorder}" BorderThickness="0,1,0,0" Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -2006,7 +2006,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="PendingText" Text="0 pending" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="PendingText" Text="Nothing staged" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Nothing staged"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusText" Style="{StaticResource TextMuted}" Text="Ready." TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
@@ -2016,9 +2016,9 @@
                     </DockPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button x:Name="PreviewButton" Content="Preview" ToolTip="Dry run: show every value that would change. Nothing is modified." IsEnabled="False"/>
-                    <Button x:Name="ApplyButton" Style="{StaticResource AccentButton}" Content="Apply" ToolTip="Create a restore point and a JSON snapshot, then apply the staged changes." IsEnabled="False"/>
-                    <Button x:Name="DiscardButton" Content="Discard" ToolTip="Unstage everything." IsEnabled="False" Margin="0"/>
+                    <Button x:Name="DiscardButton" Style="{StaticResource SubtleButton}" Content="Discard" AutomationProperties.Name="Discard staged changes" ToolTip="Unstage everything." IsEnabled="False" Margin="0,0,8,0"/>
+                    <Button x:Name="PreviewButton" Style="{StaticResource SecondaryButton}" Content="Preview" AutomationProperties.Name="Preview staged changes" ToolTip="Dry run: show every value that would change. Nothing is modified." IsEnabled="False"/>
+                    <Button x:Name="ApplyButton" Style="{StaticResource PrimaryButton}" Content="Apply" AutomationProperties.Name="Apply staged changes" ToolTip="Create a restore point and a JSON snapshot, then apply the staged changes." IsEnabled="False" Margin="0"/>
                 </StackPanel>
             </Grid>
         </Border>

@@ -23,10 +23,25 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - Reset to Windows default keeps LSA protection on instead of deleting `RunAsPPL`.
 - The release zip is built from the last commit only.
 
+### Design (section 2)
+
+- New colours, type sizes, spacing and corner radii from the 4.0 design; every page picks them up.
+- Buttons show when they are pressed, and the keyboard focus ring has a clear gap around every control.
+- New controls for the redesigned pages: page header, filter chips, status pills, info bars, setting rows with an On/Off word, status tiles, the next-step card, history session cards and a details panel that moves below the list in narrow windows.
+- The bottom bar is the one place to apply changes: it says how many changes are ready (also to screen readers), with Discard, Preview and Apply.
+
+### Fixed (section 2)
+
+- A second Apply click while the first apply was still starting could apply the same changes twice.
+- Changes staged while an apply ran were dropped when it finished.
+- A startup switch stayed flipped when its change could not start.
+- A confirmed change or a toast's Undo was dropped without a dialog when another change was running.
+
 ### Quality
 
 - An engine-boundary test keeps the GUI from changing the PC directly.
-- A component gallery renders every control style in every theme and scale, offscreen.
+- A component gallery renders every control style and the new 4.0 controls in every theme and scale, offscreen.
+- A test stops two files from replacing each other's module-wide variables.
 
 ## 3.9.0 (2026-11-20)
 

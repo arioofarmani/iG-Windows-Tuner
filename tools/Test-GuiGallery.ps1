@@ -134,6 +134,43 @@ $m = Get-Module iGWindowsTuner
         $null = $wrap.Children.Add($cell)
         $shown.Add($label)
     }
+    # Composed 4.0 components (src\Gui\Components.ps1) with sample data.
+    $h = & $text 'Components (4.0)' 'TextSection'; $h.Margin = [System.Windows.Thickness]::new(0, 24, 0, 8); $null = $panel.Children.Add($h)
+    $box = { param($el, [double]$w = 0) $c = New-Object System.Windows.Controls.Border; $c.Margin = [System.Windows.Thickness]::new(0, 0, 0, 16); if ($w) { $c.Width = $w; $c.HorizontalAlignment = 'Left' }; $c.Child = $el; $null = $panel.Children.Add($c) }
+    & $box (New-IgwtPageHeader -Title 'Optimize' -Subtitle 'Settings that change how Windows runs games. Each one can be undone.' -Right (New-IgwtUiButton -Text 'Search' -Kind Secondary))
+    & $box (New-IgwtChipGroup -Labels 'All', 'Power & CPU', 'Graphics', 'Input', 'Background', 'System' -Selected 'Graphics' -GroupName 'Category' -Single)
+    $pills = New-Object System.Windows.Controls.WrapPanel
+    foreach ($p in @(@('In place', 'Success'), @('Changed since', 'Warning'), @('Cannot be undone', 'Danger'), @('Documented by Microsoft', 'Info'), @('Measure it', 'Neutral'))) { $null = $pills.Children.Add((New-IgwtPill -Text $p[0] -Tone $p[1])) }
+    & $box $pills
+    foreach ($ib in @(@('Read-only mode', 'Changes are turned off. Start iG without -ReadOnly to change settings.', 'Info', ''), @('Restart needed', '2 changes take effect after a restart.', 'Warning', 'Restart now'), @('Managed PC', 'Your organization sets some of these settings.', 'Danger', ''), @('Done', 'All 3 changes are in place.', 'Success', 'Undo'))) {
+        & $box (New-IgwtInfoBar -Title $ib[0] -Message $ib[1] -Tone $ib[2] -ActionText $ib[3]) 760
+    }
+    $rows = New-Object System.Windows.Controls.StackPanel
+    $null = $rows.Children.Add((New-IgwtSettingRow -Name 'Game Mode' -Hint 'Lets Windows give the game priority.' -Evidence 'Documented by Microsoft' -IsOn $true))
+    $null = $rows.Children.Add((New-IgwtSettingRow -Name 'Background apps' -Hint 'Stops Store apps running in the background.' -Evidence 'Measure it'))
+    $null = $rows.Children.Add((New-IgwtSettingRow -Name 'Hardware-accelerated GPU scheduling' -Hint 'Lets the graphics card manage its own memory.' -Evidence 'Measure it' -Disabled -DisabledReason 'Needs a restart that is still pending.'))
+    & $box $rows 760
+    $tiles = New-Object System.Windows.Controls.WrapPanel
+    foreach ($tl in @(@('Performance', '12 of 18', 'settings in place', 'Open Optimize'), @('Security', '86', 'out of 100', 'What raises it'), @('Changes', '3', 'today, all undoable', 'Open History'))) { $t = New-IgwtStatusTile -Label $tl[0] -Value $tl[1] -Line $tl[2] -LinkText $tl[3]; $t.Margin = [System.Windows.Thickness]::new(0, 0, 16, 0); $null = $tiles.Children.Add($t) }
+    & $box $tiles
+    & $box (New-IgwtNextStepCard -Title 'Apply the Competitive preset' -Text 'Turns on 9 settings that are safe with your anti-cheat. You see every change first.' -PrimaryText 'Preview' -SecondaryText 'Not now') 760
+    & $box (New-IgwtEmptyState -Text 'No changes yet. Changes you make appear here, each with Undo.' -ActionText 'Open Optimize') 760
+    & $box (New-IgwtSessionCard -Title 'Competitive preset' -Meta 'Today 19:42 - 3 settings' -Expanded -Steps @(
+            [pscustomobject]@{ Setting = 'Game Mode'; Before = 'Off'; After = 'On'; Now = 'On'; Conflict = $false },
+            [pscustomobject]@{ Setting = 'Mouse acceleration'; Before = 'On'; After = 'Off'; Now = 'On'; Conflict = $true })) 760
+    $list = New-Object System.Windows.Controls.StackPanel
+    $null = $list.Children.Add((New-IgwtSettingRow -Name 'Game Mode' -Hint 'Lets Windows give the game priority.' -IsOn $true))
+    $det = New-Object System.Windows.Controls.StackPanel
+    $null = $det.Children.Add((New-IgwtUiText -Text 'Game Mode' -Style 'TextSubtitle'))
+    $null = $det.Children.Add((New-IgwtPill -Text 'Undo: exact' -Tone Success))
+    $null = $det.Children.Add((New-IgwtUiText -Text 'HKCU\Software\Microsoft\GameBar\AutoGameModeEnabled = 1' -Style 'TextValue'))
+    & $box (New-IgwtUiText -Text 'Details beside the list (wide window)' -Style 'TextCaption' -Brush 'BrushTextMuted')
+    & $box (New-IgwtSplitView -Main $list -Details $det -Breakpoint 600) 1000
+    $list2 = New-Object System.Windows.Controls.StackPanel; $null = $list2.Children.Add((New-IgwtSettingRow -Name 'Game Mode' -Hint 'Lets Windows give the game priority.' -IsOn $true))
+    $det2 = New-Object System.Windows.Controls.StackPanel; $null = $det2.Children.Add((New-IgwtUiText -Text 'Game Mode' -Style 'TextSubtitle')); $null = $det2.Children.Add((New-IgwtPill -Text 'Undo: exact' -Tone Success))
+    & $box (New-IgwtUiText -Text 'Details as a bottom sheet (under 1100 px)' -Style 'TextCaption' -Brush 'BrushTextMuted')
+    & $box (New-IgwtSplitView -Main $list2 -Details $det2) 700
+    $shown.Add('Components (4.0)')
     $host2.Child = $panel
     $host2.LayoutTransform = [System.Windows.Media.ScaleTransform]::new($Scale, $Scale)
     $host2.Measure([System.Windows.Size]::new(1100 * $Scale, [double]::PositiveInfinity))
