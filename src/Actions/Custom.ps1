@@ -10,7 +10,7 @@ $script:IgwtNativeSource = @'
 using System;
 using System.Runtime.InteropServices;
 
-namespace iG Windows Tuner
+namespace iGWindowsTuner
 {
     // SystemParametersInfo applies mouse, keyboard-repeat and accessibility-hotkey settings to
     // the running session and broadcasts WM_SETTINGCHANGE (SPIF_SENDCHANGE), so the user does

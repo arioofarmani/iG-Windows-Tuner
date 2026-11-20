@@ -363,3 +363,70 @@ Describe 'Review 3.8.1 G-02/PP-1/FOR-1: GUI changes do exactly what was shown an
         }
     }
 }
+
+Describe 'Review 3.8.1 CU-1: every inline C# block compiles and declares the type the code uses' {
+    It 'the native helper compiles to iGWindowsTuner.NativeMethods' {
+        InModuleScope iGWindowsTuner {
+            $script:IgwtNativeSource | Should -Match 'namespace iGWindowsTuner\s'
+            { Initialize-IgwtNative } | Should -Not -Throw
+            ('iGWindowsTuner.NativeMethods' -as [type]) | Should -Not -BeNullOrEmpty -Because 'the mouse and keyboard handlers call [iGWindowsTuner.NativeMethods]'
+        }
+    }
+    It 'every type the PowerShell code calls in square brackets is declared by an inline or engine C# source' {
+        $root = Join-Path $PSScriptRoot '..\src'
+        $cs = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.cs' | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw })
+        $ps = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.ps1' | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw })
+        $declared = @(foreach ($t in @($cs) + @($ps)) { foreach ($m in [regex]::Matches($t, 'namespace\s+([A-Za-z_][\w\.]*)')) { $m.Groups[1].Value } })
+        $declared | Should -Not -Contain 'iG' -Because 'a namespace with spaces does not compile'
+        foreach ($ns in 'iGWindowsTuner', 'IgwtJournal') { $declared | Should -Contain $ns }
+    }
+}
+
+Describe 'Review 3.8.1 E2/E3: unfinished recoveries and failed rollbacks stay offered' {
+    It 'offers an incomplete recovery again, an ended session with a failed rollback, and not a finished recovery' {
+        InModuleScope iGWindowsTuner {
+            $d = Get-IgwtJournalFolder; if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force }; $script:IgwtJournal = $null
+            $tg = [ordered]@{ provider = 'action'; key = 'action|x|0|fp'; item = 'x'; index = 0; type = 'registry'; fingerprint = 'fp' }
+            $add = { param($e) $null = Add-IgwtJournalEntry -Entry $e }
+            foreach ($sid in 'S-incomplete', 'S-rbfail', 'S-done') {
+                & $add ([ordered]@{ kind = 'sessionStart'; session = $sid; origin = @{ type = 'tweak' }; title = $sid })
+                & $add ([ordered]@{ kind = 'intent'; session = $sid; step = 1; group = 'g'; op = 'change'; item = 'x'; target = $tg; before = @{ v = 1 } })
+                & $add ([ordered]@{ kind = 'committed'; session = $sid; step = 1; group = 'g'; op = 'change'; item = 'x'; target = $tg; before = @{ v = 1 }; after = @{ v = 2 } })
+            }
+            & $add ([ordered]@{ kind = 'sessionEnd'; session = 'S-incomplete'; outcome = 'recovery-incomplete'; by = 'R1' })
+            & $add ([ordered]@{ kind = 'rollbackFailed'; session = 'S-rbfail'; step = 1; group = 'g'; item = 'x'; target = $tg; error = 'locked' })
+            & $add ([ordered]@{ kind = 'sessionEnd'; session = 'S-rbfail'; outcome = 'partial'; steps = 1; failed = 1 })
+            & $add ([ordered]@{ kind = 'sessionEnd'; session = 'S-done'; outcome = 'recovered'; by = 'R2' })
+            $script:IgwtJournal = $null
+            $inc = @(Get-IgwtIncompleteChangeSession -Journal (Read-IgwtJournal))
+            $ids = @($inc | ForEach-Object { $_.Id })
+            $ids | Should -Contain 'S-incomplete' -Because 'a recovery that did not finish is offered again (E2)'
+            @(($inc | Where-Object Id -EQ 'S-incomplete').Steps).Count | Should -Be 1 -Because 'its committed step may still be changed'
+            $ids | Should -Contain 'S-rbfail' -Because 'a failed rollback leaves a change in place (E3)'
+            $ids | Should -Not -Contain 'S-done'
+        }
+    }
+}
+
+Describe 'Review 3.8.1 CLI-01: the elevated relaunch passes every argument exactly' {
+    It 'quotes by the Windows rules' {
+        InModuleScope iGWindowsTuner {
+            ConvertTo-IgwtCommandLineArgument -Value 'plain' | Should -Be 'plain'
+            ConvertTo-IgwtCommandLineArgument -Value '' | Should -Be '""'
+            ConvertTo-IgwtCommandLineArgument -Value 'C:\My Reports\' | Should -Be '"C:\My Reports\\"'
+            ConvertTo-IgwtCommandLineArgument -Value 'a"b c' | Should -Be '"a\"b c"'
+        }
+    }
+    It 'a powershell.exe -File child reads the arguments back unchanged (no argument is split or added)' {
+        $script = Join-Path $TestDrive 'echo-args.ps1'
+        Set-Content -LiteralPath $script -Value '$args | ForEach-Object { "<$_>" }' -Encoding ASCII
+        $values = @('C:\My Reports\', '-ReportPath', 'x" -AcknowledgeRisk "y', 'two words')
+        $line = InModuleScope iGWindowsTuner -Parameters @{ V = $values } { param($V) (@($V | ForEach-Object { ConvertTo-IgwtCommandLineArgument -Value $_ }) -join ' ') }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = (Join-Path $PSHOME 'powershell.exe')
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" $line"
+        $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.CreateNoWindow = $true
+        $p = [System.Diagnostics.Process]::Start($psi); $out = $p.StandardOutput.ReadToEnd(); $p.WaitForExit()
+        @($out -split "`r?`n" | Where-Object { $_ }) | Should -Be @($values | ForEach-Object { "<$_>" })
+    }
+}

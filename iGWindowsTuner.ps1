@@ -106,7 +106,7 @@
     Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
 .PARAMETER RemoveExclusion
     Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
-    after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first.
+    after you type YES (-Yes skips the prompt). iG Windows Tuner never adds exclusions. Use -DryRun first.
 .PARAMETER DefenderScan
     Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart).
 .PARAMETER ScanPath
@@ -747,6 +747,13 @@ function Complete-IgwtCli {
         $null = Read-Host 'Press Enter to close this window'
     }
     exit $Code
+}
+
+function Get-IgwtCliRefusalCode {
+    <# The exit code of a refused change: 7 when read-only mode refused it (as documented), else 2 (review 3.8.1 CLI-06). #>
+    param($ErrorRecord)
+    if ([string]$ErrorRecord.Exception.Message -like 'Read-only mode:*') { return 7 }
+    return 2
 }
 
 function Request-IgwtCliElevation {
@@ -1542,7 +1549,7 @@ try {
         }
         'Change' {
             try { $plan = Get-IgwtManagedChangePlan -Kind $Change -Target $Target -Value $Value -Provisioned:$Provisioned }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($DryRun -or -not $plan.HasChange) {
                 if ($Json) { $plan | ConvertTo-Json; exit 0 }
                 Write-IgwtCliLine 'Management change dry run (nothing is changed):' ([ConsoleColor]::White)
@@ -1647,7 +1654,7 @@ try {
             if (-not $DryRun -and -not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
             if (-not $Json) { Write-IgwtCliLine "Measuring the connection ($($Duration.ToLowerInvariant()) test: pings and DNS queries)..." ([ConsoleColor]::Gray) }
             try { $r = Invoke-IgwtGamingNetworkOptimization -Duration $Duration -Target @(Split-IgwtIdList $NetTarget) -RouterHonorsDscp:$RouterHonorsDscp -PlanOnly:$DryRun -SkipRestorePoint:$SkipRestorePoint -AcknowledgeManaged:$AcknowledgeManaged }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if ($Json) { $r | ConvertTo-Json -Depth 8; Complete-IgwtCli $(if ($r.Error) { 1 } else { 0 }) }
             if ($r.Before -and -not $r.Before.Error) { Write-IgwtCliLine (Format-IgwtNetworkQuality -Result $r.Before) ([ConsoleColor]::Gray) }
             $p = $r.Plan
@@ -1700,7 +1707,7 @@ try {
         }
         'PowerSetting' {
             try { $plan = Get-IgwtPowerSettingChangePlan -Setting $PowerSetting -AC $Ac -DC $Dc -Default:$PowerDefault }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             $def = $plan.Definition
             if ($DryRun -or -not $plan.HasChange) {
                 if ($Json) { $plan | Select-Object Scheme, Guid, NewAC, NewDC, HasChange, Change | ConvertTo-Json; exit 0 }
@@ -1938,7 +1945,7 @@ try {
             $null = Get-IgwtAdmxCatalog -ExtraFolder @($AdmxFolder | Where-Object { $_ })
             $classArg = @{}; if ($PolicyClass) { $classArg.Class = $PolicyClass }
             try { $plan = Get-IgwtPolicyChangePlan -Id $PolicySet -State $PolicyState -Values $vals @classArg }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json -and $DryRun) { $plan | Select-Object Class, State, Ops, Refusals, Managed | ConvertTo-Json -Depth 5; exit 0 }
             Write-IgwtCliLine "$($plan.Policy.DisplayName) ($($plan.Class)) -> $PolicyState; currently $($plan.Current.LocalGpo) in the Local GPO (source: $($plan.Current.Source))" ([ConsoleColor]::White)
             foreach ($o in $plan.Ops) { Write-IgwtCliLine ("  {0,-14} {1}\{2} {3} {4}" -f $o.Op, $o.Key, $o.ValueName, $o.Type, (@($o.Value) -join ',')) ([ConsoleColor]::Gray) }
@@ -1948,7 +1955,7 @@ try {
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was written.' ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
             try { $res = Set-IgwtLocalPolicy -Id $PolicySet -State $PolicyState -Values $vals -Class $plan.Class -AcknowledgeManaged:$AcknowledgeManaged }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if ($Json) { $res | ConvertTo-Json -Depth 5 } else {
                 Write-IgwtCliLine ("Set. Verified after gpupdate: {0}. Backup: {1}" -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
                 Write-IgwtCliLine "Undo with -PolicyRestore `"$($res.Backup)`"." ([ConsoleColor]::Gray)
@@ -1965,7 +1972,7 @@ try {
         'PolicyRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would restore the Local Group Policy from $PolicyRestore and refresh policy."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Restore-IgwtLocalGpo -BackupPath $PolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Restore-IgwtLocalGpo -BackupPath $PolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Restored $($r.Files) file(s) from $($r.Restored) and refreshed policy." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
@@ -2000,7 +2007,7 @@ try {
             if (-not @($plan.Ops | Where-Object { -not $_.Refusal }).Count) { Write-IgwtCliLine 'Nothing to do.' ([ConsoleColor]::White); exit 2 }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $res = Invoke-IgwtTattooAdoption -Action $act -Select $sel } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $res = Invoke-IgwtTattooAdoption -Action $act -Select $sel } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             $undo = $(if ($act -eq 'Adopt') { "-PolicyRestore `"$($res.Backup)`"" } else { "-TattooRestore `"$($res.Backup)`"" })
             Write-IgwtCliLine "$act`: $($res.Count) value(s). Undo with $undo." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
@@ -2008,7 +2015,7 @@ try {
         'TattooRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would write back the values saved in $TattooRestore."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Restore-IgwtTattooRemoval -Path $TattooRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Restore-IgwtTattooRemoval -Path $TattooRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Restored $($r.Restored) value(s)." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
@@ -2025,7 +2032,7 @@ try {
                     if (-not $Baseline) { Write-IgwtCliLine '-BaselineApply needs -Baseline <folder>.' ([ConsoleColor]::Red); exit 2 }
                     $plan = Get-IgwtPolicyBaselinePlan -Baseline (Import-IgwtPolicyBaseline -Path $Baseline) -Select @($BaselineApply -split ';')
                 }
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json -and $DryRun) { $plan | Select-Object @{ n = 'Id'; e = { $_.Preset.id } }, Changes, Unavailable, Refusals, Managed, @{ n = 'Rows'; e = { @($_.Rows | Select-Object Kind, Name, Class, Status, Reason, Note) } } | ConvertTo-Json -Depth 5; exit 0 }
             Write-IgwtCliLine "$($plan.Preset.name)" ([ConsoleColor]::White)
             if ($plan.Preset.description) { Write-IgwtCliLine "  $($plan.Preset.description)" ([ConsoleColor]::DarkGray) }
@@ -2043,7 +2050,7 @@ try {
             if (@($plan.Refusals).Count -or @($plan.Rows | Where-Object Status -EQ 'Refused').Count) { exit 2 }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $res = Invoke-IgwtPolicyBatch -Plan $plan -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $res = Invoke-IgwtPolicyBatch -Plan $plan -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if (-not $res.Record) { Write-IgwtCliLine 'Everything is already in place.' ([ConsoleColor]::Green); Complete-IgwtCli 0 }
             Write-IgwtCliLine ("Applied {0} setting(s). Verified: {1}. Undo with -PolicyPresetRestore `"{2}`"." -f $res.Changed, $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Record) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
             Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
@@ -2051,21 +2058,21 @@ try {
         'PolicyPresetRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would revert the policy changes recorded in $PolicyPresetRestore."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Restore-IgwtPolicyPreset -Record $PolicyPresetRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Restore-IgwtPolicyPreset -Record $PolicyPresetRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Reverted $($r.Preset): $($r.Restored -join ', ')." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
         'PolicyExport' {
             if (-not $ExportFormat -or -not $ExportPath) { Write-IgwtCliLine '-PolicyExport needs -ExportFormat (GpoBackup, Reg, Script, Json) and -ExportPath <folder>.' ([ConsoleColor]::Red); exit 2 }
             if ($DryRun) { Write-IgwtCliLine "Would export $PolicyExport as $ExportFormat to $ExportPath."; exit 0 }
-            try { $r = Export-IgwtPolicyPreset -Id $PolicyExport -Format $ExportFormat -Path $ExportPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $r = Export-IgwtPolicyPreset -Id $PolicyExport -Format $ExportFormat -Path $ExportPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             foreach ($f in $r.Files) { Write-IgwtCliLine "  $f" ([ConsoleColor]::Gray) }
             foreach ($k in @($r.Skipped)) { Write-IgwtCliLine "  Not included: $k" ([ConsoleColor]::Yellow) }
             Write-IgwtCliLine "Exported $(@($r.Files).Count) file(s)." ([ConsoleColor]::Green)
             exit 0
         }
         'Baseline' {
-            try { $rows = @(Compare-IgwtPolicyBaseline -Baseline (Import-IgwtPolicyBaseline -Path $Baseline)) } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $rows = @(Compare-IgwtPolicyBaseline -Baseline (Import-IgwtPolicyBaseline -Path $Baseline)) } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($ReportPath) { Export-IgwtPolicyComparison -Rows $rows -Path $ReportPath; Write-IgwtCliLine "Comparison written to $ReportPath" ([ConsoleColor]::Green) }
             if ($Json) { $rows | Select-Object Gpo, Area, Setting, Baseline, LocalGpo, Effective, Status, Ref | ConvertTo-Json -Depth 3; exit 0 }
             foreach ($g in @($rows | Group-Object Gpo)) {
@@ -2132,14 +2139,19 @@ try {
             if (-not $row) { Write-IgwtCliLine "No $($kv[0]) exclusion '$($kv[1])'." ([ConsoleColor]::Red); Complete-IgwtCli 2 }
             Write-IgwtCliLine ("  [{0}] {1} {2} from {3}. {4}" -f $row.Severity, $row.Kind, $row.Value, $row.Source, (@($row.Reasons) -join ' ')) ([ConsoleColor]::Gray)
             if ($DryRun) { Write-IgwtCliLine "Dry run: would remove it$(if (-not $row.Removable) { ' (not possible locally: it comes from ' + $row.Source + ')' })." ([ConsoleColor]::White); Complete-IgwtCli 0 }
-            try { $r = Remove-IgwtDefenderExclusion -Kind $kv[0] -Value $kv[1] -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            # One-way: confirm first, as the help says (review 3.8.1 CLI-07); -Yes skips the prompt for scripts.
+            if (-not $Yes) {
+                $answer = Read-Host ("Removing an exclusion cannot be undone by iG Windows Tuner. Type YES to remove {0} {1}" -f $kv[0], $kv[1])
+                if ($answer -cne 'YES') { Write-IgwtCliLine 'Cancelled; nothing was removed.' ([ConsoleColor]::Yellow); Complete-IgwtCli 0 }
+            }
+            try { $r = Remove-IgwtDefenderExclusion -Kind $kv[0] -Value $kv[1] -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Removed. If something needed it, add it back by hand in Windows Security." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
         'DefenderScan' {
             if ($DryRun) { Write-IgwtCliLine "Would start a $DefenderScan scan$(if ($ScanPath) { " of $ScanPath" })$(if ($DefenderScan -eq 'Offline') { ' (restarts the PC)' })."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $null = Start-IgwtDefenderScan -Type $DefenderScan -Path $ScanPath -ConfirmRestart:$ConfirmRestart -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $null = Start-IgwtDefenderScan -Type $DefenderScan -Path $ScanPath -ConfirmRestart:$ConfirmRestart -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "$DefenderScan scan finished or started; see -DefenderThreats for results." ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
@@ -2149,7 +2161,7 @@ try {
             if (-not $off.Count) { Write-IgwtCliLine 'Every Network Inspection parser is already on.' ([ConsoleColor]::Green); exit 0 }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed. (Parsers are only ever turned on.)' ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Set-IgwtDefenderParsersOn -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Set-IgwtDefenderParsersOn -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Turned on: $(@($r.TurnedOn) -join ', ')." ([ConsoleColor]::Green)
             if (@($r.Unsupported).Count) { Write-IgwtCliLine "Windows on this PC does not support changing: $(@($r.Unsupported) -join ', ')." ([ConsoleColor]::Yellow) }
             Complete-IgwtCli 0
@@ -2177,7 +2189,7 @@ try {
                 if ($kv.Count -ne 2 -or -not $kv[0].Trim()) { Write-IgwtCliLine "Use -DefenderSet `"Property=Value;Property2=Value2`" ('$part' has no value)." ([ConsoleColor]::Red); exit 2 }
                 $pairs[$kv[0].Trim()] = $kv[1].Trim()
             }
-            try { $plan = Get-IgwtDefenderSettingChangePlan -Setting $pairs } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $plan = Get-IgwtDefenderSettingChangePlan -Setting $pairs } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             foreach ($r in $plan.Rows) {
                 if ($r.Refused) { Write-IgwtCliLine ("  REFUSED {0}: {1} -> {2}. {3}" -f $r.Name, $r.Current, $r.New, $r.Refused) ([ConsoleColor]::Red) }
                 elseif ($r.HasChange) { Write-IgwtCliLine ("  change  {0}: {1} -> {2}{3}" -f $r.Name, $r.Current, $r.New, $(if ($r.Route -eq 'parser') { ' (parser: only on, no revert)' })) ([ConsoleColor]::Gray) }
@@ -2188,7 +2200,7 @@ try {
             if (-not $plan.Changes) { Write-IgwtCliLine 'Nothing to change.' ([ConsoleColor]::Green); exit 0 }
             if ($DryRun) { Write-IgwtCliLine "Dry run: $($plan.Changes) change(s), nothing was changed. A snapshot is written before a real change." ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $res = Invoke-IgwtDefenderSettingChange -Setting $pairs -AcknowledgeManaged:$AcknowledgeManaged -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $res = Invoke-IgwtDefenderSettingChange -Setting $pairs -AcknowledgeManaged:$AcknowledgeManaged -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             foreach ($r in @($res.Results)) { Write-IgwtCliLine ("  [{0}] {1}: {2}{3}" -f $r.Result, $r.Target, $r.Change, $(if ($r.Message) { " - $($r.Message)" })) $(if ($r.Result -eq 'Applied') { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow }) }
             if ($res.Snapshot) { Write-IgwtCliLine "Snapshot: $($res.Snapshot) (revert with -Revert -Snapshot <path> or in Backups & Logs)." ([ConsoleColor]::DarkGray) }
             Complete-IgwtCli $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 5 } else { 0 })
@@ -2210,7 +2222,7 @@ try {
             if ($DryRun) { Write-IgwtCliLine "Would restore '$QuarantineRestore' from quarantine (it can run again)."; exit 0 }
             if (-not $IUnderstandTheRisk) { Write-IgwtCliLine 'Restoring a quarantined file can reintroduce malware. Add -IUnderstandTheRisk to confirm.' ([ConsoleColor]::Red); exit 2 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Restore-IgwtQuarantineItem -ThreatName $QuarantineRestore -IUnderstandTheRisk -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Restore-IgwtQuarantineItem -ThreatName $QuarantineRestore -IUnderstandTheRisk -Confirm:$false } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine $r.Output ([ConsoleColor]::Gray)
             Complete-IgwtCli $(if ($r.ExitCode -eq 0) { 0 } else { 5 })
         }
@@ -2252,21 +2264,21 @@ try {
         'SecPolicySet' {
             try { $changes = @(ConvertFrom-IgwtSecurityChangeText -Text $SecPolicySet) } catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 2 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $plan = Get-IgwtSecurityChangePlan -Changes $changes } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $plan = Get-IgwtSecurityChangePlan -Changes $changes } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if ($Json -and $DryRun) { $plan | Select-Object Rows, Refusals, Managed, Notes | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
             foreach ($r in $plan.Rows) { Write-IgwtCliLine ("  {0}\{1}: {2} -> {3}" -f $r.Section, $r.Key, $(if ($null -eq $r.Current) { '<not defined>' } else { $r.Current }), $r.New) ([ConsoleColor]::Gray) }
             foreach ($n in $plan.Notes) { Write-IgwtCliLine "  Note: $n" ([ConsoleColor]::Yellow) }
             foreach ($r in $plan.Refusals) { Write-IgwtCliLine "  Refused: $r" ([ConsoleColor]::Red) }
             if ($plan.Refusals.Count) { Complete-IgwtCli 2 }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); Complete-IgwtCli 0 }
-            try { $res = Set-IgwtSecurityPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $res = Set-IgwtSecurityPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine ("Set. Verified: {0}. Backup: {1} (undo with -SecPolicyRestore)." -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
             Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
         }
         'SecPolicyRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would restore the security settings changed by $SecPolicyRestore."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Restore-IgwtSecurityPolicy -BackupPath $SecPolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Restore-IgwtSecurityPolicy -BackupPath $SecPolicyRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine "Restored $($r.Settings) setting(s)." ([ConsoleColor]::Green)
             foreach ($u in @($r.NotRemovable)) { Write-IgwtCliLine "  $u was not defined before; secedit cannot remove it (set it to the Windows default if needed)." ([ConsoleColor]::Yellow) }
             Complete-IgwtCli 0
@@ -2290,14 +2302,14 @@ try {
                     foreach ($pair in @($AuditSet -split ';' | Where-Object { $_.Trim() })) { $kv = $pair.Split([char[]]@('='), 2); if ($kv.Count -ne 2) { throw "Invalid -AuditSet part '$pair'." }; $changes[$kv[0].Trim()] = $kv[1].Trim() }
                 }
                 $plan = Get-IgwtAuditChangePlan -Changes $changes -Current $current
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 4; Complete-IgwtCli 0 }
             foreach ($o in @($plan.Ops)) { Write-IgwtCliLine ("  {0,-48} {1} -> {2}" -f $o.Subcategory, $o.Current, $o.New) $(if ($o.Changes) { [ConsoleColor]::Gray } else { [ConsoleColor]::DarkGray }) }
             foreach ($w in @($plan.Warnings)) { Write-IgwtCliLine "  Warning: $w" ([ConsoleColor]::Yellow) }
             foreach ($n in @($plan.Notes)) { Write-IgwtCliLine "  Note: $n" ([ConsoleColor]::Yellow) }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: nothing was changed.' ([ConsoleColor]::White); Complete-IgwtCli 0 }
             if (-not @($plan.Ops | Where-Object { $_.Changes }).Count) { Write-IgwtCliLine 'Nothing to change.' ([ConsoleColor]::Green); Complete-IgwtCli 0 }
-            try { $res = Set-IgwtAuditPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $res = Set-IgwtAuditPolicy -Changes $changes -AcknowledgeManaged:$AcknowledgeManaged } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine ("Set. Verified: {0}. Backup: {1} (undo with -AuditRestore)." -f $(if ($res.Verified) { 'yes' } else { "no ($($res.Mismatch -join ', '))" }), $res.Backup) $(if ($res.Verified) { [ConsoleColor]::Green } else { [ConsoleColor]::Yellow })
             Complete-IgwtCli $(if ($res.Verified) { 0 } else { 5 })
         }
@@ -2310,7 +2322,7 @@ try {
         'AuditRestore' {
             if ($DryRun) { Write-IgwtCliLine "Would restore the audit policy from $AuditRestore."; exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $null = Restore-IgwtAuditPolicy -BackupPath $AuditRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $null = Restore-IgwtAuditPolicy -BackupPath $AuditRestore } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             Write-IgwtCliLine 'Audit policy restored.' ([ConsoleColor]::Green)
             Complete-IgwtCli 0
         }
@@ -2344,7 +2356,7 @@ try {
             exit 0
         }
         'Drift' {
-            try { $d = Get-IgwtPresetDrift -Preset $Preset } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $d = Get-IgwtPresetDrift -Preset $Preset } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json) { $d | ConvertTo-Json -Depth 4; exit 0 }
             if (-not $d.HasPreset) { Write-IgwtCliLine $d.Message ([ConsoleColor]::Yellow); exit 0 }
             Write-IgwtCliLine ("Drift report for {0}{1}" -f $d.Name, $(if ($d.Applied) { " (applied $(([datetime]$d.Applied).ToString('g')))" } else { ' (compared with the preset as resolved for this PC)' })) ([ConsoleColor]::White)
@@ -2354,7 +2366,7 @@ try {
             exit 0
         }
         'ExportPreset' {
-            try { $out = Export-IgwtPreset -Name $ExportPreset -Path $PresetPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $out = Export-IgwtPreset -Name $ExportPreset -Path $PresetPath } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json) { [pscustomobject]@{ Path = $out } | ConvertTo-Json } else { Write-IgwtCliLine "Preset written to $out (with a SHA256 integrity field)." ([ConsoleColor]::Green) }
             exit 0
         }
@@ -2368,7 +2380,7 @@ try {
                     'RemovePreset' { $null = Remove-IgwtCustomPreset -Name $RemovePreset -WhatIf }
                     'AdoptDrift' { $null = Save-IgwtDriftAsPreset -Name $AdoptDrift -Preset $Preset -WhatIf }
                 }
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($DryRun) { Write-IgwtCliLine 'Dry run: the preset passed every rule; nothing was written.' ([ConsoleColor]::White); exit 0 }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
             $res = $null
@@ -2391,7 +2403,7 @@ try {
                     exit 0
                 }
                 'Start' {
-                    try { $plan = Get-IgwtSessionPlan } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+                    try { $plan = Get-IgwtSessionPlan } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
                     $st = Get-IgwtSessionState
                     if ($st.Active) { Write-IgwtCliLine "A session is already active (started $($st.Started.ToLocalTime().ToString('g'))). End it with -Session Stop." ([ConsoleColor]::Yellow); exit 2 }
                     if ($DryRun) {
@@ -2489,7 +2501,7 @@ try {
         }
         'ExportAppList' {
             try { $out = Export-IgwtAppSelection -Path $ExportAppList -Id (Split-IgwtIdList $AppId) }
-            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json) { [pscustomobject]@{ Path = $out } | ConvertTo-Json } else { Write-IgwtCliLine "App selection written to $out" ([ConsoleColor]::Green) }
             exit 0
         }
@@ -2497,7 +2509,7 @@ try {
             try {
                 if ($DryRun) { $p = @(Get-IgwtToolkitPanels | Where-Object { $_.Id -eq $OpenPanel }); if (-not $p) { throw "Unknown panel '$OpenPanel'." }; Write-IgwtCliLine "Would open: $($p[0].Name) ($($p[0].Command))"; exit 0 }
                 Start-IgwtPanel -Id $OpenPanel
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             exit 0
         }
         { $_ -in 'Install', 'Uninstall', 'Upgrade', 'UpgradeAll' } {
@@ -2508,7 +2520,7 @@ try {
                 switch ($op) { 'Install' { $list += @(Split-IgwtIdList $Install) } 'Uninstall' { $list += @(Split-IgwtIdList $Uninstall) } 'Upgrade' { $list += @(Split-IgwtIdList $Upgrade) } }
                 $list = @($list | Select-Object -Unique)
                 if ($op -ne 'UpgradeAll' -and $list.Count -eq 0) { throw 'No package ids given.' }
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             $known = @{}
             foreach ($a in @(Get-IgwtToolkitApps)) { $known[$a.Id] = $a }
             if ($DryRun) {
@@ -2537,7 +2549,7 @@ try {
             Complete-IgwtCli $(if (@($res | Where-Object { $_.Result -eq 'Failed' }).Count) { 5 } else { 0 })
         }
         'Fix' {
-            try { $plan = Get-IgwtToolkitFixPlan -Id $Fix } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            try { $plan = Get-IgwtToolkitFixPlan -Id $Fix } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($Json -and $DryRun) { $plan | ConvertTo-Json -Depth 3; exit 0 }
             if (-not $Json) {
                 Write-IgwtCliLine ("{0}: {1}" -f $plan.Name, $plan.Hint) ([ConsoleColor]::White)
@@ -2567,7 +2579,7 @@ try {
                 if (-not $f) { throw "Unknown Toolkit feature '$fid'. Use -Toolkit Features to list them." }
                 $value = $(if ($f.Kind -eq 'capability') { $(if ($want -eq 'Enabled') { 'Installed' } else { 'NotPresent' }) } else { $want })
                 $plans = @(foreach ($t in $f.Targets) { Get-IgwtManagedChangePlan -Kind $f.Kind -Target $t -Value $value })
-            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit 2 }
+            } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); exit (Get-IgwtCliRefusalCode $_) }
             if ($DryRun) {
                 if ($Json) { $plans | ConvertTo-Json -Depth 3; exit 0 }
                 Write-IgwtCliLine "Dry run: $($f.Name) -> $want (nothing is changed):" ([ConsoleColor]::White)
@@ -2576,7 +2588,7 @@ try {
                 exit 0
             }
             if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
-            try { $r = Invoke-IgwtToolkitFeature -Id $fid -State $want } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli 2 }
+            try { $r = Invoke-IgwtToolkitFeature -Id $fid -State $want } catch { Write-IgwtCliLine "Refused: $($_.Exception.Message)" ([ConsoleColor]::Red); Complete-IgwtCli (Get-IgwtCliRefusalCode $_) }
             if ($Json) { $r | ConvertTo-Json -Depth 4 } else {
                 foreach ($x in $r.Results) { Write-IgwtCliLine ("{0,-12} {1} {2}" -f "[$($x.Result)]", $x.Change, $x.Message) $(if ($x.Result -eq 'Failed') { [ConsoleColor]::Red } else { [ConsoleColor]::Green }) }
                 if ($r.RebootRequired) { Write-IgwtCliLine 'A REBOOT is required to finish this change.' ([ConsoleColor]::Yellow) }
@@ -2615,8 +2627,9 @@ try {
             $list = @()
             if ($modes[0] -eq 'Revert') {
                 foreach ($i in $ids) {
-                    $snaps = @(Get-IgwtSnapshotList | Where-Object { $_.Applied -contains $i } | Select-Object -First 1)
-                    $list += [pscustomobject]@{ Id = $i; Snapshot = $(if ($snaps) { $snaps[0].File } else { '(none - nothing to revert)' }) }
+                    # The same lookup as the real revert: nothing when the newest event is a revert (review 3.8.1 C5).
+                    $found = Find-IgwtLatestSnapshotEntry -TweakId $i
+                    $list += [pscustomobject]@{ Id = $i; Snapshot = $(if ($found) { Split-Path -Leaf $found.Path } else { '(none - nothing to revert)' }) }
                 }
             } else {
                 $src = $null

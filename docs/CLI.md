@@ -120,7 +120,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 |---|---|
 | `-DefenderCenter` | Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web, DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights. |
 | `-DefenderThreats` | Threat history (Get-MpThreatDetection); -Days limits it. Read-only. |
-| `-RemoveExclusion` | Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress), after confirmation. iG Windows Tuner never adds exclusions. Use -DryRun first. |
+| `-RemoveExclusion` | Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress), after you type YES (-Yes skips the prompt). iG Windows Tuner never adds exclusions. Use -DryRun first. |
 | `-DefenderScan` | Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart). |
 | `-ScanPath` | Folder or file for -DefenderScan Custom. |
 | `-ConfirmRestart` | Confirms that -DefenderScan Offline restarts the PC immediately. |
