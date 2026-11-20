@@ -51,8 +51,10 @@ Describe 'Review 3.6 regressions' {
             $null = Invoke-IgwtRevert -SnapshotPath $r.Snapshot
             (Get-IgwtRegistryValue -Path 'HKCU:\Software\Microsoft\GameBar' -Name 'AutoGameModeEnabled').Value | Should -Be 0
             $script:IgwtJournal = $null
-            $sid = @((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'sessionStart' -and $_['origin']['ref'] -eq 'Invoke-IgwtRevert' })[0]['session']
-            @(Get-IgwtRevertPlan -SessionId $sid)[0].Status | Should -Be 'Refused' -Because 'its own snapshot cannot undo it'
+            # 3.9 (B1): the revert runs through the journal as a revert session; a revert itself is not offered for revert.
+            $sid = @((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'sessionStart' -and $_['origin']['type'] -eq 'revert' })[0]['session']
+            $sid | Should -Not -BeNullOrEmpty
+            @(Get-IgwtRevertPlan -SessionId $sid).Count | Should -Be 0 -Because 'a revert session holds restores, not changes'
             @((Get-IgwtDriftReport -NoUpdateHistory).Rows).Count | Should -Be 0 -Because 'the reverted target is no longer iG''s change'
             @(Get-IgwtRevertPlan -All | Where-Object { $_.Status -in 'Ready', 'Conflict' }).Count | Should -Be 0
             $script:IgwtModuleOperations['Restore-IgwtFirewallProfileSnapshot'] | Should -Be '' -Because 'R7: one-way'

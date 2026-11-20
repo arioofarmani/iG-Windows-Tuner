@@ -208,8 +208,9 @@ Describe 'scheduledTask' {
 Describe 'firewallRule' {
     BeforeEach {
         $script:Fw = @{}
+        # $PesterBoundParameters, not $Name: a $Name from an outer scope sent display-group queries down the name branch (order-dependent).
         Mock -ModuleName iGWindowsTuner Get-NetFirewallRule {
-            if ($Name) { if ($script:Fw.ContainsKey($Name[0])) { $script:Fw[$Name[0]] } }
+            if ($PesterBoundParameters.ContainsKey('Name')) { if ($script:Fw.ContainsKey($Name[0])) { $script:Fw[$Name[0]] } }
             else { @($script:Fw.Values | Where-Object { $_.DisplayGroup -eq $DisplayGroup[0] }) }
         }
         Mock -ModuleName iGWindowsTuner New-NetFirewallRule { $script:Fw[$Name] = [pscustomobject]@{ Name = $Name; DisplayGroup = 'iG Windows Tuner'; Enabled = 'True'; Action = [string]$Action; Direction = [string]$Direction } }

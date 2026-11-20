@@ -80,8 +80,8 @@ Describe 'Module writers on the change engine' {
         InModuleScope iGWindowsTuner {
             $script:IgwtJournal = $null
             $s = @((Read-IgwtJournal).Entries | Where-Object { $_['kind'] -eq 'sessionStart' })
-            $s.Count | Should -Be 2 -Because 'the change and the legacy revert are one session each; the revert''s restore is not a third'
-            $s[1]['origin']['ref'] | Should -Be 'Invoke-IgwtRevert'
+            $s.Count | Should -Be 2 -Because 'the change and its journal revert are one session each; the module''s own restore is not a third'
+            $s[1]['origin']['type'] | Should -Be 'revert' -Because '3.9 (B1): a revert the journal knows runs through the journal'
         }
     }
     It 'previews with -WhatIf without a session' {

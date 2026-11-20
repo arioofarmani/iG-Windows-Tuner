@@ -29,7 +29,8 @@ BeforeAll {
             if ($Filter -match "Name='([^']+)'") { $n = $Matches[1]; return @($all | Where-Object { $_.Name -eq $n }) }
             return $all
         }
-        Mock -ModuleName iGWindowsTuner Get-Service { if ($Name) { [pscustomobject]@{ Name = $Name[0]; Status = 'Running'; StartType = 'Manual'; ServicesDependedOn = @(); DependentServices = @() } } else { @([pscustomobject]@{ Name = 'Fax'; ServicesDependedOn = @([pscustomobject]@{ Name = 'RpcSs' }); DependentServices = @() }) } }
+        # $PesterBoundParameters, not $Name: a $Name from an outer scope made the no-argument call return one row (order-dependent).
+        Mock -ModuleName iGWindowsTuner Get-Service { if ($PesterBoundParameters.ContainsKey('Name')) { [pscustomobject]@{ Name = $Name[0]; Status = 'Running'; StartType = 'Manual'; ServicesDependedOn = @(); DependentServices = @() } } else { @([pscustomobject]@{ Name = 'Fax'; ServicesDependedOn = @([pscustomobject]@{ Name = 'RpcSs' }); DependentServices = @() }) } }
         Mock -ModuleName iGWindowsTuner Set-Service {
             $v = switch ([string]$StartupType) { 'Automatic' { 2 } 'Manual' { 3 } 'Disabled' { 4 } }
             Set-ItemProperty -LiteralPath "TestRegistry:\HKLM\SYSTEM\CurrentControlSet\Services\$Name" -Name Start -Value $v

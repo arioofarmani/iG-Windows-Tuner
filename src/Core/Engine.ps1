@@ -405,6 +405,8 @@ function Invoke-IgwtApply {
 
     # One journaled change session for the whole operation (3.6, DECISIONS T2).
     $origin = $(if ($Operation -like 'Preset:*') { [ordered]@{ type = 'preset'; ref = $Operation.Substring(7) } } elseif ($Operation -eq 'DriftFix') { [ordered]@{ type = 'driftFix'; ref = 'drift' } } elseif ($Mode -eq 'default') { [ordered]@{ type = 'resetDefault'; ref = $Operation } } else { [ordered]@{ type = 'tweak'; ref = $Operation } })
+    # The 3.x snapshot of this operation, so a revert by snapshot finds this session in the journal (3.9 B1).
+    $origin['snapshot'] = [string]$snap.Path
     $session = Start-IgwtChangeSession -Origin $origin -Title "$Operation ($($todo.Count) item(s))" -Confirm:$false
     try {
         $n = 0
@@ -444,6 +446,14 @@ function Invoke-IgwtRevert {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([string[]]$Id, [string]$SnapshotPath, [switch]$Last, $Context, [scriptblock]$OnProgress)
     Assert-IgwtWritable -Operation 'Invoke-IgwtRevert'
+    # 3.9 (B1): a request the change journal knows is reverted through the journal (value checked before,
+    # read back after, conflicts reported instead of overwritten). Only snapshots the journal does not know
+    # (written before 3.6, or not linked to a session) take the direct snapshot restore below. Inside a
+    # journaled step (the module provider's own restore) the direct restore is always used.
+    if ($script:IgwtModuleDepth -eq 0 -and -not $script:IgwtChangeLock -and -not $WhatIfPreference) {
+        $viaJournal = Invoke-IgwtRevertThroughJournal -Id $Id -SnapshotPath $SnapshotPath -Last:$Last -OnProgress $OnProgress
+        if ($viaJournal) { return $viaJournal }
+    }
     if (-not (Test-IgwtModuleOperationDirect -BoundParameters $PSBoundParameters)) { return (Invoke-IgwtModuleOperation -Command 'Invoke-IgwtRevert' -Parameters $PSBoundParameters) }
     if (-not $script:IgwtSettings.TestMode) {
         $pre = Get-IgwtPreflight -ForApply
