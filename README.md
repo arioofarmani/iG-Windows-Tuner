@@ -6,10 +6,10 @@
 
 Tune performance, security and privacy for competitive gaming, with every change previewed, recorded and reversible.
 
-[![Latest release](https://img.shields.io/badge/release-v3.8.1-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v3.8.2-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
 ![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
-![Tests](https://img.shields.io/badge/tests-1%2C460%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/tests-1%2C534%20passing-2EA44F)
 ![Telemetry](https://img.shields.io/badge/telemetry-none-2EA44F)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![VirusTotal](https://img.shields.io/badge/VirusTotal-see%20the%20results-394EFF)](#is-it-safe-to-run)
@@ -32,6 +32,15 @@ Tune performance, security and privacy for competitive gaming, with every change
 Most Windows optimizers ask you to trust a list of tweaks. iG Windows Tuner works differently: every setting cites its source, every change is previewed, the result is read back from Windows, and the value from before can be restored exactly, including values that did not exist.
 
 It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are documented as [rejected](docs/REJECTED_TWEAKS.md), with the reason.
+
+## New in 3.8.2
+
+A security and undo release, from an independent review of 3.8.1. No new features.
+
+- **Planted backups are no longer restored.** A program without admin rights could leave a backup file that iG would later restore with administrator rights. iG now restores only its own backups, from its protected Backups folder.
+- **Undo you can trust.** A change that fails half-way can be undone with the backup it made, and a revert no longer says "Reverted" when a network adapter, device or power plan was missing.
+- **One guard for every policy change.** Values that lock settings into the firmware or lower a protection are refused everywhere, not only in Security settings.
+- Plus fixes in the firewall wizard, the security score and the catalog. Full list: [CHANGELOG](docs/CHANGELOG.md).
 
 ## New in 3.8.1
 
@@ -166,7 +175,7 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 
 **Requirements:** Windows 11 24H2 or newer (build 26100+). Windows PowerShell 5.1 is included with Windows; nothing else to install.
 
-1. Download `iGWindowsTuner-3.8.1.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
+1. Download `iGWindowsTuner-3.8.2.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
 2. Extract it. Files from a downloaded zip carry Mark-of-the-Web: review them, then run `Unblock-File` if you trust them.
 3. Run `Start-iGWindowsTuner.cmd`.
 4. Look around first. Without administrator rights the app is read-only, and nothing changes until you press **Apply**.
@@ -185,7 +194,11 @@ Prefer the command line? Start with what changes nothing:
 
 You should not have to take our word for it, so here is what the scanners say, including the part that is less tidy, and how to check the app yourself.
 
-### VirusTotal results for 3.8.1
+### VirusTotal results
+
+3.8.2 has not been scanned yet; the results below are for 3.8.1. The launcher is the same file in both.
+
+#### 3.8.1
 
 | File | Result | What it is |
 |---|---|---|
@@ -202,10 +215,10 @@ Results checked on 14 November 2026. The 3.8.1 main script has not been scanned 
 
 ### Check it yourself
 
-**Confirm your download is the published file.** The result must be `7D27FC4AB3A63A1D992F59C513698A8B2C078E9408BAB0F7A17951F0F8C4AA9D`:
+**Confirm your download is the published file.** The result must be the SHA256 shown on the [3.8.2 release page](https://github.com/arioofarmani/iG-Windows-Tuner/releases/tag/v3.8.2):
 
 ```powershell
-Get-FileHash .\iGWindowsTuner-3.8.1.zip -Algorithm SHA256
+Get-FileHash .\iGWindowsTuner-3.8.2.zip -Algorithm SHA256
 ```
 
 **Look without changing anything.** Read-only mode blocks every change inside the app's engine:
