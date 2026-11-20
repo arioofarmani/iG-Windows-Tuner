@@ -64,7 +64,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 
 | Parameter | Description |
 |---|---|
-| `-Session` | Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot, Stop restores them, Status shows the session. -DryRun with Start shows the plan. |
+| `-Session` | Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot, Stop restores them, Status shows the session. -DryRun with Start shows the plan. Forget ends a session whose backup is gone without restoring anything (undo its changes in History first). |
 | `-CloseApps` | With -Session Start: also close the running apps from the Session Mode list. |
 
 ## Platform, management and personas

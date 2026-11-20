@@ -8,7 +8,7 @@ $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
     'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
-    'Banner', 'BannerText', 'NavList', 'SectionTabs', 'ShowAdvancedBox', 'PageHome', 'HomeHost', 'PageOptimize', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
+    'Banner', 'BannerText', 'NavList', 'SectionTabs', 'ShowAdvancedBox', 'PageHome', 'HomeHost', 'PageOptimize', 'PageHistory', 'HistoryHost', 'UserHiveBanner', 'UserHiveBannerText', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
@@ -606,6 +606,7 @@ function Update-IgwtGuiFromData {
     $c = $script:Gui.C
     $script:Gui.Data = $Data
     $script:Gui.IsAdmin = ([bool]$Data.IsAdmin -and -not $script:Gui.ReadOnly)
+    Update-IgwtGuiUserHiveBanner -Status $(if ($Data.PSObject.Properties['UserHive']) { $Data.UserHive } else { $null })
     if ($Data.Summary) { $c.HeaderSummary.Text = [string]$Data.Summary.Text }
     $os = $Data.Preflight.Os
     $dg = $Data.AntiCheat.Requirements
@@ -1000,6 +1001,9 @@ function Update-IgwtGuiPresetCards {
             Summary = "$($members.Count) tweaks in this preset; $toChange differ from your current state.$overlayText$(if ($toChange) { ' By category: ' + ((@(Get-IgwtGuiPresetDiff -Preset $p).ByCategory | ForEach-Object { "$($_.Name) $($_.Count)" }) -join ', ') + '.' })"
             CompareTag = "compare:$($p.id)"
             ButtonText = $(if ($toChange -gt 0) { "Stage $toChange change(s)" } else { 'Nothing to change' })
+            # 4.0 D5: Preview comes first; repeated buttons name their preset for screen readers.
+            PreviewName = "Preview the $([string]$p.name) preset"
+            StageName = "$(if ($toChange -gt 0) { "Stage $toChange change(s)" } else { 'Nothing to change' }) for the $([string]$p.name) preset"
         }
     }
     $script:Gui.C.PresetCards.ItemsSource = @($cards)
@@ -1229,7 +1233,7 @@ function Start-IgwtGuiSession {
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Session Mode' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Start-IgwtSession' -Parameters @{ Owner = 'gui'; CloseApps = $apps } -Blocking -BusyText 'Starting Session Mode (snapshot first)...' -OnComplete {
         param($out, $errs)
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode did not start: $(@($errs)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode started. End it on the Presets page or by closing iG Windows Tuner.' }
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode did not start: $(@($errs)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode started. End it on the Play page or by closing iG Windows Tuner.' }
         Start-IgwtGuiRefresh
     }
 }
@@ -1242,9 +1246,66 @@ function Stop-IgwtGuiSession {
     if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text 'Restart as administrator to end Session Mode and restore your settings.'; return }
     $null = Start-IgwtGuiJob -Command 'Stop-IgwtSession' -Blocking -BusyText 'Ending Session Mode (restoring settings)...' -OnComplete {
         param($out, $errs)
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode could not be ended: $(@($errs)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode ended; your settings are restored.' }
+        $r = @($out | Where-Object { $_ }) | Select-Object -Last 1
+        if (@($errs).Count -and -not $r) { $null = Show-IgwtGuiMessage -Text "Session Mode could not be ended: $(@($errs)[0])" -Icon 'Warning' }
+        else { Complete-IgwtGuiSessionStop -Result $r }
         Start-IgwtGuiRefresh
     }
+}
+
+function Complete-IgwtGuiSessionStop {
+    <#
+    .SYNOPSIS
+        Says what ending Session Mode really did (review PRE-1): how many settings were restored, which
+        failed, or, when the session backup is gone, offers History (undo the session's changes there)
+        or ending the session without restoring. Cancel and Esc keep the session as it is.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Asks the user; ending without restoring runs Stop-IgwtSession -Forget (which supports ShouldProcess) in the worker after a second confirmation.')]
+    [CmdletBinding()]
+    param($Result)
+    if (-not $Result) { Set-IgwtGuiStatus 'Session Mode: no result was returned; check History.'; return }
+    if ($Result.PSObject.Properties['NoBackup'] -and $Result.NoBackup) {
+        $ans = Show-IgwtGuiMessage -Title 'Session Mode backup not found' -Buttons 'YesNoCancel' -Icon 'Warning' -Text "$($Result.Message)`n`nYes: open History to undo the session's changes.`nNo: end Session Mode now without restoring anything.`nCancel: keep Session Mode as it is."
+        if ($ans -eq 'Yes') { Open-IgwtGuiPage -Page 'History'; return }
+        if ($ans -ne 'No') { return }
+        if ((Show-IgwtGuiMessage -Title 'End without restoring' -Buttons 'YesNo' -Icon 'Warning' -Text 'End Session Mode without restoring any setting? Settings the session changed stay as they are now; History can still undo them.') -ne 'Yes') { return }
+        $null = Start-IgwtGuiJob -Command 'Stop-IgwtSession' -Parameters @{ Forget = $true; Confirm = $false } -Blocking -BusyText 'Ending Session Mode...' -OnComplete {
+            param($o2, $e2)
+            if (@($e2).Count) { $null = Show-IgwtGuiMessage -Text "Session Mode could not be ended: $(@($e2)[0])" -Icon 'Warning' } else { Set-IgwtGuiStatus 'Session Mode ended; no setting was restored.' }
+            $null = $o2
+            Start-IgwtGuiRefresh
+        }
+        return
+    }
+    $res = @($Result.Results)
+    $done = @($res | Where-Object { $_.Result -eq 'Reverted' }).Count
+    $bad = @($res | Where-Object { $_.Result -eq 'Failed' })
+    if ($bad.Count) { $null = Show-IgwtGuiMessage -Icon 'Warning' -Text "Session Mode: $done setting(s) restored, $($bad.Count) not restored, so the session stays active and End session can try again:`n`n$((@($bad | ForEach-Object { "$($_.Id): $($_.Message)" }) -join "`n"))" }
+    else { Set-IgwtGuiStatus "Session Mode ended; $done setting(s) restored." }
+}
+
+function Update-IgwtGuiUserHiveBanner {
+    <#
+    .SYNOPSIS
+        G-03: when another administrator's account started iG, says whose per-user settings the pages
+        show: the signed-in user's (their hive is mapped), or, when that hive is not loaded, that the
+        values are the administrator's own and per-user changes would not reach the signed-in user.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param($Status)
+    $c = $script:Gui.C
+    if (-not $c -or -not $c.UserHiveBanner) { return }
+    $state = $(if ($Status) { [string]$Status.State } else { 'Same' })
+    $c.UserHiveBannerText.Text = switch ($state) {
+        'Mapped' { "iG was started with another administrator's account. Per-user settings (for example Game DVR, mouse and notifications) are read from and changed for the signed-in user." }
+        'Unavailable' { "iG was started with another administrator's account and cannot read the signed-in user's own settings. Per-user values shown here are that administrator's; start iG from the signed-in user's account to see and change theirs." }
+        default { '' }
+    }
+    $c.UserHiveBanner.Visibility = $(if ($state -in 'Mapped', 'Unavailable') { 'Visible' } else { 'Collapsed' })
+    $tone = $(if ($state -eq 'Unavailable') { 'Warning' } else { 'Info' })
+    $c.UserHiveBanner.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, "Brush$($tone)Soft")
+    $c.UserHiveBanner.SetResourceReference([System.Windows.Controls.Border]::BorderBrushProperty, "Brush$tone")
 }
 
 function Update-IgwtGuiDetails {
@@ -3094,7 +3155,7 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageHome', 'PageOptimize', 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageHome', 'PageOptimize', 'PageHistory', 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
     # 4.0 (D3): the Optimize categories open the new Optimize page unless the table view was chosen.
     $optimize = @($script:IgwtGuiSections | Where-Object { $_.Id -eq 'Optimize' })[0].Pages
     if ($optimize -contains $Page -and -not $script:Gui.OptimizeTable) {
@@ -3135,6 +3196,7 @@ function Show-IgwtGuiPage {
         'RegistryCleaner' { $c.PageRegistryCleaner.Visibility = 'Visible'; if ($script:Gui.RegClean -and -not $script:Gui.RegClean.RemovedLoaded -and $script:Gui.Runspace) { $null = Start-IgwtGuiRegCleanRemovedLoad } }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
+        'History' { $c.PageHistory.Visibility = 'Visible'; if (-not (Get-IgwtGuiHistoryState).Timeline -and $script:Gui.Runspace) { Start-IgwtGuiHistoryLoad }; Update-IgwtGuiHistoryPage }
         'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         'Rejected' { $c.PageRejected.Visibility = 'Visible' }
         'About' { $c.PageAbout.Visibility = 'Visible' }
@@ -3268,8 +3330,12 @@ function Save-IgwtGuiScreenshots {
     catch { Write-Warning "Registry cleaner data unavailable for screenshots: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" }
     # Security settings (read-only).
     try { Set-IgwtGuiSecSettingsData -Result (Get-IgwtSecSettings) } catch { Write-Warning "Security settings unavailable for screenshots: $($_.Exception.Message)" }
-    # The change journal (read-only).
+    # The change journal (read-only), and History with the first session that is still in place opened for undo,
+    # so the render shows a value changed since iG set it with its choices in the card (mockup 3).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
+    Set-IgwtGuiHistoryData -Timeline (Get-IgwtJournalTimeline) -Plan @(Get-IgwtRevertPlan -All)
+    $demo = @(Get-IgwtGuiHistorySessions -Timeline $script:Gui.Hist.Timeline -Plan @($script:Gui.Hist.AllPlan) | Where-Object { $_.Conflicts -gt 0 }) | Select-Object -First 1
+    if ($demo) { $script:Gui.Hist.Filter = 'Changed since'; $script:Gui.Hist.Open = [string]$demo.Id; $script:Gui.Hist.Plan = @(Get-IgwtRevertPlan -SessionId ([string]$demo.Id)) }
     # The home card (read-only inputs).
     $script:Gui.HomeInput = Get-IgwtHomeCardInput
     Update-IgwtGuiHomeCard
@@ -3570,7 +3636,7 @@ function Show-IgwtGui {
             $null = $eventSource
             if ($e.OriginalSource -is [System.Windows.Controls.Button] -and [string]$e.OriginalSource.Tag) { Invoke-IgwtGuiRevert -SnapshotPath ([string]$e.OriginalSource.Tag) }
         }
-    Register-IgwtGuiHandler -Control $c.DashAllChangesButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'Backups' }
+    Register-IgwtGuiHandler -Control $c.DashAllChangesButton -Event 'Click' -Handler { Select-IgwtGuiNavPage -Tag 'History' }
     # The log is read the first time its tab opens (and with the grid's Refresh).
     Register-IgwtGuiHandler -Control $c.BackupTabs -Event 'SelectionChanged' -Handler {
         param($s, $e)

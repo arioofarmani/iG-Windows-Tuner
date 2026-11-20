@@ -203,6 +203,36 @@ Describe 'Session Mode' {
         (Get-IgwtSessionState).Reason | Should -Match 'closed without ending'
         $null = Stop-IgwtSession
     }
+    It 'keeps the session and reports the missing backup instead of "0 restored" (PRE-1)' {
+        $null = Start-IgwtSession -Context $script:Laptop -Owner cli
+        $f = InModuleScope iGWindowsTuner { Get-IgwtSessionFile }
+        $good = Get-Content -LiteralPath $f -Raw
+        $m = $good | ConvertFrom-Json
+        $m.snapshot = Join-Path $TestDrive 'gone.json'
+        foreach ($broken in @(($m | ConvertTo-Json), '{ not json')) {
+            [System.IO.File]::WriteAllText($f, $broken)
+            $res = Stop-IgwtSession
+            $res.NoBackup | Should -BeTrue
+            @($res.Results)[0].Result | Should -Be 'Failed'
+            $res.Message | Should -Match 'History'
+            (Get-IgwtSessionState).Active | Should -BeTrue -Because 'the record is kept, so Session Mode still shows as active'
+            $script:Search | Should -Be 'Stopped' -Because 'nothing was restored'
+        }
+        # With the record intact again, ending restores everything.
+        [System.IO.File]::WriteAllText($f, $good)
+        $null = Stop-IgwtSession
+        $script:Search | Should -Be 'Running'
+        (Get-IgwtSessionState).Active | Should -BeFalse
+    }
+    It 'ends a session without restoring with -Forget, after its changes were undone elsewhere (PRE-1)' {
+        $r = Start-IgwtSession -Context $script:Laptop -Owner cli
+        $res = Stop-IgwtSession -Forget
+        $res.Message | Should -Match 'no setting was restored'
+        (Get-IgwtSessionState).Active | Should -BeFalse
+        $script:Search | Should -Be 'Stopped' -Because 'Forget restores nothing'
+        $null = Invoke-IgwtRevert -SnapshotPath $r.Snapshot
+        $script:Search | Should -Be 'Running'
+    }
     It 'ignores a session record that other users can change (PRE-3)' {
         $null = Start-IgwtSession -Context $script:Laptop -Owner cli
         Mock -ModuleName iGWindowsTuner Test-IgwtDataFileTrusted { $false }

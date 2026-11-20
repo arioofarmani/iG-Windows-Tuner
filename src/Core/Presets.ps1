@@ -491,12 +491,27 @@ function Start-IgwtSession {
 }
 
 function Stop-IgwtSession {
-    <# .SYNOPSIS Ends Session Mode: restores every setting from the session snapshot and removes the session record. #>
+    <#
+    .SYNOPSIS
+        Ends Session Mode: restores every setting from the session snapshot and removes the session
+        record. When the snapshot cannot be found, nothing is restored, the record is kept and the
+        result is Failed (NoBackup) with a pointer to History, where every session change can be
+        undone from the change journal (review PRE-1).
+    .PARAMETER Forget
+        Ends Session Mode without restoring anything (removes the session record only); for after the
+        session's changes were undone in History.
+    #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([scriptblock]$OnProgress)
+    param([scriptblock]$OnProgress, [switch]$Forget)
     Assert-IgwtWritable -Operation 'Stop-IgwtSession'
     $st = Get-IgwtSessionState
     if (-not $st.Active) { return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none'; Message = 'No session is active.' } }
+    if ($Forget) {
+        if (-not $PSCmdlet.ShouldProcess('Session Mode', 'End without restoring settings')) { return $null }
+        Remove-Item -LiteralPath (Get-IgwtSessionFile) -Force -ErrorAction SilentlyContinue
+        Write-IgwtLog -Level Warn -Message 'Session Mode ended without restoring settings (Forget).'
+        return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none'; Message = 'Session Mode ended; no setting was restored.' }
+    }
     if (-not $PSCmdlet.ShouldProcess('Session Mode', 'End and restore settings')) { return $null }
     $res = [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none' }
     $snapPath = $st.Snapshot
@@ -505,7 +520,14 @@ function Stop-IgwtSession {
         $cand = @(Get-IgwtSnapshotList | Where-Object { $_.Operation -eq 'Session' -and $_.Created -and ([datetime]$_.Created).ToUniversalTime() -ge $st.Started.AddSeconds(-5) }) | Select-Object -First 1
         if ($cand) { $snapPath = $cand.Path }
     }
-    if ($snapPath -and (Test-Path -LiteralPath $snapPath)) { $res = Invoke-IgwtRevert -SnapshotPath $snapPath -OnProgress $OnProgress }
+    if (-not ($snapPath -and (Test-Path -LiteralPath $snapPath))) {
+        # PRE-1: no backup to restore from. Report it instead of "0 restored" and keep the record, so Session Mode
+        # still shows as active; the session's changes are in the change journal (Invoke-IgwtApply journals them).
+        $msg = 'The Session Mode backup was not found, so nothing was restored and the session stays active. Undo the session''s changes in History, then end Session Mode without restoring.'
+        Write-IgwtLog -Level Warn -Message "Session Mode: $msg"
+        return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @([pscustomobject]@{ Id = 'session'; Result = 'Failed'; Message = $msg }); Requires = 'none'; Message = $msg; NoBackup = $true }
+    }
+    $res = Invoke-IgwtRevert -SnapshotPath $snapPath -OnProgress $OnProgress
     # L5: keep the record when a restore failed, so it can be retried.
     if (@($res.Results | Where-Object { $_.Result -eq 'Failed' }).Count) {
         Write-IgwtLog -Level Warn -Message 'Session Mode: some settings could not be restored; the session record is kept so -Session Stop can retry.'

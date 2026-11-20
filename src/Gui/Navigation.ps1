@@ -11,7 +11,7 @@ $script:IgwtGuiSections = @(
     [pscustomobject]@{ Id = 'Security'; Title = 'Security'; Glyph = [string][char]0xE72E; Pages = @('Security', 'Asr', 'Defender', 'SecSettings', 'Firewall'); Bottom = $false; Advanced = $false; Help = 'Security score, Defender, attack surface rules and firewall' }
     [pscustomobject]@{ Id = 'Network'; Title = 'Network'; Glyph = [string][char]0xE701; Pages = @('NetTest', 'Network', 'Diagnostics'); Bottom = $false; Advanced = $false; Help = 'Network test, network settings and diagnostics' }
     [pscustomobject]@{ Id = 'Clean'; Title = 'Clean'; Glyph = [string][char]0xE74D; Pages = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup'); Bottom = $false; Advanced = $false; Help = 'Files, registry leftovers, storage and startup apps' }
-    [pscustomobject]@{ Id = 'History'; Title = 'History'; Glyph = [string][char]0xE81C; Pages = @('Backups'); Bottom = $false; Advanced = $false; Help = 'Every change with Undo' }
+    [pscustomobject]@{ Id = 'History'; Title = 'History'; Glyph = [string][char]0xE81C; Pages = @('History', 'Backups'); Bottom = $false; Advanced = $false; Help = 'Every change with Undo' }
     [pscustomobject]@{ Id = 'Advanced'; Title = 'Advanced tools'; Glyph = [string][char]0xE90F; Pages = @('Inspect', 'Policy', 'Manage', 'Toolkit', 'Risk Zone', 'Rejected'); Bottom = $true; Advanced = $true; Help = 'Expert inspectors, Group Policy, services and tasks, Toolkit and Risk Zone' }
     [pscustomobject]@{ Id = 'Settings'; Title = 'Settings'; Glyph = [string][char]0xE713; Pages = @('About'); Bottom = $true; Advanced = $false; Help = 'About iG Windows Tuner' }
 )
@@ -23,7 +23,7 @@ $script:IgwtGuiPageLabels = @{
     'Security' = 'Overview'; 'Asr' = 'Attack surface rules'; 'Defender' = 'Defender'; 'SecSettings' = 'Security settings'; 'Firewall' = 'Firewall'
     'NetTest' = 'Network test'; 'Network' = 'Network settings'; 'Diagnostics' = 'Diagnostics'
     'Cleaner' = 'Files'; 'RegistryCleaner' = 'Registry leftovers'; 'Storage' = 'Storage Sense'; 'Disk' = 'Disk'; 'Startup' = 'Startup apps'
-    'Backups' = 'History'; 'Inspect' = 'Expert inspectors'; 'Policy' = 'Group Policy'; 'Manage' = 'Services and tasks'; 'Toolkit' = 'Toolkit'
+    'History' = 'Changes'; 'Backups' = 'Backups and logs'; 'Inspect' = 'Expert inspectors'; 'Policy' = 'Group Policy'; 'Manage' = 'Services and tasks'; 'Toolkit' = 'Toolkit'
     'Risk Zone' = 'Risk Zone'; 'Rejected' = 'Rejected tweaks'; 'About' = 'About'
 }
 

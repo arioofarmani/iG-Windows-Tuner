@@ -48,7 +48,9 @@ Describe '4.0 navigation (D1)' {
     It 'shows a breadcrumb of section and page in plain words' {
         InModuleScope iGWindowsTuner {
             Get-IgwtGuiBreadcrumb -Page 'Asr' | Should -Be "Security  $([char]0x203A)  Attack surface rules"
-            Get-IgwtGuiBreadcrumb -Page 'Backups' | Should -Be 'History'
+            Get-IgwtGuiBreadcrumb -Page 'Backups' | Should -Be "History  $([char]0x203A)  Backups and logs"
+            Get-IgwtGuiBreadcrumb -Page 'History' | Should -Be "History  $([char]0x203A)  Changes"
+            Get-IgwtGuiBreadcrumb -Page 'About' | Should -Be 'Settings'
         }
     }
     It 'routes every old menu lookup through Open-IgwtGuiPage (no page is picked from the list by its id)' {
@@ -108,9 +110,9 @@ Describe '4.0 Optimize (D3)' {
                 $states = @{}; foreach ($t in $cat) { $states[[string]$t.id] = [pscustomobject]@{ State = 'Off'; Items = @() } }
                 $staged = New-Object 'System.Collections.Generic.Dictionary[string,string]'
                 $script:Gui = @{ Catalog = $cat; Data = [pscustomobject]@{ States = $states; Changed = @{} }; Staged = $staged; Persona = $null; FocusMode = $false; IsAdmin = $true }
-                $input = @(Get-IgwtGuiOptimizeItems -Category 'Input')
-                $input.Count | Should -BeGreaterThan 0
-                @($input | Where-Object { $_.Tweak.category -ne 'Input' }).Count | Should -Be 0
+                $inputs = @(Get-IgwtGuiOptimizeItems -Category 'Input')
+                $inputs.Count | Should -BeGreaterThan 0
+                @($inputs | Where-Object { $_.Tweak.category -ne 'Input' }).Count | Should -Be 0
                 $all = @(Get-IgwtGuiOptimizeItems -Category 'Input' -Search 'e')
                 @($all | ForEach-Object { $_.Tweak.category } | Select-Object -Unique).Count | Should -BeGreaterThan 1
                 @($all | Where-Object { $_.Tweak.category -in 'Security', 'Network', 'Storage', 'Risk Zone' }).Count | Should -Be 0

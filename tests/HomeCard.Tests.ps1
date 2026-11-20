@@ -105,7 +105,7 @@ Describe 'Home card: actions open a preview or a page, never a change' {
     }
     AfterEach { InModuleScope iGWindowsTuner { $script:Gui = $null } }
     It 'opens the page for <Action>' -ForEach @(
-        @{ Action = 'openJournal'; Page = 'Backups' }, @{ Action = 'forensic'; Page = 'Firewall' }, @{ Action = 'presets'; Page = 'Presets' }, @{ Action = 'unverified'; Page = 'Presets' }
+        @{ Action = 'openJournal'; Page = 'History' }, @{ Action = 'forensic'; Page = 'Firewall' }, @{ Action = 'presets'; Page = 'Presets' }, @{ Action = 'unverified'; Page = 'Presets' }
     ) {
         InModuleScope iGWindowsTuner -Parameters @{ A = $Action; P = $Page } {
             param($A, $P)

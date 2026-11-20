@@ -89,7 +89,7 @@ function Update-IgwtGuiHomePage {
     $t1 = New-IgwtStatusTile -Label 'Performance' -Value $(if ($f.Total) { "$($f.InPlace) of $($f.Total)" } else { '-' }) -Line 'Optimize settings in place' -LinkText 'Open Optimize'
     $t2 = New-IgwtStatusTile -Label 'Security' -Value $(if ($null -ne $f.Score) { "$($f.Score)" } else { '-' }) -Line $(if ($null -ne $f.Score) { "out of 100. $(if ($f.ToFix) { "$($f.ToFix) to fix" } else { 'Nothing to fix' })" } else { 'Refresh to read the score' }) -LinkText 'What raises it'
     $t3 = New-IgwtStatusTile -Label 'Changes' -Value $(if ($f.Pending -eq 'reboot') { 'Restart' } elseif ($f.Pending) { 'Sign out' } else { "$($f.Changes)" }) -Line $(if ($f.Pending) { 'needed to finish your changes' } elseif ($f.Changes) { 'recent changes, each can be undone' } else { 'No changes yet' }) -LinkText 'Open History'
-    $targets = @{ 'Open Optimize' = 'Power & CPU'; 'What raises it' = 'Security'; 'Open History' = 'Backups' }
+    $targets = @{ 'Open Optimize' = 'Power & CPU'; 'What raises it' = 'Security'; 'Open History' = 'History' }
     foreach ($t in $t1, $t2, $t3) {
         $t.Margin = [System.Windows.Thickness]::new(0, 0, 16, 0)
         foreach ($b in @(Get-IgwtUiDescendant -Root $t | Where-Object { $_ -is [System.Windows.Controls.Button] })) { $b.Tag = $targets[[string]$b.Content]; Register-IgwtGuiHandler -Control $b -Event 'Click' -Handler { param($s, $e) Open-IgwtGuiPage -Page ([string]$s.Tag) } }

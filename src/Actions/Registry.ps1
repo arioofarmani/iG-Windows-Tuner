@@ -19,6 +19,12 @@ function Resolve-IgwtRegistryPath {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][string]$Path)
     $p = $Path
+    # G-03: every runspace (each GUI worker imports its own module) maps HKCU to the signed-in user before its
+    # first per-user read, not only before an apply, so states are read from the hive that applies write to.
+    if (-not $script:IgwtUserHiveChecked -and -not $script:IgwtSettings.TestMode -and $p -match '^(HKCU:|HKEY_CURRENT_USER)(\\|$)') {
+        $script:IgwtUserHiveChecked = $true
+        try { Initialize-IgwtUserHive } catch { Write-Verbose "Signed-in user hive not mapped: $($_.Exception.Message)" }
+    }
     if ($script:IgwtSettings.UserHiveSid -and $p -match '^(HKCU:|HKEY_CURRENT_USER)(\\|$)') {
         $rest = $p -replace '^(HKCU:|HKEY_CURRENT_USER)\\?', ''
         $p = "Registry::HKEY_USERS\$($script:IgwtSettings.UserHiveSid)\$rest"

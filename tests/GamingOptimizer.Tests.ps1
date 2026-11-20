@@ -9,7 +9,7 @@ BeforeAll {
         [pscustomobject]@{ Name = $Name; Address = $Address; Role = $Role; Stats = [pscustomobject]@{ Received = 100; MedianMs = $Median; JitterMs = $Jitter; LossPercent = $Loss }; Score = [pscustomobject]@{ Grade = 'B' } }
     }
     function Get-TestResult([string]$Kind = 'Ethernet', [string]$Speed = '1 Gbps', [double]$Jitter = 4, [double]$Median = 20) {
-        $t = @((Get-TestTarget 'Your router' '192.168.1.1' 'Gateway' 0.5 0.4 0), (Get-TestTarget 'Cloudflare DNS' '1.1.1.1' 'Internet' $Median $Jitter 0))
+        $t = @((Get-TestTarget -Name 'Your router' -Address '192.168.1.1' -Role 'Gateway' -Median 0.5 -Jitter 0.4 -Loss 0), (Get-TestTarget -Name 'Cloudflare DNS' -Address '1.1.1.1' -Role 'Internet' -Median $Median -Jitter $Jitter -Loss 0))
         [pscustomobject]@{ Error = ''; Connection = [pscustomobject]@{ Kind = $Kind; LinkSpeed = $Speed; Gateway = '192.168.1.1'; DnsServers = @('192.168.1.1') }; Targets = $t; Internet = $t[1] }
     }
     $script:Recs = [pscustomobject]@{ Profile = 'Ethernet gaming profile'; Reverts = @(); Guidance = @(); Tweaks = @(

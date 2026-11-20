@@ -39,6 +39,19 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - Every text box and list box has a name for screen readers.
 - Catalog: the Storage Sense deletion items say that deleted files cannot be restored; the processor idle Risk Zone item is blocked on laptops.
 
+### History and Play (section 4)
+
+- History shows every change as a card, newest first, with filters for changes still in place, changed since, undone and one-way. Undo opens the session's settings in its card with the value before, the value iG set and the value now.
+- When something else changed a setting after iG set it, you choose in the card: keep it, put the old value back, or skip it. Nothing runs until you press Undo, and Cancel changes nothing.
+- "Reset everything iG changed" shows every value iG still has changed before anything runs. The full change table, snapshots and log are on the Backups and logs tab.
+- Play: each preset card shows Preview first, then the button that stages it.
+- When another administrator's account starts iG, the window says whose per-user settings it shows, and reads the signed-in user's settings in every view.
+
+### Fixed (section 4)
+
+- In the change journal tab, pressing Esc or Cancel on a "changed since" question skipped that setting but still undid the rest; now it stops the whole undo.
+- Ending Session Mode when its backup was missing said "0 settings restored" and forgot the session; now it says so, keeps the session, and offers History or ending without restoring (`-Session Forget` on the command line).
+- Clicking a category in the Group Policy tree no longer re-indexes every policy.
 ### Fixed (section 2)
 
 - A second Apply click while the first apply was still starting could apply the same changes twice.

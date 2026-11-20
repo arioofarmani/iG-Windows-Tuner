@@ -420,3 +420,20 @@ function Initialize-IgwtUserHive {
         }
     }
 }
+
+function Get-IgwtUserHiveStatus {
+    <#
+    .SYNOPSIS
+        Whose per-user settings iG reads (G-03): Same (iG runs as the signed-in user), Mapped (another
+        administrator's account started iG; per-user settings are read from and written to the
+        signed-in user's hive) or Unavailable (that hive is not loaded, so per-user values shown are
+        the administrator's own). Read-only.
+    #>
+    [CmdletBinding()]
+    param()
+    $other = Get-IgwtOtherAdminElevation
+    if (-not $other) { return [pscustomobject]@{ State = 'Same'; Sid = '' } }
+    Initialize-IgwtUserHive
+    $state = $(if ([string]$script:IgwtSettings.UserHiveSid -eq [string]$other) { 'Mapped' } else { 'Unavailable' })
+    return [pscustomobject]@{ State = $state; Sid = [string]$other }
+}

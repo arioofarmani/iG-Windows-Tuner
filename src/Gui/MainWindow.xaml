@@ -98,6 +98,13 @@
                     <TextBlock x:Name="ReadOnlyBannerText" Text="Read-only mode" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
+            <!-- G-03: started with another administrator's account; whose per-user settings the pages show -->
+            <Border x:Name="UserHiveBanner" AutomationProperties.AutomationId="UserHiveBanner" AutomationProperties.Name="Per-user settings" Visibility="Collapsed" Background="{DynamicResource BrushWarningSoft}" BorderBrush="{DynamicResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE77B;" Foreground="{DynamicResource BrushWarning}" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="UserHiveBannerText" Text="" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
             <!-- Persistent restart / information banner -->
             <Border x:Name="Banner" Visibility="Collapsed" Background="{DynamicResource BrushWarningSoft}" BorderBrush="{DynamicResource BrushWarning}" BorderThickness="0,0,0,1" Padding="18,8">
                 <DockPanel>
@@ -236,6 +243,10 @@
                 <!-- 4.0 Home (D2, mockup 1): built in HomePage.ps1 from the 4.0 components -->
                 <ScrollViewer x:Name="PageHome" VerticalScrollBarVisibility="Auto" Visibility="Collapsed" AutomationProperties.AutomationId="PageHome">
                     <StackPanel x:Name="HomeHost" Margin="0,0,10,12" MaxWidth="1100" HorizontalAlignment="Left"/>
+                </ScrollViewer>
+                <!-- 4.0 History (D4, mockup 3): built in HistoryPage.ps1 from the change journal -->
+                <ScrollViewer x:Name="PageHistory" VerticalScrollBarVisibility="Auto" Visibility="Collapsed" AutomationProperties.AutomationId="PageHistory">
+                    <StackPanel x:Name="HistoryHost" Margin="0,0,10,12" MaxWidth="1100" HorizontalAlignment="Left"/>
                 </ScrollViewer>
                 <!-- 4.0 Optimize (D3, mockup 2): built in OptimizePage.ps1 -->
                 <Border x:Name="PageOptimize" Visibility="Collapsed" AutomationProperties.AutomationId="PageOptimize"/>
@@ -547,8 +558,8 @@
                 <!-- Presets -->
                 <ScrollViewer x:Name="PagePresets" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource TextTitle}" Text="Presets"/>
-                        <TextBlock Style="{StaticResource TextMuted}" Text="Choosing a preset stages only the changes that differ from your current state. Review them on the category pages (pending items are marked), untick anything you do not want, then Preview and Apply."/>
+                        <TextBlock Style="{StaticResource TextTitle}" Text="Play"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Preview a preset first: it shows what would change, by category. Staging adds only the changes that differ from your current state; Apply in the bar below makes them, and History can undo each one."/>
                         <Border x:Name="PresetDriftCard" Style="{StaticResource Card}" Margin="0,12,10,0" Visibility="Collapsed">
                             <DockPanel>
                                 <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
@@ -582,8 +593,8 @@
                                     <Border Style="{StaticResource Card}" Margin="0,0,10,10" Padding="16">
                                         <DockPanel LastChildFill="True">
                                             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
-                                                <Button Style="{StaticResource AccentButton}" Content="{Binding ButtonText}" Tag="{Binding Id}" ToolTip="Stage this preset's differences from your current state."/>
-                                                <Button Content="Compare..." Tag="{Binding CompareTag}" ToolTip="What this preset would change, by category: now and after, before anything is staged."/>
+                                                <Button Style="{StaticResource AccentButton}" Content="Preview" Tag="{Binding CompareTag}" AutomationProperties.Name="{Binding PreviewName}" ToolTip="What this preset would change, by category: now and after. Nothing is staged or changed."/>
+                                                <Button Content="{Binding ButtonText}" Tag="{Binding Id}" AutomationProperties.Name="{Binding StageName}" ToolTip="Stage this preset's differences from your current state; review them, then Apply in the bar below."/>
                                             </StackPanel>
                                             <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource TextMuted}" Text="{Binding Summary}" Margin="0,8,0,0"/>
                                             <StackPanel>

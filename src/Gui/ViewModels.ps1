@@ -120,6 +120,8 @@ function Get-IgwtGuiData {
         Snapshots  = @(Get-IgwtSnapshotList | Select-Object Path, File, Created, Operation, Detail, Applied, HasChange, @{ n = 'Count'; e = { @($_.Entries).Count } }, @{ n = 'Failed'; e = { @($_.Entries | Where-Object { $_.result -in 'Failed', 'RolledBack', 'NotApplied' }).Count } })
         Startup    = $startup
         Games      = @($ctx.Games)
+        # G-03: whose per-user settings these states are (the window says so when they are not the signed-in user's).
+        UserHive   = $(try { Get-IgwtUserHiveStatus } catch { [pscustomobject]@{ State = 'Same'; Sid = '' } })
         # Confidence badges (3.6, DECISIONS T8): sources, this PC's journal and the tested builds.
         Confidence = $(try { Get-IgwtConfidenceMap } catch { @{} })
     }

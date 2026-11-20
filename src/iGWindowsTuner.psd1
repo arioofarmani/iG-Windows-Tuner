@@ -40,7 +40,7 @@
         'Get-IgwtWingetAgreements', 'Test-IgwtWingetConsent', 'Set-IgwtWingetConsent', 'Get-IgwtWingetInventory', 'Invoke-IgwtToolkitApp', 'Invoke-IgwtWingetUpgradeAll', 'Export-IgwtAppSelection', 'Import-IgwtAppSelection',
         'Invoke-IgwtToolkitFeature', 'Invoke-IgwtToolkitFix', 'Start-IgwtPanel', 'Get-IgwtEditionFamily', 'Test-IgwtEditionSupported',
         'Save-IgwtCustomPreset', 'Copy-IgwtPreset', 'Remove-IgwtCustomPreset', 'Export-IgwtPreset', 'Import-IgwtPreset', 'Get-IgwtPresetDrift', 'Get-IgwtPresetRecord', 'Save-IgwtDriftAsPreset', 'Test-IgwtPresetDefinition',
-        'Get-IgwtSessionState', 'Get-IgwtSessionPlan', 'Get-IgwtSessionApps', 'Start-IgwtSession', 'Stop-IgwtSession', 'Close-IgwtSessionApps',
+        'Get-IgwtSessionState', 'Get-IgwtUserHiveStatus', 'Get-IgwtSessionPlan', 'Get-IgwtSessionApps', 'Start-IgwtSession', 'Stop-IgwtSession', 'Close-IgwtSessionApps',
         'Get-IgwtManagementState', 'Format-IgwtManagementState', 'Get-IgwtItemAuthority', 'Get-IgwtPersona', 'Set-IgwtPersona', 'Get-IgwtPersonaProfile',
         'Get-IgwtAdmxCatalog', 'Find-IgwtPolicy', 'Get-IgwtPolicyDefinition', 'Get-IgwtPolicyState', 'Get-IgwtPolicyChangePlan', 'Set-IgwtLocalPolicy', 'Get-IgwtTattooedPolicyValues', 'Read-IgwtRegistryPol', 'Write-IgwtRegistryPol',
         'Backup-IgwtLocalGpo', 'Restore-IgwtLocalGpo', 'Reset-IgwtLocalGpo', 'Get-IgwtLocalGpoResetPlan', 'Get-IgwtPolicyRegistryOps',

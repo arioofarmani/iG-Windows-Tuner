@@ -48,7 +48,8 @@
     Saves the drifted state as a custom preset with this name (the preset minus the changed items).
 .PARAMETER Session
     Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot,
-    Stop restores them, Status shows the session. -DryRun with Start shows the plan.
+    Stop restores them, Status shows the session. -DryRun with Start shows the plan. Forget ends a
+    session whose backup is gone without restoring anything (undo its changes in History first).
 .PARAMETER PolicySearch
     Searches every installed ADMX policy by name, explain text or registry path (words are ANDed).
     -PolicyClass Machine or User filters. Read-only; the first run parses the definitions (cached).
@@ -484,7 +485,7 @@ param(
     [string]$PresetPath,
     [switch]$Drift,
     [string]$AdoptDrift,
-    [ValidateSet('Start', 'Stop', 'Status')]
+    [ValidateSet('Start', 'Stop', 'Status', 'Forget')]
     [string]$Session,
     [switch]$CloseApps,
     [switch]$Platform,
@@ -2429,7 +2430,16 @@ try {
                     if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
                     $res = Stop-IgwtSession
                     Write-IgwtResult -Result $res
+                    if ($res.PSObject.Properties['NoBackup'] -and $res.NoBackup) { Write-IgwtCliLine $res.Message ([ConsoleColor]::Yellow) }
                     Complete-IgwtCli (Get-IgwtExitCode -Result $res)
+                }
+                'Forget' {
+                    if (-not (Get-IgwtSessionState).Active) { Write-IgwtCliLine 'No Session Mode session is active.' ([ConsoleColor]::Gray); exit 6 }
+                    if ($DryRun) { Write-IgwtCliLine 'Would end Session Mode without restoring any setting.'; exit 0 }
+                    if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+                    $res = Stop-IgwtSession -Forget
+                    Write-IgwtCliLine $res.Message
+                    exit 0
                 }
             }
         }

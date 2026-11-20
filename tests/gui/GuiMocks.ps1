@@ -557,6 +557,21 @@ function script:Get-IgwtJournalTimeline {
     [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 20; Sessions = 4; Baselines = 4; Tracked = 3; Rows = $rows }
 }
 
+function script:Get-IgwtRevertPlan {
+    # Demo revert plan for the demo journal: a Windows update removed the Game Mode value iG set (a conflict the
+    # user decides in the History card), AutoRun is still as iG set it, and the registry leftover can be put back.
+    param([string]$EntryId, [string]$SessionId, [switch]$All, $Journal)
+    $null = $EntryId, $All, $Journal
+    $reg = { param($v) if ($null -eq $v) { @{ exists = $false } } else { @{ exists = $true; kind = 'DWord'; value = $v } } }
+    $rows = @(
+        [pscustomobject]@{ Key = 'action|gfx.game-mode|0|registry'; Item = 'gfx.game-mode'; Session = 's1'; Step = 1; Target = @{ key = 'action|gfx.game-mode|0|registry'; provider = 'action' }; Before = (& $reg 0); WeSet = (& $reg 1); Applied = $null; Now = (& $reg $null); Status = 'Conflict'; Message = 'Changed since iG set it (by you, an app, a policy or Windows): choose to restore anyway, keep the current value, or skip.' }
+        [pscustomobject]@{ Key = 'action|sec.autorun-off|0|registry'; Item = 'sec.autorun-off'; Session = 's1'; Step = 2; Target = @{ key = 'action|sec.autorun-off|0|registry'; provider = 'action' }; Before = (& $reg $null); WeSet = (& $reg 255); Applied = $null; Now = (& $reg 255); Status = 'Ready'; Message = '' }
+        [pscustomobject]@{ Key = 'regclean|regKeyTree|HKLM|-|64|SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AdventureWorksTrial'; Item = 'regclean:uninstall'; Session = 's4'; Step = 1; Target = @{ key = 'regclean|regKeyTree|HKLM|-|64|SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AdventureWorksTrial'; provider = 'regClean' }; Before = @{ op = 'regKeyTree' }; WeSet = @{ exists = $false }; Applied = $null; Now = $null; Status = 'Ready'; Message = 'Restored from the snapshot or backup taken before this change; the module reads each value back.' }
+    )
+    if ($SessionId) { return @($rows | Where-Object { $_.Session -eq $SessionId }) }
+    return $rows
+}
+
 function script:Get-IgwtHomeCardInput {
     # Demo: Windows changed one setting iG set after a cumulative update; nothing else needs attention.
     param($Context)

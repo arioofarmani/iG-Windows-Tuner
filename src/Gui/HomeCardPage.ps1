@@ -115,7 +115,7 @@ function Invoke-IgwtGuiHomeAction {
     if (-not $card) { return }
     $in = $script:Gui.HomeInput
     switch ([string]$card.Action) {
-        'openJournal' { Select-IgwtGuiNavPage -Tag 'Backups'; $script:Gui.C.BackupTabs.SelectedItem = $script:Gui.C.BackupJournalTab }
+        'openJournal' { Select-IgwtGuiNavPage -Tag 'History' }
         'forensic' { Select-IgwtGuiNavPage -Tag 'Firewall'; $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwForensicTab }
         'presets' { Select-IgwtGuiNavPage -Tag 'Presets' }
         'unverified' { Select-IgwtGuiNavPage -Tag 'Presets'; Set-IgwtGuiStatus "Unverified in your preset: $(@($card.Items) -join ', '). Customize the preset to leave them out." }
