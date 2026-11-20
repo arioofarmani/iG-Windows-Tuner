@@ -166,3 +166,28 @@ Describe '3.9 B4: firewall profile undo returns to NotConfigured (review FW-2)' 
         }
     }
 }
+
+Describe '3.9 B4: elevated with another administrator, per-user work is refused (review OS-1)' {
+    AfterEach { InModuleScope iGWindowsTuner { $script:IgwtTestOtherAdmin = '' } }
+    It 'refuses app changes and app restores, and lets them run for the signed-in user' {
+        InModuleScope iGWindowsTuner {
+            $a = [pscustomobject]@{ type = 'appx'; package = 'Microsoft.BingNews'; on = 'Removed'; default = 'Installed' }
+            Mock Get-IgwtAppxInfo { [pscustomobject]@{ Installed = $true; FullName = 'x'; InstallLocation = '' } }
+            Mock Remove-AppxPackage { }
+            $script:IgwtTestOtherAdmin = 'S-1-5-21-1-2-3-1001'
+            { Invoke-IgwtAppxApply -Action $a -Confirm:$false } | Should -Throw '*another administrator*'
+            { Restore-IgwtAppxSnapshot -Action $a -Snapshot ([pscustomobject]@{ installed = $true; installLocation = '' }) -Confirm:$false } | Should -Throw '*another administrator*'
+            Should -Invoke Remove-AppxPackage -Times 0 -Exactly
+            $script:IgwtTestOtherAdmin = ''
+            { Invoke-IgwtAppxApply -Action $a -Confirm:$false } | Should -Not -Throw
+        }
+    }
+    It 'refuses a clean that includes per-user rules' {
+        InModuleScope iGWindowsTuner {
+            $script:IgwtTestOtherAdmin = 'S-1-5-21-1-2-3-1001'
+            Mock Get-IgwtCleanerRule { [pscustomobject]@{ id = 'clean.user-temp'; name = 'User temporary files'; method = 'delete'; roots = @('%TEMP%'); userDataRoots = @(); recycle = $false } }
+            $scan = [pscustomobject]@{ Rules = @([pscustomobject]@{ RuleId = 'clean.user-temp'; Method = 'delete' }); AllUsers = $false }
+            { Invoke-IgwtCleanerClean -Scan $scan -Confirm:$false } | Should -Throw '*another administrator*'
+        }
+    }
+}

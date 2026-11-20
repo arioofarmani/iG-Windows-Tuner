@@ -356,6 +356,36 @@ function Get-IgwtInteractiveUserSid {
     }
 }
 
+function Get-IgwtOtherAdminElevation {
+    <#
+    .SYNOPSIS
+        The signed-in user's SID when iG runs elevated with another administrator's account
+        (over-the-shoulder UAC), else ''. Per-user work (apps, user caches, winget) would then land
+        in the other account's profile, so it is refused (review 3.8.1 OS-1). Cached per process;
+        in test mode it returns $script:IgwtTestOtherAdmin. Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    if ($script:IgwtSettings.TestMode) { return [string]$script:IgwtTestOtherAdmin }
+    if ($null -ne $script:IgwtOtherAdminCache) { return $script:IgwtOtherAdminCache }
+    $script:IgwtOtherAdminCache = ''
+    try {
+        $current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $interactive = Get-IgwtInteractiveUserSid
+        if ($interactive -and $interactive -ne $current) { $script:IgwtOtherAdminCache = [string]$interactive }
+    } catch { Write-Verbose "Signed-in user not read: $($_.Exception.Message)" }
+    return $script:IgwtOtherAdminCache
+}
+
+function Assert-IgwtSameUser {
+    <# .SYNOPSIS Throws when iG runs elevated as another administrator and the operation acts on the user's own profile (OS-1). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Operation)
+    $other = Get-IgwtOtherAdminElevation
+    if ($other) { throw "$Operation works on the signed-in user's own profile, but iG was started with another administrator's account. Sign in as that administrator, or let the signed-in user start iG as administrator; nothing was changed." }
+}
+
 function Initialize-IgwtUserHive {
     <#
     .SYNOPSIS
