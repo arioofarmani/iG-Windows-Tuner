@@ -111,3 +111,39 @@ Describe '3.9 B4: the Recycle Bin is never overfilled by one clean (review CLN-1
         }
     }
 }
+
+Describe '3.9 B4: firewall rule definitions keep every narrowing filter (review FW-1)' {
+    It 'captures ICMP types, interface aliases, the security filter and mappings, and passes them back' {
+        InModuleScope iGWindowsTuner {
+            $rule = [pscustomobject]@{ Name = 'r1'; DisplayName = 'Ping from LAN'; Description = ''; Group = ''; Enabled = 'True'; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Private'; EdgeTraversalPolicy = 'Block'; Owner = ''; LooseSourceMapping = $true; LocalOnlyMapping = $false; Platform = @('10.0') }
+            Mock Get-NetFirewallRule { $rule }
+            Mock Get-NetFirewallApplicationFilter { [pscustomobject]@{ Program = 'Any'; Package = '' } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallPortFilter { [pscustomobject]@{ Protocol = 'ICMPv4'; LocalPort = 'Any'; RemotePort = 'Any'; IcmpType = @('8') } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallAddressFilter { [pscustomobject]@{ LocalAddress = 'Any'; RemoteAddress = 'LocalSubnet' } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallServiceFilter { [pscustomobject]@{ Service = 'Any' } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallInterfaceTypeFilter { [pscustomobject]@{ InterfaceType = 'Any' } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallInterfaceFilter { [pscustomobject]@{ InterfaceAlias = @('Ethernet') } } -RemoveParameterType AssociatedNetFirewallRule
+            Mock Get-NetFirewallSecurityFilter { [pscustomobject]@{ Authentication = 'Required'; Encryption = 'NotRequired'; OverrideBlockRules = $false; LocalUser = 'Any'; RemoteUser = 'O:LSD:(A;;CC;;;S-1-5-21-1-2-3-1001)'; RemoteMachine = 'Any' } } -RemoveParameterType AssociatedNetFirewallRule
+            $d = Get-IgwtFirewallRuleDefinition -Name 'r1'
+            @($d.icmpType) | Should -Be @('8')
+            @($d.interfaceAlias) | Should -Be @('Ethernet')
+            $d.authentication | Should -Be 'Required'
+            $p = ConvertTo-IgwtFirewallRuleParameters -Definition $d
+            @($p.IcmpType) | Should -Be @('8')
+            @($p.InterfaceAlias) | Should -Be @('Ethernet')
+            $p.Authentication | Should -Be 'Required'
+            $p.ContainsKey('Encryption') | Should -BeFalse -Because 'NotRequired is the default'
+            $p.RemoteUser | Should -BeLike 'O:LSD:*'
+            $p.LooseSourceMapping | Should -BeTrue
+            @($p.Platform) | Should -Be @('10.0')
+            @(Test-IgwtFirewallRuleDefinition -Definition $d).Count | Should -Be 0
+        }
+    }
+    It 'a definition written before 3.9 gives exactly the parameters it gave before' {
+        InModuleScope iGWindowsTuner {
+            $old = [ordered]@{ name = 'r2'; displayName = 'Game'; description = ''; group = ''; enabled = $true; direction = 'Inbound'; action = 'Allow'; profile = 'Private'; edgeTraversal = 'Block'; owner = ''; program = 'C:\g.exe'; package = ''; service = 'Any'; protocol = 'UDP'; localPort = @('27015'); remotePort = @(); localAddress = @(); remoteAddress = @(); interfaceType = 'Any' }
+            $p = ConvertTo-IgwtFirewallRuleParameters -Definition $old
+            foreach ($k in 'IcmpType', 'InterfaceAlias', 'Authentication', 'Encryption', 'OverrideBlockRules', 'LocalUser', 'RemoteUser', 'RemoteMachine', 'LooseSourceMapping', 'LocalOnlyMapping', 'Platform') { $p.ContainsKey($k) | Should -BeFalse -Because $k }
+        }
+    }
+}

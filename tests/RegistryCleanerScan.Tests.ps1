@@ -732,7 +732,7 @@ Describe 'Registry cleaner scan (RG2, RG3, RG10, RG15, RG17, RG22, RG32, RG33)' 
         Mock Get-IgwtRegCleanExclusions -ModuleName iGWindowsTuner { $script:Exclusions }
         Mock Get-IgwtInteractiveUserSid -ModuleName iGWindowsTuner { 'S-1-5-21-1-2-3-1001' }
         Mock Test-IgwtIsAdmin -ModuleName iGWindowsTuner { $true }
-        Mock Get-NetFirewallRule -ModuleName iGWindowsTuner { if ($Name) { @($script:FwRules | Where-Object { $_.Name -eq $Name }) } else { $script:FwRules } }
+        Mock Get-NetFirewallRule -ModuleName iGWindowsTuner { if ($PesterBoundParameters.ContainsKey('Name')) { @($script:FwRules | Where-Object { $_.Name -eq $Name }) } else { $script:FwRules } }
         Mock Get-NetFirewallApplicationFilter -ModuleName iGWindowsTuner { $script:FwFilters }
         Mock Get-ScheduledTask -ModuleName iGWindowsTuner { $script:Tasks }
         Mock Get-IgwtFirewallInventory -ModuleName iGWindowsTuner { throw 'the scan must not use the firewall inventory' }

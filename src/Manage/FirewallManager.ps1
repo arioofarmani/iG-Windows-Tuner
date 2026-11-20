@@ -569,7 +569,19 @@ function Get-IgwtFirewallRuleDefinition {
     $ad = $r | Get-NetFirewallAddressFilter -ErrorAction SilentlyContinue
     $s = $r | Get-NetFirewallServiceFilter -ErrorAction SilentlyContinue
     $i = $r | Get-NetFirewallInterfaceTypeFilter -ErrorAction SilentlyContinue
-    return [ordered]@{
+    # Every filter that narrows a rule, so a restored rule is never broader than the one deleted (review 3.8.1 FW-1).
+    $ia = $r | Get-NetFirewallInterfaceFilter -ErrorAction SilentlyContinue
+    $sf = $r | Get-NetFirewallSecurityFilter -ErrorAction SilentlyContinue
+    $extra = [ordered]@{
+        icmpType = @($(if ($p) { $p.IcmpType }) | Where-Object { $_ -and "$_" -ne 'Any' } | ForEach-Object { [string]$_ })
+        interfaceAlias = @($(if ($ia) { $ia.InterfaceAlias }) | Where-Object { $_ -and "$_" -ne 'Any' } | ForEach-Object { [string]$_ })
+        authentication = $(if ($sf) { [string]$sf.Authentication } else { '' }); encryption = $(if ($sf) { [string]$sf.Encryption } else { '' })
+        overrideBlockRules = [bool]($sf -and $sf.OverrideBlockRules)
+        localUser = $(if ($sf) { [string]$sf.LocalUser } else { '' }); remoteUser = $(if ($sf) { [string]$sf.RemoteUser } else { '' }); remoteMachine = $(if ($sf) { [string]$sf.RemoteMachine } else { '' })
+        looseSourceMapping = [bool]$r.LooseSourceMapping; localOnlyMapping = [bool]$r.LocalOnlyMapping
+        platform = @($r.Platform | Where-Object { $_ } | ForEach-Object { [string]$_ })
+    }
+    $def = [ordered]@{
         name = [string]$r.Name; displayName = [string]$r.DisplayName; description = [string]$r.Description; group = [string]$r.Group
         enabled = ([string]$r.Enabled -eq 'True'); direction = [string]$r.Direction; action = [string]$r.Action; profile = [string]$r.Profile
         edgeTraversal = [string]$r.EdgeTraversalPolicy; owner = [string]$r.Owner
@@ -579,6 +591,8 @@ function Get-IgwtFirewallRuleDefinition {
         localAddress = @($(if ($ad) { $ad.LocalAddress })); remoteAddress = @($(if ($ad) { $ad.RemoteAddress }))
         interfaceType = $(if ($i) { [string]$i.InterfaceType } else { 'Any' })
     }
+    foreach ($k in $extra.Keys) { $def[$k] = $extra[$k] }
+    return $def
 }
 
 function Test-IgwtFirewallRuleDefinition {
@@ -665,6 +679,21 @@ function ConvertTo-IgwtFirewallRuleParameters {
         if ($v.Count) { $p[$k[1]] = $v }
     }
     $it = [string](& $get 'interfaceType'); if ($it) { $p.InterfaceType = $it }
+    # Narrowing filters (review 3.8.1 FW-1): passed only when they differ from the default, so a snapshot
+    # written before 3.9 (without these keys) restores exactly as it did.
+    $icmp = @(& $get 'icmpType' | Where-Object { $_ -and "$_" -ne 'Any' } | ForEach-Object { [string]$_ })
+    if ($icmp.Count -and $proto -in 'ICMPv4', 'ICMPv6') { $p.IcmpType = $icmp }
+    $alias = @(& $get 'interfaceAlias' | Where-Object { $_ -and "$_" -ne 'Any' } | ForEach-Object { [string]$_ })
+    if ($alias.Count) { $p.InterfaceAlias = $alias }
+    $auth = [string](& $get 'authentication'); if ($auth -and $auth -ne 'NotRequired') { $p.Authentication = $auth }
+    $enc = [string](& $get 'encryption'); if ($enc -and $enc -ne 'NotRequired') { $p.Encryption = $enc }
+    if ([bool](& $get 'overrideBlockRules')) { $p.OverrideBlockRules = $true }
+    foreach ($k in @(@('localUser', 'LocalUser'), @('remoteUser', 'RemoteUser'), @('remoteMachine', 'RemoteMachine'))) {
+        $v = [string](& $get $k[0]); if ($v -and $v -ne 'Any') { $p[$k[1]] = $v }
+    }
+    if ([bool](& $get 'looseSourceMapping')) { $p.LooseSourceMapping = $true }
+    if ([bool](& $get 'localOnlyMapping')) { $p.LocalOnlyMapping = $true }
+    $plat = @(& $get 'platform' | Where-Object { $_ } | ForEach-Object { [string]$_ }); if ($plat.Count) { $p.Platform = $plat }
     return $p
 }
 
