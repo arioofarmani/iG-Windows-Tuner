@@ -103,7 +103,7 @@ Describe 'Defender & Security Control Center' {
     Context 'Exclusions audit' {
         It 'rates risky exclusions' {
             $cases = @(
-                @('Path', 'C:\', 'High'), @('Path', 'C:\*', 'High'), @('Path', '%TEMP%\x', 'High'), @('Path', 'C:\Users\ario\Downloads', 'High'), @('Path', 'C:\Users\ario\AppData\Local\Game', 'High'),
+                @('Path', 'C:\', 'High'), @('Path', 'C:\*', 'High'), @('Path', '%TEMP%\x', 'High'), @('Path', 'C:\Users\player\Downloads', 'High'), @('Path', 'C:\Users\player\AppData\Local\Game', 'High'),
                 @('Process', 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe', 'High'), @('Process', 'mshta.exe', 'High'), @('Extension', '.exe', 'High'), @('Extension', 'ps1', 'High'),
                 @('IpAddress', '0.0.0.0/0', 'High'), @('IpAddress', '10.0.0.0/20', 'Medium'), @('Path', '\\nas\share', 'Medium'), @('Path', 'D:\Games\SteamLibrary\steamapps\common\Game\cache', 'Low'), @('Extension', 'vhdx', 'Low'))
             foreach ($c in $cases) { (InModuleScope iGWindowsTuner -Parameters @{ K = $c[0]; V = $c[1] } { param($K, $V) Test-IgwtExclusionRisk -Kind $K -Value $V }).Severity | Should -Be $c[2] -Because "$($c[0]) $($c[1])" }
@@ -172,7 +172,7 @@ Describe 'Defender & Security Control Center' {
         }
         It 'joins detections with threats, newest first' {
             Mock -ModuleName iGWindowsTuner Get-MpThreat { @([pscustomobject]@{ ThreatID = 7; ThreatName = 'PUA:Win32/Test'; SeverityID = 1; IsActive = $false }) }
-            Mock -ModuleName iGWindowsTuner Get-MpThreatDetection { @([pscustomobject]@{ ThreatID = 7; InitialDetectionTime = (Get-Date).AddDays(-1); Resources = @('file:_C:\x.exe'); ProcessName = 'explorer.exe'; DomainUser = 'PC\ario'; ThreatStatusID = 3; ActionSuccess = $true }, [pscustomobject]@{ ThreatID = 7; InitialDetectionTime = (Get-Date).AddDays(-40); Resources = @(); ProcessName = ''; DomainUser = ''; ThreatStatusID = 3; ActionSuccess = $true }) }
+            Mock -ModuleName iGWindowsTuner Get-MpThreatDetection { @([pscustomobject]@{ ThreatID = 7; InitialDetectionTime = (Get-Date).AddDays(-1); Resources = @('file:_C:\x.exe'); ProcessName = 'explorer.exe'; DomainUser = 'PC\player'; ThreatStatusID = 3; ActionSuccess = $true }, [pscustomobject]@{ ThreatID = 7; InitialDetectionTime = (Get-Date).AddDays(-40); Resources = @(); ProcessName = ''; DomainUser = ''; ThreatStatusID = 3; ActionSuccess = $true }) }
             $t = @(InModuleScope iGWindowsTuner { Get-IgwtDefenderThreats })
             $t.Count | Should -Be 2; $t[0].Threat | Should -Be 'PUA:Win32/Test'; $t[0].Severity | Should -Be 'Low'
             @(InModuleScope iGWindowsTuner { Get-IgwtDefenderThreats -Days 30 }).Count | Should -Be 1

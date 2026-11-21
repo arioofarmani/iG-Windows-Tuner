@@ -105,7 +105,7 @@ Nothing outside the project was deleted. The session scratch folder `%TEMP%\clau
 - **v3.4.0 tag**: unchanged and local only, as you decided on 30 October (never pushed). Nothing to do unless you want it deleted.
 - **Unverified items**: sec.lolbin-outbound-block (MITRE only) and system.bsod-details (WinUtil only) stay Unverified unless a Microsoft source is added.
 - **To push and publish** (from a terminal with your GitHub credentials, or GitHub Desktop):
-  1. `git -C "C:\IntelGates Tune\iGWindowsTuner" push origin main`
-  2. `git -C "C:\IntelGates Tune\iGWindowsTuner" push origin v3.5.0 v3.6.0` (3.5.0 was never published either; push only the tags you want public)
+  1. `git push origin main`
+  2. `git push origin v3.5.0 v3.6.0` (3.5.0 was never published either; push only the tags you want public)
   3. On GitHub: Releases > Draft a new release > choose tag v3.6.0, title "iG Windows Tuner 3.6.0", paste `release-notes.md`, attach `dist\iGWindowsTuner-3.6.0.zip` and `dist\iGWindowsTuner-3.6.0.zip.sha256`, publish.
   4. Optionally delete the merged branch: `git branch -d feature/3.6-transactions`.

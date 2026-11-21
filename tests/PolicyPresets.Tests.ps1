@@ -31,8 +31,8 @@ Describe 'Policy presets' {
         Mock -ModuleName iGWindowsTuner Get-MpPreference { [pscustomobject]@{ DisableDnsParsing = $false; DisableQuicParsing = $true; EnableDnsSinkhole = $true } }
         Mock -ModuleName iGWindowsTuner Set-MpPreference { }
         Mock -ModuleName iGWindowsTuner Get-IgwtOsInfo { [pscustomobject]@{ EditionId = 'Professional'; Build = 26300 } }
-        Mock -ModuleName iGWindowsTuner Get-IgwtCurrentIdentity { [pscustomobject]@{ Name = 'PC\ario'; Sid = 'S-1-5-21-1-2-3-1001'; GroupSids = @('S-1-5-32-544', 'S-1-5-32-545'); IsRemote = $false } }
-        Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'ario'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-3) }, [pscustomobject]@{ Name = 'admin2'; Sid = 'S-1-5-21-1-2-3-1002'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtCurrentIdentity { [pscustomobject]@{ Name = 'PC\player'; Sid = 'S-1-5-21-1-2-3-1001'; GroupSids = @('S-1-5-32-544', 'S-1-5-32-545'); IsRemote = $false } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'player'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-3) }, [pscustomobject]@{ Name = 'admin2'; Sid = 'S-1-5-21-1-2-3-1002'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }
         # Simulated secedit and auditpol.
         $script:SecDb = InModuleScope iGWindowsTuner -Parameters @{ T = $script:BaseInf } { param($T) ConvertFrom-IgwtSecurityInf -Text $T }
         Mock -ModuleName iGWindowsTuner Invoke-IgwtSecedit {
@@ -163,7 +163,7 @@ Describe 'Policy presets' {
         }
         It 'refuses the whole preset when a lockout safeguard fires and writes nothing' {
             if (-not $script:HaveAdmx) { Set-ItResult -Skipped -Because 'no PolicyDefinitions'; return }
-            Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'ario'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }
+            Mock -ModuleName iGWindowsTuner Get-IgwtLocalAccountAudit { [pscustomobject]@{ Readable = $true; AdminsKnown = $true; Accounts = @([pscustomobject]@{ Name = 'player'; Sid = 'S-1-5-21-1-2-3-1001'; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date) }) } }
             $script:SecDb['System Access']['LockoutDuration'] = '0'
             $null = InModuleScope iGWindowsTuner { $script:IgwtPolicyPresets = $null }
             # credentials-hardening sets duration 10, so it passes; a preset copy with duration 0 must be refused.

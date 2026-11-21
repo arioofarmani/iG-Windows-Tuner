@@ -231,7 +231,7 @@ Describe 'Forensic logging' {
     }
 }
 
-Describe 'Forensic logging window (Ario 2026-10-30: second Start while a session runs)' {
+Describe 'Forensic logging window (Player 2026-10-30: second Start while a session runs)' {
     It 'shows the job''s own message, not the EndInvoke wrapper' {
         $ps = [powershell]::Create().AddScript('throw "A forensic logging session is already recorded. Stop and restore it first."')
         try { $null = $ps.Invoke(); $msg = 'no error' } catch { $msg = InModuleScope iGWindowsTuner -Parameters @{ E = $_.Exception } { param($E) Get-IgwtGuiJobErrorText -Exception $E } } finally { $ps.Dispose() }
