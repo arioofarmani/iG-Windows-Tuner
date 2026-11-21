@@ -540,6 +540,9 @@ function Invoke-IgwtRegCleanProviderSet {
     $now = Get-IgwtRegCleanTargetSnapshot -Resolved $Resolved
     if (-not [bool]$now['exists']) { throw 'Refused: the entry no longer exists; nothing changed.' }
     if (-not (Test-IgwtRegCleanSnapshotEqual -Left $now -Right $before)) { throw 'Refused: changed since the preview; nothing changed.' }
+    # (c2) Review RC-3: compared with what the preview itself showed, not only with the step's Get.
+    if (-not $finding.PSObject.Properties['PreviewDigest'] -or -not [string]$finding.PreviewDigest) { throw 'Refused: the plan does not record what the preview showed; preview again. Nothing changed.' }
+    if ((ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $now)) -ne [string]$finding.PreviewDigest) { throw 'Refused: changed since the preview; nothing changed.' }
     $security = [ordered]@{ owner = ''; sddl = '' }
     switch ($Resolved.Kind) {
         'regKeyTree' {

@@ -14,7 +14,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $root 'src\iGWindowsTuner.psd1') -Force
 $docs = Join-Path $root 'docs'
 $catalog = @(Get-IgwtCatalog -Force)
-$presets = @(Get-IgwtPreset)
+$presets = @(Get-IgwtPreset -Builtin)   # never this PC's custom presets (review T-01)
 $rejected = @(Get-IgwtRejectedTweaks)
 $categories = @('Power & CPU', 'Graphics & Display', 'Input', 'Network', 'Background & Privacy', 'Storage', 'Security', 'System', 'Risk Zone')
 $nl = "`r`n"

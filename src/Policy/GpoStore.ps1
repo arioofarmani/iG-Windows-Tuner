@@ -19,10 +19,10 @@ function Get-IgwtGpoRoot {
     param([switch]$Users)
     if ($Users) {
         if ($script:IgwtSettings.GpoUsersRoot) { return [string]$script:IgwtSettings.GpoUsersRoot }
-        return (Join-Path $env:SystemRoot 'System32\GroupPolicyUsers')
+        return (Join-Path $env:SystemRoot "$(Get-IgwtSystemFolderName)\GroupPolicyUsers")
     }
     if ($script:IgwtSettings.GpoRoot) { return [string]$script:IgwtSettings.GpoRoot }
-    return (Join-Path $env:SystemRoot 'System32\GroupPolicy')
+    return (Join-Path $env:SystemRoot "$(Get-IgwtSystemFolderName)\GroupPolicy")
 }
 
 function Get-IgwtLocalPolPath {
@@ -133,11 +133,12 @@ function Backup-IgwtLocalGpo {
         data root, with a manifest of every file's SHA256. Returns the backup folder.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([string]$Reason = 'before a Group Policy change')
+    param([string]$Reason = 'before a Group Policy change', [switch]$NoUndoRef)
     Assert-IgwtWritable -Operation 'Backup-IgwtLocalGpo'
     $dest = Join-Path (Get-IgwtDataPath -Kind Backups) ("gpo-{0}" -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'))
     # The undo reference of a journaled change, recorded before anything changes (review 3.6 R8).
-    Set-IgwtModuleOperationRef -Path $dest
+    # -NoUndoRef: a safety copy inside a restore, which must not become the restore's own undo reference.
+    if (-not $NoUndoRef) { Set-IgwtModuleOperationRef -Path $dest }
     if (-not $PSCmdlet.ShouldProcess($dest, 'Back up the Local Group Policy')) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }
     $null = New-Item -ItemType Directory -Path $dest -Force
@@ -160,6 +161,105 @@ function Backup-IgwtLocalGpo {
     return $dest
 }
 
+function Get-IgwtSystemFolderName {
+    <#
+    .SYNOPSIS
+        System32, or Sysnative in a 32-bit PowerShell on 64-bit Windows, where System32\GroupPolicy is
+        redirected to the SysWOW64 copy that Windows ignores (review P-31). Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([bool]$Is64BitProcess = [Environment]::Is64BitProcess, [bool]$Is64BitOs = [Environment]::Is64BitOperatingSystem)
+    if ($Is64BitOs -and -not $Is64BitProcess) { return 'Sysnative' }
+    return 'System32'
+}
+
+function Resolve-IgwtGpoBackupFile {
+    <#
+    .SYNOPSIS
+        The source and target path of one manifest file, after checking that the folder is GroupPolicy
+        or GroupPolicyUsers and that neither path leaves its folder (review P-03). Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$BackupPath, [Parameter(Mandatory = $true)]$File)
+    $folder = [string]$File.folder
+    if ($folder -notin 'GroupPolicy', 'GroupPolicyUsers') { throw "Backup manifest names the folder '$folder'; only GroupPolicy and GroupPolicyUsers can be restored. Nothing was restored." }
+    $srcRoot = [System.IO.Path]::GetFullPath((Join-Path $BackupPath $folder)).TrimEnd('\')
+    $dstRoot = [System.IO.Path]::GetFullPath($(if ($folder -eq 'GroupPolicy') { Get-IgwtGpoRoot } else { Get-IgwtGpoRoot -Users })).TrimEnd('\')
+    $from = [System.IO.Path]::GetFullPath((Join-Path $srcRoot ([string]$File.path)))
+    $to = [System.IO.Path]::GetFullPath((Join-Path $dstRoot ([string]$File.path)))
+    foreach ($pair in @(@($from, $srcRoot), @($to, $dstRoot))) {
+        if (-not $pair[0].StartsWith($pair[1] + '\', [System.StringComparison]::OrdinalIgnoreCase)) { throw "Backup manifest path '$($File.path)' leaves its folder. Nothing was restored." }
+    }
+    Assert-IgwtGpoPathAllowed -Path $to
+    return [pscustomobject]@{ From = $from; To = $to; Folder = $folder }
+}
+
+function Copy-IgwtGpoBackupFiles {
+    <# .SYNOPSIS Replaces the Local GPO folders with the files of a checked backup manifest. #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param([Parameter(Mandatory = $true)][string]$BackupPath, [Parameter(Mandatory = $true)]$Manifest)
+    $files = @(@($Manifest.files) | ForEach-Object { Resolve-IgwtGpoBackupFile -BackupPath $BackupPath -File $_ })
+    foreach ($root in @((Get-IgwtGpoRoot), (Get-IgwtGpoRoot -Users))) {
+        Assert-IgwtGpoPathAllowed -Path $root
+        if ((Test-Path -LiteralPath $root) -and $PSCmdlet.ShouldProcess($root, 'Empty')) { Get-ChildItem -LiteralPath $root -Force | Remove-Item -Recurse -Force -ErrorAction Stop }
+    }
+    foreach ($f in $files) {
+        if (-not $PSCmdlet.ShouldProcess($f.To, 'Copy from the backup')) { continue }
+        $null = New-Item -ItemType Directory -Path (Split-Path -Parent $f.To) -Force
+        Copy-Item -LiteralPath $f.From -Destination $f.To -Force -ErrorAction Stop
+    }
+}
+
+function Get-IgwtGpoRestoreConflict {
+    <#
+    .SYNOPSIS
+        Why restoring a whole-folder backup would also undo later changes, or '' (review P-23): every
+        iG Group Policy writer backs the folders up first, so the folders must still match the next
+        backup taken after this one (later changes already undone), and no Security Settings change
+        written to Registry.pol after it may still be in place. Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][string]$BackupPath, [Parameter(Mandatory = $true)]$Manifest)
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $created = [datetime]::MinValue
+    if (-not [datetime]::TryParse([string]$Manifest.created, $inv, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$created)) { return '' }
+    $self = [System.IO.Path]::GetFullPath($BackupPath).TrimEnd('\')
+    $next = $null
+    foreach ($d in @(Get-ChildItem -LiteralPath (Split-Path -Parent $self) -Directory -Filter 'gpo-*' -ErrorAction SilentlyContinue)) {
+        if ([string]::Equals($d.FullName.TrimEnd('\'), $self, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        $mf = Join-Path $d.FullName 'manifest.json'
+        if (-not (Test-Path -LiteralPath $mf)) { continue }
+        try { $o = Read-IgwtJsonFile -Path $mf } catch { continue }
+        if ([string]$o.kind -ne 'igwt-gpo-backup' -or [string]$o.reason -like 'before a restore*') { continue }
+        $c = [datetime]::MinValue
+        if (-not [datetime]::TryParse([string]$o.created, $inv, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$c) -or $c -le $created) { continue }
+        if (-not $next -or $c -lt $next.Created) { $next = [pscustomobject]@{ Path = $d.FullName; Created = $c; Files = @($o.files) } }
+    }
+    if ($next) {
+        $want = @($next.Files | ForEach-Object { "$($_.folder)|$($_.path)|$($_.sha256)".ToLowerInvariant() } | Sort-Object)
+        $have = @($(foreach ($pair in @(@('GroupPolicy', (Get-IgwtGpoRoot)), @('GroupPolicyUsers', (Get-IgwtGpoRoot -Users)))) {
+                if (-not (Test-Path -LiteralPath $pair[1])) { continue }
+                foreach ($f in @(Get-ChildItem -LiteralPath $pair[1] -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+                    "$($pair[0])|$($f.FullName.Substring($pair[1].TrimEnd('\').Length + 1))|$((Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash)".ToLowerInvariant()
+                }
+            }) | Sort-Object)
+        if (($want -join "`n") -ne ($have -join "`n")) { return "The Local Group Policy was changed after this change (backup $(Split-Path -Leaf $next.Path)), and restoring would undo those later changes too. Undo the later Group Policy changes first, newest first." }
+    }
+    try {
+        $j = Read-IgwtJournal
+        foreach ($k in @($j.Last.Keys)) {
+            $e = $j.Last[$k]
+            if ([string]$e['kind'] -ne 'committed' -or [string]$e['op'] -ne 'change' -or [string]$e['target']['provider'] -ne 'localPolicy') { continue }
+            $ts = [datetime]::MinValue
+            if ([datetime]::TryParse([string]$e['tsUtc'], $inv, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$ts) -and $ts.ToUniversalTime() -gt $created.ToUniversalTime()) {
+                return "A Security Settings change made after this change ('$($e['item'])') is still in place, and restoring the whole Local Group Policy would undo it. Undo it in History first."
+            }
+        }
+    } catch { Write-Verbose "Journal not read for the restore order check: $($_.Exception.Message)" }
+    return ''
+}
 function Restore-IgwtLocalGpo {
     <#
     .SYNOPSIS
@@ -178,18 +278,22 @@ function Restore-IgwtLocalGpo {
         $p = Join-Path (Join-Path $BackupPath ([string]$f.folder)) ([string]$f.path)
         if (-not (Test-Path -LiteralPath $p) -or (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash -ne [string]$f.sha256) { throw "Backup file $($f.folder)\$($f.path) is missing or was changed; nothing was restored." }
     }
+    # P-03: every file stays inside its backup folder and its target folder (the manifest sits next to the data).
+    foreach ($f in @($m.files)) { $null = Resolve-IgwtGpoBackupFile -BackupPath $BackupPath -File $f }
+    # P-23: the backup holds the whole folders, so an older change is undone only after the newer ones.
+    $later = Get-IgwtGpoRestoreConflict -BackupPath $BackupPath -Manifest $m
+    if ($later) { throw "$later Nothing was restored." }
     if (-not $PSCmdlet.ShouldProcess('Local Group Policy', "Restore from $BackupPath")) { return $null }
-    foreach ($pair in @(@('GroupPolicy', (Get-IgwtGpoRoot)), @('GroupPolicyUsers', (Get-IgwtGpoRoot -Users)))) {
-        $root = $pair[1]
-        Assert-IgwtGpoPathAllowed -Path $root
-        if (Test-Path -LiteralPath $root) { Get-ChildItem -LiteralPath $root -Force | Remove-Item -Recurse -Force }
-        foreach ($f in @($m.files | Where-Object { [string]$_.folder -eq $pair[0] })) {
-            $to = Join-Path $root ([string]$f.path)
-            $null = New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force
-            Copy-Item -LiteralPath (Join-Path (Join-Path $BackupPath $pair[0]) ([string]$f.path)) -Destination $to -Force
-        }
+    # P-04: a safety copy first; when the restore fails part-way, the folders are put back as they were.
+    $pre = Backup-IgwtLocalGpo -Reason 'before a restore' -NoUndoRef -Confirm:$false
+    try { Copy-IgwtGpoBackupFiles -BackupPath $BackupPath -Manifest $m }
+    catch {
+        $why = $_.Exception.Message
+        try { Copy-IgwtGpoBackupFiles -BackupPath $pre -Manifest (Read-IgwtJsonFile -Path (Join-Path $pre 'manifest.json')) }
+        catch { throw "Restoring the Local Group Policy failed ($why), and putting it back also failed ($($_.Exception.Message)). Its state before the restore is in $pre." }
+        throw "Restoring the Local Group Policy failed ($why); it was put back as it was before the restore."
     }
-    Write-IgwtLog -Message "Local Group Policy restored from $BackupPath"
+    Write-IgwtLog -Message "Local Group Policy restored from $BackupPath (safety copy $pre)"
     if (-not $NoRefresh) { Invoke-IgwtGpUpdate -Target Both }
     return [pscustomobject]@{ Restored = $BackupPath; Files = @($m.files).Count }
 }

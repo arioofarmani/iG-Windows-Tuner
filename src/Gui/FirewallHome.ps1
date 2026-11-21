@@ -100,7 +100,7 @@ function Update-IgwtGuiFirewallOverview {
     $c.FwOvAttentionTitle.Text = $(if ($n) { "$n rule$(if ($n -ne 1) { 's' }) need$(if ($n -eq 1) { 's' }) attention" } else { 'Nothing needs attention' })
     $c.FwOvAttentionIcon.Text = $(if ($n) { [string][char]0xE7BA } else { [string][char]0xE73E })
     $c.FwOvAttentionIcon.Foreground = Get-IgwtGuiToneBrush -Tone $(if ($n) { 'Warn' } else { 'Pass' })
-    $c.FwOvAttentionText.Text = $(if ($n) { "$($s.Severity.Critical) critical and $($s.Severity.High) high-severity finding(s)$(if ($s.Exposed) { "; $($s.Exposed) rule(s) match a port that is open right now" }). Lower findings: $([int]$s.Severity.Medium + [int]$s.Severity.Low)." } else { "No critical or high-severity findings. $([int]$s.Severity.Medium + [int]$s.Severity.Low) lower finding(s) are listed under Security Risks." })
+    $c.FwOvAttentionText.Text = $(if ($n) { "$($s.Severity.Critical) critical and $(Format-IgwtCount -Count ($s.Severity.High) -Noun 'high-severity finding')$(if ($s.Exposed) { "; $(Format-IgwtCount -Count ($s.Exposed) -Noun 'rule' -Verb 'match') a port that is open right now" }). Lower findings: $([int]$s.Severity.Medium + [int]$s.Severity.Low)." } else { "No critical or high-severity findings. $(Format-IgwtCount -Count ([int]$s.Severity.Medium + [int]$s.Severity.Low) -Noun 'lower finding' -Verb 'are') listed under Security Risks." })
     $open = @($a.Findings | Where-Object { -not $_.Ignored }).Count
     $c.FwOvReviewButton.Content = $(if ($open) { "Review $open finding$(if ($open -ne 1) { 's' })" } else { 'No findings to review' })
     $c.FwOvReviewButton.IsEnabled = [bool]$open
@@ -122,7 +122,7 @@ function Update-IgwtGuiFirewallOverview {
         [pscustomobject]@{ Label = 'Windows Connections'; Value = [int]$g.WindowsConnections; Brush = (Get-IgwtGuiToneBrush -Tone 'Info') }
         [pscustomobject]@{ Label = 'User Installed'; Value = [int]$g.UserInstalled; Brush = (Get-IgwtGuiToneBrush -Tone 'Accent') }
         [pscustomobject]@{ Label = 'Custom Rules'; Value = [int]$g.CustomRules; Brush = (Get-IgwtGuiToneBrush -Tone 'Pass') })
-    $c.FwOvOriginText.Text = "$($s.Total) rules: $($g.CoreServices) Core Services, $($g.WindowsConnections) Windows Connections, $($g.UserInstalled) User Installed and $($g.CustomRules) Custom Rules. $($s.LowConfidence) classification(s) have low confidence."
+    $c.FwOvOriginText.Text = "$($s.Total) rules: $($g.CoreServices) Core Services, $($g.WindowsConnections) Windows Connections, $($g.UserInstalled) User Installed and $($g.CustomRules) Custom Rules. $(Format-IgwtCount -Count ($s.LowConfidence) -Noun 'classification' -Verb 'have') low confidence."
     Set-IgwtGuiFirewallChart -Panel $c.FwOvDirChart -Bars @(
         [pscustomobject]@{ Label = 'Inbound allow'; Value = [int]$s.InboundAllow; Brush = (Get-IgwtGuiToneBrush -Tone 'Warn') }
         [pscustomobject]@{ Label = 'Inbound block'; Value = [int]$s.InboundBlock; Brush = (Get-IgwtGuiToneBrush -Tone 'Pass') }
@@ -264,14 +264,18 @@ function Update-IgwtGuiFirewallDetail {
     $sel = @($Rows | Where-Object { $_ })
     $buttons = @{ FwEnableButton = 'enable'; FwDisableButton = 'disable'; FwAllowButton = 'allow'; FwBlockButton = 'block'; FwEditButton = 'edit'; FwDuplicateButton = 'duplicate'; FwDeleteButton = 'delete' }
     $why = @()
+    # Read once per selection, not per row and button (review FWH-2).
+    $remote = Test-IgwtRemoteSession
     foreach ($b in $buttons.Keys) {
         $a = @($script:Gui.Grids.Firewall.Actions | Where-Object { $_.Id -eq $buttons[$b] })[0]
         $block = Get-IgwtGridActionBlock -Action $a -Rows $sel
         if (-not $block -and $sel.Count) {
             $op = @{ enable = 'Enable'; disable = 'Disable'; allow = 'SetAction'; block = 'SetAction'; edit = 'Edit'; duplicate = 'Duplicate'; delete = 'Delete' }[$buttons[$b]]
             $settings = @{ Action = $(if ($buttons[$b] -eq 'allow') { 'Allow' } else { 'Block' }) }
-            $refused = @($sel | ForEach-Object { Get-IgwtFirewallChangeBlock -Operation $op -Rule $_.Rule -Settings $settings -RemoteSession (Test-IgwtRemoteSession) } | Where-Object { $_ })
-            if ($refused.Count -eq $sel.Count) { $block = $refused[0] }
+            # A button stays on when one selected rule allows it: stop at the first such rule.
+            $first = $null; $allowed = $false
+            foreach ($row in $sel) { $why = Get-IgwtFirewallChangeBlock -Operation $op -Rule $row.Rule -Settings $settings -RemoteSession $remote; if (-not $why) { $allowed = $true; break }; if (-not $first) { $first = $why } }
+            if (-not $allowed) { $block = $first }
         }
         $c[$b].IsEnabled = -not $block
         [System.Windows.Controls.ToolTipService]::SetShowOnDisabled($c[$b], $true)
@@ -479,7 +483,7 @@ function Invoke-IgwtGuiFirewallFindingAction {
         'Ignore' {
             $reason = Read-IgwtGuiText -Title 'iG Windows Tuner - ignore finding' -Prompt "Why is this finding fine for '$($r.DisplayName)'? It stays hidden for 90 days (remembered for this PC)."
             if (-not $reason) { return }
-            $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -IgnoreFinding $RiskId -Reason $reason -Until (Get-Date).AddDays(90)
+            try { $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -IgnoreFinding $RiskId -Reason $reason -Until (Get-Date).AddDays(90) } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             Set-IgwtGuiStatus 'Finding ignored for 90 days. It is still listed under the rule as ignored.'
             Start-IgwtGuiFirewallRefresh
             return
@@ -504,7 +508,7 @@ function Show-IgwtGuiFirewallMoveMenu {
             param($s, $e)
             $null = $e
             $parts = ([string]$s.Tag) -split '\|', 2
-            $null = Set-IgwtFirewallOverride -RuleId $parts[1] -Category $parts[0]
+            try { $null = Set-IgwtFirewallOverride -RuleId $parts[1] -Category $parts[0] } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             Set-IgwtGuiStatus 'Category changed for this rule (remembered for this PC; export it from the Overview).'
             Start-IgwtGuiFirewallRefresh
         }
@@ -520,7 +524,7 @@ function Invoke-IgwtGuiFirewallNotBloated {
     param()
     $r = Get-IgwtGuiFirewallSelectedRule
     if (-not $r) { return }
-    $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -NotBloated
+    try { $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -NotBloated } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
     Set-IgwtGuiStatus "'$($r.DisplayName)' is no longer counted as bloated on this PC."
     Start-IgwtGuiFirewallRefresh
 }
@@ -705,7 +709,7 @@ function Step-IgwtGuiFirewallWizard {
         'Ignore' {
             $reason = Read-IgwtGuiText -Title 'iG Windows Tuner - ignore finding' -Prompt "Why is '$($s.Finding.Title)' fine for '$($s.Rule.DisplayName)'? Hidden for 90 days."
             if (-not $reason) { return }
-            $null = Set-IgwtFirewallOverride -RuleId $s.RuleId -IgnoreFinding ([string]$s.Finding.RiskId) -Reason $reason -Until (Get-Date).AddDays(90)
+            try { $null = Set-IgwtFirewallOverride -RuleId $s.RuleId -IgnoreFinding ([string]$s.Finding.RiskId) -Reason $reason -Until (Get-Date).AddDays(90) } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             $z.Ignored++
         }
     }
@@ -722,7 +726,7 @@ function Complete-IgwtGuiFirewallWizard {
     if (-not $z) { return }
     $script:IgwtFwWiz = $null
     $nl = [Environment]::NewLine
-    $head = "Reviewed $([Math]::Min($z.Index, $z.Steps.Count)) of $($z.Steps.Count) finding(s): $($z.Decisions.Count) fix(es), $($z.Skipped) skipped, $($z.Ignored) ignored."
+    $head = "Reviewed $([Math]::Min($z.Index, $z.Steps.Count)) of $(Format-IgwtCount -Count ($z.Steps.Count) -Noun 'finding'): $(Format-IgwtCount -Count ($z.Decisions.Count) -Noun 'fix' -Plural 'fixes'), $($z.Skipped) skipped, $($z.Ignored) ignored."
     if ($z.Ignored) { Start-IgwtGuiFirewallRefresh }
     if (-not $z.Decisions.Count) { $null = Show-IgwtGuiMessage -Text $head -Title 'iG Windows Tuner - review summary'; return }
     $batches = @(Get-IgwtFirewallFixPlan -Decisions $z.Decisions.ToArray() -Rows $script:Gui.Firewall.Rules)
@@ -749,6 +753,8 @@ function Start-IgwtGuiFirewallQueue {
     [CmdletBinding()]
     param([System.Collections.Generic.List[object]]$Queue)
     if (-not $Queue -or -not $Queue.Count) { return }
+    # A new run (not the continuation of one) remembers how many batches it has, for one summary at the end.
+    if (-not [object]::ReferenceEquals($Queue, $script:Gui.FirewallQueue)) { $script:Gui.FirewallQueueBatches = $Queue.Count }
     $next = $Queue[0]; $Queue.RemoveAt(0)
     $script:Gui.FirewallQueue = $Queue
     Invoke-IgwtGuiFirewallChange -Operation $next.Operation -Rows $next.Rows -Settings $next.Settings -NoConfirm
@@ -806,7 +812,7 @@ function Start-IgwtGuiFirewallConnections {
         $rows = @($out | Where-Object { $_ })
         if (-not $rows.Count -and @($errs).Count) { Set-IgwtGridState -Grid $script:Gui.Grids.FirewallConnections -State Error -Message ([string]@($errs)[0]); return }
         Set-IgwtGridRows -Grid $script:Gui.Grids.FirewallConnections -Rows $rows
-        $script:Gui.C.FwConnText.Text = "$(@($rows | Where-Object Protocol -EQ 'TCP').Count) TCP connection(s) and $(@($rows | Where-Object Protocol -EQ 'UDP').Count) UDP endpoint(s), read $((Get-Date).ToString('HH:mm:ss')). Nothing is changed."
+        $script:Gui.C.FwConnText.Text = "$(Format-IgwtCount -Count (@($rows | Where-Object Protocol -EQ 'TCP').Count) -Noun 'TCP connection') and $(Format-IgwtCount -Count (@($rows | Where-Object Protocol -EQ 'UDP').Count) -Noun 'UDP endpoint'), read $((Get-Date).ToString('HH:mm:ss')). Nothing is changed."
     }
 }
 

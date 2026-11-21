@@ -78,6 +78,8 @@ function Update-IgwtGuiHomeCard {
     $c.HomeCardDoButton.ToolTip = $(if (-not $c.HomeCardDoButton.IsEnabled) { Get-IgwtGuiChangeBlockReason -What 'fix this' } else { 'Opens a preview first; nothing changes until you confirm.' })
     [System.Windows.Automation.AutomationProperties]::SetName($c.HomeCard, "Next best action: $($card.Title)")
     $c.HomeCard.Visibility = 'Visible'
+    # 4.0 Home (D2) shows this card as its next step.
+    if ($c.PageHome -and $c.PageHome.Visibility -eq 'Visible') { Update-IgwtGuiHomePage }
 }
 
 function Set-IgwtGuiHomeSnooze {
@@ -93,7 +95,7 @@ function Set-IgwtGuiHomeSnooze {
     $map[[string]$card.Key] = $now.AddDays($Days).ToUniversalTime().ToString('o')
     Set-IgwtGuiViewValue -Name 'HomeSnooze' -Value $map
     Update-IgwtGuiHomeCard
-    Set-IgwtGuiStatus "Hidden for $Days day(s): $($card.Title)."
+    Set-IgwtGuiStatus "Hidden for $(Format-IgwtCount -Count $Days -Noun 'day'): $($card.Title)."
 }
 
 function Show-IgwtGuiHomeWhy {
@@ -113,7 +115,7 @@ function Invoke-IgwtGuiHomeAction {
     if (-not $card) { return }
     $in = $script:Gui.HomeInput
     switch ([string]$card.Action) {
-        'openJournal' { Select-IgwtGuiNavPage -Tag 'Backups'; $script:Gui.C.BackupTabs.SelectedItem = $script:Gui.C.BackupJournalTab }
+        'openJournal' { Select-IgwtGuiNavPage -Tag 'History' }
         'forensic' { Select-IgwtGuiNavPage -Tag 'Firewall'; $script:Gui.C.FwTabs.SelectedItem = $script:Gui.C.FwForensicTab }
         'presets' { Select-IgwtGuiNavPage -Tag 'Presets' }
         'unverified' { Select-IgwtGuiNavPage -Tag 'Presets'; Set-IgwtGuiStatus "Unverified in your preset: $(@($card.Items) -join ', '). Customize the preset to leave them out." }
@@ -140,16 +142,18 @@ function Invoke-IgwtGuiHomeAction {
                 # The normal path: stage the items, then the normal preview; Apply runs them as one session (origin driftFix).
                 $ids = @(Get-IgwtDriftReapplyIds -Rows $pick.Rows)
                 if (-not $ids.Count) { return }
+                if (-not (Test-IgwtGuiCanRestage)) { return }
+                if (-not (Confirm-IgwtGuiReplaceStaged -What 'Re-applying the changed settings')) { return }
                 $script:Gui.Staged.Clear()
                 foreach ($id in $ids) { Set-IgwtGuiStage -Id $id -Mode 'on' }
-                $script:Gui.PresetOperation = 'DriftFix'
+                Set-IgwtGuiPresetOperation -Name 'DriftFix'
                 Update-IgwtGuiPending
                 Invoke-IgwtGuiPreview
             } elseif ($pick.Action -eq 'Accept') {
                 $null = Start-IgwtGuiJob -Command 'Invoke-IgwtDriftAccept' -Parameters @{ Rows = @($pick.Rows); Confirm = $false } -Blocking -BusyText 'Recording the accepted values...' -OnComplete {
                     param($out, $errs)
                     $r = @($out | Where-Object { $_ }) | Select-Object -Last 1
-                    if ($r) { Set-IgwtGuiStatus "Accepted the current value of $($r.Accepted) setting(s); iG no longer tracks the values it set there." }
+                    if ($r) { Set-IgwtGuiStatus "Accepted the current value of $(Format-IgwtCount -Count ($r.Accepted) -Noun 'setting'); iG no longer tracks the values it set there." }
                     elseif (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Not recorded: $(@($errs)[0])" -Icon 'Error' }
                     Start-IgwtGuiHomeCard
                 }
@@ -208,4 +212,4 @@ function Show-IgwtGuiDriftDialog {
     $null = $w.ShowDialog()
     if (-not $result.Action) { return $null }
     return @{ Action = $result.Action; Rows = @($boxes | Where-Object { $_.IsChecked } | ForEach-Object { $_.Tag }) }
-}
+}

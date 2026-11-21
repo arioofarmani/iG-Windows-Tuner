@@ -112,7 +112,7 @@
   ],
   "denyList": {
     "description": "RG32. vendorNames: never offered as the <Vendor> of Software\\<Vendor>\\<Product> (and never a tree root there). segmentNames: never a path segment below a category root of an offered target, and a tree holding a subkey with one of these names is not selectable (shared or linked keys). Exact names, case-insensitive.",
-    "vendorNames": [ "WOW6432Node", "Classes", "Clients", "RegisteredApplications", "Policies", "Microsoft" ],
+    "vendorNames": [ "WOW6432Node", "Classes", "Clients", "RegisteredApplications", "Policies", "Microsoft", "AppDataLow" ],
     "segmentNames": [ "Wow6432Node", "Clients", "RegisteredApplications", "Policies", "Microsoft", "AppID", "TypeLib", "PROTOCOLS", "CLSID", "Interface" ],
     "sources": [ "https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys" ]
   }

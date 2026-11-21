@@ -161,7 +161,8 @@ function Get-IgwtPolicyBaselinePlan {
     $refusals = @()
     $secRows = @($rows | Where-Object { $_.Kind -eq 'secpol' -and $_.Status -eq 'Change' })
     if ($secRows.Count) {
-        try { $sp = Get-IgwtSecurityChangePlan -Changes @($secRows | ForEach-Object { ConvertFrom-IgwtSecurityChangeText -Text ("{0}={1}" -f $_.Setting.key, $_.Setting.value) }); $refusals += @($sp.Refusals) } catch { $refusals += $_.Exception.Message }
+        # Change objects built directly: re-parsing "Section\Key=Value" text split SDDL values at ';' (review P-20).
+        try { $sp = Get-IgwtSecurityChangePlan -Changes @($secRows | ForEach-Object { $sk = [string]$_.Setting.key; $cut = $sk.IndexOf('\'); New-IgwtSecurityChange -Section $sk.Substring(0, $cut) -Key $sk.Substring($cut + 1) -Value ([string]$_.Setting.value) }); $refusals += @($sp.Refusals) } catch { $refusals += $_.Exception.Message }
     }
     $m = Get-IgwtManagementState
     if (-not $m.LocalGroupPolicy) { $refusals += 'Windows Home has no Local Group Policy: baselines are report-only on this edition.' }

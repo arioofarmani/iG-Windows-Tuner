@@ -583,10 +583,11 @@ function Get-IgwtFirewallRuleDefinition {
     }
     $def = [ordered]@{
         name = [string]$r.Name; displayName = [string]$r.DisplayName; description = [string]$r.Description; group = [string]$r.Group
-        enabled = ([string]$r.Enabled -eq 'True'); direction = [string]$r.Direction; action = [string]$r.Action; profile = [string]$r.Profile
-        edgeTraversal = [string]$r.EdgeTraversalPolicy; owner = [string]$r.Owner
-        program = $(if ($a) { [string]$a.Program } else { 'Any' }); package = $(if ($a) { [string]$a.Package } else { '' })
-        service = $(if ($s) { [string]$s.Service } else { 'Any' })
+        # Raw CIM values (no NetSecurity type data in a runspace) are converted, as in the inventory (review FW F-06).
+        enabled = ((ConvertFrom-IgwtFirewallCimValue -Kind Enabled -Value $r.Enabled) -eq 'True'); direction = (ConvertFrom-IgwtFirewallCimValue -Kind Direction -Value $r.Direction); action = (ConvertFrom-IgwtFirewallCimValue -Kind Action -Value $r.Action); profile = (ConvertFrom-IgwtFirewallCimValue -Kind Profile -Value $r.Profile)
+        edgeTraversal = (ConvertFrom-IgwtFirewallCimValue -Kind EdgeTraversal -Value $r.EdgeTraversalPolicy); owner = [string]$r.Owner
+        program = $(if ($a -and [string]$a.Program) { [string]$a.Program } elseif ($a -and $a.PSObject.Properties['AppPath'] -and [string]$a.AppPath) { [string]$a.AppPath } else { 'Any' }); package = $(if ($a) { [string]$a.Package } else { '' })
+        service = $(if ($s -and [string]$s.Service) { [string]$s.Service } elseif ($s -and $s.PSObject.Properties['ServiceName'] -and [string]$s.ServiceName) { [string]$s.ServiceName } else { 'Any' })
         protocol = $(if ($p) { [string]$p.Protocol } else { 'Any' }); localPort = @($(if ($p) { $p.LocalPort })); remotePort = @($(if ($p) { $p.RemotePort }))
         localAddress = @($(if ($ad) { $ad.LocalAddress })); remoteAddress = @($(if ($ad) { $ad.RemoteAddress }))
         interfaceType = $(if ($i) { [string]$i.InterfaceType } else { 'Any' })
@@ -665,7 +666,9 @@ function ConvertTo-IgwtFirewallRuleParameters {
         $dn = [string](& $get 'displayName'); if ($dn) { $p.NewDisplayName = $dn }
     }
     $desc = [string](& $get 'description'); if ($desc) { $p.Description = $desc }
-    $p.Enabled = $(if ([bool](& $get 'enabled')) { 'True' } else { 'False' })
+    # Strict: [bool]'false' is True in PowerShell (review FW F-08).
+    $en = & $get 'enabled'
+    $p.Enabled = $(if (($en -is [bool] -and $en) -or [string]$en -eq 'True') { 'True' } else { 'False' })
     $act = [string](& $get 'action'); if ($act) { $p.Action = $act }
     $prof = [string](& $get 'profile'); if ($prof) { $p.Profile = @($prof -split ',\s*') }
     $edge = [string](& $get 'edgeTraversal'); if ($edge) { $p.EdgeTraversalPolicy = $edge }
@@ -674,8 +677,8 @@ function ConvertTo-IgwtFirewallRuleParameters {
     $proto = [string](& $get 'protocol'); if ($proto) { $p.Protocol = $proto }
     foreach ($k in @(@('localPort', 'LocalPort'), @('remotePort', 'RemotePort'), @('localAddress', 'LocalAddress'), @('remoteAddress', 'RemoteAddress'))) {
         $v = @(& $get $k[0] | Where-Object { $_ -and "$_" -ne '' } | ForEach-Object { [string]$_ })
-        # Ports exist only for TCP and UDP rules.
-        if ($k[1] -like '*Port' -and $proto -notin 'TCP', 'UDP') { continue }
+        # Ports exist only for TCP and UDP rules. An edit back to such a protocol clears them first (review FW F-07).
+        if ($k[1] -like '*Port' -and $proto -notin 'TCP', 'UDP') { if ($ForSet -and $proto) { $p[$k[1]] = 'Any' }; continue }
         if ($v.Count) { $p[$k[1]] = $v }
     }
     $it = [string](& $get 'interfaceType'); if ($it) { $p.InterfaceType = $it }
@@ -942,8 +945,13 @@ function Get-IgwtFirewallImportPlan {
             $settings = @{ DisplayName = [string]$d.displayName; Direction = [string]$d.direction; Action = [string]$d.action; Profiles = @(([string]$d.profile) -split ',\s*'); Protocol = [string]$d.protocol
                 LocalPort = (@($d.localPort) -join ','); RemotePort = (@($d.remotePort) -join ','); RemoteAddress = (@($d.remoteAddress) -join ','); LocalAddress = (@($d.localAddress) -join ','); Program = [string]$d.program }
             $errs = @(Test-IgwtFirewallRuleSettings -Settings $settings -New)
+            # Settings the wizard check does not cover (review FW F-08): edge traversal is never imported, a service
+            # name must look like one, and enabled must be a real true/false.
+            if ([string]$d.edgeTraversal -notin '', 'Block') { $errs += 'Edge traversal (reachable through NAT) is not imported; create such a rule by hand.' }
+            if ([string]$d.service -and [string]$d.service -ne 'Any' -and [string]$d.service -notmatch '^[\w\.\-]{1,256}$') { $errs += "'$($d.service)' is not a service name." }
+            if ($null -ne $d.enabled -and -not ($d.enabled -is [bool]) -and [string]$d.enabled -notin 'True', 'False') { $errs += "enabled must be true or false." }
             if (@($errs).Count) { $status = 'Invalid'; $reason = @($errs) -join ' ' }
-            elseif (-not $byName.ContainsKey($name)) { $status = 'New' }
+            elseif (-not $byName.ContainsKey($name)) { $status = 'New'; $reason = (@(Get-IgwtFirewallNewRuleWarnings -Settings $settings) | ForEach-Object { "Risk if created: $_" }) -join ' ' }
             else {
                 $cur = $byName[$name]
                 if ($cur.Locked -or $cur.Source -eq 'Windows' -or [string]$cur.EngineOrigin -in 'CoreServices', 'WindowsConnections') { $status = 'Skipped'; $reason = 'A Windows or Group Policy rule with this name exists.' }
@@ -992,7 +1000,8 @@ function Import-IgwtFirewallRules {
             $def = [ordered]@{}
             foreach ($p in $d.PSObject.Properties) { $def[$p.Name] = $p.Value }
             if ($i.Status -eq 'New') {
-                $def.name = New-IgwtFirewallRuleName; $def.group = $script:IgwtFirewallOwnedGroup; $def.owner = ''
+                # A new rule never takes an owner or app package from the file (review FW F-08).
+                $def.name = New-IgwtFirewallRuleName; $def.group = $script:IgwtFirewallOwnedGroup; $def.owner = ''; $def.package = ''
                 Add-IgwtSnapshotEntry -Snapshot $snap -TweakId "firewall:import:$n" -Actions @([ordered]@{ index = 0; type = 'firewallManager'; op = 'created'; name = $def.name }) -Result 'Applied' -Message "import $($i.DisplayName)"
                 $np = ConvertTo-IgwtFirewallRuleParameters -Definition $def; $null = New-NetFirewallRule @np
             } else {
@@ -1057,10 +1066,16 @@ function Set-IgwtFirewallProfileSetting {
     $arg = @{ Name = $Profile; ErrorAction = 'Stop' }
     if ($Setting -eq 'LogMaxKB') { $arg[$prop] = [uint64]$Value }
     elseif ([string]$Value -eq 'NotConfigured' -or $Setting -in 'DefaultInboundAction', 'DefaultOutboundAction') { $arg[$prop] = [string]$Value }
-    else { $arg[$prop] = $(if ([bool]$Value) { 'True' } else { 'False' }) }
+    else { $arg[$prop] = $(if (ConvertTo-IgwtStrictBool -Value $Value -Label $Setting) { 'True' } else { 'False' }) }
     Set-NetFirewallProfile @arg
-    Write-IgwtLog -Message "Firewall profile ${Profile}: $Setting -> $Value. Snapshot: $($snap.Path)"
-    return [pscustomobject]@{ Snapshot = $snap.Path; Profile = $Profile; Setting = $Setting; Value = $Value; Before = [string]$cur.$prop }
+    # Read back what is in effect (review FW F-04): Group Policy or MDM can keep the active value as it was.
+    $inEffect = $true; $note = ''
+    try {
+        $now = [string](Get-NetFirewallProfile -Name $Profile -PolicyStore ActiveStore -ErrorAction Stop).$prop
+        if ([string]$arg[$prop] -ne 'NotConfigured' -and $now -ne [string]$arg[$prop]) { $inEffect = $false; $note = "Saved, but the value in effect is still '$now' (set by Group Policy or MDM). Undo removes the local change." }
+    } catch { $note = "Saved; the value in effect could not be read back: $($_.Exception.Message)" }
+    Write-IgwtLog -Level $(if ($inEffect) { 'Info' } else { 'Warn' }) -Message "Firewall profile ${Profile}: $Setting -> $Value. Snapshot: $($snap.Path) $note"
+    return [pscustomobject]@{ Snapshot = $snap.Path; Profile = $Profile; Setting = $Setting; Value = $Value; Before = [string]$cur.$prop; InEffect = $inEffect; Message = $note }
 }
 
 function Set-IgwtNetworkCategory {

@@ -147,15 +147,20 @@ function Get-IgwtAsrAudit {
         $audited = @($evs | Where-Object { $_.Action -eq 'Audited' }).Count
         $bypassed = @($evs | Where-Object { $_.Action -eq 'WarnBypassed' }).Count
         $actionable = @($programs | Where-Object { $_.Suggestion -ne 'Ignore' })
+        # Per rule (review F-11): the log age only counts from the rule's last mode change, found in the configuration
+        # events (5007) that name its GUID. Without one, the rule had its mode for the whole log span.
+        $ruleCoverage = $coverage
+        $changed = @($all | Where-Object { $_.EventId -eq 5007 -and (([string]$_.NewValue + ' ' + [string]$_.OldValue) -match [regex]::Escape($id)) } | Sort-Object Time -Descending) | Select-Object -First 1
+        if ($changed -and $changed.Time) { $ruleCoverage = [Math]::Round([Math]::Max(0.0, [Math]::Min($coverage, ((Get-Date) - [datetime]$changed.Time).TotalDays)), 1) }
         $rec = 'None'; $text = ''
         if ($def.serverOnly) { $text = 'Exchange servers only; nothing to do on Windows 11.' }
         elseif ($mode -in 'NotConfigured', 'Off') {
             if ([string]$def.recommendedMode -ne 'NotConfigured') { $rec = 'EnableAudit'; $text = "Not active. Recommended: $($def.recommendedMode). Start in Audit to see what it would block." }
         } elseif ($mode -eq 'Audit') {
             if ($actionable.Count -gt 0) { $rec = 'ReviewPrograms'; $text = "$($actionable.Count) program(s) would have been blocked. Exclude the ones you trust (exact file), then promote the rule." }
-            elseif ($coverage -lt $script:IgwtAsrMinimumAuditDays) { $rec = 'KeepAuditing'; $text = "The Defender log only covers $coverage day(s); keep auditing for at least $($script:IgwtAsrMinimumAuditDays) days before promoting." }
-            elseif ([string]$def.gamerImpactLevel -in 'medium', 'high' -and $def.supportsWarn) { $rec = 'PromoteToWarn'; $text = "No audit hits in $coverage day(s). Warn is the safer next step for this rule: a block can be bypassed for 24 hours (administrator approval needed)." }
-            else { $rec = 'PromoteToBlock'; $text = "No audit hits in $coverage day(s): switching to Block should not affect this PC." }
+            elseif ($ruleCoverage -lt $script:IgwtAsrMinimumAuditDays) { $rec = 'KeepAuditing'; $text = $(if ($ruleCoverage -lt $coverage) { "This rule has been in Audit for $ruleCoverage day(s); keep auditing for at least $($script:IgwtAsrMinimumAuditDays) days before promoting." } else { "The Defender log only covers $coverage day(s); keep auditing for at least $($script:IgwtAsrMinimumAuditDays) days before promoting." }) }
+            elseif ([string]$def.gamerImpactLevel -in 'medium', 'high' -and $def.supportsWarn) { $rec = 'PromoteToWarn'; $text = "No audit hits in $ruleCoverage day(s). Warn is the safer next step for this rule: a block can be bypassed for 24 hours (administrator approval needed)." }
+            else { $rec = 'PromoteToBlock'; $text = "No audit hits in $ruleCoverage day(s): switching to Block should not affect this PC." }
         } elseif ($mode -in 'Block', 'Warn') {
             if ($actionable.Count -gt 0) { $rec = 'ReviewBlocks'; $text = "$($actionable.Count) program(s) were blocked. If a trusted program stopped working, add a per-rule exclusion for its exact file." }
             elseif ($programs.Count -gt 0) { $text = 'Only expected events (see the program list).' }

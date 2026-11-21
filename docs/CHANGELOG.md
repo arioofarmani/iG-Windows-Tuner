@@ -1,5 +1,141 @@
 # Changelog
 
+## 4.0.0 (2026-11-21)
+
+The redesign release: seven sections instead of 24 pages, one bar that applies every change, and every Medium finding of the 3.8.1 review handled (DECISIONS Y1 to SA10). Section 1 (groundwork) fixes the security, privacy and data-loss findings first.
+
+### Security
+
+- Security policy values with line breaks are refused, so a value can no longer add template lines past the lockout safeguards.
+- Custom presets, the last-preset record and the Session Mode record are used only when other users cannot change them.
+- ASR exclusions refuse wildcards that could stand for the Windows, profiles, ProgramData or Program Files folders (such as `C:\Win*\...`).
+- The cleaner keeps each file open while it deletes it, so a folder above it cannot be swapped for a junction at the last moment.
+- iG refuses to ask for administrator rights when other accounts can change its program files; move it to `C:\Program Files` in that case.
+
+### Privacy
+
+- The pseudonymized firewall export also hides this PC's own public IPv4 and IPv6 addresses.
+- The evidence package lists the personal data it holds, and the app asks before collecting it.
+
+### Fixed
+
+- A registry cleanup refuses an entry that changed after the preview (for example a key that a reinstalled program filled again).
+- Reset to Windows default keeps LSA protection on instead of deleting `RunAsPPL`.
+- The release zip is built from the last commit only.
+
+### Design (section 2)
+
+- New colours, type sizes, spacing and corner radii from the 4.0 design; every page picks them up.
+- Buttons show when they are pressed, and the keyboard focus ring has a clear gap around every control.
+- New controls for the redesigned pages: page header, filter chips, status pills, info bars, setting rows with an On/Off word, status tiles, the next-step card, history session cards and a details panel that moves below the list in narrow windows.
+- The bottom bar is the one place to apply changes: it says how many changes are ready (also to screen readers), with Discard, Preview and Apply.
+
+### Navigation, Home and Optimize (section 3)
+
+- The navigation has seven sections: Home, Play, Optimize, Security, Network, Clean and History, with Advanced tools and Settings at the bottom. Sections with several pages show them as tabs.
+- Advanced tools (expert inspectors, Group Policy, services and tasks, Toolkit, Risk Zone) are hidden until you turn on "Show Advanced tools" in the Display menu; a link to one of them turns it on.
+- Home greets you with one next step, three status tiles, your recent changes with Undo and "Before you play". The health checks are one tab away.
+- Optimize is one page: category chips, a search, each setting with a plain description, its evidence and an On/Off switch, and a details panel with what changes and how to undo it. The full table is one click away.
+- Every text box and list box has a name for screen readers.
+- Catalog: the Storage Sense deletion items say that deleted files cannot be restored; the processor idle Risk Zone item is blocked on laptops.
+
+### History and Play (section 4)
+
+- History shows every change as a card, newest first, with filters for changes still in place, changed since, undone and one-way. Undo opens the session's settings in its card with the value before, the value iG set and the value now.
+- When something else changed a setting after iG set it, you choose in the card: keep it, put the old value back, or skip it. Nothing runs until you press Undo, and Cancel changes nothing.
+- "Reset everything iG changed" shows every value iG still has changed before anything runs. The full change table, snapshots and log are on the Backups and logs tab.
+- Play: each preset card shows Preview first, then the button that stages it.
+- When another administrator's account starts iG, the window says whose per-user settings it shows, and reads the signed-in user's settings in every view.
+
+### Settings and Advanced tools (section 7)
+
+- Settings is a page now (Settings and About tabs). It holds the display settings that were in the Display pop-up, and says that iG never checks the internet for updates by itself.
+- Advanced tools open on an overview with one card per tool (Expert inspectors, Group Policy, Services and tasks, Toolkit, Risk Zone, Rejected tweaks); each tool page shows a short "for experts" note.
+- Messages name settings instead of their ids, at most five and "and N more".
+- History says "Changed 3 settings" instead of "Apply (3 item(s))", and opening it again no longer redraws it when nothing changed.
+
+### Fixed (section 7)
+
+- Changing the theme could freeze the window: a refresh waited for console input that never came.
+- Menus opened from toolbars and lists no longer log WPF binding errors.
+- History, Optimize and Play open faster: History with many changes no longer freezes the window for half a second when it loads, and pages you visited before open at once.
+- Running a changing command from a normal PowerShell asked again for confirmation after -Confirm:$false, and relative paths were read from System32; both now work as typed. -Json asks you to start PowerShell as administrator instead of losing the output.
+- -DefenderThreats showed only the last 14 days and refused -Days.
+- Staging a preset or a fix for changed settings replaced the changes you had staged without asking.
+- A PC onboarded to Microsoft Defender for Endpoint is now treated as managed.
+- The CPU check for the 13th/14th-gen instability fix missed 14th-gen processors.
+- The data conversion tool could rewrite tweak files and then stop on a newer preset; it now checks everything first.
+
+### Network and Clean (section 6)
+
+- The Network page shows your DNS servers and whether they are encrypted, with a DNS benchmark; the network profile (Public or Private) with a switch; and the programs that firewall rules block.
+- Clean has four tabs: Files (temporary files and Storage Sense), Startup apps, Registry leftovers and Disk.
+
+### Fixed (section 6)
+
+- When the network did not come back after the gaming network changes and the automatic undo failed, iG said the changes were undone; it now says what failed and where to undo it.
+- Some USB and vendor network adapters were not recognized as wired.
+- The Steam logs rule could clean a "logs" folder in any Steam library; it now cleans only the Steam install folder.
+- The registry cleaner could offer settings keys of installed programs (for example a browser extension host key) as leftovers.
+- A failed removal of inbox apps tried to reinstall the apps removed before it; they now stay removed and the message says so.
+- Undoing "SMB 1.0 off" turned SMB1 on again but not its client and server parts.
+- A Defender change that Tamper Protection or a policy ignored could be reported as done.
+- Reset to Windows default turned PUA protection off; it is now left as it is.
+
+### Security screens (section 5b)
+
+- Security has four tabs: Overview, Protection (Defender settings and attack surface rules), Firewall and Policies.
+- Defender values, attack surface rule modes and security settings are staged and applied from the bar at the bottom, like tweaks. The bar names what it will apply and how many changes wait on other pages.
+- Toolbars show at most six buttons; less used actions are under More.
+- After a firewall change on a remote session, Undo appears only once you keep the change; a run of several firewall batches ends with one summary that points to History.
+
+### Fixed (section 5b)
+
+- Undoing an ASR change, moving rules from Audit to Block and importing firewall rules now name the rules that failed instead of reporting success.
+- Security settings that your organization also manages now ask before they are changed locally.
+- A failed automatic restore of forensic logging is shown as failed, with a way to retry.
+- Firewall: selecting many rules no longer slows the window; a failed save of a rule's category or ignored finding is reported.
+- The persistence inspector judges services hosted by svchost by their DLL, and no longer flags Windows tasks that load a DLL by its bare name.
+- Firewall conflict analysis understands subnets, masks and address ranges, and that a rule without an app package also applies to apps.
+### Security engine (section 5a)
+
+- iG never lowers a protection level, also between two "on" levels: for example Cloud block level Zero tolerance to High, Network protection or AI agent protection Block to Audit, or a weaker LAN Manager level. Turning a protection up still works.
+- Defender options that switch scans or updates off are refused: scheduled scan day "Never", the delayed "Critical" update channels, and catch-up and grace periods longer than a week or a day.
+- Undoing an older Group Policy change is refused while later Group Policy or Security Settings changes are still in place; undo the newest first. A restore that fails part-way puts the folders back as they were.
+- Security Settings says for each Group Policy row whether it is in effect after the refresh, or which value Windows still reads.
+- Inbox app removals are marked as one-way: History offers no Undo for them; reinstall the app from the Microsoft Store.
+- More Windows tasks are protected in services and tasks: Defrag (which also runs SSD TRIM), Store app updates, servicing, certificates, activation and update remediation.
+- The persistence inspector flags startup entries that run PowerShell, cmd, mshta or rundll32 with suspicious arguments or an unsigned DLL, also under Microsoft task folders.
+
+### Fixed (section 5a)
+
+- A misspelled account name in a user-rights change wrote an error message into the security template; it is refused now.
+- Baseline security options with SDDL values (for example RestrictRemoteSAM) were refused because the value was cut at its semicolons.
+- On Windows in another language, audit settings that could not be read counted as "no auditing", so a change could stop auditing; they are now shown as unknown and never changed.
+- Reverting a policy preset stopped at the first part that failed; every part is restored now and the message names what failed.
+- Lists with an empty value prefix in administrative templates are written with names 1, 2, 3 like the Group Policy editor.
+- In a 32-bit PowerShell, Local Group Policy backups and restores used the folder Windows ignores.
+- A forensic logging session that ended while iG was closed stayed on until Stop was pressed; the next elevated start restores it.
+- The ASR audit view recommended Block for a rule switched to Audit today, counting the whole log as audit time.
+- Firewall: a profile setting kept by Group Policy was reported as changed; an undo after a protocol change kept the old ports; imports accepted edge traversal and a text "false" turned rules on; a block rule for one port was said to make an allow rule for every port useless; SMB and other System listeners showed as blocked while File and Printer Sharing rules were on; elevating with another administrator's account marked the Xbox app rules as bloat.
+### Fixed (section 4)
+
+- In the change journal tab, pressing Esc or Cancel on a "changed since" question skipped that setting but still undid the rest; now it stops the whole undo.
+- Ending Session Mode when its backup was missing said "0 settings restored" and forgot the session; now it says so, keeps the session, and offers History or ending without restoring (`-Session Forget` on the command line).
+- Clicking a category in the Group Policy tree no longer re-indexes every policy.
+### Fixed (section 2)
+
+- A second Apply click while the first apply was still starting could apply the same changes twice.
+- Changes staged while an apply ran were dropped when it finished.
+- A startup switch stayed flipped when its change could not start.
+- A confirmed change or a toast's Undo was dropped without a dialog when another change was running.
+
+### Quality
+
+- An engine-boundary test keeps the GUI from changing the PC directly.
+- A component gallery renders every control style and the new 4.0 controls in every theme and scale, offscreen.
+- A test stops two files from replacing each other's module-wide variables.
+
 ## 3.9.0 (2026-11-20)
 
 One undo system, and the remaining High findings of the 3.8.1 review (DECISIONS W1 to W12).

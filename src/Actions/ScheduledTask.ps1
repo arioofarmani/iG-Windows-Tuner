@@ -5,7 +5,11 @@
 $script:IgwtProtectedTaskPaths = @(
     '\Microsoft\Windows\Windows Defender\', '\Microsoft\Windows\UpdateOrchestrator\', '\Microsoft\Windows\WindowsUpdate\',
     '\Microsoft\Windows\WaaSMedic\', '\Microsoft\Windows\TPM\', '\Microsoft\Windows\BitLocker\', '\Microsoft\Windows\SystemRestore\',
-    '\Microsoft\Windows\Time Synchronization\', '\Microsoft\Windows\AppID\', '\Microsoft\Windows\ExploitGuard\', '\Microsoft\Windows\Plug and Play\'
+    '\Microsoft\Windows\Time Synchronization\', '\Microsoft\Windows\AppID\', '\Microsoft\Windows\ExploitGuard\', '\Microsoft\Windows\Plug and Play\',
+    # Review FW F-22: component cleanup, Store app updates, defrag (also SSD TRIM), certificate enrolment and root
+    # updates, activation renewal, update remediation.
+    '\Microsoft\Windows\Servicing\', '\Microsoft\Windows\InstallService\', '\Microsoft\Windows\Defrag\', '\Microsoft\Windows\CertificateServicesClient\',
+    '\Microsoft\Windows\SoftwareProtectionPlatform\', '\Microsoft\Windows\rempl\'
 )
 
 function Assert-IgwtTaskAllowed {

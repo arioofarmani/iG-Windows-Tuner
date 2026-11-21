@@ -11,9 +11,20 @@ function New-IgwtGuiPolicyRow {
     param([Parameter(Mandatory = $true)]$Policy)
     $st = [string]$Policy.State
     $row = [ordered]@{ Key = [string]$Policy.Id; Id = [string]$Policy.Id; Name = [string]$Policy.Name; Category = [string]$Policy.Category; Class = [string]$Policy.Class; SupportedOn = [string]$Policy.SupportedOn
-        StateKey = $(if ($st -eq 'NotConfigured') { 'NotConfigured' } else { $st }); Configured = $(if ($st -eq 'NotConfigured') { 'No' } else { 'Yes' }); Settable = $(if ($Policy.Simple) { 'Yes' } else { 'Values' }); File = [string]$Policy.File }
+        StateKey = $(if ($st -eq 'NotConfigured') { 'NotConfigured' } else { $st }); Configured = $(if ($st -eq 'NotConfigured') { 'No' } else { 'Yes' }); Settable = $(if ($Policy.Simple) { 'Yes' } else { 'Values' }); File = [string]$Policy.File
+        Scopes = [string[]]@(Get-IgwtGuiPolicyScopes -Category ([string]$Policy.Category)) }
     Add-IgwtGuiStatusField -Row $row -Name 'State' -Text $(switch ($st) { 'NotConfigured' { 'Not configured' } default { $st } }) -Tone $(switch ($st) { 'Enabled' { 'Pass' } 'Disabled' { 'Warn' } 'Configured' { 'Info' } default { 'Muted' } })
     return [pscustomobject]$row
+}
+
+function Get-IgwtGuiPolicyScopes {
+    <# .SYNOPSIS A policy category and each of its parents ('A', 'A > B', 'A > B > C'), for the tree scope (PP-2). Pure. #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([string]$Category)
+    if (-not $Category) { return }
+    $parts = $Category -split ' > '
+    for ($i = 1; $i -le $parts.Count; $i++) { ($parts[0..($i - 1)] -join ' > ') }
 }
 
 function Initialize-IgwtGuiPolicyPage {
@@ -30,6 +41,7 @@ function Initialize-IgwtGuiPolicyPage {
         @{ Key = 'Class'; Header = 'Applies to'; Width = 120 }
         @{ Key = 'SupportedOn'; Header = 'Supported on'; Width = 220; Visible = $false }
         @{ Key = 'Id'; Header = 'Id'; Width = 220; Visible = $false; Template = 'Mono' }
+        @{ Key = 'Scopes'; Header = 'Category paths'; Width = 100; Visible = $false; Search = $false }
     ) -Chips @(
         @{ Id = 'configured'; Label = 'Configured only'; Group = 'cfg'; Field = 'Configured'; Values = @('Yes') }
         @{ Id = 'enabled'; Label = 'Enabled'; Group = 'state'; Field = 'StateKey'; Values = @('Enabled') }
@@ -101,8 +113,9 @@ function Complete-IgwtGuiPolicyData {
     }
     $null = $c.PolTree.Items.Add($all)
     $script:Gui.PolicyScope = ''
+    $script:Gui.Grids.Policy.Scope = @{}
     Set-IgwtGridRows -Grid $script:Gui.Grids.Policy -Rows $script:Gui.PolicyRows
-    $c.PolSummaryText.Text = "$($Data.Count) policies, $($Data.Configured) configured in the Local Group Policy." + $(if (@($Data.Errors).Count) { " $(@($Data.Errors).Count) template file(s) could not be read." } else { '' })
+    $c.PolSummaryText.Text = "$($Data.Count) policies, $($Data.Configured) configured in the Local Group Policy." + $(if (@($Data.Errors).Count) { " $(Format-IgwtCount -Count (@($Data.Errors).Count) -Noun 'template file') could not be read." } else { '' })
     $c.PolSummaryIcon.Text = [string][char]0xE946
 }
 
@@ -115,8 +128,11 @@ function Update-IgwtGuiPolicyScope {
     if (-not $node -or -not $script:Gui.PolicyRows) { return }
     $scope = [string]$node.Tag
     $script:Gui.PolicyScope = $scope
-    $rows = $(if (-not $scope) { $script:Gui.PolicyRows } else { @($script:Gui.PolicyRows | Where-Object { $_.Category -eq $scope -or $_.Category.StartsWith("$scope > ") }) })
-    Set-IgwtGridRows -Grid $script:Gui.Grids.Policy -Rows $rows
+    # PP-2: narrow the grid's existing index by scope (each row lists its category and every parent) instead of
+    # filtering thousands of rows and rebuilding the whole index on the UI thread at every click.
+    $grid = $script:Gui.Grids.Policy
+    $grid.Scope = $(if ($scope) { @{ Scopes = @($scope) } } else { @{} })
+    Update-IgwtGridView -Grid $grid
 }
 
 function Start-IgwtGuiPolicyDetail {
@@ -188,7 +204,7 @@ function Invoke-IgwtGuiPolicySet {
     if (@($pick.Values.Keys).Count) { $params.Values = $pick.Values }
     $text = "Set '$($d.Name)' to $($pick.Label)?`n`n$($d.Id)`n`nA backup of the Local Group Policy is taken first; Undo restores it."
     $m = $script:Gui.Management
-    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override it."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Set-IgwtLocalPolicy' -Parameters $params -Blocking -BusyText 'Setting the policy (backup first)...' -OnComplete {
         param($out, $errs)

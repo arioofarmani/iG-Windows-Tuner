@@ -31,7 +31,7 @@ function Copy-IgwtGuiStartupCommand {
     [CmdletBinding()]
     param([object[]]$Rows = @())
     $text = (@($Rows | ForEach-Object { [string]$_.Command }) -join [Environment]::NewLine)
-    try { [System.Windows.Clipboard]::SetText($text); Set-IgwtGuiStatus "$(@($Rows).Count) command(s) copied." } catch { Set-IgwtGuiStatus 'The clipboard is not available.' }
+    try { [System.Windows.Clipboard]::SetText($text); Set-IgwtGuiStatus "$(Format-IgwtCount -Count (@($Rows).Count) -Noun 'command') copied." } catch { Set-IgwtGuiStatus 'The clipboard is not available.' }
 }
 
 function Invoke-IgwtGuiStartupToggle {

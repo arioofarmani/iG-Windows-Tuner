@@ -72,10 +72,10 @@ function Get-IgwtConfidence {
         return [pscustomobject]@{ Id = $id; Level = 'Unverified'; Label = 'Unverified'; Tip = "Unverified. $why $where"; Sources = $good; TestedBuilds = $tested }
     }
     if (($here -or $testedHere) -and -not $partial) {
-        return [pscustomobject]@{ Id = $id; Level = 'Verified'; Label = 'Verified'; Tip = "Verified. Documented ($($good.Count) source(s)). $where $meaning"; Sources = $good; TestedBuilds = $tested }
+        return [pscustomobject]@{ Id = $id; Level = 'Verified'; Label = 'Verified'; Tip = "Verified. Documented ($(Format-IgwtCount -Count $good.Count -Noun 'source')). $where $meaning"; Sources = $good; TestedBuilds = $tested }
     }
     $part = $(if ($partial) { ' The documentation covers only part of what it changes.' } else { '' })
-    return [pscustomobject]@{ Id = $id; Level = 'BestEffort'; Label = 'Best effort'; Tip = "Best effort. Documented ($($good.Count) source(s)).$part $where $meaning"; Sources = $good; TestedBuilds = $tested }
+    return [pscustomobject]@{ Id = $id; Level = 'BestEffort'; Label = 'Best effort'; Tip = "Best effort. Documented ($(Format-IgwtCount -Count $good.Count -Noun 'source')).$part $where $meaning"; Sources = $good; TestedBuilds = $tested }
 }
 
 function Get-IgwtConfidenceMap {

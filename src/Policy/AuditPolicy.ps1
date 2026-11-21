@@ -47,8 +47,17 @@ function ConvertFrom-IgwtAuditCsv {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
     $lines = @(([string]$Text) -split "`r?`n" | Where-Object { $_.Trim() })
     if (-not $lines.Count) { return @() }
-    if ($lines[0] -notmatch '(?i)Subcategory') { throw 'Not an audit policy CSV: the header has no Subcategory column.' }
-    foreach ($r in @($lines | ConvertFrom-Csv)) {
+    # The headers are localized on non-English Windows (review P-13): then the columns are read by position, and a
+    # localized inclusion text yields Setting '' (shown as Unknown and never changed, P-30).
+    $header = $null
+    if ($lines[0] -notmatch '(?i)Subcategory') {
+        $cols = @($lines[0] | ConvertFrom-Csv -Header (1..12 | ForEach-Object { "c$_" }) | ForEach-Object { $_.PSObject.Properties | Where-Object { $null -ne $_.Value } }).Count
+        $probe = @($lines | Select-Object -Skip 1 | ForEach-Object { ($_ -split ',')[3] } | Where-Object { $_ -match '^\s*\{?[0-9A-Fa-f]{8}-' })
+        if ($cols -lt 6 -or -not $probe.Count) { throw 'Not an audit policy CSV: the header has no Subcategory column and the columns are not those of auditpol.' }
+        $header = @('Machine Name', 'Policy Target', 'Subcategory', 'Subcategory GUID', 'Inclusion Setting', 'Exclusion Setting', 'Setting Value') | Select-Object -First ([Math]::Min(7, $cols))
+    }
+    $rows = $(if ($header) { @($lines | Select-Object -Skip 1 | ConvertFrom-Csv -Header $header) } else { @($lines | ConvertFrom-Csv) })
+    foreach ($r in $rows) {
         $guid = ([string]$r.'Subcategory GUID').Trim()
         $sub = ([string]$r.Subcategory).Trim()
         $isOption = (-not $guid) -or $sub -like 'Option:*' -or $sub -like 'Global*'
@@ -154,7 +163,7 @@ function Set-IgwtAuditPolicy {
     $current = Get-IgwtAuditPolicy
     $plan = Get-IgwtAuditChangePlan -Changes $Changes -Current $current
     $m = Get-IgwtManagementState
-    if ($m.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($(@($m.Authorities) -join ', ')); a domain or MDM audit policy can override local settings. Pass -AcknowledgeManaged to change it locally." }
+    if ($m.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($(@($m.Authorities) -join ', ')); your organization's audit policy can override local settings. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing the audit policy needs administrator rights.' }
     $todo = @($plan.Ops | Where-Object { $_.Changes })
     if (-not $PSCmdlet.ShouldProcess('Audit policy', "Set $($todo.Count) subcategory setting(s)")) { return $null }

@@ -73,7 +73,7 @@ function Set-IgwtGuiJournal {
     $c.JournalStatusText.Text = switch ([string]$Timeline.Status) {
         'Empty' { 'No changes recorded yet. The journal starts with the first change.' }
         'Broken' { "The journal failed its integrity check and is read-only, so no change runs: $($Timeline.Reason)" }
-        default { "$($Timeline.Sessions) session(s), $($rows.Count) change(s); $inEffect still in effect. Integrity check passed ($($Timeline.Count) entries)." }
+        default { "$(Format-IgwtCount -Count ($Timeline.Sessions) -Noun 'session'), $(Format-IgwtCount -Count ($rows.Count) -Noun 'change'); $inEffect still in effect. Integrity check passed ($($Timeline.Count) entries)." }
     }
     Update-IgwtGuiJournalButtons
 }
@@ -126,6 +126,7 @@ function Start-IgwtGuiJournalReset {
         if ($r) { Set-IgwtGuiStatus "The change journal was set aside: $($r.SetAside)" }
         elseif (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Not set aside: $(@($errs)[0])" -Icon 'Error' }
         Start-IgwtGuiJournalLoad
+        Start-IgwtGuiHistoryLoad
         Start-IgwtGuiHomeCard
     }
 }
@@ -160,7 +161,7 @@ function Format-IgwtGuiJournalPlan {
     $nl = [Environment]::NewLine
     $lines = New-Object System.Collections.Generic.List[string]
     $ready = @($Plan | Where-Object Status -EQ 'Ready').Count; $conf = @($Plan | Where-Object Status -EQ 'Conflict').Count
-    $lines.Add("$ready value(s) will be restored; $conf changed since iG set them (you choose); $(@($Plan).Count - $ready - $conf) unchanged or refused.")
+    $lines.Add("$(Format-IgwtCount -Count $ready -Noun 'value') will be restored; $conf changed since iG set them (you choose); $(@($Plan).Count - $ready - $conf) unchanged or refused.")
     $lines.Add('')
     foreach ($p in $Plan) {
         $lines.Add(('{0,-9} {1}' -f $p.Status, $p.Item))
@@ -170,6 +171,23 @@ function Format-IgwtGuiJournalPlan {
         if ($p.Message) { $lines.Add("          $($p.Message)") }
     }
     return ($lines -join $nl)
+}
+
+function Request-IgwtGuiJournalDecisions {
+    <#
+    .SYNOPSIS
+        Asks for each conflict of a revert plan: Yes restores the value before, No keeps the current
+        value. Returns the decisions (target key -> Restore or Keep), or $null when the user cancels
+        (Cancel, Esc or the close box), which stops the whole revert (review JP-1).
+    #>
+    [CmdletBinding()]
+    param([object[]]$Plan)
+    $decisions = @{}
+    foreach ($p in @($Plan | Where-Object Status -EQ 'Conflict')) {
+        $ans = Show-IgwtGuiMessage -Title 'Changed since iG set it' -Buttons 'YesNoCancel' -Icon 'Question' -Text ("{0}`n`nBefore: {1}`niG set: {2}`nNow: {3}`n`nYes: restore the value before anyway. No: keep the current value (iG stops tracking it). Cancel: stop the revert; nothing is changed." -f $p.Item, (Format-IgwtJournalValue $p.Before), (Format-IgwtJournalValue $p.WeSet), (Format-IgwtJournalValue $p.Now))
+        switch ($ans) { 'Yes' { $decisions[[string]$p.Key] = 'Restore' } 'No' { $decisions[[string]$p.Key] = 'Keep' } default { return $null } }
+    }
+    return $decisions
 }
 
 function Show-IgwtGuiJournalPlan {
@@ -186,11 +204,9 @@ function Show-IgwtGuiJournalPlan {
     $text = Format-IgwtGuiJournalPlan -Plan $Plan
     if (-not $todo.Count) { $null = Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $Title" -Text $text; return }
     if (-not (Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $Title" -Text $text -AcceptText 'Revert...' -CancelText 'Cancel')) { return }
-    $decisions = @{}
-    foreach ($p in @($todo | Where-Object Status -EQ 'Conflict')) {
-        $ans = Show-IgwtGuiMessage -Title 'Changed since iG set it' -Buttons 'YesNoCancel' -Icon 'Question' -Text ("{0}`n`nBefore: {1}`niG set: {2}`nNow: {3}`n`nYes: restore the value before anyway. No: keep the current value (iG stops tracking it). Cancel: skip it." -f $p.Item, (Format-IgwtJournalValue $p.Before), (Format-IgwtJournalValue $p.WeSet), (Format-IgwtJournalValue $p.Now))
-        $decisions[[string]$p.Key] = switch ($ans) { 'Yes' { 'Restore' } 'No' { 'Keep' } default { 'Skip' } }
-    }
+    $decisions = Request-IgwtGuiJournalDecisions -Plan $Plan
+    # JP-1: Cancel (or Esc, or closing the box) on any conflict stops the whole revert; nothing has changed yet.
+    if ($null -eq $decisions) { Set-IgwtGuiStatus 'Revert cancelled; nothing was changed.'; return }
     $null = Start-IgwtGuiJob -Command 'Invoke-IgwtJournalRevert' -Parameters @{ Plan = $Plan; Decisions = $decisions; Title = $Title; Confirm = $false } -Blocking -BusyText 'Reverting from the change journal...' -OnComplete {
         param($out, $errs)
         $r = @($out | Where-Object { $_ }) | Select-Object -Last 1

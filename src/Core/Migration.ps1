@@ -404,26 +404,38 @@ function Convert-IgwtDataToV2 {
     Assert-IgwtWritable -Operation 'Convert-IgwtDataToV2'
     if (-not $DataFolder) { $DataFolder = Get-IgwtDataFolder }
     $idMap = Get-IgwtIdMap -DataFolder $DataFolder
+    # Read and check every file first, so a file this version cannot convert stops the run before
+    # anything is written (review MIG-1: tweak files were rewritten, then the first v3 preset failed).
+    $work = New-Object System.Collections.Generic.List[object]
     foreach ($sub in 'tweaks', 'presets', 'cleaner') {
         $dir = Join-Path $DataFolder $sub
         if (-not (Test-Path -LiteralPath $dir)) { continue }
         foreach ($f in (Get-ChildItem -LiteralPath $dir -Filter '*.json' -File | Sort-Object Name)) {
-            $raw = [System.IO.File]::ReadAllText($f.FullName, [System.Text.Encoding]::UTF8)
             $doc = Read-IgwtJsonFile -Path $f.FullName
             $from = 1
             if (Test-IgwtHasProperty -Object $doc -Name 'schemaVersion') { $from = [int]$doc.schemaVersion }
-            $max = $(if ($sub -eq 'tweaks') { $script:IgwtTweakSchemaVersion } else { $script:IgwtSchemaVersion })
-            if ($from -gt $max) { throw "$($f.Name): schemaVersion $from is newer than this version of iG Windows Tuner supports." }
-            $v2 = ConvertTo-IgwtV2DataDocument -Document $doc -IdMap $idMap
-            $text = ConvertTo-IgwtJson -InputObject $v2
-            $changed = ($text -ne $raw)
-            $count = 1
-            if ($v2.Contains('tweaks')) { $count = @($v2['tweaks']).Count } elseif ($v2.Contains('rules')) { $count = @($v2['rules']).Count }
-            if ($changed -and $PSCmdlet.ShouldProcess($f.FullName, "Write schema v$max")) {
-                [System.IO.File]::WriteAllText($f.FullName, $text, (New-Object System.Text.UTF8Encoding($false)))
-            }
-            [pscustomobject]@{ File = "$sub\$($f.Name)"; Kind = (Get-IgwtDataFileKind -Document $doc); Items = $count; FromSchema = $from; Changed = $changed }
+            # Presets are schema v3 since 3.0 (same version as tweak files); a v3 preset is already current.
+            $max = $(if ($sub -eq 'cleaner') { $script:IgwtSchemaVersion } else { $script:IgwtTweakSchemaVersion })
+            if ($from -gt $max) { throw "$($f.Name): schemaVersion $from is newer than this version of iG Windows Tuner supports. Nothing was written." }
+            $work.Add([pscustomobject]@{ Sub = $sub; File = $f; Doc = $doc; From = $from })
         }
+    }
+    foreach ($w in $work) {
+        $sub = $w.Sub; $f = $w.File; $doc = $w.Doc; $from = $w.From
+        if ($sub -eq 'presets' -and $from -ge 3) {
+            [pscustomobject]@{ File = "$sub\$($f.Name)"; Kind = (Get-IgwtDataFileKind -Document $doc); Items = 1; FromSchema = $from; Changed = $false }
+            continue
+        }
+        $raw = [System.IO.File]::ReadAllText($f.FullName, [System.Text.Encoding]::UTF8)
+        $v2 = ConvertTo-IgwtV2DataDocument -Document $doc -IdMap $idMap
+        $text = ConvertTo-IgwtJson -InputObject $v2
+        $changed = ($text -ne $raw)
+        $count = 1
+        if ($v2.Contains('tweaks')) { $count = @($v2['tweaks']).Count } elseif ($v2.Contains('rules')) { $count = @($v2['rules']).Count }
+        if ($changed -and $PSCmdlet.ShouldProcess($f.FullName, "Write schema v$($v2['schemaVersion'])")) {
+            [System.IO.File]::WriteAllText($f.FullName, $text, (New-Object System.Text.UTF8Encoding($false)))
+        }
+        [pscustomobject]@{ File = "$sub\$($f.Name)"; Kind = (Get-IgwtDataFileKind -Document $doc); Items = $count; FromSchema = $from; Changed = $changed }
     }
     $script:IgwtCatalogCache = $null
     $script:IgwtCleanerRuleCache = $null

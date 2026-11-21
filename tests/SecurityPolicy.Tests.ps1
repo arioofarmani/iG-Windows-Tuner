@@ -72,10 +72,10 @@ Describe 'Security policy and auditing' {
             return [pscustomobject]@{ ExitCode = 0; Output = '' }
         }
         $script:Remote = $false
-        Mock -ModuleName iGWindowsTuner Get-IgwtCurrentIdentity { [pscustomobject]@{ Name = 'PC\ario'; Sid = $script:MeSid; GroupSids = @('S-1-1-0', 'S-1-5-32-544', 'S-1-5-32-545', 'S-1-5-11', 'S-1-5-4'); IsRemote = $script:Remote } }
+        Mock -ModuleName iGWindowsTuner Get-IgwtCurrentIdentity { [pscustomobject]@{ Name = 'PC\player'; Sid = $script:MeSid; GroupSids = @('S-1-1-0', 'S-1-5-32-544', 'S-1-5-32-545', 'S-1-5-11', 'S-1-5-4'); IsRemote = $script:Remote } }
         $script:Accounts = @(
             [pscustomobject]@{ Name = 'Administrator'; Sid = $script:BuiltinSid; Enabled = $false; Role = 'BuiltinAdministrator'; IsAdmin = $true; PasswordLastSet = $null },
-            [pscustomobject]@{ Name = 'ario'; Sid = $script:MeSid; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-30) },
+            [pscustomobject]@{ Name = 'player'; Sid = $script:MeSid; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-30) },
             [pscustomobject]@{ Name = 'admin2'; Sid = $script:OtherAdminSid; Enabled = $true; Role = 'User'; IsAdmin = $true; PasswordLastSet = (Get-Date).AddDays(-5) }
         )
         $script:AdminsKnown = $true
@@ -134,7 +134,7 @@ Describe 'Security policy and auditing' {
         It 'refuses removing the current user from local logon' {
             $script:Accounts[1].IsAdmin = $false
             $p = InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Privilege Rights'; Key = 'SeInteractiveLogonRight'; Value = '*S-1-5-32-551' }) }
-            @($p.Refusals) -join ' ' | Should -Match 'you \(PC\\ario\) would lose'
+            @($p.Refusals) -join ' ' | Should -Match 'you \(PC\\player\) would lose'
         }
         It 'allows local logon for Administrators only (the current user is an administrator)' {
             $p = InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Privilege Rights'; Key = 'SeInteractiveLogonRight'; Value = '*S-1-5-32-544' }) }
@@ -157,6 +157,13 @@ Describe 'Security policy and auditing' {
             @($p2.Refusals).Count | Should -Be 1
             $script:Remote = $false
             (InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Privilege Rights'; Key = 'SeDenyNetworkLogonRight'; Value = 'Guest,*S-1-5-113' }) }).Refusals.Count | Should -Be 0
+        }
+        It 'refuses line breaks and control characters that would add template lines past the safeguards (P-17)' {
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'Registry Values'; Key = 'MACHINE\System\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse'; Value = "4,1`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = *S-1-5-32-544" }) } } | Should -Throw '*control characters*'
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = "MinimumPasswordAge`n[Privilege Rights]"; Value = '1' }) } } | Should -Throw '*setting name*'
+            { InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = 'A=B'; Value = '1' }) } } | Should -Throw '*setting name*'
+            $t = InModuleScope iGWindowsTuner { $s = New-IgwtInfSectionTable; $s['Registry Values'] = New-IgwtInfSectionTable; $s['Registry Values']['MACHINE\X\Y'] = "4,1`n[Privilege Rights]"; try { ConvertTo-IgwtSecurityInfText -Sections $s; 'written' } catch { $_.Exception.Message } }
+            $t | Should -Match 'contains a line break'
         }
         It 'refuses a maximum password age that expires the current password now' {
             $p = InModuleScope iGWindowsTuner { Get-IgwtSecurityChangePlan -Changes @([pscustomobject]@{ Section = 'System Access'; Key = 'MaximumPasswordAge'; Value = '20' }) }

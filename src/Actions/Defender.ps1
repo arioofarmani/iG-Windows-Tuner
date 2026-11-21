@@ -86,13 +86,20 @@ function Set-IgwtMpPreferenceValue {
     $params = @{ ErrorAction = 'Stop' }
     $params[$Setting] = $v
     try { Set-MpPreference @params } finally { Clear-IgwtCache -Prefix 'mp:' -WhatIf:$false }
+    # Tamper Protection or a policy can ignore the change without an error (review DF-1): read it back.
+    $now = Get-IgwtMpPreferenceValue -Setting $Setting
+    if ($null -ne $now -and $now -ne $v) { throw "Defender kept $Setting at $now instead of $v (Tamper Protection or a policy blocks this change)." }
 }
 
 function Invoke-IgwtMpPreferenceApply {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)]$Action, $Context, [ValidateSet('on', 'default')][string]$Mode = 'on')
     $target = $Action.on
-    if ($Mode -eq 'default') { $target = $Action.default }
+    if ($Mode -eq 'default') {
+        # A protection whose Windows default differs by build or edition is left as it is on reset (review DF-2).
+        if ($Action.keepOnReset) { Write-IgwtLog -Message "Reset to default keeps Defender $($Action.setting) as it is (keepOnReset)."; return }
+        $target = $Action.default
+    }
     if ($null -eq $target) { throw "No default defined for Defender $($Action.setting)." }
     $cur = Get-IgwtMpPreferenceValue -Setting ([string]$Action.setting)
     if ($null -ne $cur -and $cur -eq (ConvertTo-IgwtMpValue -Setting ([string]$Action.setting) -Value $target)) { return }

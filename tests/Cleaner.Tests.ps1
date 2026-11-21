@@ -506,6 +506,34 @@ Describe 'Reparse points and tampering' {
         $o.Result | Should -Be 'Refused'
         Test-Path -LiteralPath $precious | Should -BeTrue
     }
+    It 'pins the folder chain while deleting: a swap after the first check is caught, and folders above cannot be renamed (CLN-2)' {
+        $base = New-TestFolder
+        $root = Join-Path $base 'root'
+        $file = New-Fixture (Join-Path $root 'x\a.tmp')
+        (Get-Item -LiteralPath $file).LastWriteTimeUtc = [datetime]::UtcNow.AddDays(-3); (Get-Item -LiteralPath $file).CreationTimeUtc = [datetime]::UtcNow.AddDays(-3)
+        $fi = Get-Item -LiteralPath $file
+        $entry = [pscustomobject]@{ Path = $file; Size = $fi.Length; LastWriteTicks = $fi.LastWriteTimeUtc.Ticks; Root = $root }
+        $rule = New-TestRule @{ roots = @($root) }
+        $rule | Add-Member -NotePropertyName ResolvedRoots -NotePropertyValue @($root) -Force
+        # 1. The second check (made while the file is pinned) sees a swapped chain: nothing is deleted.
+        $script:Calls = 0
+        Mock -ModuleName iGWindowsTuner Test-IgwtCleanerAncestry { $script:Calls++; $script:Calls -lt 2 }
+        $o = InModuleScope iGWindowsTuner -Parameters @{ E = $entry; R = $rule } { param($E, $R) Remove-IgwtCleanerFile -Entry $E -Rule $R }
+        $o.Result | Should -Be 'Skipped'
+        $o.Reason | Should -Match 'became a reparse point'
+        Test-Path -LiteralPath $file | Should -BeTrue
+        # 2. While pinned, renaming the folder above the file fails (real NTFS behavior), then the delete goes ahead.
+        $script:Calls = 0; $script:RenameBlocked = $null; $script:Parent = Join-Path $root 'x'
+        Mock -ModuleName iGWindowsTuner Test-IgwtCleanerAncestry {
+            $script:Calls++
+            if ($script:Calls -eq 2) { try { [System.IO.Directory]::Move($script:Parent, "$($script:Parent)-swapped"); $script:RenameBlocked = $false; [System.IO.Directory]::Move("$($script:Parent)-swapped", $script:Parent) } catch { $script:RenameBlocked = $true } }
+            $true
+        }
+        $o = InModuleScope iGWindowsTuner -Parameters @{ E = $entry; R = $rule } { param($E, $R) Remove-IgwtCleanerFile -Entry $E -Rule $R }
+        $script:RenameBlocked | Should -BeTrue -Because 'the open handle pins every folder above the file'
+        $o.Result | Should -Be 'Deleted'
+        Test-Path -LiteralPath $file | Should -BeFalse
+    }
     It 'refuses anything outside the test root in TestMode' {
         $entry = [pscustomobject]@{ Path = "$env:SystemRoot\Temp\igwt-not-there.tmp"; Size = 0; LastWriteTicks = 0; Root = "$env:SystemRoot\Temp" }
         $rule = New-TestRule @{ roots = @("$env:SystemRoot\Temp") }

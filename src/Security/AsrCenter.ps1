@@ -345,6 +345,26 @@ function Get-IgwtAsrRecommendationPlan {
     }
 }
 
+function Test-IgwtAsrPatternMayEnter {
+    <#
+    .SYNOPSIS
+        True when a wildcard exclusion pattern can match the folder -Root itself or a path inside it,
+        comparing level by level (* and ? per level, as Defender does). The text checks alone let
+        'C:\Win*\System32\...' pass, although it covers the Windows folder (review F-05). Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Pattern, [Parameter(Mandatory = $true)][string]$Root)
+    $p = @($Pattern.TrimEnd('\').Split([char]'\'))
+    $r = @($Root.TrimEnd('\').Split([char]'\'))
+    if (-not $Root.Trim() -or $p.Count -lt $r.Count) { return $false }
+    for ($i = 0; $i -lt $r.Count; $i++) {
+        $rx = '^' + ([regex]::Escape($p[$i]) -replace '\\\*', '.*' -replace '\\\?', '.') + '$'
+        if (-not [regex]::IsMatch($r[$i], $rx, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) { return $false }
+    }
+    return $true
+}
+
 function Test-IgwtAsrExclusion {
     <#
     .SYNOPSIS
@@ -390,6 +410,25 @@ function Test-IgwtAsrExclusion {
     if ($segments.Count -eq 1 -and $hasWildcard) { return (& $result $false 'Wildcard names directly in a drive root are too broad.' $expanded $kind) }
 
     $windir = [string]$env:SystemRoot
+    if ($hasWildcard) {
+        # A wildcard level can stand for a protected folder even when the text does not name it (review F-05).
+        if ($windir -and (Test-IgwtAsrPatternMayEnter -Pattern $trimmed -Root $windir)) {
+            return (& $result $false 'This wildcard can match the Windows folder; attackers abuse built-in Windows tools, so they must stay covered by ASR.' $expanded $kind)
+        }
+        $prot = @()
+        if ($env:USERPROFILE) { $prot += (Split-Path -Parent $env:USERPROFILE) }
+        if ($env:ProgramData) { $prot += [string]$env:ProgramData }
+        foreach ($root in $prot) {
+            if (Test-IgwtAsrPatternMayEnter -Pattern $trimmed -Root $root) {
+                return (& $result $false "This wildcard can match '$root', where any program you run can write; wildcards are refused there." $expanded $kind)
+            }
+        }
+        foreach ($pf in @(@([string]$env:ProgramFiles, [string]${env:ProgramFiles(x86)}) | Where-Object { $_ })) {
+            if (@($trimmed.Split([char]'\')).Count -eq @($pf.TrimEnd('\').Split([char]'\')).Count -and (Test-IgwtAsrPatternMayEnter -Pattern $trimmed -Root $pf)) {
+                return (& $result $false 'This wildcard can match the whole Program Files folder; pick the program''s own folder or, better, its .exe file.' $expanded $kind)
+            }
+        }
+    }
     if ($windir -and (Test-IgwtPathUnder -Path $trimmed -Parent $windir)) {
         return (& $result $false 'Paths in the Windows folder are refused: attackers abuse built-in Windows tools, so they must stay covered by ASR.' $expanded $kind)
     }

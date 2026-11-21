@@ -388,7 +388,7 @@ function Get-IgwtSecSettingPolicyRows {
     foreach ($a in @($(if ($audit) { $audit.Subcategories }))) {
         if (-not $a -or $a.Option -or -not $a.Guid) { continue }
         $id = "audit:$($a.Guid)"
-        $cur = switch -Regex ([string]$a.Setting) { 'Success.*Failure|SuccessAndFailure' { 'SuccessAndFailure'; break } '^Success' { 'Success'; break } '^Failure' { 'Failure'; break } default { 'None' } }
+        $cur = switch -Regex ([string]$a.Setting) { 'Success.*Failure|SuccessAndFailure' { 'SuccessAndFailure'; break } '^Success' { 'Success'; break } '^Failure' { 'Failure'; break } '^(None|No Auditing)$' { 'None'; break } default { 'Unknown' } }
         $base = Get-IgwtSecSettingBaselineValue -Id $id -Imported $Imported
         New-IgwtSecSettingRow -Fields @{
             Id = $id; SourceKind = 'audit'; Category = @('Audit policy'); Name = [string]$a.Subcategory; ValueSpec = (ConvertTo-IgwtSecSettingValueSpec -SourceKind audit)

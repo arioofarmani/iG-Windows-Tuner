@@ -56,3 +56,8 @@ jobs:
         run: |
           & "$env:GITHUB_WORKSPACE\tools\Test-GuiRender.ps1" -OutDir "$env:RUNNER_TEMP\gui-render" -Theme Dark -Scale 1
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Component gallery (every control style, every theme)
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\Test-GuiGallery.ps1" -OutDir "$env:RUNNER_TEMP\gui-gallery" -Scale 1
+          if ($LASTEXITCODE -ne 0) { exit 1 }

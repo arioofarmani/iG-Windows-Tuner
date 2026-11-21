@@ -131,7 +131,7 @@ function Initialize-IgwtGuiDisplay {
     $c.DensityBox.ItemsSource = @('Comfortable', 'Compact')
     $c.DensityBox.SelectedItem = $density
     $c.ReduceMotionBox.IsChecked = $reduce
-    Register-IgwtGuiHandler -Control $c.DisplayButton -Event 'Click' -Handler { $script:Gui.C.DisplayPopup.IsOpen = -not $script:Gui.C.DisplayPopup.IsOpen }
+    Register-IgwtGuiHandler -Control $c.DisplayButton -Event 'Click' -Handler { Open-IgwtGuiPage -Page 'Settings' }
     Register-IgwtGuiHandler -Control $c.ThemeBox -Event 'SelectionChanged' -Handler {
             $label = [string]$script:Gui.C.ThemeBox.SelectedItem
             $key = @($script:IgwtThemeChoices.Keys | Where-Object { $script:IgwtThemeChoices[$_] -eq $label }) | Select-Object -First 1
@@ -181,7 +181,7 @@ function Update-IgwtGuiThemedRows {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
     param()
-    if ($script:Gui -and $script:Gui.Data) { try { Update-IgwtGuiDashboard } catch { Write-Verbose "Dashboard not refreshed: $($_.Exception.Message)" } }
+    if ($script:Gui -and $script:Gui.Data) { try { Update-IgwtGuiDashboard -Data $script:Gui.Data } catch { Write-Verbose "Dashboard not refreshed: $($_.Exception.Message)" } }
 }
 
 function Get-IgwtGuiBrush {
@@ -377,12 +377,16 @@ function Show-IgwtGuiToast {
     $null = $dock.Children.Add($ic); $null = $dock.Children.Add($close)
     # The handlers below are closures (GetNewClosure): inside them $script: is the closure's own scope, not this
     # module's, so everything they use travels in $state ($script:Gui there is empty; DECISIONS U9).
-    $state = @{ Toast = $toast; Host = $c.ToastHost; Timer = $null; Action = $Action; Arg = $ActionArgument }
+    # Busy and Blocked are module script blocks, so the closure can reach the module's apply state.
+    $state = @{ Toast = $toast; Host = $c.ToastHost; Timer = $null; Action = $Action; Arg = $ActionArgument; Busy = { Test-IgwtGuiApplyBusy }; Blocked = { param($w) Show-IgwtGuiNotStarted -What $w } }
     if ($ActionText -and $Action) {
         $act = New-Object System.Windows.Controls.Button
         $act.Content = $ActionText; $act.Style = $script:Gui.Window.FindResource('LinkButton'); $act.Margin = '12,0,0,0'; $act.VerticalAlignment = 'Center'
+        [System.Windows.Automation.AutomationProperties]::SetName($act, "$ActionText ($Text)")
         [System.Windows.Controls.DockPanel]::SetDock($act, 'Right')
-        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if ($state.Timer) { $state.Timer.Stop() }; $null = $state.Host.Children.Remove($state.Toast); & $state.Action $state.Arg }.GetNewClosure()
+        # While another change runs, the toast and its Undo stay: the action could not start (review 3.8.1 G-07).
+        Register-IgwtGuiHandler -Control $act -Event 'Click' -Handler { if (& $state.Busy) { & $state.Blocked ([string]$state.Toast.Tag); return }; if ($state.Timer) { $state.Timer.Stop() }; $null = $state.Host.Children.Remove($state.Toast); & $state.Action $state.Arg }.GetNewClosure()
+        $toast.Tag = $ActionText
         $null = $dock.Children.Add($act)
     }
     $tb = New-Object System.Windows.Controls.TextBlock

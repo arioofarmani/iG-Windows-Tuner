@@ -5,7 +5,7 @@ BeforeAll {
     $script:Header = "#Version: 1.5`r`n#Software: Microsoft Windows Firewall`r`n#Time Format: Local`r`n#Fields: date time action protocol src-ip dst-ip src-port dst-port size tcpflags tcpsyn tcpack tcpwin icmptype icmpcode info path pid`r`n`r`n"
     # Event XML in the shape of the verified schema (5156 v2: ProcessID; 5152 v2: ProcessId).
     $script:Wfp5156 = @'
-<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><EventID>5156</EventID></System><EventData><Data Name="ProcessID">4120</Data><Data Name="Application">\device\harddiskvolume3\users\ario\appdata\local\game\game.exe</Data><Data Name="Direction">%%14593</Data><Data Name="SourceAddress">192.168.1.20</Data><Data Name="SourcePort">50123</Data><Data Name="DestAddress">198.51.100.7</Data><Data Name="DestPort">443</Data><Data Name="Protocol">6</Data><Data Name="FilterRTID">70123</Data><Data Name="LayerName">%%14611</Data><Data Name="FilterName">Game outbound</Data></EventData></Event>
+<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><EventID>5156</EventID></System><EventData><Data Name="ProcessID">4120</Data><Data Name="Application">\device\harddiskvolume3\users\player\appdata\local\game\game.exe</Data><Data Name="Direction">%%14593</Data><Data Name="SourceAddress">192.168.1.20</Data><Data Name="SourcePort">50123</Data><Data Name="DestAddress">198.51.100.7</Data><Data Name="DestPort">443</Data><Data Name="Protocol">6</Data><Data Name="FilterRTID">70123</Data><Data Name="LayerName">%%14611</Data><Data Name="FilterName">Game outbound</Data></EventData></Event>
 '@
     $script:Wfp5152 = @'
 <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><EventID>5152</EventID></System><EventData><Data Name="ProcessId">0</Data><Data Name="Application"></Data><Data Name="Direction">%%14592</Data><Data Name="SourceAddress">203.0.113.5</Data><Data Name="SourcePort">51000</Data><Data Name="DestAddress">192.168.1.20</Data><Data Name="DestPort">3389</Data><Data Name="Protocol">58</Data></EventData></Event>
@@ -36,16 +36,16 @@ Describe 'Forensic export building blocks' {
         }
     }
     It 'pseudonymizes consistently within an export, differently across exports, and keeps public values' {
-        $a = New-Object IgwtFirewallLog.Redactor $true; $a.UserName = 'ario'; $a.ComputerName = 'GAMEPC'
+        $a = New-Object IgwtFirewallLog.Redactor $true; $a.UserName = 'player'; $a.ComputerName = 'GAMEPC'
         $b = New-Object IgwtFirewallLog.Redactor $true
         $a.Ip('192.168.1.20') | Should -Be $a.Ip('192.168.1.20')
         $a.Ip('192.168.1.20') | Should -Match '^ip-[0-9a-f]{12}$'
         $a.Ip('192.168.1.20') | Should -Not -Be $b.Ip('192.168.1.20') -Because 'the key is random per export'
         $a.Ip('198.51.100.7') | Should -Be '198.51.100.7'
         $a.Ip('fd00::1') | Should -Match '^ip-'; $a.Ip('fe80::1') | Should -Match '^ip-'
-        $p = $a.Path('C:\Users\Ario\AppData\Local\game.exe')
+        $p = $a.Path('C:\Users\Player\AppData\Local\game.exe')
         $p | Should -Match '^C:\\Users\\user-[0-9a-f]{12}\\AppData'
-        $p | Should -Not -Match '(?i)ario'
+        $p | Should -Not -Match '(?i)player'
         $a.Host('GAMEPC.lan') | Should -Match '^host-'; $a.Host('printer') | Should -Match '^host-'; $a.Host('www.example.com') | Should -Be 'www.example.com'
         $raw = New-Object IgwtFirewallLog.Redactor $false
         $raw.Ip('192.168.1.20') | Should -Be '192.168.1.20'
@@ -115,7 +115,7 @@ Describe 'Forensic dataset export' {
         $lines = @(Get-Content (Join-Path $r.Folder 'events-0001.jsonl'))
         $lines.Count | Should -Be 3
         ($lines -join "`n") | Should -Not -Match '192\.168\.1\.20' -Because 'internal addresses are pseudonymized by default'
-        ($lines -join "`n") | Should -Not -Match '(?i)\\users\\ario\\'
+        ($lines -join "`n") | Should -Not -Match '(?i)\\users\\player\\'
         (Get-Content (Join-Path $r.Folder 'flows.jsonl') -TotalCount 1 | ConvertFrom-Json).events | Should -BeGreaterThan 0
     }
     It 'refuses a network share and an empty time range' {
@@ -157,9 +157,42 @@ Describe 'Evidence package' {
         @($m.sources | Where-Object { $_.status -eq 'off' }).Count | Should -Be 1
         $coc = Get-Content (Join-Path $r.Folder 'chain-of-custody.txt') -Raw
         $coc | Should -Match 'No original was moved, changed or cleared'
+        $coc | Should -Match 'Contains personal data' -Because 'the package is not redacted (review F-09)'
+        @($m.personalData).Count | Should -BeGreaterThan 0
+        $m.redacted | Should -BeFalse
         $coc | Should -Match ([regex]::Escape($r.ManifestSha256))
         (Get-FileHash $r.Zip -Algorithm SHA256).Hash.ToLowerInvariant() | Should -Be $r.ZipSha256
         Get-Content (Join-Path $r.Folder 'system\listening-ports.csv') -TotalCount 1 | Should -Be '"Protocol","LocalAddress","LocalPort","Pid","Process"'
+    }
+}
+
+Describe 'Review 4.0 F-08: the PC''s own public addresses are pseudonymized too' {
+    It 'hides addresses added as local (IPv6 with a zone, upper case, IPv4) and keeps other public ones' {
+        $r = New-Object IgwtFirewallLog.Redactor $true
+        $r.AddLocalAddress('2001:db8:5::20%12'); $r.AddLocalAddress('198.51.100.20'); $r.AddLocalAddress('not-an-ip')
+        $r.LocalAddressCount | Should -Be 2
+        $r.Ip('2001:DB8:5::20') | Should -Match '^ip-[0-9a-f]{12}$'
+        $r.Ip('198.51.100.20') | Should -Match '^ip-[0-9a-f]{12}$'
+        $r.Ip('2001:db8:9::1') | Should -Be '2001:db8:9::1'
+        $t = $r.Text('from 2001:db8:5::20 and 198.51.100.20 to 198.51.100.7')
+        $t | Should -Not -Match '2001:db8:5::20|198\.51\.100\.20\b'
+        $t | Should -Match '198\.51\.100\.7'
+        (New-Object IgwtFirewallLog.Redactor $true).Ip('198.51.100.20') | Should -Be '198.51.100.20' -Because 'without local addresses public values are kept'
+    }
+    It 'a pseudonymized export hides the PC''s public address; a raw export keeps it' {
+        foreach ($raw in $false, $true) {
+            $dest = Join-Path $TestDrive "f08-$raw"; $null = New-Item -ItemType Directory $dest
+            $r = InModuleScope iGWindowsTuner -Parameters @{ H = $script:Header; D = $dest; Raw = $raw } {
+                param($H, $D, $Raw)
+                Mock Get-IgwtLocalIpAddresses { @('198.51.100.20', 'fe80::1') }
+                $e = (ConvertFrom-IgwtFirewallLogText -Text ($H + "2026-10-29 10:00:09 ALLOW TCP 198.51.100.20 203.0.113.9 50123 443 60 - - - - - - - SEND 4120`r`n")).Entries
+                $ev = [pscustomobject]@{ Wfp = (New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Row]'); Dns = (New-Object 'System.Collections.Generic.List[IgwtFirewallLog.Row]'); Messages = @() }
+                Export-IgwtForensicDataset -Destination $D -From ([datetime]'2026-10-29 09:00') -To ([datetime]'2026-10-29 11:00') -FirewallEntries $e.ToArray() -Events $ev -Raw:$Raw -Confirm:$false
+            }
+            $text = (Get-Content (Join-Path $r.Folder 'events-0001.jsonl') -Raw) + (Get-Content (Join-Path $r.Folder 'flows.jsonl') -Raw)
+            if ($raw) { $text | Should -Match '198\.51\.100\.20' } else { $text | Should -Not -Match '198\.51\.100\.20' }
+            $text | Should -Match '203\.0\.113\.9' -Because 'other public addresses are kept'
+        }
     }
 }
 
@@ -171,18 +204,18 @@ Describe 'Review 3.5 regressions (redaction and robustness)' {
         $parts[0] | Should -Match '^ip-'; $parts[1] | Should -Be '198.51.100.7'; $parts[2] | Should -Match '^ip-'
     }
     It '#7: rule names, notes and messages are scrubbed; reverse-lookup names are pseudonymized' {
-        $r = New-Object IgwtFirewallLog.Redactor $true; $r.UserName = 'ario'; $r.ComputerName = 'GAMEPC'
-        $txt = $r.Text('Allow C:\Users\ario\AppData\x.exe from 192.168.1.10 on GAMEPC (public 198.51.100.7)')
-        $txt | Should -Not -Match '(?i)ario|192\.168\.1\.10|GAMEPC'
+        $r = New-Object IgwtFirewallLog.Redactor $true; $r.UserName = 'player'; $r.ComputerName = 'GAMEPC'
+        $txt = $r.Text('Allow C:\Users\player\AppData\x.exe from 192.168.1.10 on GAMEPC (public 198.51.100.7)')
+        $txt | Should -Not -Match '(?i)player|192\.168\.1\.10|GAMEPC'
         $txt | Should -Match '198\.51\.100\.7'
         $r.Host('10.1.168.192.in-addr.arpa') | Should -Match '^host-'
         [IgwtFirewallLog.Redactor]::IsInternal('::ffff:192.168.1.1') | Should -BeTrue
         InModuleScope iGWindowsTuner {
             $e = (ConvertFrom-IgwtFirewallLogText -Text "#Fields: date time action protocol src-ip dst-ip`n2026-10-29 10:00:00 DROP TCP 203.0.113.5 192.168.1.20`n").Entries
-            $e[0].Note = 'seen from 192.168.1.20 by ario'
-            $red = New-Object IgwtFirewallLog.Redactor $true; $red.UserName = 'ario'
+            $e[0].Note = 'seen from 192.168.1.20 by player'
+            $red = New-Object IgwtFirewallLog.Redactor $true; $red.UserName = 'player'
             $line = [IgwtFirewallLog.Export]::JsonLines([IgwtFirewallLog.Export]::FromEntries($e), $red)[0]
-            $line | Should -Not -Match '192\.168\.1\.20|ario'
+            $line | Should -Not -Match '192\.168\.1\.20|player'
         }
     }
     It '#9: an overlong line is skipped and counted without keeping it in memory' {

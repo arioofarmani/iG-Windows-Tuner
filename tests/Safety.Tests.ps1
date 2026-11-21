@@ -276,3 +276,25 @@ Describe 'Registry cleaner stays narrow and does not look like an AV killer (DEC
         Get-Matches '(?i)\b(Stop|Start|Set|New|Remove|Restart|Suspend|Resume)-Service\b|ServiceController|Win32_Service|\bsc(\.exe)?\s+(config|stop|delete|create|start)\b|ChangeStartMode|StopService' $script:RegCleanWriters | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Module-wide script variables' {
+    It 'assigns each whole $script: variable at file level in one file only (a later file silently replaces it)' {
+        # Found in 4.0: Components.ps1 and ViewModels.ps1 both set $script:IgwtToneGlyph with different keys.
+        # Adding entries to a shared table ($script:X['key'] = ...) is fine; replacing the whole variable is not.
+        $owners = @{}
+        foreach ($f in Get-ChildItem -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'src') -Recurse -Filter '*.ps1') {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$null)
+            foreach ($st in $ast.EndBlock.Statements) {
+                if ($st -isnot [System.Management.Automation.Language.AssignmentStatementAst]) { continue }
+                if ($st.Left -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
+                $p = $st.Left.VariablePath
+                if (-not $p.IsScript) { continue }
+                $n = ($p.UserPath -replace "^(?i)script:", "")
+                if (-not $owners.ContainsKey($n)) { $owners[$n] = New-Object System.Collections.Generic.List[string] }
+                $owners[$n].Add($f.Name)
+            }
+        }
+        $dup = @($owners.Keys | Where-Object { @($owners[$_] | Select-Object -Unique).Count -gt 1 } | ForEach-Object { "$_ ($(@($owners[$_] | Select-Object -Unique) -join ', '))" })
+        $dup | Should -BeNullOrEmpty
+    }
+}

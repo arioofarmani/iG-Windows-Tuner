@@ -10,17 +10,19 @@
     -->
 
     <!-- Colours (Dark defaults) -->
-    <Color x:Key="ColorBackground">#FF15171B</Color>
-    <Color x:Key="ColorSurface">#FF1E2127</Color>
-    <SolidColorBrush x:Key="BrushBackground" Color="#FF15171B"/>
-    <SolidColorBrush x:Key="BrushSidebar" Color="#FF111317"/>
-    <SolidColorBrush x:Key="BrushSurface" Color="#FF1E2127"/>
-    <SolidColorBrush x:Key="BrushSurfaceAlt" Color="#FF262A31"/>
-    <SolidColorBrush x:Key="BrushSurfaceHover" Color="#FF2D323A"/>
-    <SolidColorBrush x:Key="BrushBorder" Color="#FF2E333B"/>
+    <Color x:Key="ColorBackground">#FF111316</Color>
+    <Color x:Key="ColorSurface">#FF1A1D22</Color>
+    <SolidColorBrush x:Key="BrushBackground" Color="#FF111316"/>
+    <SolidColorBrush x:Key="BrushSidebar" Color="#FF0D0F12"/>
+    <SolidColorBrush x:Key="BrushSurface" Color="#FF1A1D22"/>
+    <SolidColorBrush x:Key="BrushSurfaceAlt" Color="#FF22262C"/>
+    <SolidColorBrush x:Key="BrushSurfaceHover" Color="#FF1F2329"/>
+    <SolidColorBrush x:Key="BrushSurfaceSelected" Color="#FF1C2A37"/>
+    <SolidColorBrush x:Key="BrushBorder" Color="#FF343A43"/>
+    <SolidColorBrush x:Key="BrushBorderControl" Color="#FF6E7681"/>
     <SolidColorBrush x:Key="BrushBorderStrong" Color="#FF6E7681"/>
     <SolidColorBrush x:Key="BrushText" Color="#FFF2F4F7"/>
-    <SolidColorBrush x:Key="BrushTextMuted" Color="#FFA7B0BB"/>
+    <SolidColorBrush x:Key="BrushTextMuted" Color="#FFA9B1BC"/>
     <SolidColorBrush x:Key="BrushTextDisabled" Color="#FF6E7681"/>
     <SolidColorBrush x:Key="BrushAccent" Color="#FF4CC2FF"/>
     <SolidColorBrush x:Key="BrushAccentHover" Color="#FF7CD3FF"/>
@@ -53,9 +55,9 @@
     <sys:Double x:Key="FontSizeBodyLarge">15</sys:Double>
     <sys:Double x:Key="FontSizeSubtitle">16</sys:Double>
     <sys:Double x:Key="FontSizeTitleSmall">18</sys:Double>
-    <sys:Double x:Key="FontSizeTitle">22</sys:Double>
+    <sys:Double x:Key="FontSizeTitle">20</sys:Double>
     <sys:Double x:Key="FontSizeTitleLarge">26</sys:Double>
-    <sys:Double x:Key="FontSizeDisplay">30</sys:Double>
+    <sys:Double x:Key="FontSizeDisplay">28</sys:Double>
 
     <!-- Spacing (4/8 pt), radii, elevation and density (Comfortable defaults) -->
     <sys:Double x:Key="Space1">4</sys:Double>
@@ -65,8 +67,25 @@
     <sys:Double x:Key="Space5">24</sys:Double>
     <sys:Double x:Key="Space6">32</sys:Double>
     <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
-    <CornerRadius x:Key="RadiusMedium">6</CornerRadius>
-    <CornerRadius x:Key="RadiusLarge">10</CornerRadius>
+    <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+    <!-- 4.0 design tokens (Phase 3, section 3). The older keys above keep working and now use the same
+         values: RadiusMedium = RadiusControl, RadiusLarge = RadiusCard. -->
+    <sys:Double x:Key="Space20">20</sys:Double>
+    <sys:Double x:Key="Space40">40</sys:Double>
+    <CornerRadius x:Key="RadiusControl">8</CornerRadius>
+    <CornerRadius x:Key="RadiusCard">12</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+    <Thickness x:Key="PagePadding">40,28,40,28</Thickness>
+    <Thickness x:Key="CardPaddingLarge">20</Thickness>
+    <Thickness x:Key="SettingRowPadding">20,14</Thickness>
+    <sys:Double x:Key="TargetMin">44</sys:Double>
+    <sys:Double x:Key="ChipHeight">36</sys:Double>
+    <sys:Double x:Key="SidebarWidth">240</sys:Double>
+    <sys:Double x:Key="DetailsWidth">320</sys:Double>
+    <sys:Double x:Key="ContentMaxWidth">1100</sys:Double>
+    <Thickness x:Key="FocusThickness">2</Thickness>
+    <Duration x:Key="MotionFast">0:0:0.15</Duration>
     <DropShadowEffect x:Key="Elevation2" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.28" Color="#FF000000"/>
     <sys:Double x:Key="GridRowHeight">38</sys:Double>
     <Thickness x:Key="GridCellPadding">10,7</Thickness>
@@ -216,11 +235,15 @@
                                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{DynamicResource RadiusMedium}" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="8" Margin="-3" Visibility="Collapsed"/>
+                        <Border x:Name="Press" Background="#14000000" CornerRadius="{DynamicResource RadiusMedium}" IsHitTestVisible="False" Visibility="Collapsed"/>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="10" Margin="-4" Visibility="Collapsed"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSurfaceHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Press" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
@@ -249,12 +272,16 @@
                                 BorderThickness="1" CornerRadius="{DynamicResource RadiusMedium}" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="8" Margin="-3" Visibility="Collapsed"/>
+                        <Border x:Name="Press" Background="#14000000" CornerRadius="{DynamicResource RadiusMedium}" IsHitTestVisible="False" Visibility="Collapsed"/>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="10" Margin="-4" Visibility="Collapsed"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushAccentHover}"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushAccentHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Press" Property="Visibility" Value="Visible"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
@@ -358,7 +385,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type CheckBox}">
                     <Grid Width="44" Height="24" Background="Transparent">
-                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="14" Margin="-3" Visibility="Collapsed"/>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="16" Margin="-4" Visibility="Collapsed"/>
                         <Border x:Name="Track" CornerRadius="10" Height="20" BorderThickness="1" BorderBrush="{DynamicResource BrushTextMuted}" Background="Transparent"/>
                         <Ellipse x:Name="Thumb" Width="12" Height="12" Fill="{DynamicResource BrushTextMuted}" HorizontalAlignment="Left" Margin="5,0,0,0"/>
                     </Grid>
@@ -399,7 +426,7 @@
                 <ControlTemplate TargetType="{x:Type CheckBox}">
                     <StackPanel Orientation="Horizontal" Background="Transparent">
                         <Grid>
-                            <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="6" Margin="-3" Visibility="Collapsed"/>
+                            <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="8" Margin="-4" Visibility="Collapsed"/>
                             <Border x:Name="Box" Width="18" Height="18" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BrushTextMuted}" Background="{DynamicResource BrushSurfaceAlt}" VerticalAlignment="Center">
                                 <TextBlock x:Name="Mark" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12" Foreground="{DynamicResource BrushOnAccent}" HorizontalAlignment="Center" Visibility="Collapsed"/>
                             </Border>
@@ -437,7 +464,7 @@
                 <ControlTemplate TargetType="{x:Type RadioButton}">
                     <StackPanel Orientation="Horizontal" Background="Transparent">
                         <Grid>
-                            <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="12" Margin="-3" Visibility="Collapsed"/>
+                            <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="14" Margin="-4" Visibility="Collapsed"/>
                             <Border x:Name="Ring" Width="18" Height="18" CornerRadius="9" BorderThickness="1" BorderBrush="{DynamicResource BrushTextMuted}" Background="{DynamicResource BrushSurfaceAlt}" VerticalAlignment="Center">
                                 <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{DynamicResource BrushOnAccent}" Visibility="Collapsed"/>
                             </Border>
@@ -488,7 +515,7 @@
                                 <ContentPresenter VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
-                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="16" Margin="-3" Visibility="Collapsed"/>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="18" Margin="-4" Visibility="Collapsed"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
@@ -617,6 +644,8 @@
 
     <!-- Combo box -->
     <Style TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
         <Setter Property="Padding" Value="10,6"/>
@@ -663,7 +692,7 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="8" Margin="-3" Visibility="Collapsed" IsHitTestVisible="False"/>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="10" Margin="-4" Visibility="Collapsed" IsHitTestVisible="False"/>
                         <ContentPresenter IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" Margin="10,5,28,5" VerticalAlignment="Center" HorizontalAlignment="Left"/>
                         <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False">
                             <Border Background="{DynamicResource BrushSurface}" BorderBrush="{DynamicResource BrushBorderStrong}" BorderThickness="1" CornerRadius="6" Padding="2"
@@ -766,6 +795,8 @@
         <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
     </Style>
     <Style TargetType="{x:Type TreeViewItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -808,6 +839,8 @@
 
     <!-- Navigation -->
     <Style x:Key="NavItem" TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
         <Setter Property="Padding" Value="12,7"/>
@@ -840,6 +873,8 @@
     </Style>
     <!-- A group label in the navigation (3.3 X11): not selectable, not focusable. -->
     <Style x:Key="NavHeader" TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
         <Setter Property="IsTabStop" Value="False"/>
@@ -1198,5 +1233,188 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!--
+        4.0 components (Phase 3, section 4). New pages use these; 3.9 pages keep the older styles until
+        sections 3-7 rebuild them. Targets are at least 44 px tall (chips 36), the focus ring is 2 px
+        with a 2 px gap, and status always pairs a word with its colour.
+    -->
+    <Style x:Key="TextDisplay" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeDisplay}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="TextCardTitle" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeTitle}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="TextSubtitle" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeTitleSmall}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="TextBody" TargetType="{x:Type TextBlock}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="TextBodyStrong" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="TextValue" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource TextBody}">
+        <Setter Property="FontFamily" Value="{DynamicResource FontMono}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="{x:Type Button}" BasedOn="{StaticResource AccentButton}">
+        <Setter Property="MinHeight" Value="{DynamicResource TargetMin}"/>
+        <Setter Property="Padding" Value="18,10"/>
+    </Style>
+    <Style x:Key="SecondaryButton" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="MinHeight" Value="{DynamicResource TargetMin}"/>
+        <Setter Property="Padding" Value="18,10"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorderControl}"/>
+    </Style>
+    <Style x:Key="SubtleButton" TargetType="{x:Type Button}" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushLink}"/>
+    </Style>
+    <!-- Danger is an outline: it is never filled outside the typed-confirmation dialog. -->
+    <Style x:Key="DangerOutlineButton" TargetType="{x:Type Button}" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushDanger}"/>
+        <Setter Property="Foreground" Value="{DynamicResource BrushDanger}"/>
+    </Style>
+
+    <!-- Filter chips: a toggle whose state is announced (Toggle pattern) and shown by an inverted fill and a check mark. -->
+    <Style x:Key="FilterChip" TargetType="{x:Type ToggleButton}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="MinHeight" Value="{DynamicResource ChipHeight}"/>
+        <Setter Property="Margin" Value="0,0,8,8"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Grid>
+                        <Border x:Name="Bd" CornerRadius="{DynamicResource RadiusPill}" Padding="14,0" BorderThickness="1" BorderBrush="{DynamicResource BrushBorderControl}" Background="{DynamicResource BrushSurfaceAlt}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="Check" Text="&#xE73E;" FontFamily="{DynamicResource FontIcons}" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="Focus" BorderBrush="{DynamicResource BrushFocus}" BorderThickness="2" CornerRadius="{DynamicResource RadiusPill}" Margin="-4" Visibility="Collapsed" IsHitTestVisible="False"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushSurfaceHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BrushText}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BrushText}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource BrushBackground}"/>
+                            <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Pill: status as icon plus word on a soft fill (New-IgwtPill sets the tone brushes). -->
+    <Style x:Key="Pill" TargetType="{x:Type Border}">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusPill}"/>
+        <Setter Property="Padding" Value="10,3"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="Background" Value="{DynamicResource BrushNeutralSoft}"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <!-- Menu items built in code: set the alignments the default style otherwise binds to an ancestor ItemsControl,
+         which fails for items added after creation (51 binding errors in the 4.0 UI Automation run). -->
+    <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <!-- List items built in code: same reason as MenuItem (the default style binds the alignments to an ancestor ItemsControl). -->
+    <Style TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <!-- InfoBar: a Windows-style banner (read-only, restart needed, managed PC). -->
+    <Style x:Key="InfoBar" TargetType="{x:Type Border}">
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusControl}"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background" Value="{DynamicResource BrushInfoSoft}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushInfo}"/>
+    </Style>
+    <Style x:Key="Card4" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource BrushSurface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}"/>
+        <Setter Property="Padding" Value="{DynamicResource CardPaddingLarge}"/>
+    </Style>
+    <Style x:Key="NextStepCard" TargetType="{x:Type Border}" BasedOn="{StaticResource Card4}">
+        <Setter Property="Background" Value="{DynamicResource BrushAccentSoft}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushAccent}"/>
+    </Style>
+    <Style x:Key="StatusTile" TargetType="{x:Type Border}" BasedOn="{StaticResource Card4}">
+        <Setter Property="MinWidth" Value="200"/>
+    </Style>
+    <Style x:Key="SessionCard" TargetType="{x:Type Border}" BasedOn="{StaticResource Card4}">
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+    <!-- SettingRow: name, plain hint, evidence, switch. Selected rows use SurfaceSelected and a word, not colour alone. -->
+    <Style x:Key="SettingRow" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource BrushSurface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="{DynamicResource SettingRowPadding}"/>
+        <Setter Property="MinHeight" Value="{DynamicResource TargetMin}"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource BrushSurfaceHover}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource BrushFocus}"/>
+                <Setter Property="BorderThickness" Value="2"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="DetailsPanel" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource BrushSurface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}"/>
+        <Setter Property="Padding" Value="{DynamicResource CardPaddingLarge}"/>
+    </Style>
+    <!-- ChangeBar: the one place changes are applied (sticky bottom bar, live region). -->
+    <Style x:Key="ChangeBar" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource BrushSurface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushAccent}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusCard}"/>
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="Effect" Value="{DynamicResource Elevation2}"/>
     </Style>
 </ResourceDictionary>

@@ -164,14 +164,39 @@ function Write-IgwtChunkedLines {
     return $files.ToArray()
 }
 
+function Get-IgwtLocalIpAddresses {
+    <#
+    .SYNOPSIS
+        Every unicast address bound to this PC's network adapters (read through .NET, no change), so
+        a pseudonymized export can hide the PC's own public addresses too (review F-08). Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($nic in @([System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces())) {
+        try { foreach ($u in $nic.GetIPProperties().UnicastAddresses) { $out.Add([string]$u.Address) } } catch { Write-IgwtLog -Level Warn -Message "Could not read the addresses of $($nic.Name): $($_.Exception.Message)" }
+    }
+    return $out.ToArray()
+}
+
+# What an evidence package holds that can identify a person (review F-09): shown before it is
+# collected, and written into the manifest and the chain of custody.
+$script:IgwtEvidencePersonalData = @(
+    'the names your PC looked up (DNS client events), which show the sites you visited'
+    'program paths that contain your user name, and your account name'
+    'the computer name, its IP addresses and the firewall rules and settings'
+)
+
 function Export-IgwtForensicDataset {
     <#
     .SYNOPSIS
         AI-ready export of a time range: the firewall log, WFP and DNS events as one normalized
         schema (JSONL or CSV with formula protection, about -ChunkMB per file), a flow summary
         (per process, remote address, port and protocol), SCHEMA.md and ANALYSIS_BRIEF.md. Internal
-        addresses, host names, user names and user folders in paths are pseudonymized with a keyed
-        hash (consistent within the export, never stored) unless -Raw. Nothing is uploaded.
+        addresses, this PC's own addresses, host names, user names and user folders in paths are
+        pseudonymized with a keyed hash (consistent within the export, never stored) unless -Raw.
+        Nothing is uploaded.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([Parameter(Mandatory = $true)][string]$Destination, [datetime]$From = (Get-Date).AddHours(-24), [datetime]$To = (Get-Date),
@@ -203,6 +228,8 @@ function Export-IgwtForensicDataset {
     [IgwtFirewallLog.Export]::SortByTime($rows)
     $red = New-Object IgwtFirewallLog.Redactor (-not $Raw)
     $red.UserName = $env:USERNAME; $red.ComputerName = $env:COMPUTERNAME
+    # The PC's own public addresses identify the home as much as its name (review F-08).
+    if (-not $Raw) { foreach ($a in @(Get-IgwtLocalIpAddresses)) { $red.AddLocalAddress([string]$a) } }
     $chunk = [long]$ChunkMB * 1MB
     if ($Format -eq 'JSONL') { $files = Write-IgwtChunkedLines -Lines ([IgwtFirewallLog.Export]::JsonLines($rows, $red)) -Folder $dir -Name 'events' -Extension 'jsonl' -ChunkBytes $chunk }
     else { $files = Write-IgwtChunkedLines -Lines ([IgwtFirewallLog.Export]::CsvLines($rows, $red, $true)) -Folder $dir -Name 'events' -Extension 'csv' -ChunkBytes $chunk -HeaderLines 1 }
@@ -271,7 +298,7 @@ function Get-IgwtForensicBriefText {
 - Sources and counts: firewall log $($Counts.fwlog), WFP events $($Counts.wfp), DNS events $($Counts.dns); $($Counts.flows) flows; $($Counts.dnsCorrelated) events with a correlated DNS name.
 - Files: $($Files -join ', '), flows file, SCHEMA.md (field meanings).
 - Format: $Format, about 5 MB per file.
-- Redaction: $(if ($Raw) { 'none (raw export for local use only; it contains internal addresses, user names and paths).' } else { "internal IP addresses, local host names, user names and user folders in paths are pseudonymized with a keyed hash ($($Counts.pseudonyms) distinct values). Public addresses and public DNS names are kept." })
+- Redaction: $(if ($Raw) { 'none (raw export for local use only; it contains internal addresses, user names and paths).' } else { "internal IP addresses, this PC's own addresses (public ones too), local host names, user names and user folders in paths are pseudonymized with a keyed hash ($($Counts.pseudonyms) distinct values). Other public addresses and public DNS names are kept." })
 - Produced by iG Windows Tuner. It does not upload anything; review the contents before sharing them.
 
 ## Known gaps
@@ -409,6 +436,7 @@ function Export-IgwtEvidencePackage {
         collectedUtc = $now.ToUniversalTime().ToString('o'); collectedLocal = $now.ToString('o'); timeZone = [TimeZoneInfo]::Local.Id
         rangeUtc = [ordered]@{ from = $From.ToUniversalTime().ToString('o'); to = $To.ToUniversalTime().ToString('o') }
         computer = $env:COMPUTERNAME; collector = "$env:USERDOMAIN\$env:USERNAME"; elevated = $elevated
+        personalData = @($script:IgwtEvidencePersonalData); redacted = $false
         sources = $sources.ToArray(); files = $files
     }
     $mf = Join-Path $dir 'manifest.json'
@@ -424,6 +452,9 @@ function Export-IgwtEvidencePackage {
     foreach ($m in $method) { $coc.Add("  - $m") }
     $coc.Add('  - Listening ports and processes read with Get-NetTCPConnection, Get-NetUDPEndpoint and Get-Process.')
     $coc.Add('  - No original was moved, changed or cleared. Nothing was uploaded.')
+    $coc.Add(''); $coc.Add('Contains personal data (not redacted, so it stays usable as evidence):')
+    foreach ($p in $script:IgwtEvidencePersonalData) { $coc.Add("  - $p") }
+    $coc.Add('  Share this package only with someone you trust to handle it. For an AI or a forum, use the pseudonymized AI export instead.')
     $coc.Add(''); $coc.Add('Files (SHA256):')
     foreach ($f in $files) { $coc.Add("  $($f.sha256)  $($f.path)") }
     $coc.Add("  $mfHash  manifest.json")

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Values the Security Settings Manager refuses in addition to data\\policy\\denylist.json (DECISIONS SM14). key and valueName are case-insensitive regular expressions anchored to the whole name; values lists refused data, or any. source pending means the Learn page was not confirmed at build time; the value is refused anyway.",
+  "description": "Values the Security Settings Manager refuses in addition to data\\policy\\denylist.json (DECISIONS SM14). key and valueName are case-insensitive regular expressions anchored to the whole name; values lists refused data, or any. source pending means the Learn page was not confirmed at build time; the value is refused anyway. ranks orders the values of a protection from strongest to weakest: a change to a weaker value, or removing a value stronger than the last one, is refused (review P-27, DECISIONS SP5).",
   "entries": [
     {
       "key": "Software\\\\Policies\\\\Microsoft\\\\Windows\\\\Installer",
@@ -88,6 +88,72 @@
       "values": [ "0" ],
       "reason": "Stores the weak LAN Manager hash of new passwords.",
       "source": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/network-security-do-not-store-lan-manager-hash-value-on-next-password-change",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Services\\\\LanmanWorkstation\\\\Parameters",
+      "valueName": "EnablePlainTextPassword",
+      "values": [ "1" ],
+      "reason": "Sends passwords unencrypted to SMB servers that do not support encryption.",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Control\\\\Lsa",
+      "valueName": "RestrictAnonymousSAM",
+      "values": [ "0" ],
+      "reason": "Lets anonymous users list the accounts of this PC.",
+      "source": "source pending",
+      "class": "Machine"
+    }
+  ],
+  "ranks": [
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Windows Defender Exploit Guard\\\\Network Protection",
+      "valueName": "EnableNetworkProtection",
+      "order": [ "1", "2", "0" ],
+      "reason": "Network protection: block (1) is stronger than audit (2), which is stronger than off (0).",
+      "source": "https://learn.microsoft.com/en-us/defender-endpoint/enable-network-protection",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender",
+      "valueName": "PUAProtection",
+      "order": [ "1", "2", "0" ],
+      "reason": "Potentially unwanted app blocking: block (1) is stronger than audit (2), which is stronger than off (0).",
+      "source": "https://learn.microsoft.com/en-us/defender-endpoint/detect-block-potentially-unwanted-apps-microsoft-defender-antivirus",
+      "class": "Machine"
+    },
+    {
+      "key": "Software\\\\Policies\\\\Microsoft\\\\Windows Defender\\\\Spynet",
+      "valueName": "SubmitSamplesConsent",
+      "order": [ "3", "1", "0", "2" ],
+      "reason": "Sample submission: send all (3), send safe samples (1), always prompt (0), never send (2).",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Control\\\\Lsa",
+      "valueName": "LmCompatibilityLevel",
+      "order": [ "5", "4", "3", "2", "1", "0" ],
+      "reason": "LAN Manager authentication level: a lower level accepts weaker (LM, NTLMv1) authentication.",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Services\\\\Lanman(Server|Workstation)\\\\Parameters",
+      "valueName": "RequireSecuritySignature",
+      "order": [ "1", "0" ],
+      "reason": "SMB signing required (1) is stronger than not required (0).",
+      "source": "source pending",
+      "class": "Machine"
+    },
+    {
+      "key": "System\\\\CurrentControlSet\\\\Control\\\\Lsa",
+      "valueName": "RestrictAnonymous",
+      "order": [ "2", "1", "0" ],
+      "reason": "Anonymous access: a lower value lets anonymous users see more of this PC.",
+      "source": "source pending",
       "class": "Machine"
     }
   ]

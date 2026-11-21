@@ -85,10 +85,12 @@
       { "name": "Path", "type": "String", "data": "C:\\Program Files\\Contoso\\App" } ] },
     { "path": "HKLM\\SOFTWARE\\Contoso\\Settings", "values": [
       { "name": "Color", "type": "String", "data": "Blue" } ] },
-    { "path": "HKLM\\SOFTWARE\\Fabrikam\\Linked", "values": [
+    { "path": "HKLM\\SOFTWARE\\Northwind\\Linked", "values": [
       { "name": "Home", "type": "String", "data": "C:\\Program Files\\FabrikamLinked" } ] },
-    { "path": "HKLM\\SOFTWARE\\Fabrikam\\Linked\\Wow6432Node\\Inner", "values": [] },
-    { "path": "HKLM\\SOFTWARE\\WOW6432Node\\Fabrikam32Vendor\\Tool", "values": [
+    { "path": "HKLM\\SOFTWARE\\Northwind\\Linked\\Wow6432Node\\Inner", "values": [] },
+    { "path": "HKLM\\SOFTWARE\\Fabrikam\\FM", "values": [
+        { "name": "PanelPath0", "type": "String", "data": "C:\\Users\\Public\\Gone\\old-folder" } ] },
+      { "path": "HKLM\\SOFTWARE\\WOW6432Node\\Fabrikam32Vendor\\Tool", "values": [
       { "name": "Exe", "type": "String", "data": "C:\\Program Files (x86)\\Fabrikam32Vendor\\tool.app" } ] },
     { "path": "HKU\\{sid}\\Software\\ContosoUser\\Prefs", "values": [
       { "name": "LastFile", "type": "String", "data": "C:\\Users\\contoso\\AppData\\Local\\ContosoUserGone\\last.dat" } ] }
@@ -155,8 +157,9 @@
     { "category": "softwareKey", "path": "SOFTWARE\\Contoso\\App", "hive": "HKLM", "view": "64", "confidence": "none" },
     { "category": "softwareKey", "path": "SOFTWARE\\Contoso\\Settings", "hive": "HKLM", "view": "64", "confidence": "none" },
     { "category": "softwareKey", "path": "SOFTWARE\\Contoso", "hive": "HKLM", "view": "64", "confidence": "none" },
-    { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam\\Linked", "hive": "HKLM", "view": "64", "confidence": "Review", "selectable": false },
+    { "category": "softwareKey", "path": "SOFTWARE\\Northwind\\Linked", "hive": "HKLM", "view": "64", "confidence": "Review", "selectable": false },
     { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam", "hive": "HKLM", "view": "64", "confidence": "none" },
+    { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam\\FM", "hive": "HKLM", "view": "64", "confidence": "none" },
     { "category": "softwareKey", "path": "SOFTWARE\\Fabrikam32Vendor\\Tool", "hive": "HKLM", "view": "32", "confidence": "Review" },
     { "category": "softwareKey", "path": "Software\\ContosoUser\\Prefs", "hive": "HKCU", "view": "64", "confidence": "Review" },
     { "category": "service", "path": "SYSTEM\\CurrentControlSet\\Services\\ContosoGoneSvc", "hive": "HKLM", "view": "", "confidence": "Review", "selectable": false },

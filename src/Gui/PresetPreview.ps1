@@ -53,10 +53,45 @@ function Show-IgwtGuiPresetPreview {
         Set-IgwtGuiStatus $(if ($Preview.Requirement) { "$($Preset.name) does not apply to this PC: $($Preview.Requirement)" } else { "Nothing to change: $($Preset.name) is already applied." })
         return
     }
-    if (-not (Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) preview" -Text $text -AcceptText "Stage $($todo.Count) change(s)" -CancelText 'Cancel')) { return }
+    if (-not (Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) preview" -Text $text -AcceptText "Stage $(Format-IgwtCount -Count ($todo.Count) -Noun 'change')" -CancelText 'Cancel')) { return }
+    # The staged list must not change under an Apply that is on its way (review 3.8.1 G-05).
+    if (-not (Test-IgwtGuiCanRestage)) { return }
+    if (-not (Confirm-IgwtGuiReplaceStaged -What "The $($Preset.name) preset")) { return }
     $script:Gui.Staged.Clear()
     foreach ($r in $todo) { Set-IgwtGuiStage -Id ([string]$r.Id) -Mode $(if ($r.Desired -eq 'default') { 'reset' } else { 'on' }) }
-    $script:Gui.PresetOperation = "Preset:$($Preset.id)"
+    Set-IgwtGuiPresetOperation -Name "Preset:$($Preset.id)"
     Update-IgwtGuiPending
-    Set-IgwtGuiStatus "Staged $($todo.Count) change(s) from the $($Preset.name) preset ($($Preview.Summary)) Review them on the category pages (marked 'Pending'), then Preview or Apply."
+    Set-IgwtGuiStatus "Staged $(Format-IgwtCount -Count ($todo.Count) -Noun 'change') from the $($Preset.name) preset ($($Preview.Summary)) Review them on the category pages (marked 'Pending'), then Preview or Apply."
+}
+
+function Get-IgwtGuiStagedKey {
+    <# .SYNOPSIS The staged list as one sorted text (id=mode|...), to tell whether it changed. Pure over the window state. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    return (@($script:Gui.Staged.Keys | Sort-Object | ForEach-Object { '{0}={1}' -f $_, $script:Gui.Staged[$_] }) -join '|')
+}
+
+function Set-IgwtGuiPresetOperation {
+    <#
+    .SYNOPSIS
+        Names the session the staged list belongs to (a preset, a drift fix, the network test) and remembers that
+        exact list: Apply uses the name only while the staged list is unchanged (review 3.8.1 HC-1).
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes window state only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $script:Gui.PresetOperation = $Name
+    $script:Gui.PresetOperationKey = Get-IgwtGuiStagedKey
+}
+
+function Confirm-IgwtGuiReplaceStaged {
+    <# .SYNOPSIS Asks before a preset or drift fix replaces changes the user staged by hand; true when nothing is staged or the user agrees (review 3.8.1 HC-1, PV-1). #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$What)
+    $n = @($script:Gui.Staged.Keys).Count
+    if (-not $n) { return $true }
+    $a = Show-IgwtGuiMessage -Text "$n staged change$(if ($n -ne 1) { 's are' } else { ' is' }) waiting to be applied. $What replaces $(if ($n -ne 1) { 'them' } else { 'it' }).`n`nOK: replace the staged changes.`nCancel: keep them and stop." -Buttons 'OKCancel' -Icon 'Question'
+    return ($a -eq 'OK')
 }

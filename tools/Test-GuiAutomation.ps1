@@ -203,9 +203,15 @@ $report.StallsOver200 = @($stalls | Where-Object { $_.Ms -gt 200 }).Count
 $readyAt = $null
 $readyLog = Join-Path $diag 'ready.log'
 if (Test-Path -LiteralPath $readyLog) { $readyAt = ([datetimeoffset]::Parse((@(Get-Content -LiteralPath $readyLog)[0] -split "`t")[0])).LocalDateTime }
+# Start-up lasts until the first system state is on screen (loaded.log, 4.0): drawing it is start-up work, reported
+# as StartupBlockMs and FirstDataSec, not hidden. Without loaded.log (older builds) the window-ready time is used.
+$loadedAt = $null
+$loadedLog = Join-Path $diag 'loaded.log'
+if (Test-Path -LiteralPath $loadedLog) { $loadedAt = ([datetimeoffset]::Parse((@(Get-Content -LiteralPath $loadedLog)[0] -split "`t")[0])).LocalDateTime }
+$startupEnd = $(if ($loadedAt) { $loadedAt.AddMilliseconds(1) } else { $readyAt })
 $classified = @(foreach ($s in @($stalls | Where-Object { $_.Ms -gt 200 })) {
         $end = ([datetimeoffset]::Parse($s.Time)).LocalDateTime; $start = $end.AddMilliseconds(-$s.Ms)
-        $kind = $(if ($readyAt -and $start -lt $readyAt) { 'Startup' } elseif (@($scanWindows | Where-Object { $start -lt $_.End -and $end -gt $_.Start }).Count) { 'Scan' } else { 'App' })
+        $kind = $(if ($startupEnd -and $start -lt $startupEnd) { 'Startup' } elseif (@($scanWindows | Where-Object { $start -lt $_.End -and $end -gt $_.Start }).Count) { 'Scan' } else { 'App' })
         [pscustomobject]@{ Kind = $kind; Ms = $s.Ms; Text = $s.Text }
     })
 $report.StallsAtStartup = @($classified | Where-Object Kind -EQ 'Startup').Count
@@ -213,6 +219,7 @@ $report.StartupBlockMs = [double](@($classified | Where-Object Kind -EQ 'Startup
 $report.StallsDuringScans = @($classified | Where-Object Kind -EQ 'Scan').Count
 $report.StallsInApp = @($classified | Where-Object Kind -EQ 'App').Count
 $report.AppStalls = @($classified | Where-Object Kind -EQ 'App' | Sort-Object Ms -Descending | Select-Object -First 15)
+$report.FirstDataSec = $(if ($loadedAt) { [math]::Round(($loadedAt - [datetime]::Parse($report.Started)).TotalSeconds, 1) } else { $null })
 $report.ColdStartSec = $(if ($readyAt) { [math]::Round(($readyAt - [datetime]::Parse($report.Started)).TotalSeconds, 1) } else { $null })
 $report.PageSwitch = @($switches | Group-Object Page | ForEach-Object { [pscustomobject]@{ Page = $_.Name; Count = $_.Count; MaxMs = ($_.Group | Measure-Object Ms -Maximum).Maximum; MedianMs = @($_.Group | Sort-Object Ms)[[int][math]::Floor($_.Count / 2)].Ms } })
 $report.Log = $log.ToArray()
@@ -230,7 +237,7 @@ $out = Join-Path $OutDir 'automation-report.json'
 [pscustomobject]$report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $out -Encoding UTF8
 Write-Output ("Read-only verified: {0}; pages {1}; tabs {2}; headers {3}; rows {4}; search {5}; filters {6}; resized {7}; themes {8}" -f $report.ReadOnlyVerified, @($report.Pages).Count, $report.Tabs, $report.HeadersInvoked, $report.RowsSelected, $report.SearchBoxes, $report.Filters, $report.Resized, (@($report.Themes) -join ','))
 Write-Output ("Exceptions {0}; binding errors {1}; stalls over 200 ms {2}; memory growth {3} MB after {4} cycles; errors {5}" -f @($exceptions).Count, $binding.Count, $report.StallsOver200, $report.MemoryGrowthMB, $Cycles, @($report.Errors).Count)
-Write-Output ("Stalls over 200 ms: {0} at start-up (longest {1:N0} ms), {2} during UI Automation scans, {3} in app work; retained heap growth {4} MB; cold start {5} s" -f $report.StallsAtStartup, $report.StartupBlockMs, $report.StallsDuringScans, $report.StallsInApp, $report.ManagedGrowthMB, $report.ColdStartSec)
+Write-Output ("Stalls over 200 ms: {0} at start-up (longest {1:N0} ms), {2} during UI Automation scans, {3} in app work; retained heap growth {4} MB; cold start {5} s, first data {6} s" -f $report.StallsAtStartup, $report.StartupBlockMs, $report.StallsDuringScans, $report.StallsInApp, $report.ManagedGrowthMB, $report.ColdStartSec, $report.FirstDataSec)
 Write-Output "Report: $out"
 if (-not $report.ReadOnlyVerified -or @($report.Errors).Count) { exit 1 }
 exit 0

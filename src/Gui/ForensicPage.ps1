@@ -132,14 +132,14 @@ function Format-IgwtGuiForensicPlan {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)]$Plan, [int]$Minutes)
     $lines = New-Object System.Collections.Generic.List[string]
-    $lines.Add("Forensic logging, profile $($Plan.Profile), $(if ($Minutes) { "for $(if ($Minutes -ge 60) { "$($Minutes / 60) hour(s)" } else { "$Minutes minutes" })" } else { 'until you stop it' }).")
+    $lines.Add("Forensic logging, profile $($Plan.Profile), $(if ($Minutes) { "for $(if ($Minutes -ge 60) { "$(Format-IgwtCount -Count ($Minutes / 60) -Noun 'hour')" } else { "$Minutes minutes" })" } else { 'until you stop it' }).")
     $lines.Add('')
     foreach ($op in @($Plan.Ops)) {
         $state = $(if ($op.Refused) { "not changed: $($op.Refused)" } elseif ($op.Changes) { "$($op.Current) -> $($op.New)" } else { "already $($op.New)" })
         $lines.Add(("  {0,-12} {1,-32} {2,-13} {3}" -f $op.Source, $op.Target, $op.Setting, $state))
     }
     $lines.Add('')
-    $lines.Add("$($Plan.Changes) change(s). Every setting is saved first and restored exactly when the session ends. Event logs are never cleared.")
+    $lines.Add("$(Format-IgwtCount -Count ($Plan.Changes) -Noun 'change'). Every setting is saved first and restored exactly when the session ends. Event logs are never cleared.")
     foreach ($n in @($Plan.Notes)) { $lines.Add($n) }
     return ($lines -join [Environment]::NewLine)
 }
@@ -195,8 +195,12 @@ function Invoke-IgwtGuiForensicStop {
         param($out, $errs)
         $script:Gui.Forensic.Stopping = $false
         $r = @($out) | Select-Object -Last 1
-        if (-not $r -or -not $r.Stopped) { Show-IgwtGuiError -Message $(if ($r) { $r.Message } else { "Forensic logging could not be stopped: $(@($errs)[0])" }) -Context 'Forensic logging' }
-        else { Show-IgwtGuiToast -Text $r.Message -Tone Success }
+        if (-not $r -or -not $r.Stopped) {
+            $why = $(if ($r) { [string]$r.Message } else { "Forensic logging could not be stopped: $(@($errs)[0])" })
+            # Remembered for the banner, which no longer says "ended while the app was closed" (review FOR-2).
+            $script:Gui.Forensic.StopFailed = $why
+            Show-IgwtGuiError -Message $why -Context 'Forensic logging'
+        } else { $script:Gui.Forensic.StopFailed = ''; Show-IgwtGuiToast -Text $r.Message -Tone Success }
         Update-IgwtGuiForensicSession
         Start-IgwtGuiForensicRefresh
     }
@@ -217,8 +221,12 @@ function Update-IgwtGuiForensicSession {
     $s = $null
     try { $s = Get-IgwtForensicSession } catch { Write-Verbose "Session not read: $($_.Exception.Message)" }
     Update-IgwtGuiForensicBanner -Session $s
-    # Ended while the app is open: restore automatically (needs a writable, elevated window).
-    if ($s -and -not $s.Corrupt -and $s.Expired -and ($script:Gui.Forensic.Running -or $script:Gui.Forensic.RetryStop) -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
+    # Ended while the app is open, or found ended at the first check of an elevated, writable window (it ended while
+    # iG was closed, review F-04): restore automatically, once. The session was time-boxed by the user; iG adds no
+    # scheduled task to end it (no persistence), so the next elevated start does it.
+    $first = $false
+    if ($script:Gui.Data -and -not $script:Gui.Forensic.Checked) { $first = $true; $script:Gui.Forensic.Checked = $true }
+    if ($s -and -not $s.Corrupt -and $s.Expired -and [string]$s.Status -notin 'starting', 'rollback-incomplete' -and ($script:Gui.Forensic.Running -or $script:Gui.Forensic.RetryStop -or $first) -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
     $script:Gui.Forensic.Running = [bool]($s -and -not $s.Expired)
 }
 
@@ -235,6 +243,7 @@ function Update-IgwtGuiForensicBanner {
     if ($Session.Corrupt) { $c.ForensicBannerText.Text = "$($Session.Message) Stop and restore$admin."; return }
     if ($Session.Status -eq 'starting') { $c.ForensicBannerText.Text = "Starting forensic logging did not finish (the app may have closed). Stop and restore the previous settings$admin."; return }
     if ($Session.Status -eq 'rollback-incomplete') { $c.ForensicBannerText.Text = "Forensic logging could not be fully undone: $($Session.Message) Stop and restore to try again$admin."; return }
+    if ($script:Gui.Forensic.StopFailed) { $c.ForensicBannerText.Text = "Restoring the logging settings failed: $($script:Gui.Forensic.StopFailed) The session's settings are still on. Stop and restore to try again$admin."; return }
     $since = '{0:HH:mm}' -f $Session.Started
     if ($Session.Expired -and -not $script:Gui.Forensic.Running) {
         $c.ForensicBannerText.Text = "A forensic logging session ended at $('{0:yyyy-MM-dd HH:mm}' -f $Session.Until) while iG Windows Tuner was closed; its settings are still on. Stop and restore them now$(if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { ' (needs administrator rights, not in read-only mode)' })."
@@ -278,6 +287,11 @@ function Invoke-IgwtGuiForensicExport {
     if ($to -le $from) { $c.FwExpStatusText.Text = 'The end of the time range must be after its start.'; return }
     $raw = ($Kind -eq 'Dataset' -and [bool]$c.FwExpRawBox.IsChecked)
     if ($raw -and (Show-IgwtGuiMessage -Text "A raw export keeps internal addresses, user names and folder paths.`n`nUse it only on this PC and never share it. Continue?" -Title 'iG Windows Tuner - raw export' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+    if ($Kind -eq 'Evidence') {
+        # The package is not redacted, so it stays usable as evidence (review F-09).
+        $text = "The evidence package is not redacted. It contains:`n`n- " + ($script:IgwtEvidencePersonalData -join "`n- ") + "`n`nShare it only with someone you trust to handle it. For an AI or a forum, use the AI export, which hides these. Continue?"
+        if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - evidence package' -Buttons 'YesNo' -Icon 'Warning') -ne 'Yes') { return }
+    }
     Add-Type -AssemblyName System.Windows.Forms
     $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
     $dlg.Description = 'Pick a local folder for the export (a new subfolder is created). Exports contain sensitive data: keep them private.'

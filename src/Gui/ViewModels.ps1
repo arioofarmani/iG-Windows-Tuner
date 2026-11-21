@@ -120,6 +120,8 @@ function Get-IgwtGuiData {
         Snapshots  = @(Get-IgwtSnapshotList | Select-Object Path, File, Created, Operation, Detail, Applied, HasChange, @{ n = 'Count'; e = { @($_.Entries).Count } }, @{ n = 'Failed'; e = { @($_.Entries | Where-Object { $_.result -in 'Failed', 'RolledBack', 'NotApplied' }).Count } })
         Startup    = $startup
         Games      = @($ctx.Games)
+        # G-03: whose per-user settings these states are (the window says so when they are not the signed-in user's).
+        UserHive   = $(try { Get-IgwtUserHiveStatus } catch { [pscustomobject]@{ State = 'Same'; Sid = '' } })
         # Confidence badges (3.6, DECISIONS T8): sources, this PC's journal and the tested builds.
         Confidence = $(try { Get-IgwtConfidenceMap } catch { @{} })
     }
@@ -617,7 +619,7 @@ function New-IgwtGuiCleanerRow {
     if (@($RuleScan.Samples).Count) { $tip.Add('Largest items: ' + (@($RuleScan.Samples | Select-Object -First 5) -join '; ')) }
     if ($RuleScan.Skipped -and $RuleScan.Skipped.Count) { $tip.Add('Skipped: ' + (@($RuleScan.Skipped.GetEnumerator() | ForEach-Object { "$($_.Key) ($($_.Value))" }) -join '; ')) }
     $count = ''
-    if ([int]$RuleScan.Count -gt 0) { $count = "$($RuleScan.Count) item(s)" }
+    if ([int]$RuleScan.Count -gt 0) { $count = "$(Format-IgwtCount -Count ($RuleScan.Count) -Noun 'item')" }
     $r = [ordered]@{
         Key             = [string]$RuleScan.RuleId
         Id              = [string]$RuleScan.RuleId
@@ -678,7 +680,7 @@ function New-IgwtGuiAsrRow {
         ImpactBrush         = $impactBrush
         FlagText            = ($flags -join ' | ')
         FlagVisibility      = $(if ($flags.Count) { 'Visible' } else { 'Collapsed' })
-        ExclusionText       = "$excl exclusion(s)"
+        ExclusionText       = "$(Format-IgwtCount -Count $excl -Noun 'exclusion')"
         ExclusionVisibility = $(if ($excl) { 'Visible' } else { 'Collapsed' })
         ModeText            = $modeText
         ModeBrush           = $modeBrush
@@ -707,7 +709,7 @@ function New-IgwtGuiAsrAuditRow {
         if ($r.Recommendation -in 'PromoteToBlock', 'PromoteToWarn', 'KeepAuditing', 'ReviewPrograms', 'ReviewBlocks') {
             [pscustomobject]@{
                 Title = [string]$r.Name; Subtitle = "Mode: $($r.Mode)"; Advice = "$($r.Recommendation): $($r.RecommendationText)"
-                CountText = $(if ($r.Total) { "$($r.Total) event(s)" } else { 'no events' }); Tip = [string]$r.RecommendationText; RuleId = [string]$r.Id; Exclusion = ''
+                CountText = $(if ($r.Total) { "$(Format-IgwtCount -Count ($r.Total) -Noun 'event')" } else { 'no events' }); Tip = [string]$r.RecommendationText; RuleId = [string]$r.Id; Exclusion = ''
             }
         }
     }
@@ -772,7 +774,7 @@ function New-IgwtGuiIrqRow {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Device)
-    $mode = switch ([string]$Device.CurrentMode) { 'Message-signaled' { "MSI, $($Device.Messages) message(s)" } 'Line-based' { "Line-based (IRQ $(@($Device.Irqs) -join ', '))" } default { 'No interrupt assigned' } }
+    $mode = switch ([string]$Device.CurrentMode) { 'Message-signaled' { "MSI, $(Format-IgwtCount -Count ($Device.Messages) -Noun 'message')" } 'Line-based' { "Line-based (IRQ $(@($Device.Irqs) -join ', '))" } default { 'No interrupt assigned' } }
     $brush = switch ([string]$Device.CurrentMode) { 'Message-signaled' { $script:IgwtColor.Pass } 'Line-based' { $script:IgwtColor.Muted } default { $script:IgwtColor.Muted } }
     $policy = "$($Device.PolicyName); priority $($Device.PriorityName)"
     if (@($Device.TargetCpus).Count) { $policy += "; CPUs $(@($Device.TargetCpus) -join ',')" }

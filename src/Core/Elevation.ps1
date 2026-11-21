@@ -51,6 +51,38 @@ function ConvertTo-IgwtCommandLineArgument {
     return $sb.ToString()
 }
 
+function Get-IgwtProgramFolderWriters {
+    <#
+    .SYNOPSIS
+        Folders and top-level files of the program that accounts other than SYSTEM, Administrators,
+        TrustedInstaller and the current user can change. The elevated process runs every script
+        under src, so such a folder lets another account run code as administrator (review CLI-05).
+        Checks the program folder, its top-level files and every folder under src and data.
+        Read-only.
+    .PARAMETER Root
+        The program folder (where iGWindowsTuner.ps1 is).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Root)
+    $allowed = @($script:IgwtTrustedPrincipals) + @([string][System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+    $items = New-Object System.Collections.Generic.List[string]
+    $items.Add($Root)
+    foreach ($f in @(Get-ChildItem -LiteralPath $Root -File -ErrorAction SilentlyContinue)) { $items.Add($f.FullName) }
+    foreach ($sub in 'src', 'data') {
+        $p = Join-Path $Root $sub
+        if (Test-Path -LiteralPath $p) { $items.Add($p); foreach ($d in @(Get-ChildItem -LiteralPath $p -Directory -Recurse -ErrorAction SilentlyContinue)) { $items.Add($d.FullName) } }
+    }
+    foreach ($i in $items) {
+        $writers = @()
+        try { $writers = @(Get-IgwtAclOtherWriters -Acl (Get-Acl -LiteralPath $i -ErrorAction Stop) -Allowed $allowed) } catch { $writers = @('unreadable') }
+        foreach ($w in $writers) {
+            $name = $w
+            try { if ($w -ne 'unreadable') { $name = (New-Object System.Security.Principal.SecurityIdentifier($w)).Translate([System.Security.Principal.NTAccount]).Value } } catch { $name = $w }
+            [pscustomobject]@{ Path = $i; Sid = $w; Account = $name }
+        }
+    }
+}
+
 function Start-IgwtElevated {
     <#
     .SYNOPSIS
@@ -73,6 +105,11 @@ function Start-IgwtElevated {
     $exe = Get-IgwtHostExecutable
     $quoted = foreach ($a in $ArgumentList) { ConvertTo-IgwtCommandLineArgument -Value ([string]$a) }
     $allArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $ScriptPath)) + @($quoted)
+    $writers = @(Get-IgwtProgramFolderWriters -Root (Split-Path -Parent $ScriptPath))
+    if ($writers.Count) {
+        $w = $writers[0]
+        throw ("Other accounts can change the program files ({0} can change '{1}'). Running them as administrator would let those accounts run code as administrator. Move iG Windows Tuner to a folder only administrators can change, for example C:\Program Files\iGWindowsTuner, then start it again. Nothing was changed." -f $w.Account, $w.Path)
+    }
     if (-not $PSCmdlet.ShouldProcess("$exe $($allArgs -join ' ')", 'Start elevated (UAC prompt)')) { return $null }
     try {
         $proc = Start-Process -FilePath $exe -ArgumentList $allArgs -Verb RunAs -PassThru -ErrorAction Stop

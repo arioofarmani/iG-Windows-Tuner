@@ -59,7 +59,7 @@
           "https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service",
           "https://learn.microsoft.com/en-us/windows-server/networking/technologies/network-subsystem/net-sub-performance-tuning-nics"
         ],
-        "notes": "Value lives in the documented MMCSS SystemProfile key; its effect is legacy and situational."
+        "notes": "Value lives in the documented MMCSS SystemProfile key, but the cited Microsoft pages do not describe NetworkThrottlingIndex itself; its effect is legacy and situational on current NICs, so measure it (review 3.8.1 section 4)."
       },
       "impact": { "performance": "none", "latency": "low", "security": "0" },
       "risk": "low",

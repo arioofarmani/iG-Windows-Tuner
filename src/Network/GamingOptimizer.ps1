@@ -135,9 +135,18 @@ function Invoke-IgwtGamingNetworkOptimization {
     $check = Test-IgwtNetworkConnectivity -Gateway ([string]$conn.Gateway) -DnsServer ([string]$dns) -TimeoutSec $ConnectivityTimeoutSec
     $out.Connectivity = $check
     if (-not $check.Ok) {
-        if ($applied.Snapshot) { $null = Invoke-IgwtRevert -SnapshotPath $applied.Snapshot -Context $Context; $out.RevertedAutomatically = $true }
-        Write-IgwtLog -Level Warn -Message "Gaming network settings reverted automatically: router $($check.Gateway), internet $($check.Internet), DNS $($check.Dns) after the change."
-        $out.Error = "The network did not come back within $ConnectivityTimeoutSec seconds, so the changes were reverted automatically."
+        # The revert's own result decides what is said (review NET-1): a failed or thrown revert is never "reverted".
+        $why = ''
+        if ($applied.Snapshot) {
+            try {
+                $rv = Invoke-IgwtRevert -SnapshotPath $applied.Snapshot -Context $Context
+                $bad = @($rv.Results | Where-Object { $_.Result -eq 'Failed' })
+                if ($bad.Count) { $why = "$($bad.Count) item(s) were not restored: $($bad[0].Id) $($bad[0].Message)" }
+            } catch { $why = $_.Exception.Message }
+        } else { $why = 'no snapshot was written' }
+        $out.RevertedAutomatically = (-not $why)
+        Write-IgwtLog -Level Warn -Message "Gaming network settings: the network did not come back (router $($check.Gateway), internet $($check.Internet), DNS $($check.Dns)); automatic revert $(if ($why) { "FAILED: $why" } else { 'done' })."
+        $out.Error = $(if ($why) { "The network did not come back within $ConnectivityTimeoutSec seconds, and the automatic revert did not finish: $why Undo the change in History$(if ($applied.Snapshot) { " (snapshot $(Split-Path -Leaf $applied.Snapshot))" }), or restart the PC if the network stays down." } else { "The network did not come back within $ConnectivityTimeoutSec seconds, so the changes were reverted automatically." })
         return [pscustomobject]$out
     }
     Send-IgwtProgress -Text 'Measuring the connection after changes...' -Percent 70

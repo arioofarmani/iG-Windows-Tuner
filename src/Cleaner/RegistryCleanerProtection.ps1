@@ -261,6 +261,9 @@ function Get-IgwtRegCleanProtectionFacts {
                 $facts.Exists = $true
                 foreach ($n in 'DisplayName', 'Publisher') { if ($root.Values.ContainsKey($n)) { & $addName ([string]$root.Values[$n]) } }
                 if ([string]$Finding.Category -in 'appPath', 'application') { & $addName $leaf }
+                # Settings keys rarely hold DisplayName or Publisher: the vendor and product key names count too, so a
+                # hardware vendor or the driver provider of a present device protects HKLM\SOFTWARE\Realtek\Audio (review RC-1).
+                if ([string]$Finding.Category -eq 'softwareKey') { $after = $false; foreach ($seg in @($path -split '\\')) { if ($after -and $seg -and $seg -ne 'WOW6432Node') { & $addName $seg }; if ($seg -eq 'SOFTWARE') { $after = $true } } }
                 $deny = @($Context.SegmentDeny)
                 $queue = New-Object System.Collections.Generic.Queue[object]
                 $queue.Enqueue(@($path, $root, 0))
@@ -607,7 +610,7 @@ function Test-IgwtRegCleanProtected {
     foreach ($pv in @($Context.DriverProviders)) {
         $pn = ([string]$pv).Trim()
         if ($pn.Length -lt 3) { continue }
-        foreach ($n in $names) { if ([string]$n -like ($pn + '*')) { return (& $out "made by the driver provider of a present device ($pn)" 'drivers' $null '' $false) } }
+        foreach ($n in $names) { if ([string]$n -like ($pn + '*') -or (([string]$n).Length -ge 3 -and $pn -like ([string]$n + '*'))) { return (& $out "made by the driver provider of a present device ($pn)" 'drivers' $null '' $false) } }
     }
     return $null
 }

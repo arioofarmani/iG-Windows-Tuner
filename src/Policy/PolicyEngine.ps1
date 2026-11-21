@@ -120,7 +120,8 @@ function Get-IgwtPolicyRegistryOps {
                     foreach ($k in @($v.Keys)) { & $add 'Set' $e.Key ([string]$k) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$v[$k]) }
                 } else {
                     $n = 0
-                    foreach ($item in @($v)) { $n++; & $add 'Set' $e.Key ("{0}{1}" -f $(if ($e.ValuePrefix) { $e.ValuePrefix } else { '' }), $(if ($e.ValuePrefix) { $n } else { [string]$item })) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$item) }
+                    $hasPrefix = $(if ($null -ne $e.HasPrefix) { [bool]$e.HasPrefix } else { [bool]$e.ValuePrefix })
+                foreach ($item in @($v)) { $n++; & $add 'Set' $e.Key ("{0}{1}" -f $(if ($hasPrefix) { [string]$e.ValuePrefix } else { '' }), $(if ($hasPrefix) { $n } else { [string]$item })) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$item) }
                 }
             }
         }
@@ -470,7 +471,7 @@ function Set-IgwtLocalPolicy {
     $classArg = @{}; if ($Class) { $classArg.Class = $Class }
     $plan = Get-IgwtPolicyChangePlan -Id $Id -State $State -Values $Values @classArg
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
-    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local policies. Pass -AcknowledgeManaged to change it locally." }
+    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); your organization's policy can override local policies. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing Local Group Policy needs administrator rights.' }
     if (-not $PSCmdlet.ShouldProcess("$($plan.Policy.DisplayName) ($($plan.Class))", "Set $State")) { return $null }
     $backup = Backup-IgwtLocalGpo -Reason "before $($plan.Policy.Id) -> $State"

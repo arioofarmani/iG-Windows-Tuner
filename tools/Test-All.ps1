@@ -29,6 +29,10 @@ if (-not $SkipRender) {
     # The minimum window size (1100 x 720) at 100 and 200 %: nothing may clip.
     & (Join-Path $PSScriptRoot 'Test-GuiRender.ps1') -OutDir (Join-Path $art 'gui-render') -Theme Dark -Scale 1, 2 -Size '1100x720'
     $result.Render = $result.Render -and ($LASTEXITCODE -eq 0)
+    # Every control style once, per theme and scale (4.0 section 1.3); a style without a sample fails.
+    Write-Output '== Component gallery'
+    & (Join-Path $PSScriptRoot 'Test-GuiGallery.ps1') -OutDir (Join-Path $art 'gui-gallery') -Scale $RenderScale
+    $result.Render = $result.Render -and ($LASTEXITCODE -eq 0)
 }
 if (-not $SkipAutomation) {
     Write-Output '== UI Automation suite (read-only GUI)'
@@ -44,7 +48,8 @@ if (-not $SkipAutomation) {
 $result.Finished = (Get-Date).ToString('o')
 [pscustomobject]$result | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $art 'test-all.json') -Encoding UTF8
 [pscustomobject]$result | Format-List | Out-String | Write-Output
-$failed = @($result.Keys | Where-Object { $_ -in 'QualityGate', 'Render', 'Automation' -and -not $result[$_] })
+# AutomationClean (read-only verified, no exceptions, binding errors or app stalls) counts as well (review T-06).
+$failed = @($result.Keys | Where-Object { $_ -in 'QualityGate', 'Render', 'Automation', 'AutomationClean' -and -not $result[$_] })
 if ($failed.Count) { Write-Output "FAILED: $($failed -join ', ')"; exit 1 }
 Write-Output 'All checks passed.'
 exit 0

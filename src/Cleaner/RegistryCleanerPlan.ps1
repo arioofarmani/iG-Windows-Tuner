@@ -81,6 +81,12 @@ function Get-IgwtRegCleanPlan {
         $t = $fresh | Select-Object *
         $t.ScanId = $scanId
         $t.Includes = @()
+        # Review RC-3: what this preview shows, so the removal can refuse an entry that changed since
+        # (a key that grew after the preview is not deleted with the new data).
+        try {
+            $snap = Get-IgwtRegCleanTargetSnapshot -Resolved (Resolve-IgwtRegCleanTarget -Target (Get-IgwtRegCleanTarget -Finding $t))
+            $t | Add-Member -NotePropertyName PreviewDigest -NotePropertyValue (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $snap)) -Force
+        } catch { & $refuse $f "Cannot be read for the preview: $($_.Exception.Message)"; continue }
         $accepted.Add($t)
     }
     # Nested selections (RG19): the outermost key absorbs what lies inside it.

@@ -218,7 +218,10 @@ function Test-IgwtFirewallListenerMatch {
         foreach ($x in @(ConvertTo-IgwtFirewallPortRanges -Port ([string]$r.LocalPort))) { if ($x.Low -ge 0 -and $l.LocalPort -ge $x.Low -and $l.LocalPort -le $x.High) { $hit = $true; break } }
         if (-not $hit) { return $false }
     }
-    if ([string]$r.Program -notin 'Any', '' -and [Environment]::ExpandEnvironmentVariables([string]$r.Program) -ne [string]$l.Path) { return $false }
+    # 'System' rules (File and Printer Sharing, HTTP.sys) match the System process (PID 4), whose path is empty (review FW F-16).
+    $prog = [string]$r.Program
+    if ($prog -eq 'System') { if ([int]$l.ProcessId -ne 4) { return $false } }
+    elseif ($prog -notin 'Any', '' -and [Environment]::ExpandEnvironmentVariables($prog) -ne [string]$l.Path) { return $false }
     if ([string]$r.Service -notin 'Any', '' -and @($l.Services) -notcontains [string]$r.Service) { return $false }
     return $true
 }

@@ -1235,7 +1235,7 @@ function Export-IgwtGridView {
     try {
         if ($Grid.Exporter) {
             $n = & $Grid.Exporter $Grid $rows $dlg.FileName
-            Show-IgwtGuiToast -Text "Exported $n row(s) to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
+            Show-IgwtGuiToast -Text "Exported $(Format-IgwtCount -Count $n -Noun 'row') to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
             return
         }
         $data = ConvertTo-IgwtGridExport -Grid $Grid -Rows $rows
@@ -1245,7 +1245,7 @@ function Export-IgwtGridView {
             $headers = @($Grid.Columns | Where-Object { $Grid.DataColumns[$_.Key].Visibility -eq 'Visible' } | Sort-Object { $Grid.DataColumns[$_.Key].DisplayIndex } | ForEach-Object { $_.Header })
             [IO.File]::WriteAllLines($dlg.FileName, [string[]](ConvertTo-IgwtSafeCsv -Rows $data -Properties $headers), (New-Object System.Text.UTF8Encoding($true)))
         }
-        Show-IgwtGuiToast -Text "Exported $($data.Count) row(s) to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
+        Show-IgwtGuiToast -Text "Exported $(Format-IgwtCount -Count ($data.Count) -Noun 'row') to $([IO.Path]::GetFileName($dlg.FileName))." -Tone Success
     } catch { Show-IgwtGuiError -Message "Export failed: $($_.Exception.Message)" }
 }
 
@@ -1257,7 +1257,7 @@ function Copy-IgwtGridRows {
     # Pasted into a spreadsheet, a cell starting with = + - @ would run as a formula: protect every cell.
     $safe = @(foreach ($d in $data) { $o = [ordered]@{}; foreach ($pp in $d.PSObject.Properties) { $o[$pp.Name] = Protect-IgwtCsvValue $pp.Value }; [pscustomobject]$o })
     $text = ($safe | ConvertTo-Csv -NoTypeInformation -Delimiter "`t") -join [Environment]::NewLine
-    try { [System.Windows.Clipboard]::SetText($text); Set-IgwtGuiStatus "$($data.Count) row(s) copied." } catch { Set-IgwtGuiStatus 'The clipboard is not available.' }
+    try { [System.Windows.Clipboard]::SetText($text); Set-IgwtGuiStatus "$(Format-IgwtCount -Count ($data.Count) -Noun 'row') copied." } catch { Set-IgwtGuiStatus 'The clipboard is not available.' }
 }
 
 #endregion

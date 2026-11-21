@@ -27,7 +27,7 @@ Describe 'Confidence badges' {
             Test-IgwtQualifyingSource -Source 'https://learn.microsoft.com.evil.example/x' | Should -BeFalse
         }
     }
-    It 'lists exactly the items Ario approved as Unverified' {
+    It 'lists exactly the items the maintainer approved as Unverified' {
         $map = Get-IgwtConfidenceMap
         @($map.Values | Where-Object Level -EQ 'Unverified' | ForEach-Object Id | Sort-Object) | Should -Be @('sec.lolbin-outbound-block', 'system.bsod-details')
     }

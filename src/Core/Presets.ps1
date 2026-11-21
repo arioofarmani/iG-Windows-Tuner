@@ -96,11 +96,25 @@ function ConvertTo-IgwtPresetSlug {
     return $s
 }
 
+function Test-IgwtDataFileTrusted {
+    <#
+    .SYNOPSIS
+        True when a file in iG's data folder, and every folder above it up to the data root, can be
+        changed only by SYSTEM, Administrators or TrustedInstaller. The SHA256 field of a preset is
+        unkeyed and only detects damage, so the folder ACL is the real protection (review PRE-3).
+        Read-only.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Test-IgwtPathTrustedChain -Path $Path -Root (Get-IgwtDataPath -Kind Root))
+}
+
 function Get-IgwtCustomPresets {
     <#
     .SYNOPSIS
-        Custom presets from the Presets data folder. Files whose SHA256 field does not match are
-        skipped (and logged), so a changed file is never applied.
+        Custom presets from the Presets data folder. Files whose SHA256 field does not match, or
+        that other users can change, are skipped (and logged), so a changed file is never applied.
     #>
     [CmdletBinding()]
     param()
@@ -109,6 +123,7 @@ function Get-IgwtCustomPresets {
     $index = $null; $rej = @()
     foreach ($f in (Get-ChildItem -LiteralPath $folder -Filter 'custom-*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name)) {
         try {
+            if (-not (Test-IgwtDataFileTrusted -Path $f.FullName)) { throw 'other users can change it or its folder' }
             $doc = Read-IgwtJsonFile -Path $f.FullName
             if ($null -eq $doc.PSObject.Properties['include'] -or $null -ne $doc.PSObject.Properties['tweaks']) { throw 'it has no include list (or a legacy tweaks list)' }
             if ((Get-IgwtPresetHash -Preset $doc) -ne [string]$doc.sha256) { throw 'its SHA256 field does not match the content' }
@@ -290,6 +305,7 @@ function Get-IgwtPresetRecord {
     param()
     $file = Join-Path (Get-IgwtDataPath -Kind State) 'last-preset.json'
     if (-not (Test-Path -LiteralPath $file)) { return $null }
+    if (-not (Test-IgwtDataFileTrusted -Path $file)) { Write-IgwtLog -Level Warn -Message "Ignored $file`: other users can change it (review PRE-3)."; return $null }
     try { return (Read-IgwtJsonFile -Path $file) } catch { return $null }
 }
 
@@ -360,6 +376,10 @@ function Get-IgwtSessionState {
     param()
     $file = Get-IgwtSessionFile
     if (-not (Test-Path -LiteralPath $file)) { return [pscustomobject]@{ Active = $false; Stale = $false; Started = $null; Owner = ''; Snapshot = ''; Reason = '' } }
+    if (-not (Test-IgwtDataFileTrusted -Path $file)) {
+        Write-IgwtLog -Level Warn -Message "Ignored $file`: other users can change it (review PRE-3)."
+        return [pscustomobject]@{ Active = $false; Stale = $false; Started = $null; Owner = ''; Snapshot = ''; Reason = 'The session record can be changed by other users, so it was ignored.' }
+    }
     $m = $null
     try { $m = Read-IgwtJsonFile -Path $file } catch { return [pscustomobject]@{ Active = $true; Stale = $true; Started = $null; Owner = ''; Snapshot = ''; Reason = 'The session record is unreadable.' } }
     $reason = ''
@@ -471,12 +491,27 @@ function Start-IgwtSession {
 }
 
 function Stop-IgwtSession {
-    <# .SYNOPSIS Ends Session Mode: restores every setting from the session snapshot and removes the session record. #>
+    <#
+    .SYNOPSIS
+        Ends Session Mode: restores every setting from the session snapshot and removes the session
+        record. When the snapshot cannot be found, nothing is restored, the record is kept and the
+        result is Failed (NoBackup) with a pointer to History, where every session change can be
+        undone from the change journal (review PRE-1).
+    .PARAMETER Forget
+        Ends Session Mode without restoring anything (removes the session record only); for after the
+        session's changes were undone in History.
+    #>
     [CmdletBinding(SupportsShouldProcess = $true)]
-    param([scriptblock]$OnProgress)
+    param([scriptblock]$OnProgress, [switch]$Forget)
     Assert-IgwtWritable -Operation 'Stop-IgwtSession'
     $st = Get-IgwtSessionState
     if (-not $st.Active) { return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none'; Message = 'No session is active.' } }
+    if ($Forget) {
+        if (-not $PSCmdlet.ShouldProcess('Session Mode', 'End without restoring settings')) { return $null }
+        Remove-Item -LiteralPath (Get-IgwtSessionFile) -Force -ErrorAction SilentlyContinue
+        Write-IgwtLog -Level Warn -Message 'Session Mode ended without restoring settings (Forget).'
+        return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none'; Message = 'Session Mode ended; no setting was restored.' }
+    }
     if (-not $PSCmdlet.ShouldProcess('Session Mode', 'End and restore settings')) { return $null }
     $res = [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @(); Requires = 'none' }
     $snapPath = $st.Snapshot
@@ -485,7 +520,14 @@ function Stop-IgwtSession {
         $cand = @(Get-IgwtSnapshotList | Where-Object { $_.Operation -eq 'Session' -and $_.Created -and ([datetime]$_.Created).ToUniversalTime() -ge $st.Started.AddSeconds(-5) }) | Select-Object -First 1
         if ($cand) { $snapPath = $cand.Path }
     }
-    if ($snapPath -and (Test-Path -LiteralPath $snapPath)) { $res = Invoke-IgwtRevert -SnapshotPath $snapPath -OnProgress $OnProgress }
+    if (-not ($snapPath -and (Test-Path -LiteralPath $snapPath))) {
+        # PRE-1: no backup to restore from. Report it instead of "0 restored" and keep the record, so Session Mode
+        # still shows as active; the session's changes are in the change journal (Invoke-IgwtApply journals them).
+        $msg = 'The Session Mode backup was not found, so nothing was restored and the session stays active. Undo the session''s changes in History, then end Session Mode without restoring.'
+        Write-IgwtLog -Level Warn -Message "Session Mode: $msg"
+        return [pscustomobject]@{ Operation = 'Revert'; Snapshot = $null; Results = @([pscustomobject]@{ Id = 'session'; Result = 'Failed'; Message = $msg }); Requires = 'none'; Message = $msg; NoBackup = $true }
+    }
+    $res = Invoke-IgwtRevert -SnapshotPath $snapPath -OnProgress $OnProgress
     # L5: keep the record when a restore failed, so it can be retried.
     if (@($res.Results | Where-Object { $_.Result -eq 'Failed' }).Count) {
         Write-IgwtLog -Level Warn -Message 'Session Mode: some settings could not be restored; the session record is kept so -Session Stop can retry.'

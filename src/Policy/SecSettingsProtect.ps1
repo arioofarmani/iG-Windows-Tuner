@@ -123,6 +123,18 @@ function Test-IgwtSecSettingOpsLowerProtection {
             if ($why) { "$($p.ValueName): $why"; continue }
         }
         if ($b.Kind -ne 'Value') { continue }
+        # (c) Ranked protections (review P-27): a weaker value, or removing one stronger than the weakest, lowers it.
+        $lowered = $false
+        foreach ($r in @($data.Weakening.ranks | Where-Object { $_ })) {
+            if ([string]$r.class -ne 'Both' -and [string]$r.class -ne $Class) { continue }
+            if ($p.Key -notmatch "^(?i)(?:$($r.key))$" -or $p.ValueName -notmatch "^(?i)(?:$($r.valueName))$") { continue }
+            $order = @($r.order | ForEach-Object { [string]$_ })
+            $ib = [array]::IndexOf($order, [string]$b.Value)
+            if ($ib -lt 0) { continue }
+            $ia = $(if ($a.Kind -eq 'Value') { [array]::IndexOf($order, [string]$a.Value) } else { $order.Count - 1 })
+            if ($ia -gt $ib) { "$($p.ValueName): $(if ($a.Kind -eq 'Value') { "$($b.Value) to $($a.Value)" } else { "removing $($b.Value)" }) would lower this protection ($($r.reason))"; $lowered = $true; break }
+        }
+        if ($lowered) { continue }
         foreach ($g in $guards) {
             if ([string]$g.class -ne 'Both' -and [string]$g.class -ne $Class) { continue }
             if ($p.Key -notmatch "^(?i)(?:$($g.key))$" -or $p.ValueName -notmatch "^(?i)(?:$($g.valueName))$") { continue }
@@ -146,6 +158,8 @@ function Test-IgwtSecSettingAuditAddOnly {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][string]$Before, [Parameter(Mandatory = $true)][string]$After)
+    # A setting iG could not read (localized auditpol output) is never treated as None (review P-30).
+    if ([string]$Before -notin 'None', 'Success', 'Failure', 'SuccessAndFailure') { return "The current audit setting could not be read on this PC ('$Before'), so iG does not change it." }
     $has = { param($v, $k) [string]$v -eq 'SuccessAndFailure' -or [string]$v -eq $k }
     foreach ($k in 'Success', 'Failure') {
         if ((& $has $Before $k) -and -not (& $has $After $k)) { return "This would stop auditing $($k.ToLowerInvariant()) events; iG only adds auditing." }

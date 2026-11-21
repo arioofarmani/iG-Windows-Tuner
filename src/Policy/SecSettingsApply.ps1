@@ -248,6 +248,30 @@ $script:IgwtModuleOperations['Invoke-IgwtSecSettingSecpolStep'] = 'secpol'
 $script:IgwtModuleOperations['Invoke-IgwtSecSettingAuditStep'] = 'audit'
 $script:IgwtModuleOperations['Invoke-IgwtSecSettingAsrChange'] = 'snapshot'
 
+function Get-IgwtSecSettingEffect {
+    <#
+    .SYNOPSIS
+        Whether the registry values of a local-policy change are in effect after the refresh (review
+        P-32, DECISIONS SM21): InEffect when every Set value reads back and every deleted value is
+        gone, otherwise NotYetInEffect with the first difference (another policy source such as a
+        domain or MDM, Tamper Protection or a refresh that has not run yet). Read-only.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][ValidateSet('Machine', 'User')][string]$Class, [object[]]$Ops = @())
+    $hive = $(if ($Class -eq 'Machine') { 'HKLM:\' } else { 'HKCU:\' })
+    foreach ($o in @($Ops | Where-Object { $_ -and [string]$_.ValueName -and [string]$_.ValueName -notmatch '^\*\*' })) {
+        $v = $null
+        try { $v = Get-IgwtRegistryValue -Path ($hive + [string]$o.Key) -Name ([string]$o.ValueName) } catch { return [pscustomobject]@{ Effect = 'NotYetInEffect'; Message = "$($o.ValueName) could not be read back: $($_.Exception.Message)" } }
+        if ([string]$o.Op -eq 'Set') {
+            $want = (@($o.Value) | ForEach-Object { [string]$_ }) -join ','
+            $have = $(if ($v -and $v.Exists) { (@($v.Value) | ForEach-Object { [string]$_ }) -join ',' } else { $null })
+            if ($have -ne $want) { return [pscustomobject]@{ Effect = 'NotYetInEffect'; Message = "Written to the Local Group Policy, but $($o.ValueName) reads '$(if ($null -eq $have) { 'absent' } else { $have })' instead of '$want'. Another policy source, Tamper Protection or a pending refresh may decide it." } }
+        } elseif ([string]$o.Op -in 'Delete', 'Remove' -and $v -and $v.Exists) {
+            return [pscustomobject]@{ Effect = 'NotYetInEffect'; Message = "Removed from the Local Group Policy, but $($o.ValueName) is still set. Another policy source may set it." }
+        }
+    }
+    return [pscustomobject]@{ Effect = 'InEffect'; Message = '' }
+}
 function Invoke-IgwtSecSettingChange {
     <#
     .SYNOPSIS
@@ -341,6 +365,14 @@ function Invoke-IgwtSecSettingChange {
             $restart.Clear()
         } elseif ($classes.Count) {
             $refresh = @(Invoke-IgwtSecSettingRefresh -Classes @($classes | Select-Object -Unique) -Confirm:$false)
+            # SM21 / review P-32: after the refresh, each local-policy row says whether its values are in effect.
+            foreach ($row in @($todo | Where-Object { $_.Writer -eq 'localPolicy' })) {
+                $x = @($results | Where-Object { $_.Id -eq $row.Id -and $_.Result -eq 'Committed' }) | Select-Object -First 1
+                if (-not $x) { continue }
+                $e = Get-IgwtSecSettingEffect -Class ([string]$row.Class) -Ops @($row.Ops)
+                $x | Add-Member -NotePropertyName Effect -NotePropertyValue $e.Effect -Force
+                if ($e.Message) { $x.Message = $e.Message }
+            }
         }
         if ($restart.Count) { try { Set-IgwtPendingRestartState -Requires reboot -TweakId @($restart) -Confirm:$false } catch { Write-IgwtLog -Level Warn -Message "Pending restart not recorded: $($_.Exception.Message)" } }
     } finally {

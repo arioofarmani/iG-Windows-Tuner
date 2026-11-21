@@ -60,7 +60,12 @@ function ConvertTo-IgwtSecurityInfText {
         if ($name -in 'Unicode', 'Version') { continue }
         $null = $sb.Append("[$name]`r`n")
         $sep = $(if ($name -eq 'Registry Values') { '=' } else { ' = ' })
-        foreach ($k in @($Sections[$name].Keys)) { $null = $sb.Append("$k$sep$($Sections[$name][$k])`r`n") }
+        if ([string]$name -match '[\r\n\[\]]') { throw 'A security template section name contains a line break or a bracket.' }
+        foreach ($k in @($Sections[$name].Keys)) {
+            # Defense in depth for every writer (presets, exports): one entry is always one line (review P-17).
+            if ("$k$($Sections[$name][$k])" -match '[\r\n]') { throw "Security template entry '$name' contains a line break; nothing was written." }
+            $null = $sb.Append("$k$sep$($Sections[$name][$k])`r`n")
+        }
     }
     $null = $sb.Append("[Version]`r`nsignature=`"`$CHICAGO`$`"`r`nRevision=1`r`n")
     return $sb.ToString()
@@ -139,7 +144,8 @@ function ConvertTo-IgwtSidList {
     param([AllowEmptyString()][string]$Value)
     @(([string]$Value).Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object {
             if ($_ -match '^\*?(S-1-[\d-]+)$') { $Matches[1] }
-            else { try { (New-Object System.Security.Principal.NTAccount($_)).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $_ } }
+            # Inside catch, $_ is the error record, not the name (review P-16): keep the name itself.
+            else { $n = $_; try { (New-Object System.Security.Principal.NTAccount($n)).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $n } }
         })
 }
 
@@ -305,6 +311,28 @@ function Test-IgwtSecurityPolicySafeguards {
 
 #region Write path
 
+function New-IgwtSecurityChange {
+    <#
+    .SYNOPSIS
+        One security-template change (Section, Key, Value). User-rights values are translated to *SID
+        form; an account name that does not exist is refused instead of written (review P-16). The
+        value is taken as it is, so Registry Values that hold ';' (SDDL) stay whole (review P-20).
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory change object only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Section, [Parameter(Mandatory = $true)][string]$Key, [AllowEmptyString()][string]$Value)
+    $alias = @{ 'systemaccess' = 'System Access'; 'system access' = 'System Access'; 'privilegerights' = 'Privilege Rights'; 'privilege rights' = 'Privilege Rights'; 'registryvalues' = 'Registry Values'; 'registry values' = 'Registry Values' }
+    $sec = $alias[$Section.ToLowerInvariant()]
+    if (-not $sec) { throw "Unknown section '$Section' (use SystemAccess, PrivilegeRights or RegistryValues)." }
+    $v = $Value
+    if ($sec -eq 'Privilege Rights') {
+        $ids = @(ConvertTo-IgwtSidList -Value ($v -replace '\|', ','))
+        $bad = @($ids | Where-Object { $_ -notmatch '^S-1-' })
+        if ($bad.Count) { throw "Account '$($bad -join "', '")' was not found on this PC; nothing was changed. Check the name, or use its SID (*S-1-...)." }
+        $v = (@($ids | ForEach-Object { "*$_" }) -join ',')
+    }
+    return [pscustomobject]@{ Section = $sec; Key = $Key; Value = $v }
+}
 function ConvertFrom-IgwtSecurityChangeText {
     <#
     .SYNOPSIS
@@ -323,9 +351,7 @@ function ConvertFrom-IgwtSecurityChangeText {
         if ($slash -lt 1) { throw "Invalid change '$part': the key needs a section (SystemAccess\, PrivilegeRights\ or RegistryValues\)." }
         $sec = $alias[$name.Substring(0, $slash).ToLowerInvariant()]
         if (-not $sec) { throw "Unknown section '$($name.Substring(0, $slash))' (use SystemAccess, PrivilegeRights or RegistryValues)." }
-        $key = $name.Substring($slash + 1)
-        if ($sec -eq 'Privilege Rights') { $value = (@(ConvertTo-IgwtSidList -Value ($value -replace '\|', ',') | ForEach-Object { if ($_ -match '^S-1-') { "*$_" } else { $_ } }) -join ',') }
-        [pscustomobject]@{ Section = $sec; Key = $key; Value = $value }
+        New-IgwtSecurityChange -Section $sec -Key $name.Substring($slash + 1) -Value $value
     }
 }
 
@@ -343,6 +369,9 @@ function Get-IgwtSecurityChangePlan {
     $rows = New-Object System.Collections.Generic.List[object]
     foreach ($c in $Changes) {
         if ($c.Section -notin 'System Access', 'Privilege Rights', 'Registry Values') { throw "Section '$($c.Section)' cannot be changed." }
+        # A line break in a key or value would add template lines that the safeguards never see (review P-17).
+        if (-not ([string]$c.Key).Trim() -or [string]$c.Key -match '[\x00-\x1F\x7F=\[\]]') { throw 'A setting name is empty or contains a line break, a control character, = or a bracket.' }
+        if ([string]$c.Value -match '[\x00-\x1F\x7F]') { throw "$($c.Key): values cannot contain line breaks or other control characters." }
         if ($c.Section -eq 'System Access' -and [string]$c.Value -notmatch '^-?\d+$|^".*"$') { throw "$($c.Key): System Access values are numbers (names are quoted)." }
         if ($c.Section -eq 'Registry Values' -and [string]$c.Value -notmatch '^\d+,') { throw "$($c.Key): Registry Values need type,value (for example 4,1)." }
         foreach ($t in @($proposed, $template)) { if (-not $t.Contains($c.Section)) { $t[$c.Section] = New-IgwtInfSectionTable } }
@@ -373,7 +402,7 @@ function Set-IgwtSecurityPolicy {
     $before = Export-IgwtSecurityPolicy
     $plan = Get-IgwtSecurityChangePlan -Changes $Changes -Current $before
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
-    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local security settings. Pass -AcknowledgeManaged to change it locally." }
+    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); your organization's policy can override local security settings. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing the local security policy needs administrator rights.' }
     if (-not $PSCmdlet.ShouldProcess('Local security policy', "Set $(@($plan.Rows).Count) setting(s)")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }

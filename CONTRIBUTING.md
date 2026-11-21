@@ -91,6 +91,9 @@ Invoke-ScriptAnalyzer -Path . -Recurse        # uses PSScriptAnalyzerSettings.ps
 - Tests call `Initialize-IgwtTestEnvironment` (`tests\TestHelpers.ps1`), which redirects `HKLM:\` and `HKCU:\` into `TestRegistry:` and turns on TestMode. In TestMode, any registry path that escapes the redirect throws, and `powercfg`/`nvidia-smi` throw unless mocked.
 - Mock system cmdlets with `Mock <Cmdlet> -ModuleName iGWindowsTuner`. Note that many NetAdapter/NetQos/DnsClient parameters are `string[]`, so index `[0]` in mocks.
 - The suite refuses to run elevated on a real machine (`IGWT_ALLOW_ELEVATED_TESTS=1` is meant for Windows Sandbox only).
+- **Engine boundary** (`tests\EngineBoundary.Tests.ps1`): code in `src\Gui` never changes the PC itself (no registry, service, firewall, Defender, policy or task writers) and runs only exported engine commands in the background worker. A new call from the GUI to an internal engine function fails the test: call an exported function, or export a read-only one on purpose.
+- **Component gallery**: `.\tools\Test-GuiGallery.ps1` renders every style in `Theme.xaml` offscreen (every theme and scale) into `artifacts\gui-gallery`. A new control style needs a sample there.
+- **4.0 controls**: new pages use the builders in `src\Gui\Components.ps1` (page header, chips, pills, info bars, setting rows, tiles, cards, split view) and the 4.0 styles in `Theme.xaml` (`PrimaryButton`, `SecondaryButton`, `SubtleButton`, `DangerOutlineButton`, `FilterChip`). Changes are applied only through the ChangeBar (`Invoke-IgwtGuiApply`); `tests\ChangeBar.Tests.ps1` checks that the batch has one starting point.
 
 ## Conventions
 

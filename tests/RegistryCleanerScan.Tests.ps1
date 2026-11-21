@@ -843,7 +843,7 @@ Describe 'Registry cleaner scan (RG2, RG3, RG10, RG15, RG17, RG22, RG32, RG33)' 
         It 'never offers a deny-listed Vendor and marks a tree with a deny-listed subkey not selectable' {
             $deny = @(InModuleScope iGWindowsTuner { (Get-IgwtRegCleanCategories).denyList.vendorNames })
             @($script:Result.Findings | Where-Object { $_.Category -eq 'softwareKey' -and $deny -contains ($_.Path -split '\\')[1] }).Count | Should -Be 0
-            $f = @(Find-TestFinding $script:Result (Get-TestExpect 'softwareKey' 'SOFTWARE\Fabrikam\Linked'))[0]
+            $f = @(Find-TestFinding $script:Result (Get-TestExpect 'softwareKey' 'SOFTWARE\Northwind\Linked'))[0]
             $f.Selectable | Should -BeFalse
             $f.Reason | Should -BeLike '*shared or linked key (Wow6432Node)*'
         }

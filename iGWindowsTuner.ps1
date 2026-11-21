@@ -48,7 +48,8 @@
     Saves the drifted state as a custom preset with this name (the preset minus the changed items).
 .PARAMETER Session
     Session Mode (Tournament/LAN): Start applies the temporary session items with a snapshot,
-    Stop restores them, Status shows the session. -DryRun with Start shows the plan.
+    Stop restores them, Status shows the session. -DryRun with Start shows the plan. Forget ends a
+    session whose backup is gone without restoring anything (undo its changes in History first).
 .PARAMETER PolicySearch
     Searches every installed ADMX policy by name, explain text or registry path (words are ANDed).
     -PolicyClass Machine or User filters. Read-only; the first run parses the definitions (cached).
@@ -103,7 +104,7 @@
     Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web,
     DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights.
 .PARAMETER DefenderThreats
-    Threat history (Get-MpThreatDetection); -Days limits it. Read-only.
+    Threat history (Get-MpThreatDetection), all of it unless -Days limits it. Read-only.
 .PARAMETER RemoveExclusion
     Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress),
     after you type YES (-Yes skips the prompt). iG Windows Tuner never adds exclusions. Use -DryRun first.
@@ -244,7 +245,8 @@
     Read-only ASR audit view: ASR, controlled folder access and network protection events grouped
     by rule and program, with recommendations.
 .PARAMETER Days
-    With -AsrAudit: how many days of events to read (1-90, default 14).
+    With -AsrAudit: how many days of events to read (1-90, default 14). With -Diagnostics and -SystemReport:
+    the history window (default 30). With -DefenderThreats: only detections of the last N days (default: all).
 .PARAMETER SecurityScore
     Read-only security score with the fix for every failed check, plus the local accounts audit.
 .PARAMETER NetworkSurface
@@ -484,7 +486,7 @@ param(
     [string]$PresetPath,
     [switch]$Drift,
     [string]$AdoptDrift,
-    [ValidateSet('Start', 'Stop', 'Status')]
+    [ValidateSet('Start', 'Stop', 'Status', 'Forget')]
     [string]$Session,
     [switch]$CloseApps,
     [switch]$Platform,
@@ -642,11 +644,16 @@ param(
     [string[]]$SourceKind,
     [switch]$ConfiguredOnly,
     [switch]$NoCache,
-    [switch]$ElevatedRelaunch
+    [switch]$ElevatedRelaunch,
+    [string]$ElevatedWorkingDirectory,
+    [switch]$ElevatedNoConfirm
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Off
+# An elevated relaunch starts in System32 and drops -Confirm:$false (a switch that is not present): restore both (review CLI-02, CLI-04).
+if ($ElevatedRelaunch -and $ElevatedWorkingDirectory -and (Test-Path -LiteralPath $ElevatedWorkingDirectory -PathType Container)) { Set-Location -LiteralPath $ElevatedWorkingDirectory }
+if ($ElevatedRelaunch -and $ElevatedNoConfirm) { $ConfirmPreference = 'None' }
 Import-Module (Join-Path $PSScriptRoot 'src\iGWindowsTuner.psd1') -Force
 if ($ReadOnly) { Set-IgwtEnvironment -ReadOnly }
 
@@ -763,17 +770,34 @@ function Request-IgwtCliElevation {
         Write-IgwtCliLine 'Read-only mode: this command changes the PC and is disabled. Run it without -ReadOnly (use -DryRun to see the plan).' ([ConsoleColor]::Yellow)
         exit 7
     }
+    # The elevated copy runs in its own window, so its JSON would never reach this one (review CLI-03).
+    if ($Bound.ContainsKey('Json') -and $Bound['Json']) {
+        Write-IgwtCliLine 'JSON output needs administrator rights here: start PowerShell as administrator and run the same command again. Nothing was changed.' ([ConsoleColor]::Red)
+        exit 2
+    }
     Write-IgwtCliLine 'Administrator rights are required. Requesting elevation (UAC prompt)...' ([ConsoleColor]::Yellow)
     $pass = New-Object System.Collections.Generic.List[string]
     foreach ($k in $Bound.Keys) {
         $v = $Bound[$k]
+        if ($k -eq 'Confirm' -and $v -is [switch] -and -not $v.IsPresent) { $pass.Add('-ElevatedNoConfirm'); continue }
         if ($v -is [switch]) { if ($v.IsPresent) { $pass.Add("-$k") } }
         elseif ($v -is [array] -and $k -in 'AsrExclude', 'AsrUnexclude') { $pass.Add("-$k"); $pass.Add(($v -join '|')) }   # paths may contain commas
         elseif ($v -is [array]) { $pass.Add("-$k"); $pass.Add(($v -join ',')) }
         else { $pass.Add("-$k"); $pass.Add([string]$v) }
     }
     $pass.Add('-ElevatedRelaunch')
-    $code = Start-IgwtElevated -ScriptPath $PSCommandPath -ArgumentList $pass.ToArray() -Wait
+    $loc = Get-Location
+    $here = $loc.ProviderPath
+    if ($loc.Provider.Name -eq 'FileSystem' -and $here) {
+        # The administrator copy does not see mapped network drives, so relative paths would land in System32.
+        if ($here -like '\\*' -or ($loc.Drive -and [string]$loc.Drive.DisplayRoot -like '\\*')) {
+            Write-IgwtCliLine "Run this from a local folder: the administrator copy cannot see the network folder $here. Nothing was changed." ([ConsoleColor]::Red)
+            exit 2
+        }
+        $pass.Add('-ElevatedWorkingDirectory'); $pass.Add($here)
+    }
+    try { $code = Start-IgwtElevated -ScriptPath $PSCommandPath -ArgumentList $pass.ToArray() -Wait }
+    catch { Write-IgwtCliLine $_.Exception.Message ([ConsoleColor]::Red); exit 1 }
     if ($null -eq $code) { Write-IgwtCliLine 'Elevation was declined; nothing was changed.' ([ConsoleColor]::Red); exit 3 }
     exit $code
 }
@@ -1319,7 +1343,7 @@ if ($CloseApps -and $Session -ne 'Start') { Write-IgwtCliLine '-CloseApps is onl
 if ($modes.Count -gt 1) { Write-IgwtCliLine "Choose one mode only (got: $($modes -join ', '))." ([ConsoleColor]::Red); exit 2 }
 $asrOnly = @('AsrRule', 'AsrMode', 'AsrRecommended', 'AsrExclude', 'AsrUnexclude') | Where-Object { $PSBoundParameters.ContainsKey($_) }
 if ($asrOnly -and -not $Asr) { Write-IgwtCliLine "-$($asrOnly -join ', -') only valid with -Asr." ([ConsoleColor]::Red); exit 2 }
-if ($PSBoundParameters.ContainsKey('Days') -and -not ($AsrAudit -or $Diagnostics -or $SystemReport)) { Write-IgwtCliLine '-Days is only valid with -AsrAudit, -Diagnostics or -SystemReport.' ([ConsoleColor]::Red); exit 2 }
+if ($PSBoundParameters.ContainsKey('Days') -and -not ($AsrAudit -or $Diagnostics -or $SystemReport -or $DefenderThreats)) { Write-IgwtCliLine '-Days is only valid with -AsrAudit, -Diagnostics, -SystemReport or -DefenderThreats.' ([ConsoleColor]::Red); exit 2 }
 if ($AsrAudit -and $Days -gt 90) { Write-IgwtCliLine '-Days must be 90 or less with -AsrAudit.' ([ConsoleColor]::Red); exit 2 }
 if ($Search -and -not ($Inventory -or $Toolkit -or $SecSettings)) { Write-IgwtCliLine '-Search is only valid with -Inventory, -Toolkit or -SecSettings.' ([ConsoleColor]::Red); exit 2 }
 if (($SourceKind -or $ConfiguredOnly) -and -not $SecSettings) { Write-IgwtCliLine '-SourceKind and -ConfiguredOnly are only valid with -SecSettings.' ([ConsoleColor]::Red); exit 2 }
@@ -1875,6 +1899,8 @@ try {
             }
             $confirmArgs = @{}
             if ($PSBoundParameters.ContainsKey('Confirm')) { $confirmArgs.Confirm = [bool]$PSBoundParameters['Confirm'] }
+            # The elevated copy gets -ElevatedNoConfirm instead of -Confirm:$false; module functions do not see the script's preference (review CLI-02).
+            if ($ElevatedNoConfirm) { $confirmArgs.Confirm = $false }
             $r = Invoke-IgwtCliSecSettingChange -Set $(if ($modes[0] -eq 'SecSettingSet') { $SecSettingSet } else { @() }) -RemoveExclusion $(if ($modes[0] -eq 'SecSettingRemoveExclusion') { $SecSettingRemoveExclusion } else { @() }) -DryRun:$DryRun -Json:$Json -AcknowledgeRisk:$AcknowledgeRisk -AcknowledgeManaged:$AcknowledgeManaged -ConfirmArgs $confirmArgs
             if ($r.Json) { $r.Json }
             Complete-IgwtCli $r.Code
@@ -1887,6 +1913,8 @@ try {
             }
             $confirmArgs = @{}
             if ($PSBoundParameters.ContainsKey('Confirm')) { $confirmArgs.Confirm = [bool]$PSBoundParameters['Confirm'] }
+            # The elevated copy gets -ElevatedNoConfirm instead of -Confirm:$false; module functions do not see the script's preference (review CLI-02).
+            if ($ElevatedNoConfirm) { $confirmArgs.Confirm = $false }
             $r = switch ($modes[0]) {
                 'RegClean' { Invoke-IgwtCliRegClean -Selection $RegClean -DryRun:$DryRun -Json:$Json -SkipRestorePoint:$SkipRestorePoint -EnableSystemProtection:$EnableSystemProtection -ConfirmArgs $confirmArgs }
                 'RegRestore' { Invoke-IgwtCliRegRestore -Id $RegRestore -DryRun:$DryRun -Json:$Json -Conflict $RegConflict -ConfirmArgs $confirmArgs }
@@ -2124,7 +2152,7 @@ try {
             exit 0
         }
         'DefenderThreats' {
-            $rows = @(Get-IgwtDefenderThreats -Days $(if ($Days) { $Days } else { 0 }))
+            $rows = @(Get-IgwtDefenderThreats -Days $(if ($PSBoundParameters.ContainsKey('Days')) { $Days } else { 0 }))
             if ($Json) { $rows | ConvertTo-Json -Depth 4; exit 0 }
             foreach ($r in $rows) { Write-IgwtCliLine ("  {0}  {1,-9} {2}  {3}{4}" -f $r.Time, $r.Severity, $r.Threat, (@($r.Resources) -join ', '), $(if ($r.Active) { '  ACTIVE' } else { '' })) $(if ($r.Active) { [ConsoleColor]::Red } else { [ConsoleColor]::Gray }) }
             Write-IgwtCliLine "$($rows.Count) detection(s)." ([ConsoleColor]::White)
@@ -2428,7 +2456,16 @@ try {
                     if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
                     $res = Stop-IgwtSession
                     Write-IgwtResult -Result $res
+                    if ($res.PSObject.Properties['NoBackup'] -and $res.NoBackup) { Write-IgwtCliLine $res.Message ([ConsoleColor]::Yellow) }
                     Complete-IgwtCli (Get-IgwtExitCode -Result $res)
+                }
+                'Forget' {
+                    if (-not (Get-IgwtSessionState).Active) { Write-IgwtCliLine 'No Session Mode session is active.' ([ConsoleColor]::Gray); exit 6 }
+                    if ($DryRun) { Write-IgwtCliLine 'Would end Session Mode without restoring any setting.'; exit 0 }
+                    if (-not (Test-IgwtIsAdmin)) { Request-IgwtCliElevation -Bound $PSBoundParameters }
+                    $res = Stop-IgwtSession -Forget
+                    Write-IgwtCliLine $res.Message
+                    exit 0
                 }
             }
         }

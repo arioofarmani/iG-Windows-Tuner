@@ -201,7 +201,7 @@ function Get-IgwtManagedChangePlan {
     [pscustomobject]@{
         Kind = $Kind; Target = $Target; Value = $Value; Current = $current; HasChange = -not $already
         Change = $(if ($already) { 'Already set; nothing to change.' } else { "$Kind $Target : $current -> $Value" })
-        Reversible = $(if ($Kind -eq 'appx') { 'partial (re-registered or reinstalled from the Microsoft Store)' } else { 'full (snapshot)' })
+        Reversible = $(if ($Kind -eq 'appx') { 'none: reinstall the app from the Microsoft Store (iG cannot restore a removed or deprovisioned app exactly)' } else { 'full (snapshot)' })
     }
 }
 
@@ -245,7 +245,7 @@ function Invoke-IgwtManagedChange {
         if ([string]$action.type -eq 'managedFirewallRule') { Clear-IgwtCache -Prefix 'fw:' -WhatIf:$false; Set-NetFirewallRule -Name ([string]$action.name) -Enabled $(if ($Value -eq 'Enabled') { 'True' } else { 'False' }) -ErrorAction Stop }
         else { Invoke-IgwtActionApply -Action $action -Context $null -Mode on }
         Write-IgwtLog -Message "Managed change: $label. Snapshot: $($snap.Path)"
-        $msg = $(if ($Kind -eq 'service') { 'The new startup type applies from the next start of the service or Windows.' } elseif ($Kind -eq 'appx') { 'Revert re-registers the app or reinstalls it from the Store.' } else { '' })
+        $msg = $(if ($Kind -eq 'service') { 'The new startup type applies from the next start of the service or Windows.' } elseif ($Kind -eq 'appx') { 'This cannot be undone from History; reinstall the app from the Microsoft Store if you need it. (Revert from the snapshot re-registers the app or reinstalls it from the Store when it can.)' } else { '' })
         return [pscustomobject]@{ Snapshot = $snap.Path; Changes = 1; Results = @([pscustomobject]@{ Target = $Target; Change = $label; Result = 'Applied'; Message = $msg }) }
     } catch {
         Add-IgwtSnapshotEntry -Snapshot $snap -TweakId $tid -Actions @($entryAction) -Result 'Failed' -Message $_.Exception.Message

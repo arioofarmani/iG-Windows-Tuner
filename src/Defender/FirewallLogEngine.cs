@@ -853,6 +853,38 @@ namespace IgwtFirewallLog
             return p;
         }
 
+        // This PC's own addresses, public ones too: the PC's global IPv6 address (or a public IPv4 on a
+        // directly connected PC) is the local side of almost every row and identifies the home (review F-08).
+        private readonly HashSet<string> localAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public void AddLocalAddress(string ip)
+        {
+            string c = Canonical(ip);
+            if (c != null) { localAddresses.Add(c); }
+        }
+
+        public int LocalAddressCount { get { return localAddresses.Count; } }
+
+        private static string Canonical(string ip)
+        {
+            if (string.IsNullOrEmpty(ip)) { return null; }
+            string s = ip.Trim();
+            int zone = s.IndexOf('%');
+            if (zone > 0) { s = s.Substring(0, zone); }
+            IPAddress a;
+            if (!IPAddress.TryParse(s, out a)) { return null; }
+            if (a.IsIPv4MappedToIPv6) { a = a.MapToIPv4(); }
+            return a.ToString().ToLowerInvariant();
+        }
+
+        private bool Hide(string ip)
+        {
+            if (IsInternal(ip)) { return true; }
+            if (localAddresses.Count == 0) { return false; }
+            string c = Canonical(ip);
+            return c != null && localAddresses.Contains(c);
+        }
+
         // Internal addresses: RFC 1918, loopback, link-local, carrier-grade NAT, IPv6 unique local and link-local.
         public static bool IsInternal(string ip)
         {
@@ -878,11 +910,11 @@ namespace IgwtFirewallLog
                 for (int i = 0; i < parts.Length; i++) { parts[i] = Ip(parts[i]); }
                 return string.Join(";", parts);
             }
-            return IsInternal(ip) ? Pseudonym("ip", ip.Trim()) : ip;
+            return Hide(ip) ? Pseudonym("ip", ip.Trim()) : ip;
         }
 
         // Free text (rule names, notes, messages): user folders and names, the computer name, and every
-        // internal IPv4 or IPv6 address in it.
+        // internal IPv4 or IPv6 address in it, and this PC's own addresses.
         public string Text(string text)
         {
             if (!Enabled || string.IsNullOrEmpty(text)) { return text; }
@@ -897,7 +929,7 @@ namespace IgwtFirewallLog
                 {
                     string tok = t.Substring(i, j - i).TrimEnd('.', ':');
                     string rest = t.Substring(i + tok.Length, j - i - tok.Length);
-                    sb.Append((tok.IndexOf('.') >= 0 || tok.IndexOf(':') >= 0) && IsInternal(tok) ? Pseudonym("ip", tok) : tok).Append(rest);
+                    sb.Append((tok.IndexOf('.') >= 0 || tok.IndexOf(':') >= 0) && Hide(tok) ? Pseudonym("ip", tok) : tok).Append(rest);
                     i = j;
                 }
                 else { sb.Append(t[i]); i++; }
