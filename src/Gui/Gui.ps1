@@ -561,6 +561,7 @@ function Complete-IgwtGuiJob {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Hands a finished job to the window.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][hashtable]$Job)
+    $doneWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $out = $null
     $errs = @()
     try {
@@ -590,7 +591,7 @@ function Complete-IgwtGuiJob {
     if ($Job.OnComplete) {
         $applyWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try { & $Job.OnComplete $out $errs $Job.Context } catch { Show-IgwtGuiError -Message "The result of $($Job.Command) could not be shown: $($_.Exception.Message)" -Details ($_ | Out-String) }
-        if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'apply' -Text ('{0}	{1:N0} ms' -f $Job.Command, $applyWatch.Elapsed.TotalMilliseconds) }
+        if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'apply' -Text ('{0}	{1:N0} ms	before: {2:N0} ms' -f $Job.Command, $applyWatch.Elapsed.TotalMilliseconds, ($doneWatch.Elapsed.TotalMilliseconds - $applyWatch.Elapsed.TotalMilliseconds)) }
     }
 }
 
@@ -983,6 +984,13 @@ function Update-IgwtGuiPresetCards {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param()
+    # Rebuilding the card list on every visit cost 80-220 ms (a full GC now and then): skip it while the presets
+    # and the system state are the same as when the cards were built (4.0 section 8).
+    $st = $(if ($script:Gui.Data -and $script:Gui.Data.States) { $script:Gui.Data.States } else { @{} })
+    $sig = (@($st.Keys | Sort-Object | ForEach-Object { '{0}={1}' -f $_, $st[$_].State }) -join '|')
+    $key = '{0}|{1}|{2}' -f @($script:Gui.Presets).Count, [bool]$script:Gui.IsAdmin, $sig
+    if ($script:Gui.PresetCardsKey -eq $key -and $null -ne $script:Gui.C.PresetCards.ItemsSource) { Update-IgwtGuiPresetExtras; return }
+    $script:Gui.PresetCardsKey = $key
     $cards = foreach ($p in @($script:Gui.Presets | Where-Object { -not ($_.PSObject.Properties['session'] -and $_.session) })) {
         $members = @(Get-IgwtGuiPresetMembers -Preset $p)
         $toChange = 0
@@ -1428,7 +1436,7 @@ function Start-IgwtGuiRefresh {
     $null = Start-IgwtGuiJob -Command 'Get-IgwtGuiData' -Channel 'state' -Parameters @{ IncludeHealth = [bool]$IncludeHealth } -BusyText 'Reading the current system state (read-only)...' -OnComplete {
         param($out, $errs)
         $data = @($out) | Select-Object -Last 1
-        if ($data) { Update-IgwtGuiFromData -Data $data; if (-not $script:Gui.FirstDataShown) { $script:Gui.FirstDataShown = $true; Write-IgwtGuiDiagnostic -Kind 'loaded' -Text 'first system state shown' }; Set-IgwtGuiStatus "State refreshed at $((Get-Date).ToString('HH:mm:ss'))." }
+        if ($data) { Update-IgwtGuiFromData -Data $data; if (-not $script:Gui.FirstDataShown) { $script:Gui.FirstDataShown = $true; $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::ContextIdle, [Action] { Write-IgwtGuiDiagnostic -Kind 'loaded' -Text 'first system state shown (after layout and render)' }) }; Set-IgwtGuiStatus "State refreshed at $((Get-Date).ToString('HH:mm:ss'))." }
         else { Set-IgwtGuiStatus 'Could not read the system state; see the log.' }
     }
 }

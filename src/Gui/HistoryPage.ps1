@@ -59,6 +59,7 @@ function Get-IgwtGuiHistorySessions {
     $conflict = New-Object 'System.Collections.Generic.HashSet[string]'
     foreach ($p in @($Plan | Where-Object { $_ -and [string]$_.Status -eq 'Conflict' })) { $null = $conflict.Add([string]$p.Key) }
     $groups = [ordered]@{}
+    $titles = @{}   # sessions share a few titles; one call per title, not per session
     foreach ($r in @($Timeline.Rows | Where-Object { $_ })) {
         $k = [string]$r.Session
         if (-not $groups.Contains($k)) { $groups[$k] = New-Object System.Collections.Generic.List[object] }
@@ -67,30 +68,41 @@ function Get-IgwtGuiHistorySessions {
     $out = foreach ($k in $groups.Keys) {
         $rows = $groups[$k].ToArray()
         $first = $rows[0]
-        $changes = @($rows | Where-Object { [string]$_.Op -eq 'change' -and [string]$_.Result -eq 'Committed' })
-        $restores = @($rows | Where-Object { [string]$_.Op -eq 'restore' -and [string]$_.Result -eq 'Committed' })
-        $inPlace = @($changes | Where-Object { $_.InEffect })
-        $undoable = @($inPlace | Where-Object { -not $_.OneWay })
-        $oneWay = @($changes | Where-Object { $_.OneWay })
-        $changed = @($inPlace | Where-Object { $conflict.Contains([string]$_.Target) })
-        $failed = @($rows | Where-Object { [string]$_.Result -in 'Failed', 'RollbackFailed', 'InDoubt' })
+        # One pass instead of seven Where-Object pipelines per session (4.0: History drew in about 300 ms
+        # for 140 sessions; Where-Object is slow in Windows PowerShell 5.1).
+        $changes = New-Object System.Collections.Generic.List[object]; $restores = 0; $inPlace = 0; $undoable = 0; $oneWay = 0; $changed = 0; $failed = 0
+        foreach ($r in $rows) {
+            $res = [string]$r.Result
+            if ($res -eq 'Failed' -or $res -eq 'RollbackFailed' -or $res -eq 'InDoubt') { $failed++ }
+            if ($res -ne 'Committed') { continue }
+            $op = [string]$r.Op
+            if ($op -eq 'restore') { $restores++; continue }
+            if ($op -ne 'change') { continue }
+            $changes.Add($r)
+            if ($r.OneWay) { $oneWay++ }
+            if ($r.InEffect) {
+                $inPlace++
+                if (-not $r.OneWay) { $undoable++ }
+                if ($conflict.Contains([string]$r.Target)) { $changed++ }
+            }
+        }
         $dt = [datetime]::MinValue
         $null = [datetime]::TryParse([string]$first.When, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$dt)
-        $state = $(if ($inPlace.Count) { 'InPlace' } elseif ($changes.Count -and $oneWay.Count -eq $changes.Count) { 'OneWay' } elseif ($changes.Count) { 'Undone' } else { 'Record' })
-        $n = $(if ($changes.Count) { $changes.Count } else { $restores.Count })
+        $state = $(if ($inPlace) { 'InPlace' } elseif ($changes.Count -and $oneWay -eq $changes.Count) { 'OneWay' } elseif ($changes.Count) { 'Undone' } else { 'Record' })
+        $n = $(if ($changes.Count) { $changes.Count } else { $restores })
         $meta = New-Object System.Collections.Generic.List[string]
         if ($dt -ne [datetime]::MinValue) { $meta.Add($dt.ToLocalTime().ToString('yyyy-MM-dd HH:mm')) }
         $meta.Add("$n setting$(if ($n -ne 1) { 's' })$(if ($state -eq 'Record') { ' put back' })")
-        if ($state -eq 'InPlace') { $meta.Add("$($inPlace.Count) still in place") }
+        if ($state -eq 'InPlace') { $meta.Add("$inPlace still in place") }
         elseif ($state -eq 'Undone') { $meta.Add('no longer in place') }
-        if ($changed.Count) { $meta.Add("$($changed.Count) changed since") }
-        if ($oneWay.Count) { $meta.Add("$($oneWay.Count) cannot be undone") }
-        if ($failed.Count) { $meta.Add("$($failed.Count) failed or unfinished") }
+        if ($changed) { $meta.Add("$changed changed since") }
+        if ($oneWay) { $meta.Add("$oneWay cannot be undone") }
+        if ($failed) { $meta.Add("$failed failed or unfinished") }
         [pscustomobject]@{
-            Id = $k; Title = (Get-IgwtGuiHistoryTitle -Title ([string]$first.SessionTitle) -Presets $Presets); RawTitle = [string]$first.SessionTitle
-            When = $dt; Origin = [string]$first.Origin; Steps = $rows; Changes = $changes.Count; InPlace = $inPlace.Count
-            Undoable = $undoable.Count; Conflicts = $changed.Count; OneWay = $oneWay.Count; Failed = $failed.Count
-            State = $state; CanUndo = [bool]$undoable.Count; Meta = ($meta -join '  |  ')
+            Id = $k; Title = $($raw = [string]$first.SessionTitle; if (-not $titles.ContainsKey($raw)) { $titles[$raw] = Get-IgwtGuiHistoryTitle -Title $raw -Presets $Presets }; $titles[$raw]); RawTitle = [string]$first.SessionTitle
+            When = $dt; Origin = [string]$first.Origin; Steps = $rows; Changes = $changes.Count; InPlace = $inPlace
+            Undoable = $undoable; Conflicts = $changed; OneWay = $oneWay; Failed = $failed
+            State = $state; CanUndo = [bool]$undoable; Meta = ($meta -join '  |  ')
         }
     }
     return @($out | Sort-Object -Property @{ Expression = { $_.When }; Descending = $true }, @{ Expression = { $_.Id }; Descending = $true })
@@ -172,7 +184,7 @@ function Get-IgwtGuiHistoryState {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates window state only.')]
     [CmdletBinding()]
     param()
-    if (-not $script:Gui.Hist) { $script:Gui.Hist = @{ Timeline = $null; AllPlan = @(); Filter = 'All'; Open = ''; Plan = $null; Decisions = @{}; Shown = 20; Result = $null; Error = '' } }
+    if (-not $script:Gui.Hist) { $script:Gui.Hist = @{ Timeline = $null; AllPlan = @(); Filter = 'All'; Open = ''; Plan = $null; Decisions = @{}; Shown = 10; Result = $null; Error = '' } }
     return $script:Gui.Hist
 }
 
@@ -188,6 +200,36 @@ function Get-IgwtGuiHistoryDrawKey {
     $id = { param($o) if ($null -eq $o) { 0 } else { [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($o) } }
     $dec = @($h.Decisions.Keys | Sort-Object | ForEach-Object { "$_=$($h.Decisions[$_])" }) -join ','
     return ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}' -f (& $id $h.Timeline), (& $id $h.AllPlan), (& $id $h.Plan), $h.Filter, $h.Open, $h.Shown, (& $id $h.Result), $h.Error, $dec, [bool]$script:Gui.Job, [bool]$script:Gui.IsAdmin, @($script:Gui.Catalog).Count)
+}
+
+function Get-IgwtGuiHistorySessionsKey {
+    <# .SYNOPSIS What the cached History sessions were computed from: the timeline and plan objects and the preset count. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    $h = Get-IgwtGuiHistoryState
+    $id = { param($o) if ($null -eq $o) { 0 } else { [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($o) } }
+    return ('{0}|{1}|{2}' -f (& $id $h.Timeline), (& $id $h.AllPlan), @($script:Gui.Presets).Count)
+}
+
+function Get-IgwtGuiHistorySessionsCached {
+    <#
+    .SYNOPSIS
+        The History session cards and the set of values changed since iG set them, computed again only when the
+        timeline or the revert plan is a new object (4.0: a redraw no longer recomputes 140 sessions).
+    #>
+    [CmdletBinding()]
+    param()
+    $h = Get-IgwtGuiHistoryState
+    $key = Get-IgwtGuiHistorySessionsKey
+    if ($h.SessionsKey -ne $key) {
+        $conflict = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($p in @($h.AllPlan)) { if ($p -and [string]$p.Status -eq 'Conflict') { $null = $conflict.Add([string]$p.Key) } }
+        $h.ConflictSet = $conflict
+        $h.Sessions = @(Get-IgwtGuiHistorySessions -Timeline $h.Timeline -Plan @($h.AllPlan) -Presets @($script:Gui.Presets))
+        $h.SessionsKey = $key
+    }
+    return $h.Sessions
 }
 
 function Update-IgwtGuiHistoryIfVisible {
@@ -309,7 +351,15 @@ function Update-IgwtGuiHistoryPage {
     $host_ = $c.HistoryHost
     if (-not $host_) { return }
     $h = Get-IgwtGuiHistoryState
+    # New journal data in the shown window: compute the sessions now and draw in the next dispatcher slice, so the
+    # window paints and takes input in between (each part stays under 200 ms; offscreen renders draw at once).
+    if ($h.Timeline -and $h.SessionsKey -ne (Get-IgwtGuiHistorySessionsKey) -and $script:Gui.Window -and $script:Gui.Window.IsLoaded) {
+        $null = Get-IgwtGuiHistorySessionsCached
+        $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] { Update-IgwtGuiHistoryIfVisible })
+        return
+    }
     $h.DrawnKey = Get-IgwtGuiHistoryDrawKey
+    $drawWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $host_.Children.Clear()
     $t = $h.Timeline
     $ok = ($t -and [string]$t.Status -eq 'Ok')
@@ -347,23 +397,25 @@ function Update-IgwtGuiHistoryPage {
 
     $chips = New-IgwtChipGroup -Labels $script:IgwtGuiHistoryFilters -Selected @($h.Filter) -GroupName 'Show' -Single
     $chips.Margin = [System.Windows.Thickness]::new(0, 0, 0, 16)
-    foreach ($ch in $chips.Children) { Register-IgwtGuiHandler -Control $ch -Event 'Click' -Handler { param($s, $e) $hs = Get-IgwtGuiHistoryState; $hs.Filter = [string]$s.Tag; $hs.Shown = 20; Update-IgwtGuiHistoryPage } }
+    foreach ($ch in $chips.Children) { Register-IgwtGuiHandler -Control $ch -Event 'Click' -Handler { param($s, $e) $hs = Get-IgwtGuiHistoryState; $hs.Filter = [string]$s.Tag; $hs.Shown = 10; Update-IgwtGuiHistoryPage } }
     $null = $host_.Children.Add($chips)
 
-    $sessions = @(Get-IgwtGuiHistorySessions -Timeline $t -Plan @($h.AllPlan) -Presets @($script:Gui.Presets))
-    $shown = @($sessions | Where-Object { Test-IgwtGuiHistoryFilter -Session $_ -Filter $h.Filter })
+    $sessions = @(Get-IgwtGuiHistorySessionsCached)
+    # "All" needs no per-session call (138 calls of an advanced function cost about 70 ms in Windows PowerShell 5.1).
+    $shown = $(if ([string]$h.Filter -eq 'All') { $sessions } else { @(foreach ($s in $sessions) { if (Test-IgwtGuiHistoryFilter -Session $s -Filter $h.Filter) { $s } }) })
     if (-not $sessions.Count) { $null = $host_.Children.Add((New-IgwtEmptyState -Text 'No changes yet. Every change iG makes is recorded here before it is made, with the value before and the value set.')) }
     elseif (-not $shown.Count) { $null = $host_.Children.Add((New-IgwtEmptyState -Text "No change matches '$($h.Filter)'.")) }
     foreach ($s in @($shown | Select-Object -First ([int]$h.Shown))) { $null = $host_.Children.Add((New-IgwtGuiHistoryCard -Session $s -Names $names -Busy $busy)) }
     if ($shown.Count -gt [int]$h.Shown) {
-        $more = New-IgwtUiButton -Text "Show $([Math]::Min(20, $shown.Count - [int]$h.Shown)) more" -Kind Subtle -ObjectName 'sessions'
+        $more = New-IgwtUiButton -Text "Show $([Math]::Min(10, $shown.Count - [int]$h.Shown)) more" -Kind Subtle -ObjectName 'sessions'
         $more.HorizontalAlignment = 'Left'
-        Register-IgwtGuiHandler -Control $more -Event 'Click' -Handler { $hs = Get-IgwtGuiHistoryState; $hs.Shown = [int]$hs.Shown + 20; Update-IgwtGuiHistoryPage }
+        Register-IgwtGuiHandler -Control $more -Event 'Click' -Handler { $hs = Get-IgwtGuiHistoryState; $hs.Shown = [int]$hs.Shown + 10; Update-IgwtGuiHistoryPage }
         $null = $host_.Children.Add($more)
     }
     # S1: only iG's own records are restored.
     $note = New-IgwtUiText -Text 'Backups from iG 3.x are imported here once. Backup files from anywhere else are never restored. The full change table, the 3.x snapshots and the log are on the Backups and logs tab.' -Style 'TextCaption' -Brush 'BrushTextMuted'
     $note.Margin = [System.Windows.Thickness]::new(0, 8, 0, 0); $null = $host_.Children.Add($note)
+    if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'draw' -Text ('History	{0:N0} ms	{1} cards' -f $drawWatch.Elapsed.TotalMilliseconds, [Math]::Min($shown.Count, [int]$h.Shown)) }
 }
 
 function New-IgwtGuiHistoryCardFrame {
@@ -411,22 +463,34 @@ function New-IgwtGuiHistoryCard {
     if ($open) { Add-IgwtGuiHistoryPlanView -Panel $card.Body -Names $Names -ObjectName $Session.Title; return $card.Frame }
     $steps = @($Session.Steps | Where-Object { $_ })
     if (-not $steps.Count) { return $card.Frame }
-    $conflict = New-Object 'System.Collections.Generic.HashSet[string]'
-    foreach ($p in @($h.AllPlan | Where-Object { [string]$_.Status -eq 'Conflict' })) { $null = $conflict.Add([string]$p.Key) }
     $ex = New-Object System.Windows.Controls.Expander
     $ex.Header = "$($steps.Count) setting$(if ($steps.Count -ne 1) { 's' })"
     $ex.Margin = [System.Windows.Thickness]::new(0, 10, 0, 0)
     $ex.IsExpanded = ($Session.Conflicts -gt 0 -and $steps.Count -le 6)
     $null = Set-IgwtUiName -Element $ex -Name "Settings in $($Session.Title)"
-    $list = New-Object System.Windows.Controls.StackPanel
-    $null = $list.Children.Add((New-IgwtGuiHistoryStepRow -Setting 'Setting' -Values 'Before  >  set by iG' -Status 'Now' -Header))
-    foreach ($st in $steps) {
-        $word = $(if ([string]$st.Result -ne 'Committed') { @('Failed or unfinished', 'Danger') } elseif ([string]$st.Op -eq 'restore') { @('Restored', 'Neutral') } elseif ($st.OneWay) { @('Cannot be undone', 'Neutral') } elseif ($st.InEffect -and $conflict.Contains([string]$st.Target)) { @('Changed since', 'Warning') } elseif ($st.InEffect) { @('In place', 'Success') } else { @('No longer in place', 'Neutral') })
-        $null = $list.Children.Add((New-IgwtGuiHistoryStepRow -Setting (Get-IgwtGuiHistoryItemName -Item ([string]$st.Item) -Names $Names) -Values ("{0}  >  {1}" -f $st.Before, $st.After) -Status $word[0] -Tone $word[1]))
-    }
-    $ex.Content = $list
+    # The rows are built when the card is expanded (most cards stay folded): 20 folded cards drew in about 190 ms.
+    $ex.Tag = @{ Steps = $steps; Names = $Names }
+    if ($ex.IsExpanded) { Add-IgwtGuiHistoryStepRows -Expander $ex }
+    else { Register-IgwtGuiHandler -Control $ex -Event 'Expanded' -Handler { param($s, $e) $null = $e; Add-IgwtGuiHistoryStepRows -Expander $s } }
     $null = $card.Body.Children.Add($ex)
     return $card.Frame
+}
+
+function Add-IgwtGuiHistoryStepRows {
+    <# .SYNOPSIS Fills a session card's folded settings list the first time it opens (steps and names travel in its Tag). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Expander)
+    if ($null -ne $Expander.Content -or -not ($Expander.Tag -is [hashtable])) { return }
+    $h = Get-IgwtGuiHistoryState
+    $conflict = $(if ($h.ConflictSet) { $h.ConflictSet } else { New-Object 'System.Collections.Generic.HashSet[string]' })
+    $list = New-Object System.Windows.Controls.StackPanel
+    $null = $list.Children.Add((New-IgwtGuiHistoryStepRow -Setting 'Setting' -Values 'Before  >  set by iG' -Status 'Now' -Header))
+    foreach ($st in @($Expander.Tag.Steps)) {
+        $word = $(if ([string]$st.Result -ne 'Committed') { @('Failed or unfinished', 'Danger') } elseif ([string]$st.Op -eq 'restore') { @('Restored', 'Neutral') } elseif ($st.OneWay) { @('Cannot be undone', 'Neutral') } elseif ($st.InEffect -and $conflict.Contains([string]$st.Target)) { @('Changed since', 'Warning') } elseif ($st.InEffect) { @('In place', 'Success') } else { @('No longer in place', 'Neutral') })
+        $null = $list.Children.Add((New-IgwtGuiHistoryStepRow -Setting (Get-IgwtGuiHistoryItemName -Item ([string]$st.Item) -Names $Expander.Tag.Names) -Values ("{0}  >  {1}" -f $st.Before, $st.After) -Status $word[0] -Tone $word[1]))
+    }
+    $Expander.Content = $list
 }
 
 function New-IgwtGuiHistoryStepRow {

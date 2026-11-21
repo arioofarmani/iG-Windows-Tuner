@@ -58,6 +58,7 @@ The redesign release: seven sections instead of 24 pages, one bar that applies e
 
 - Changing the theme could freeze the window: a refresh waited for console input that never came.
 - Menus opened from toolbars and lists no longer log WPF binding errors.
+- History, Optimize and Play open faster: History with many changes no longer freezes the window for half a second when it loads, and pages you visited before open at once.
 - Running a changing command from a normal PowerShell asked again for confirmation after -Confirm:$false, and relative paths were read from System32; both now work as typed. -Json asks you to start PowerShell as administrator instead of losing the output.
 - -DefenderThreats showed only the last 14 days and refused -Days.
 - Staging a preset or a fix for changed settings replaced the changes you had staged without asking.

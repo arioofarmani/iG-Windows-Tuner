@@ -114,6 +114,9 @@ function Update-IgwtGuiSectionNav {
     for ($n = 0; $same -and $n -lt $plan.Count; $n++) { if (-not [object]::ReferenceEquals($plan[$n], $nav.Items[$n])) { $same = $false } }
     if (-not $same) {
         $script:Gui.NavSuppress = $true
+        # A removed item loses ItemContainerStyle and falls back to the default style, whose alignments bind to an ancestor
+        # list it no longer has (WPF binding error 4): local values win over every style (4.0 section 8).
+        foreach ($x in @($nav.Items) + $plan.ToArray()) { if ($x -is [System.Windows.Controls.ListBoxItem]) { $x.HorizontalContentAlignment = 'Left'; $x.VerticalContentAlignment = 'Center' } }
         try { $nav.Items.Clear(); foreach ($x in $plan) { $null = $nav.Items.Add($x) } } finally { $script:Gui.NavSuppress = $false }
     }
     $cur = $(if ($script:Gui.CurrentPage) { Get-IgwtGuiSectionOf -Page $script:Gui.CurrentPage })

@@ -61,9 +61,12 @@ function Show-IgwtGuiOptimizePage {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Category)
+    $w = [System.Diagnostics.Stopwatch]::StartNew()
     Initialize-IgwtGuiOptimizePage
+    $init = $w.Elapsed.TotalMilliseconds
     foreach ($ch in $script:Gui.Opt.Chips.Children) { $ch.IsChecked = ([string]$ch.Tag -eq $Category) }
     Update-IgwtGuiOptimizeList
+    if ($script:Gui.DiagnosticsPath) { Write-IgwtGuiDiagnostic -Kind 'draw' -Text ('Optimize	{0:N0} ms	setup {1:N0} ms' -f $w.Elapsed.TotalMilliseconds, $init) }
 }
 
 function Get-IgwtGuiOptimizeItems {
@@ -94,35 +97,70 @@ function Update-IgwtGuiOptimizeList {
     param()
     $o = $script:Gui.Opt
     if (-not $o) { return }
+    # Same category, search, settings, staging and persona as the list on screen: keep it (a rebuild cost 100-230 ms
+    # on every visit, 4.0 section 8). A row selection never needs a rebuild (Select-IgwtGuiOptimizeItem).
+    $st = $(if ($script:Gui.Data -and $script:Gui.Data.States) { $script:Gui.Data.States } else { @{} })
+    $key = '{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}' -f [string]$script:Gui.Category, [string]$o.Search.Text, $(if ($script:Gui.Data) { [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($script:Gui.Data) } else { 0 }), (Get-IgwtGuiStagedKey), $(if ($script:Gui.Persona) { [string]$script:Gui.Persona.Name }), [bool]$script:Gui.FocusMode, [bool]$script:Gui.IsAdmin, (@($st.Keys | Sort-Object | ForEach-Object { '{0}={1}' -f $_, $st[$_].State }) -join '|')
+    if ($o.ListKey -eq $key -and $o.List.Children.Count) { return }
+    $o.ListKey = $key
     $offset = $o.Scroll.VerticalOffset
     $o.List.Children.Clear()
     if (-not $script:Gui.Data) { $null = $o.List.Children.Add((New-IgwtEmptyState -Text 'Reading the current settings (read-only)...')); Show-IgwtGuiOptimizeDetails -Id ''; return }
     $items = @(Get-IgwtGuiOptimizeItems -Category ([string]$script:Gui.Category) -Search ([string]$o.Search.Text))
     if (-not $items.Count) { $null = $o.List.Children.Add((New-IgwtEmptyState -Text $(if ($o.Search.Text) { 'No setting matches the search.' } else { 'Nothing to show in this category for your persona.' }))) }
-    foreach ($it in $items) {
-        $r = $it.Row; $t = $it.Tweak
-        $evidence = (Get-IgwtGuiEvidenceWords -Tweak $t) + "  |  $($r.AcText)"
-        if ($r.PendingText) { $evidence += "  |  $($r.PendingText)" }
-        if ($r.RestartText) { $evidence += "  |  $($r.RestartText) needed" }
-        $row = New-IgwtSettingRow -Name ([string]$r.Name) -Hint ([string]$r.Hint) -Evidence $evidence -IsOn ([bool]$r.Desired) -Disabled:(-not $r.CanToggle) -DisabledReason $(if (-not $r.CanToggle) { [string]$r.ToggleTip })
-        $row.Tag.Tag.Tag = [string]$r.Id
-        $row.Tag.ToolTip = [string]$r.ToggleTip
-        $row.Resources['IgwtId'] = [string]$r.Id
-        if ([string]$r.Id -eq $o.Selected) { $row.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'BrushSurfaceSelected') }
-        Register-IgwtGuiHandler -Control $row -Event 'PreviewMouseLeftButtonDown' -Handler { param($s, $e) Select-IgwtGuiOptimizeItem -Id ([string]$s.Resources['IgwtId']) }
-        Register-IgwtGuiHandler -Control $row -Event 'GotKeyboardFocus' -Handler { param($s, $e) if ([object]::ReferenceEquals($e.NewFocus, $s)) { Select-IgwtGuiOptimizeItem -Id ([string]$s.Resources['IgwtId']) } }
-        Register-IgwtGuiHandler -Control $row.Tag -Event 'Click' -Handler {
-            param($s, $e)
-            $id = [string]$s.Tag.Tag
-            $ok = Invoke-IgwtGuiStageToggle -Id $id -Want ([bool]$s.IsChecked)
-            if (-not $ok) { $s.IsChecked = -not [bool]$s.IsChecked }
-            Update-IgwtGuiTweakList
-        }
-        $null = $o.List.Children.Add($row)
+    # In the shown window the first rows are drawn now and the rest in the next dispatcher slice, so a first visit
+    # never blocks the window for the whole list (4.0 section 8); offscreen renders build everything at once.
+    $o.Gen = [int]$o.Gen + 1
+    $now = $items
+    if ($items.Count -gt 5 -and $script:Gui.Window -and $script:Gui.Window.IsLoaded) {
+        $now = @($items | Select-Object -First 5)
+        $o.Rest = @($items | Select-Object -Skip 5); $o.RestGen = $o.Gen; $o.RestOffset = $offset
+        $null = $script:Gui.Window.Dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action] { Add-IgwtGuiOptimizeRest })
     }
+    foreach ($it in $now) { Add-IgwtGuiOptimizeRow -Item $it }
     if (-not $o.Selected -or -not @($items | Where-Object { [string]$_.Tweak.id -eq $o.Selected }).Count) { $o.Selected = $(if ($items.Count) { [string]$items[0].Tweak.id } else { '' }) }
     Show-IgwtGuiOptimizeDetails -Id $o.Selected
     $o.Scroll.ScrollToVerticalOffset($offset)
+}
+
+function Add-IgwtGuiOptimizeRest {
+    <# .SYNOPSIS Adds the rows held back by Update-IgwtGuiOptimizeList, unless the list was rebuilt since. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
+    [CmdletBinding()]
+    param()
+    $o = $script:Gui.Opt
+    if (-not $o -or [int]$o.RestGen -ne [int]$o.Gen -or -not $o.Rest) { return }
+    $rest = @($o.Rest); $o.Rest = $null
+    foreach ($it in $rest) { Add-IgwtGuiOptimizeRow -Item $it }
+    $o.Scroll.ScrollToVerticalOffset([double]$o.RestOffset)
+}
+
+function Add-IgwtGuiOptimizeRow {
+    <# .SYNOPSIS One setting row of Optimize: name, hint, evidence line and switch; a click selects, the switch stages. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only; a switch only stages.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Item)
+    $o = $script:Gui.Opt
+    $it = $Item
+    $r = $it.Row; $t = $it.Tweak
+    $evidence = (Get-IgwtGuiEvidenceWords -Tweak $t) + "  |  $($r.AcText)"
+    if ($r.PendingText) { $evidence += "  |  $($r.PendingText)" }
+    if ($r.RestartText) { $evidence += "  |  $($r.RestartText) needed" }
+    $row = New-IgwtSettingRow -Name ([string]$r.Name) -Hint ([string]$r.Hint) -Evidence $evidence -IsOn ([bool]$r.Desired) -Disabled:(-not $r.CanToggle) -DisabledReason $(if (-not $r.CanToggle) { [string]$r.ToggleTip })
+    $row.Tag.Tag.Tag = [string]$r.Id
+    $row.Tag.ToolTip = [string]$r.ToggleTip
+    $row.Resources['IgwtId'] = [string]$r.Id
+    if ([string]$r.Id -eq $o.Selected) { $row.SetResourceReference([System.Windows.Controls.Border]::BackgroundProperty, 'BrushSurfaceSelected') }
+    Register-IgwtGuiHandler -Control $row -Event 'PreviewMouseLeftButtonDown' -Handler { param($s, $e) Select-IgwtGuiOptimizeItem -Id ([string]$s.Resources['IgwtId']) }
+    Register-IgwtGuiHandler -Control $row -Event 'GotKeyboardFocus' -Handler { param($s, $e) if ([object]::ReferenceEquals($e.NewFocus, $s)) { Select-IgwtGuiOptimizeItem -Id ([string]$s.Resources['IgwtId']) } }
+    Register-IgwtGuiHandler -Control $row.Tag -Event 'Click' -Handler {
+        param($s, $e)
+        $id = [string]$s.Tag.Tag
+        $ok = Invoke-IgwtGuiStageToggle -Id $id -Want ([bool]$s.IsChecked)
+        if (-not $ok) { $s.IsChecked = -not [bool]$s.IsChecked }
+        Update-IgwtGuiTweakList
+    }
+    $null = $o.List.Children.Add($row)
 }
 
 function Select-IgwtGuiOptimizeItem {

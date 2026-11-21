@@ -272,3 +272,60 @@ Describe 'Remaining Mediums (section 7)' {
         }
     }
 }
+
+Describe 'Release speed (4.0 section 8)' {
+    It 'builds a folded History card without its rows and fills them when it opens' {
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }
+        InModuleScope iGWindowsTuner {
+            $saved = $script:Gui
+            try {
+                $w = New-IgwtMainWindow
+                $script:Gui = @{ Window = $w; C = @{}; IsAdmin = $true; Hist = $null }
+                $steps = @([pscustomobject]@{ Item = 'a.one'; Op = 'change'; Result = 'Committed'; InEffect = $true; OneWay = $false; Target = 't1'; Before = 'DWord 0'; After = 'DWord 1' })
+                $s = [pscustomobject]@{ Id = 's1'; Title = 'Changed 1 setting'; Meta = 'm'; CanUndo = $false; State = 'Undone'; Conflicts = 0; Steps = $steps }
+                $card = New-IgwtGuiHistoryCard -Session $s -Names @{ 'a.one' = 'Game Mode' } -Busy $false
+                $ex = @(Get-IgwtUiDescendant -Root $card | Where-Object { $_ -is [System.Windows.Controls.Expander] })[0]
+                $ex.IsExpanded | Should -BeFalse
+                $ex.Content | Should -BeNullOrEmpty -Because 'rows are built on first open'
+                Add-IgwtGuiHistoryStepRows -Expander $ex
+                @($ex.Content.Children).Count | Should -Be 2 -Because 'one header and one setting row'
+            } finally { $script:Gui = $saved }
+        }
+    }
+    It 'computes History sessions once per timeline and plan, and keeps preset cards while nothing changed' {
+        InModuleScope iGWindowsTuner {
+            $saved = $script:Gui
+            try {
+                $script:Gui = @{ Presets = @(); Hist = $null }
+                $h = Get-IgwtGuiHistoryState
+                $h.Timeline = [pscustomobject]@{ Rows = @([pscustomobject]@{ Session = 's1'; SessionTitle = 'Apply (1 item(s))'; Op = 'change'; Result = 'Committed'; InEffect = $true; OneWay = $false; Target = 't'; When = '2026-11-21T10:00:00Z' }) }
+                Mock Get-IgwtGuiHistorySessions { @([pscustomobject]@{ Id = 's1' }) }
+                $null = Get-IgwtGuiHistorySessionsCached; $null = Get-IgwtGuiHistorySessionsCached
+                Should -Invoke Get-IgwtGuiHistorySessions -Times 1 -Exactly
+                $h.AllPlan = @([pscustomobject]@{ Status = 'Conflict'; Key = 't' })
+                $null = Get-IgwtGuiHistorySessionsCached
+                Should -Invoke Get-IgwtGuiHistorySessions -Times 2 -Exactly -Because 'a new plan object means new data'
+                $h.ConflictSet.Contains('t') | Should -BeTrue
+            } finally { $script:Gui = $saved }
+        }
+        $gui = Get-Content -LiteralPath (Join-Path $script:Root 'src\Gui\Gui.ps1') -Raw
+        $gui | Should -Match ([regex]::Escape('if ($script:Gui.PresetCardsKey -eq $key -and $null -ne $script:Gui.C.PresetCards.ItemsSource) { Update-IgwtGuiPresetExtras; return }'))
+        (Get-Content -LiteralPath (Join-Path $script:Root 'src\Gui\OptimizePage.ps1') -Raw) | Should -Match ([regex]::Escape('if ($o.ListKey -eq $key -and $o.List.Children.Count) { return }'))
+        (Get-Content -LiteralPath (Join-Path $script:Root 'src\Gui\Navigation.ps1') -Raw) | Should -Match ([regex]::Escape("`$x.HorizontalContentAlignment = 'Left'; `$x.VerticalContentAlignment = 'Center'"))
+    }
+    It 'rebuilds the navigation on a real window without errors and with the alignments set locally' {
+        if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }
+        InModuleScope iGWindowsTuner {
+            $saved = $script:Gui
+            try {
+                $w = New-IgwtMainWindow
+                $script:Gui = @{ Window = $w; C = @{ NavList = $w.FindName('NavList') }; Persona = $null; ShowAdvanced = $false; FocusMode = $false; CurrentPage = 'Dashboard' }
+                $before = $script:Gui.C.NavList.Items.Count
+                { Update-IgwtGuiSectionNav } | Should -Not -Throw
+                $items = @($script:Gui.C.NavList.Items)
+                $items.Count | Should -BeGreaterThan 5
+                $items.Count | Should -Not -Be $before -Because 'the 3.x entries are replaced by the sections'
+                foreach ($i in $items) { $i.ReadLocalValue([System.Windows.Controls.Control]::HorizontalContentAlignmentProperty) | Should -Be 'Left' }
+            } finally { $script:Gui = $saved }
+        }
+    }}
