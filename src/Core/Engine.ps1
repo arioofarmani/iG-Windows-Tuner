@@ -156,10 +156,14 @@ function Invoke-IgwtTweakChange {
         $err = $_.Exception.Message
         Write-IgwtLog -Level Error -TweakId $id -Message "Apply failed at action $done; rolling back this tweak: $err"
         $rollbackErrors = New-Object System.Collections.Generic.List[string]
+        $oneWay = $false
         for ($j = $done; $j -ge 0; $j--) {
+            # One-way actions (app removals and similar) are not rolled back (review AP-2).
+            if ([string]$actions[$j].type -in 'appx', 'winget', 'capability', 'cleanerRule') { if ($j -lt $done) { $oneWay = $true }; continue }
             try { Restore-IgwtActionSnapshot -Action $actions[$j] -Snapshot $captured[$j].data -Context $Context }
             catch { $rollbackErrors.Add("action ${j}: $($_.Exception.Message)") }
         }
+        if ($oneWay) { $rollbackErrors.Add('steps that cannot be undone (such as removed apps) stay done; reinstall removed apps from the Microsoft Store') }
         $msg = "Failed: $err"
         if ($rollbackErrors.Count -gt 0) { $msg += " | Rollback problems: $($rollbackErrors -join '; ')" }
         Add-IgwtSnapshotEntry -Snapshot $Snapshot -TweakId $id -Actions $captured.ToArray() -Result 'RolledBack' -Message $msg -Level ([string]$Tweak.level)

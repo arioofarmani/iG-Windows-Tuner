@@ -245,7 +245,7 @@
         { "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Spynet", "name": "SubmitSamplesConsent" }
       ],
       "actions": [
-        { "type": "mpPreference", "setting": "PUAProtection", "on": 1, "default": 0 },
+        { "type": "mpPreference", "setting": "PUAProtection", "keepOnReset": true, "on": 1, "default": 0 },
         { "type": "mpPreference", "setting": "MAPSReporting", "on": 2, "default": 2 },
         { "type": "mpPreference", "setting": "SubmitSamplesConsent", "on": 1, "default": 1, "equivalentOn": [ 3 ] }
       ]

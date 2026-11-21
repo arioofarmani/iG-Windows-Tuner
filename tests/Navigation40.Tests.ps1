@@ -50,7 +50,7 @@ Describe '4.0 navigation (D1)' {
             Get-IgwtGuiBreadcrumb -Page 'Asr' | Should -Be "Security  $([char]0x203A)  Attack surface rules"
             Get-IgwtGuiBreadcrumb -Page 'Backups' | Should -Be "History  $([char]0x203A)  Backups and logs"
             Get-IgwtGuiBreadcrumb -Page 'History' | Should -Be "History  $([char]0x203A)  Changes"
-            Get-IgwtGuiBreadcrumb -Page 'About' | Should -Be 'Settings'
+            Get-IgwtGuiBreadcrumb -Page 'About' | Should -Be "Settings  $([char]0x203A)  About"
         }
     }
     It 'routes every old menu lookup through Open-IgwtGuiPage (no page is picked from the list by its id)' {

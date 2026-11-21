@@ -12,10 +12,12 @@ $script:IgwtGuiSections = @(
         # 4.0 D6: four tabs (Overview, Protection, Firewall, Policies); Defender and ASR share the Protection tab.
         Groups = @{ 'Defender' = 'Protection'; 'Asr' = 'Protection' } }
     [pscustomobject]@{ Id = 'Network'; Title = 'Network'; Glyph = [string][char]0xE701; Pages = @('NetTest', 'Network', 'Diagnostics'); Bottom = $false; Advanced = $false; Help = 'Network test, network settings and diagnostics' }
-    [pscustomobject]@{ Id = 'Clean'; Title = 'Clean'; Glyph = [string][char]0xE74D; Pages = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup'); Bottom = $false; Advanced = $false; Help = 'Files, registry leftovers, storage and startup apps' }
+    [pscustomobject]@{ Id = 'Clean'; Title = 'Clean'; Glyph = [string][char]0xE74D; Pages = @('Cleaner', 'Storage', 'Startup', 'RegistryCleaner', 'Disk'); Bottom = $false; Advanced = $false; Help = 'Files, registry leftovers, storage and startup apps'
+        # 4.0 D7: four tabs (Files, Startup apps, Registry leftovers, Disk); temporary files and Storage Sense share Files.
+        Groups = @{ 'Cleaner' = 'Files'; 'Storage' = 'Files' } }
     [pscustomobject]@{ Id = 'History'; Title = 'History'; Glyph = [string][char]0xE81C; Pages = @('History', 'Backups'); Bottom = $false; Advanced = $false; Help = 'Every change with Undo' }
-    [pscustomobject]@{ Id = 'Advanced'; Title = 'Advanced tools'; Glyph = [string][char]0xE90F; Pages = @('Inspect', 'Policy', 'Manage', 'Toolkit', 'Risk Zone', 'Rejected'); Bottom = $true; Advanced = $true; Help = 'Expert inspectors, Group Policy, services and tasks, Toolkit and Risk Zone' }
-    [pscustomobject]@{ Id = 'Settings'; Title = 'Settings'; Glyph = [string][char]0xE713; Pages = @('About'); Bottom = $true; Advanced = $false; Help = 'About iG Windows Tuner' }
+    [pscustomobject]@{ Id = 'Advanced'; Title = 'Advanced tools'; Glyph = [string][char]0xE90F; Pages = @('Advanced', 'Inspect', 'Policy', 'Manage', 'Toolkit', 'Risk Zone', 'Rejected'); Bottom = $true; Advanced = $true; Help = 'Expert inspectors, Group Policy, services and tasks, Toolkit and Risk Zone' }
+    [pscustomobject]@{ Id = 'Settings'; Title = 'Settings'; Glyph = [string][char]0xE713; Pages = @('Settings', 'About'); Bottom = $true; Advanced = $false; Help = 'Display, updates and About' }
 )
 
 # Short tab names for pages inside a section (plain words, no internal names).
@@ -24,9 +26,9 @@ $script:IgwtGuiPageLabels = @{
     'Power & CPU' = 'Power & CPU'; 'Graphics & Display' = 'Graphics & Display'; 'Input' = 'Input'; 'Background & Privacy' = 'Background & Privacy'; 'System' = 'System'
     'Security' = 'Overview'; 'Asr' = 'Attack surface rules'; 'Defender' = 'Defender settings'; 'SecSettings' = 'Policies'; 'Firewall' = 'Firewall'
     'NetTest' = 'Network test'; 'Network' = 'Network settings'; 'Diagnostics' = 'Diagnostics'
-    'Cleaner' = 'Files'; 'RegistryCleaner' = 'Registry leftovers'; 'Storage' = 'Storage Sense'; 'Disk' = 'Disk'; 'Startup' = 'Startup apps'
+    'Cleaner' = 'Temporary files'; 'RegistryCleaner' = 'Registry leftovers'; 'Storage' = 'Storage Sense'; 'Disk' = 'Disk'; 'Startup' = 'Startup apps'
     'History' = 'Changes'; 'Backups' = 'Backups and logs'; 'Inspect' = 'Expert inspectors'; 'Policy' = 'Group Policy'; 'Manage' = 'Services and tasks'; 'Toolkit' = 'Toolkit'
-    'Risk Zone' = 'Risk Zone'; 'Rejected' = 'Rejected tweaks'; 'About' = 'About'
+    'Risk Zone' = 'Risk Zone'; 'Rejected' = 'Rejected tweaks'; 'About' = 'About'; 'Advanced' = 'Overview'; 'Settings' = 'Settings'
 }
 
 function Get-IgwtGuiSectionOf {

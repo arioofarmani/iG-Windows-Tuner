@@ -228,11 +228,25 @@ function New-IgwtCleanerRuleResult {
     }
 }
 
+function Test-IgwtCleanerRulePerUser {
+    <# .SYNOPSIS True when a cleaner rule works on the current user's own files (Recycle Bin, Recycle Bin moves, or roots under the user's profile variables). Pure. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Rule)
+    $roots = (@($Rule.roots) + @($Rule.userDataRoots) | ForEach-Object { [string]$_ }) -join ' '
+    return [bool]([string]$Rule.method -eq 'recycleBin' -or $Rule.recycle -or $Rule.allowDownloads -or $roots -match '(?i)%(LOCALAPPDATA|APPDATA|TEMP|TMP|USERPROFILE)%')
+}
 function Invoke-IgwtCleanerRuleScan {
     <# .SYNOPSIS Scans one rule. Never deletes anything. #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Rule, [switch]$AllUsers, $CancelToken)
     $res = New-IgwtCleanerRuleResult -Rule $Rule
+    # Started with another administrator's account: a per-user rule would scan and clean that account's files,
+    # not the signed-in user's (review CLN-3; the clean step refuses them too, OS-1).
+    if (-not $AllUsers -and (Test-IgwtCleanerRulePerUser -Rule $Rule) -and (Get-IgwtOtherAdminElevation)) {
+        $res.Status = 'Refused'; $res.Reason = "iG runs with another administrator's account, so this rule would clean that account's files, not yours. Start iG from your own account."
+        return $res
+    }
     $isAdmin = Test-IgwtIsAdmin
     try {
         $res.Blockers = @(Get-IgwtCleanerRunningBlockers -Rule $Rule)
@@ -480,8 +494,7 @@ function Invoke-IgwtCleanerClean {
     if (Get-IgwtOtherAdminElevation) {
         $perUser = @(foreach ($rs in @($Scan.Rules | Where-Object { -not $RuleId -or $RuleId -contains $_.RuleId })) {
                 $ru = Get-IgwtCleanerRule -Id $rs.RuleId
-                $roots = (@($ru.roots) + @($ru.userDataRoots) | ForEach-Object { [string]$_ }) -join ' '
-                if ([string]$rs.Method -eq 'recycleBin' -or [string]$ru.method -eq 'recycleBin' -or $ru.recycle -or $roots -match '(?i)%(LOCALAPPDATA|APPDATA|TEMP|TMP|USERPROFILE)%') { [string]$ru.name }
+                if ([string]$rs.Method -eq 'recycleBin' -or (Test-IgwtCleanerRulePerUser -Rule $ru)) { [string]$ru.name }
             })
         if ($perUser.Count) { Assert-IgwtSameUser -Operation "Cleaning $($perUser -join ', ')" }
     }

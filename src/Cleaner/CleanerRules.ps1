@@ -1,6 +1,6 @@
 # CleanerRules.ps1
 # Loads and validates the cleaner rules (data\cleaner\*.json) and expands their roots:
-# environment variables, the {SteamLibrary} token, Chromium/Firefox profile discovery and
+# environment variables, the {SteamLibrary} and {SteamInstall} tokens, Chromium/Firefox profile discovery and
 # (opt-in, admin) all user profiles. Every resolved root is canonicalized and checked against the
 # denylist before it is used.
 
@@ -85,6 +85,12 @@ function Expand-IgwtCleanerRootTemplate {
     if ($ProfilePath) {
         $t = $t.Replace('%LOCALAPPDATA%', (Join-Path $ProfilePath 'AppData\Local')).Replace('%APPDATA%', (Join-Path $ProfilePath 'AppData\Roaming'))
         $t = $t.Replace('%TEMP%', (Join-Path $ProfilePath 'AppData\Local\Temp')).Replace('%TMP%', (Join-Path $ProfilePath 'AppData\Local\Temp')).Replace('%USERPROFILE%', $ProfilePath)
+    }
+    # {SteamInstall}: only the Steam install folder (its logs and dumps live there, review CLN-4).
+    if ($t.Contains('{SteamInstall}')) {
+        $libs = @()
+        try { $libs = @(Get-IgwtSteamLibraryPaths) } catch { $libs = @() }
+        return @($libs | Select-Object -First 1 | ForEach-Object { [Environment]::ExpandEnvironmentVariables($t.Replace('{SteamInstall}', $_)) })
     }
     if ($t.Contains('{SteamLibrary}')) {
         $libs = @()

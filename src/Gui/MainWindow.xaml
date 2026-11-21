@@ -45,32 +45,6 @@
                     <Button x:Name="DisplayButton" Style="{StaticResource GhostButton}" ToolTip="Display: theme, text size, density, focus mode and motion" AutomationProperties.Name="Display settings" Padding="8,6">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE790;"/>
                     </Button>
-                    <Popup x:Name="DisplayPopup" PlacementTarget="{Binding ElementName=DisplayButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
-                        <Border Style="{StaticResource PopupPanel}" Width="300">
-                            <StackPanel>
-                                <TextBlock Text="Display" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                                <TextBlock Style="{StaticResource TextCaption}" Text="Theme" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="ThemeBox" Margin="0,0,0,10" AutomationProperties.Name="Theme" ToolTip="System follows the Windows app mode and high contrast."/>
-                                <TextBlock Style="{StaticResource TextCaption}" Text="Text size" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="FontScaleBox" Margin="0,0,0,10" AutomationProperties.Name="Text size" ToolTip="Size of all text in the window (100 to 150 %)."/>
-                                <TextBlock Style="{StaticResource TextCaption}" Text="Density" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="DensityBox" Margin="0,0,0,10" AutomationProperties.Name="Density" ToolTip="Compact shows more rows; Comfortable is easier to read."/>
-                                <DockPanel Margin="0,4,0,10">
-                                    <CheckBox x:Name="FocusModeBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Focus mode" ToolTip="Hides the expert pages (inspectors, Group Policy, Risk Zone, rejected tweaks), the dashboard details and the Advanced, Expert and Lab items. Nothing on the PC changes."/>
-                                    <TextBlock Text="Focus mode" VerticalAlignment="Center"/>
-                                </DockPanel>
-                                <DockPanel Margin="0,4,0,10">
-                                    <CheckBox x:Name="ShowAdvancedBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Show Advanced tools" ToolTip="Adds Advanced tools to the navigation: expert inspectors, Group Policy, services and tasks, Toolkit, Risk Zone and rejected tweaks. Nothing on the PC changes."/>
-                                    <TextBlock Text="Show Advanced tools" VerticalAlignment="Center"/>
-                                </DockPanel>
-                                <DockPanel Margin="0,4,0,0">
-                                    <CheckBox x:Name="ReduceMotionBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Reduce motion" ToolTip="No transitions or moving elements. On automatically when Windows animation effects are off." VerticalAlignment="Center"/>
-                                    <TextBlock Text="Reduce motion" VerticalAlignment="Center"/>
-                                </DockPanel>
-                                <TextBlock Style="{StaticResource TextCaption}" Text="Saved for this Windows user. Nothing on the PC changes." TextWrapping="Wrap" Margin="0,10,0,0"/>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
                     <ComboBox x:Name="PersonaBox" AutomationProperties.Name="Persona" Width="150" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Persona: changes the navigation order and which item levels are shown. Safety rules are the same for every persona."/>
                     <Border x:Name="AcPill" CornerRadius="12" Padding="10,3" Margin="0,0,8,0" Background="{DynamicResource BrushSurfaceAlt}" ToolTip="Anti-cheat readiness (TPM, Secure Boot, VBS, HVCI, IOMMU). Open the Dashboard for details.">
                         <StackPanel Orientation="Horizontal">
@@ -238,6 +212,9 @@
             <TextBlock x:Name="Breadcrumb" DockPanel.Dock="Top" Style="{StaticResource TextMuted}" FontSize="{DynamicResource FontSizeCaption}" Margin="0,0,0,2" AutomationProperties.Name="You are here"/>
             <!-- 4.0 (D1): the pages of the current section as tabs -->
             <WrapPanel x:Name="SectionTabs" DockPanel.Dock="Top" Margin="0,6,0,6" Visibility="Collapsed" AutomationProperties.Name="Pages in this section"/>
+                <Border x:Name="ExpertInfoBar" DockPanel.Dock="Top" Style="{StaticResource InfoBar}" Background="{DynamicResource BrushInfoSoft}" BorderBrush="{DynamicResource BrushInfo}" Margin="0,0,10,8" Visibility="Collapsed" AutomationProperties.Name="For experts">
+                    <TextBlock x:Name="ExpertInfoText" TextWrapping="Wrap" Text="For experts: these tools show and change deeper Windows settings. Every change is previewed, journaled and can be undone in History."/>
+                </Border>
             <Grid>
 
                 <!-- 4.0 Home (D2, mockup 1): built in HomePage.ps1 from the 4.0 components -->
@@ -1510,7 +1487,9 @@
                                 </StackPanel>
                             </DockPanel>
                         </Border>
-                        <StackPanel x:Name="NetResultPanel" Visibility="Collapsed">
+                        <!-- 4.0 D7: DNS, network profile and blocked programs cards, built in NetworkCards.ps1 -->
+                    <StackPanel x:Name="NetCardsHost" Margin="0,12,0,0"/>
+                    <StackPanel x:Name="NetResultPanel" Visibility="Collapsed">
                         <UniformGrid Columns="6" Margin="0,8,0,0">
                             <Border Style="{StaticResource Card}" Margin="0,0,8,0" ToolTip="Overall grade: the weakest of latency, jitter, packet loss and stability.">
                                 <StackPanel><TextBlock Style="{StaticResource TextMuted}" Text="Grade"/><TextBlock x:Name="NetGradeText" FontSize="{DynamicResource FontSizeTitleLarge}" FontWeight="SemiBold" Text="-"/></StackPanel>
@@ -1953,6 +1932,46 @@
                 </Grid>
 
                 <!-- About -->
+                <!-- 4.0 Settings (section 7): display, Advanced tools and updates; About is the second tab -->
+                <ScrollViewer x:Name="PageSettings" VerticalScrollBarVisibility="Auto" Visibility="Collapsed" AutomationProperties.AutomationId="PageSettings">
+                    <StackPanel MaxWidth="820" HorizontalAlignment="Left" Margin="0,0,10,12">
+                        <TextBlock Style="{StaticResource TextTitle}" Text="Settings"/>
+                        <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Saved for this Windows user. Nothing on the PC changes."/>
+                        <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,12,0,12" Width="360" HorizontalAlignment="Left">
+                            <StackPanel>
+                                <TextBlock Text="Display" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Theme" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="ThemeBox" Margin="0,0,0,10" AutomationProperties.Name="Theme" ToolTip="System follows the Windows app mode and high contrast."/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Text size" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="FontScaleBox" Margin="0,0,0,10" AutomationProperties.Name="Text size" ToolTip="Size of all text in the window (100 to 150 %)."/>
+                                <TextBlock Style="{StaticResource TextCaption}" Text="Density" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="DensityBox" Margin="0,0,0,10" AutomationProperties.Name="Density" ToolTip="Compact shows more rows; Comfortable is easier to read."/>
+                                <DockPanel Margin="0,4,0,10">
+                                    <CheckBox x:Name="FocusModeBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Focus mode" ToolTip="Hides the expert pages (inspectors, Group Policy, Risk Zone, rejected tweaks), the dashboard details and the Advanced, Expert and Lab items. Nothing on the PC changes."/>
+                                    <TextBlock Text="Focus mode" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <DockPanel Margin="0,4,0,10">
+                                    <CheckBox x:Name="ShowAdvancedBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Show Advanced tools" ToolTip="Adds Advanced tools to the navigation: expert inspectors, Group Policy, services and tasks, Toolkit, Risk Zone and rejected tweaks. Nothing on the PC changes."/>
+                                    <TextBlock Text="Show Advanced tools" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <DockPanel Margin="0,4,0,0">
+                                    <CheckBox x:Name="ReduceMotionBox" DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" AutomationProperties.Name="Reduce motion" ToolTip="No transitions or moving elements. On automatically when Windows animation effects are off." VerticalAlignment="Center"/>
+                                    <TextBlock Text="Reduce motion" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Padding="16,12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Updates" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                <TextBlock x:Name="SettingsUpdateText" TextWrapping="Wrap" Text="iG Windows Tuner never checks the internet for updates by itself: it downloads nothing and sends nothing. New versions are published on the project's GitHub Releases page; About shows the version you have."/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+                <!-- 4.0 Advanced tools overview (section 7): a card per tool, built in code -->
+                <ScrollViewer x:Name="PageAdvanced" VerticalScrollBarVisibility="Auto" Visibility="Collapsed" AutomationProperties.AutomationId="PageAdvanced">
+                    <StackPanel x:Name="AdvancedHost" Margin="0,0,10,12" MaxWidth="1100" HorizontalAlignment="Left"/>
+                </ScrollViewer>
                 <ScrollViewer x:Name="PageAbout" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
                     <StackPanel MaxWidth="820" HorizontalAlignment="Left">
                         <TextBlock Style="{StaticResource TextTitle}" Text="About iG Windows Tuner"/>

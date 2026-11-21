@@ -15,7 +15,9 @@ function Get-IgwtActiveWiredAdapter {
         if ($a.Status -ne 'Up') { continue }
         if ($a.Virtual) { continue }
         if ($a.InterfaceDescription -match $script:IgwtVirtualAdapterPattern) { continue }
-        $isEthernet = ([string]$a.PhysicalMediaType -eq '802.3') -or ([int]$a.NdisPhysicalMedium -eq 14)
+        # Some USB and vendor drivers report medium 0 / 'Unspecified' (review R-2): their MediaType 802.3 counts when the adapter is not wireless.
+        $wireless = ([string]$a.PhysicalMediaType -match '802\.11|Wireless') -or ([int]$a.NdisPhysicalMedium -in 1, 8, 9)
+        $isEthernet = ([string]$a.PhysicalMediaType -eq '802.3') -or ([int]$a.NdisPhysicalMedium -eq 14) -or (-not $wireless -and [string]$a.MediaType -eq '802.3' -and [int]$a.NdisPhysicalMedium -eq 0)
         if (-not $isEthernet) { continue }
         $a
     }

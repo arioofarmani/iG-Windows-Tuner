@@ -26,7 +26,7 @@
         'Get-IgwtHardwareFacts', 'Get-IgwtHardwareProfile', 'Get-IgwtHardwareOverlays', 'Resolve-IgwtPresetSelection', 'Test-IgwtHardwareCatalog',
         'Get-IgwtAsrCatalog', 'Get-IgwtAsrStatus', 'Get-IgwtAsrRecommendationPlan', 'Invoke-IgwtAsrChange', 'Test-IgwtAsrExclusion', 'Test-IgwtAsrCatalog',
         'Get-IgwtProtectionEvents', 'Get-IgwtAsrAudit', 'Format-IgwtAsrAudit',
-        'Get-IgwtSecurityScore', 'ConvertTo-IgwtSecurityScore', 'Get-IgwtSecurityCheckDefinitions', 'Format-IgwtSecurityScore', 'Get-IgwtLocalAccountAudit', 'Get-IgwtNetworkSurface',
+        'Get-IgwtSecurityScore', 'ConvertTo-IgwtSecurityScore', 'Get-IgwtSecurityCheckDefinitions', 'Format-IgwtSecurityScore', 'Get-IgwtLocalAccountAudit', 'Get-IgwtNetworkSurface', 'Get-IgwtNetworkOverview',
         'Get-IgwtInspection', 'Format-IgwtInspection', 'Get-IgwtPowerSettingsInspection', 'Get-IgwtPowerSettingCatalog', 'Invoke-IgwtPowerSettingChange', 'Get-IgwtPowerSettingChangePlan', 'Test-IgwtPowerSettingCatalog',
         'Get-IgwtInterruptInspection', 'Get-IgwtNicQueueInspection', 'Get-IgwtKernelInspection', 'Get-IgwtTimerInspection', 'Get-IgwtCrashInspection', 'Test-IgwtKernelInspectorCatalog',
         'Invoke-IgwtManagedChange', 'Get-IgwtManagedChangePlan', 'Get-IgwtServiceInventory', 'Get-IgwtTaskInventory', 'Get-IgwtAppInventory', 'Get-IgwtFeatureInventory', 'Test-IgwtManageCatalog',

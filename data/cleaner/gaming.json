@@ -152,7 +152,7 @@
       "reversible": "none",
       "source": "igwt",
       "hardware": { "tags": [], "excludeTags": [] },
-      "roots": [ "{SteamLibrary}\\logs", "{SteamLibrary}\\dumps" ],
+      "roots": [ "{SteamInstall}\\logs", "{SteamInstall}\\dumps" ],
       "requiresClosed": [ "steam" ],
       "minAgeHours": 24
     },

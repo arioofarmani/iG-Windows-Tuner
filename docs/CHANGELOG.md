@@ -47,6 +47,34 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - Play: each preset card shows Preview first, then the button that stages it.
 - When another administrator's account starts iG, the window says whose per-user settings it shows, and reads the signed-in user's settings in every view.
 
+### Settings and Advanced tools (section 7)
+
+- Settings is a page now (Settings and About tabs). It holds the display settings that were in the Display pop-up, and says that iG never checks the internet for updates by itself.
+- Advanced tools open on an overview with one card per tool (Expert inspectors, Group Policy, Services and tasks, Toolkit, Risk Zone, Rejected tweaks); each tool page shows a short "for experts" note.
+- Messages name settings instead of their ids, at most five and "and N more".
+- History says "Changed 3 settings" instead of "Apply (3 item(s))", and opening it again no longer redraws it when nothing changed.
+
+### Fixed (section 7)
+
+- Changing the theme could freeze the window: a refresh waited for console input that never came.
+- Menus opened from toolbars and lists no longer log WPF binding errors.
+
+### Network and Clean (section 6)
+
+- The Network page shows your DNS servers and whether they are encrypted, with a DNS benchmark; the network profile (Public or Private) with a switch; and the programs that firewall rules block.
+- Clean has four tabs: Files (temporary files and Storage Sense), Startup apps, Registry leftovers and Disk.
+
+### Fixed (section 6)
+
+- When the network did not come back after the gaming network changes and the automatic undo failed, iG said the changes were undone; it now says what failed and where to undo it.
+- Some USB and vendor network adapters were not recognized as wired.
+- The Steam logs rule could clean a "logs" folder in any Steam library; it now cleans only the Steam install folder.
+- The registry cleaner could offer settings keys of installed programs (for example a browser extension host key) as leftovers.
+- A failed removal of inbox apps tried to reinstall the apps removed before it; they now stay removed and the message says so.
+- Undoing "SMB 1.0 off" turned SMB1 on again but not its client and server parts.
+- A Defender change that Tamper Protection or a policy ignored could be reported as done.
+- Reset to Windows default turned PUA protection off; it is now left as it is.
+
 ### Security screens (section 5b)
 
 - Security has four tabs: Overview, Protection (Defender settings and attack surface rules), Firewall and Policies.

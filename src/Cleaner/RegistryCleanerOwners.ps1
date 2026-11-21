@@ -617,8 +617,9 @@ function Test-IgwtRegCleanOwned {
         $names = New-Object System.Collections.Generic.List[string]
         if ($cat -eq 'softwareKey') {
             if ($Candidate.Vendor -and $Candidate.Product) { $names.Add([string]$Candidate.Vendor + '\' + [string]$Candidate.Product) }
+            # The vendor folder counts too (7-Zip\FM belongs to C:\Program Files\7-Zip), review RC-2.
             if ($Candidate.Product) { $names.Add([string]$Candidate.Product) }
-            elseif ($Candidate.Vendor) { $names.Add([string]$Candidate.Vendor) }
+            if ($Candidate.Vendor) { $names.Add([string]$Candidate.Vendor) }
         } elseif ($Candidate.KeyName) { $names.Add([string]$Candidate.KeyName) }
         $bases = @(
             @('%ProgramW6432%', $machine), @('%ProgramFiles(x86)%', $machine), @('%ProgramData%', $machine),

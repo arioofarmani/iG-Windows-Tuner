@@ -16,7 +16,11 @@ Describe '3.3 professional pass: remaining sections' {
             Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = '#group:More' }) | Should -BeTrue
             Test-IgwtGuiNavHeader -Item ([pscustomobject]@{ Tag = 'section:Home' }) | Should -BeFalse
             $clean = @(@($script:IgwtGuiSections | Where-Object { $_.Id -eq 'Clean' })[0].Pages)
-            [array]::IndexOf($clean, 'RegistryCleaner') | Should -Be ([array]::IndexOf($clean, 'Cleaner') + 1) -Because 'Registry cleaner sits in Clean, after the file cleaner (RG23)'
+            # RG23 put the registry cleaner right after the file cleaner; the 4.0 Clean tabs (D7, DECISIONS NC2) are
+            # Files, Startup apps, Registry leftovers, Disk, so it stays in Clean, after the files and startup tabs.
+            $clean | Should -Contain 'RegistryCleaner'
+            [array]::IndexOf($clean, 'RegistryCleaner') | Should -BeGreaterThan ([array]::IndexOf($clean, 'Cleaner')) -Because 'Registry cleaner sits in Clean, after the file cleaner (RG23, D7)'
+            [array]::IndexOf($clean, 'RegistryCleaner') | Should -Be ([array]::IndexOf($clean, 'Startup') + 1) -Because 'D7 tab order: Files, Startup apps, Registry leftovers, Disk'
         }
     }
     It 'never shows an empty "Fix:" route (D2)' {

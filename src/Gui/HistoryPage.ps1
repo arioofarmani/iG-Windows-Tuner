@@ -24,6 +24,8 @@ function Get-IgwtGuiHistoryTitle {
         $name = $(if ($p) { [string]$p.name } else { (Get-Culture).TextInfo.ToTitleCase(($id -replace '-', ' ')) })
         return "Applied the $name preset"
     }
+    if ($t -match '^Apply \((\d+) item\(s\)\)$') { $n = [int]$Matches[1]; return "Changed $n setting$(if ($n -ne 1) { 's' })" }
+    $t = [regex]::Replace($t, '\((\d+) item\(s\)\)', [System.Text.RegularExpressions.MatchEvaluator] { param($m) $n = [int]$m.Groups[1].Value; "($n setting$(if ($n -ne 1) { 's' }))" })
     if ($t -match '^Revert session: (.+)$') { return "Undo: $(Get-IgwtGuiHistoryTitle -Title $Matches[1] -Presets $Presets)" }
     $t = $t -replace '^Invoke-Igwt\w+$', 'System change' -replace '^Invoke-Igwt\w+\s+', ''
     if (-not $t) { return 'Change' }
@@ -174,6 +176,20 @@ function Get-IgwtGuiHistoryState {
     return $script:Gui.Hist
 }
 
+function Get-IgwtGuiHistoryDrawKey {
+    <#
+    .SYNOPSIS
+        A fingerprint of everything History draws (timeline, plans, choices, filter, busy, admin), so a page
+        switch skips the 200-300 ms redraw when nothing changed (4.0 section 7).
+    #>
+    [CmdletBinding()]
+    param()
+    $h = Get-IgwtGuiHistoryState
+    $id = { param($o) if ($null -eq $o) { 0 } else { [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($o) } }
+    $dec = @($h.Decisions.Keys | Sort-Object | ForEach-Object { "$_=$($h.Decisions[$_])" }) -join ','
+    return ('{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}|{10}|{11}' -f (& $id $h.Timeline), (& $id $h.AllPlan), (& $id $h.Plan), $h.Filter, $h.Open, $h.Shown, (& $id $h.Result), $h.Error, $dec, [bool]$script:Gui.Job, [bool]$script:Gui.IsAdmin, @($script:Gui.Catalog).Count)
+}
+
 function Update-IgwtGuiHistoryIfVisible {
     <# .SYNOPSIS Redraws History when it is the page on screen. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
@@ -293,6 +309,7 @@ function Update-IgwtGuiHistoryPage {
     $host_ = $c.HistoryHost
     if (-not $host_) { return }
     $h = Get-IgwtGuiHistoryState
+    $h.DrawnKey = Get-IgwtGuiHistoryDrawKey
     $host_.Children.Clear()
     $t = $h.Timeline
     $ok = ($t -and [string]$t.Status -eq 'Ok')

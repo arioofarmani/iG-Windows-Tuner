@@ -557,6 +557,20 @@ function script:Get-IgwtJournalTimeline {
     [pscustomobject]@{ Status = 'Ok'; Reason = ''; Count = 20; Sessions = 4; Baselines = 4; Tracked = 3; Rows = $rows }
 }
 
+function script:Get-IgwtNetworkOverview {
+    # Demo Network page cards: one wired network on Public, plain DNS, two blocked programs that share a name.
+    [pscustomobject]@{
+        Profiles = @([pscustomobject]@{ Name = 'HomeNet'; Interface = 'Ethernet'; InterfaceIndex = 12; Category = 'Public'; IPv4 = 'Internet' }); ProfileError = ''
+        Dns = @([pscustomobject]@{ Interface = 'Ethernet'; InterfaceIndex = 12; Servers = @('192.168.1.1'); Encrypted = @(); Templates = @() }); DnsError = ''
+        Blocked = @(
+            [pscustomobject]@{ Program = '%SystemRoot%\System32\certutil.exe'; Name = 'certutil.exe'; Folder = 'System32'; Rules = 1; Directions = 'Outbound' }
+            [pscustomobject]@{ Program = '%SystemRoot%\SysWOW64\certutil.exe'; Name = 'certutil.exe'; Folder = 'SysWOW64'; Rules = 1; Directions = 'Outbound' }
+            [pscustomobject]@{ Program = 'D:\Games\OldTool\updater.exe'; Name = 'updater.exe'; Folder = 'OldTool'; Rules = 2; Directions = 'Inbound, Outbound' }
+        ); BlockedError = ''
+        Read = [datetime]'2026-11-21T10:00:00'
+    }
+}
+
 function script:Get-IgwtRevertPlan {
     # Demo revert plan for the demo journal: a Windows update removed the Game Mode value iG set (a conflict the
     # user decides in the History card), AutoRun is still as iG set it, and the registry leftover can be put back.

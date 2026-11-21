@@ -186,7 +186,7 @@ function Get-IgwtTweakRevertDescription {
             'registry' { $lines.Add("Windows default for $($a.path)\$($a.name): $(if ($null -ne $a.default) { $a.default } else { 'not documented' }).") }
             'registryListMerge' { $lines.Add("Windows default for item $($a.item) in $($a.name): $(if ($a.default) { $a.default } else { '<remove>' }).") }
             'service' { $lines.Add("Windows default startup type for $($a.name): $($a.default).") }
-            'mpPreference' { $lines.Add("Windows default for Defender $($a.setting): $($a.default).") }
+            'mpPreference' { $lines.Add($(if ($a.keepOnReset) { "Defender $($a.setting): reset to default keeps the current value (its Windows default differs by build)." } else { "Windows default for Defender $($a.setting): $($a.default)." })) }
             'asrRule' { $lines.Add("Windows default for ASR rule $($a.label): not configured.") }
             'powercfgScheme' { $lines.Add('Windows default power scheme: Balanced.') }
             'powercfgSetting' { $lines.Add("Windows default for $($a.label): the plan's built-in default value.") }

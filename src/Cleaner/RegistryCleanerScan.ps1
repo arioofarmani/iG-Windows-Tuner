@@ -934,6 +934,9 @@ function Get-IgwtRegCleanSoftwareEvidence {
     $strings = $tree.Strings.ToArray()
     if ($depth -eq 1) { $strings = @($strings | Where-Object { -not $_.Key }) }
     foreach ($s in $strings) {
+        # Recently used lists and last folders that point at user files (outside program locations) say nothing about the
+        # program (review RC-2); one that points into its own Program Files, ProgramData or AppData folder still counts.
+        if ([string]$s.Name -match '(?i)^(MRU|Last|Recent)|MRU(List)?\d*$|^PanelPath' -and [string]$s.Data -notmatch '(?i)\\(Program Files( \(x86\))?|ProgramData|AppData)\\') { continue }
         $kind = Get-IgwtRegCleanDataPathKind -Text ([string]$s.Data)
         if (-not $kind) { continue }
         $label = $(if ($s.Key) { $s.Key + '\' + $s.Name } elseif ($s.Name) { $s.Name } else { '(Default)' })

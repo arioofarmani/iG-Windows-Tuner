@@ -17,6 +17,17 @@ function Get-IgwtOptionalFeatureStateValue {
     }
 }
 
+function Get-IgwtOptionalFeatureChildStates {
+    <# .SYNOPSIS The states of the child features of a feature ('<feature>-*'), as a hashtable name -> state. Read-only. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Feature)
+    $out = @{}
+    foreach ($f in @(Get-WindowsOptionalFeature -Online -ErrorAction Stop | Where-Object { [string]$_.FeatureName -like "$Feature-*" })) {
+        $s = [string]$f.State
+        $out[[string]$f.FeatureName] = $(if ($s -eq 'DisablePending') { 'Disabled' } elseif ($s -eq 'EnablePending') { 'Enabled' } else { $s })
+    }
+    return $out
+}
 function Get-IgwtOptionalFeatureState {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Action, $Context)
@@ -39,7 +50,9 @@ function Get-IgwtOptionalFeatureState {
 function Get-IgwtOptionalFeatureSnapshot {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)]$Action, $Context)
-    return @{ feature = [string]$Action.feature; state = (Get-IgwtOptionalFeatureStateValue -Feature ([string]$Action.feature)) }
+    # Child features (SMB1Protocol-Client, -Server, -Deprecation) turn off with their parent and do not come back
+    # with it, so their states are kept too (review OF-2).
+    return @{ feature = [string]$Action.feature; state = (Get-IgwtOptionalFeatureStateValue -Feature ([string]$Action.feature)); children = (Get-IgwtOptionalFeatureChildStates -Feature ([string]$Action.feature)) }
 }
 
 function Set-IgwtOptionalFeature {
@@ -68,6 +81,11 @@ function Restore-IgwtOptionalFeatureSnapshot {
     $target = 'Disabled'
     if ($prev -like 'Enable*') { $target = 'Enabled' }
     $cur = Get-IgwtOptionalFeatureStateValue -Feature ([string]$Action.feature)
-    if ($cur -like "$target*") { return }
-    Set-IgwtOptionalFeature -Feature ([string]$Action.feature) -State $target
+    if ($cur -notlike "$target*") { Set-IgwtOptionalFeature -Feature ([string]$Action.feature) -State $target }
+    # Children that were on come back on (OF-2); a snapshot from before 4.0 has none.
+    $kids = $Snapshot.children
+    if ($target -eq 'Enabled' -and $kids -is [System.Collections.IDictionary]) {
+        $now = Get-IgwtOptionalFeatureChildStates -Feature ([string]$Action.feature)
+        foreach ($k in @($kids.Keys)) { if ([string]$kids[$k] -like 'Enable*' -and [string]$now[$k] -notlike 'Enable*') { Set-IgwtOptionalFeature -Feature ([string]$k) -State 'Enabled' } }
+    }
 }

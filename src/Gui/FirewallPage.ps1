@@ -826,7 +826,13 @@ function Complete-IgwtGuiFirewallProfileChange {
     [CmdletBinding()]
     param($Result, $Errors)
     if (@($Errors).Count -or -not $Result) { Show-IgwtGuiError -Message "The change was not made: $(@($Errors)[0])" -Context 'Firewall' }
-    elseif ($Result.Snapshot) { Show-IgwtGuiToast -Text 'Firewall profile changed.' -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument ([string]$Result.Snapshot) }
+    elseif ($Result.Snapshot) {
+        # Group Policy or MDM can keep the value in effect (review FW F-04): say so instead of "changed".
+        if ($Result.PSObject.Properties['InEffect'] -and -not $Result.InEffect) { Show-IgwtGuiError -Message ([string]$Result.Message) -Context 'Firewall' }
+        Show-IgwtGuiToast -Text $(if ($Result.PSObject.Properties['InEffect'] -and -not $Result.InEffect) { 'Saved locally; the value in effect did not change.' } else { 'Firewall profile changed.' }) -Tone $(if ($Result.PSObject.Properties['InEffect'] -and -not $Result.InEffect) { 'Warning' } else { 'Success' }) -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument ([string]$Result.Snapshot)
+    }
+    # The Network page shows the network profile too.
+    if ($script:Gui.NetOverview) { Start-IgwtGuiNetOverviewLoad }
     $null = Start-IgwtGuiJob -Command 'Get-IgwtFirewallProfileStatus' -Channel 'firewall-profiles' -BusyText 'Reading the firewall profiles (read-only)...' -OnComplete {
         param($out, $errs)
         $p = @($out) | Select-Object -Last 1

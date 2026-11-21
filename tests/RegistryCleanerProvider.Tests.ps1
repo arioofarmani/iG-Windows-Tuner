@@ -664,7 +664,7 @@ Describe 'Registry cleaner provider, plan and writer (RG14, RG16, RG19-RG21)' {
             $scan = Get-TestScan
             $vendor = Find-TestFinding -Scan $scan -Category 'softwareKey' 'SOFTWARE\ContosoGone'
             $product = Find-TestFinding -Scan $scan -Category 'softwareKey' 'SOFTWARE\ContosoGone\App'
-            $linked = Find-TestFinding -Scan $scan -Category 'softwareKey' 'SOFTWARE\Fabrikam\Linked'
+            $linked = Find-TestFinding -Scan $scan -Category 'softwareKey' 'SOFTWARE\Northwind\Linked'
             $svc = @($scan.Findings | Where-Object { $_.Category -eq 'service' })[0]
             $prot = @($scan.Findings | Where-Object { $_.Confidence -eq 'Protected' })[0]
             $gone = Find-TestFinding -Scan $scan -Category 'uninstall' $script:UninstallGone

@@ -564,6 +564,12 @@ function Undo-IgwtChangeGroup {
         }
         try {
             $r = Resolve-IgwtChangeTarget -Target $s.Target -Catalog $Session.Catalog
+            # One-way steps (app removals and similar) are not rolled back: a reinstall attempt usually fails and
+            # hides the real error (review AP-2). Say once that they stay done.
+            if ($def.Reversible -and (& $def.Reversible $r) -eq 'oneWay') {
+                if (-not $errors.Contains('one-way')) { $errors.Add('one-way') }
+                continue
+            }
             & $def.Restore $r $data $Session.Context
             $after = & $def.Get $r $Session.Context
             $ok = ((ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $after)) -eq (ConvertTo-IgwtCanonicalJson (Remove-IgwtVolatileSnapshotKey $s.Before)))
@@ -575,6 +581,7 @@ function Undo-IgwtChangeGroup {
             $null = Add-IgwtJournalEntry -Entry ([ordered]@{ kind = 'rollbackFailed'; session = $Session.Id; step = $s.Step; group = $Group; item = $s.Item; target = $s.Target; error = $_.Exception.Message })
         }
     }
+    $k = $errors.IndexOf('one-way'); if ($k -ge 0) { $errors[$k] = 'steps that cannot be undone (such as removed apps) stay done; reinstall removed apps from the Microsoft Store' }
     return $errors.ToArray()
 }
 

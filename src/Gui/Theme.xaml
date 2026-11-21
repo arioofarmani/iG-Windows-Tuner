@@ -1337,6 +1337,12 @@
         <Setter Property="HorizontalAlignment" Value="Left"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
+    <!-- Menu items built in code: set the alignments the default style otherwise binds to an ancestor ItemsControl,
+         which fails for items added after creation (51 binding errors in the 4.0 UI Automation run). -->
+    <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
     <!-- InfoBar: a Windows-style banner (read-only, restart needed, managed PC). -->
     <Style x:Key="InfoBar" TargetType="{x:Type Border}">
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusControl}"/>

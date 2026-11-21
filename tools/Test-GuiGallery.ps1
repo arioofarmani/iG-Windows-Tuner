@@ -62,6 +62,7 @@ $m = Get-Module iGWindowsTuner
         ListViewItem = { param($k) $l = New-Object System.Windows.Controls.ListView; $i = New-Object System.Windows.Controls.ListViewItem; $i.Content = $k; $null = $l.Items.Add($i); $l.Width = 240; $l }
         Thumb        = { param($k) $c = New-Object System.Windows.Controls.Primitives.Thumb; $c.Width = 12; $c.Height = 60; $c }
         ComboBox     = { param($k) $c = New-Object System.Windows.Controls.ComboBox; foreach ($o in 'Option A', 'Option B') { $null = $c.Items.Add($o) }; $c.SelectedIndex = 0; $c.Width = 220; $c }
+        MenuItem     = { param($k) $m = New-Object System.Windows.Controls.Menu; foreach ($o in 'Copy selected rows', 'Export...') { $i = New-Object System.Windows.Controls.MenuItem; $i.Header = $o; $null = $m.Items.Add($i) }; $m }
         ComboBoxItem = { param($k) $c = New-Object System.Windows.Controls.ComboBoxItem; $c.Content = $k; $c.Width = 220; $c }
         ListBox      = { param($k) $c = New-Object System.Windows.Controls.ListBox; foreach ($o in 'First', 'Second (selected)') { $null = $c.Items.Add($o) }; $c.SelectedIndex = 1; $c.Width = 240; $c }
         ListView     = { param($k) $c = New-Object System.Windows.Controls.ListView; foreach ($o in 'First', 'Second (selected)') { $null = $c.Items.Add($o) }; $c.SelectedIndex = 1; $c.Width = 240; $c }

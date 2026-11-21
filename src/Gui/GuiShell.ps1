@@ -131,7 +131,7 @@ function Initialize-IgwtGuiDisplay {
     $c.DensityBox.ItemsSource = @('Comfortable', 'Compact')
     $c.DensityBox.SelectedItem = $density
     $c.ReduceMotionBox.IsChecked = $reduce
-    Register-IgwtGuiHandler -Control $c.DisplayButton -Event 'Click' -Handler { $script:Gui.C.DisplayPopup.IsOpen = -not $script:Gui.C.DisplayPopup.IsOpen }
+    Register-IgwtGuiHandler -Control $c.DisplayButton -Event 'Click' -Handler { Open-IgwtGuiPage -Page 'Settings' }
     Register-IgwtGuiHandler -Control $c.ThemeBox -Event 'SelectionChanged' -Handler {
             $label = [string]$script:Gui.C.ThemeBox.SelectedItem
             $key = @($script:IgwtThemeChoices.Keys | Where-Object { $script:IgwtThemeChoices[$_] -eq $label }) | Select-Object -First 1
@@ -181,7 +181,7 @@ function Update-IgwtGuiThemedRows {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes the window only.')]
     [CmdletBinding()]
     param()
-    if ($script:Gui -and $script:Gui.Data) { try { Update-IgwtGuiDashboard } catch { Write-Verbose "Dashboard not refreshed: $($_.Exception.Message)" } }
+    if ($script:Gui -and $script:Gui.Data) { try { Update-IgwtGuiDashboard -Data $script:Gui.Data } catch { Write-Verbose "Dashboard not refreshed: $($_.Exception.Message)" } }
 }
 
 function Get-IgwtGuiBrush {

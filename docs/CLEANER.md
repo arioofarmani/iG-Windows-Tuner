@@ -425,8 +425,8 @@ Deletes the Steam client logs and dumps folders in the Steam installation. They 
 
 **Folders:**
 
-- `{SteamLibrary}\logs`
-- `{SteamLibrary}\dumps`
+- `{SteamInstall}\logs`
+- `{SteamInstall}\dumps`
 
 **Filters:** older than 24 h.
 

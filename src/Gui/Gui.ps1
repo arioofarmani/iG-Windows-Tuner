@@ -8,7 +8,7 @@ $script:Gui = $null
 
 $script:IgwtGuiControlNames = @(
     'HeaderVersion', 'HeaderSummary', 'HeaderBuild', 'PersonaBox', 'AcPill', 'AcPillDot', 'AcPillText', 'AdminBadge', 'AdminText', 'ElevateButton',
-    'Banner', 'BannerText', 'NavList', 'SectionTabs', 'ShowAdvancedBox', 'PageHome', 'HomeHost', 'PageOptimize', 'PageHistory', 'HistoryHost', 'UserHiveBanner', 'UserHiveBannerText', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'DisplayPopup', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
+    'Banner', 'BannerText', 'NavList', 'SectionTabs', 'ShowAdvancedBox', 'PageHome', 'HomeHost', 'PageOptimize', 'PageHistory', 'HistoryHost', 'NetCardsHost', 'UserHiveBanner', 'UserHiveBannerText', 'FocusModeBox', 'FocusPill', 'DashDetails', 'Breadcrumb', 'DashRecentList', 'DashRecentEmpty', 'DashAllChangesButton', 'DashShortcuts', 'DashShortcutText', 'RootGrid', 'CaptionMinButton', 'CaptionMaxButton', 'CaptionCloseButton', 'DisplayButton', 'PageSettings', 'PageAdvanced', 'AdvancedHost', 'ExpertInfoBar', 'ExpertInfoText', 'ThemeBox', 'FontScaleBox', 'DensityBox', 'ReduceMotionBox', 'ToastHost', 'DetailsColumn', 'DetailsPane', 'ReadOnlyBanner', 'ReadOnlyBannerText', 'ErrorBar', 'ErrorText', 'ErrorCopyButton', 'ErrorDismissButton',
     'PageDashboard', 'PagePresets', 'PageTweaks', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout',
     'RefreshButton', 'ExportReportButton', 'AcReqList', 'AcMatrixList', 'HealthList', 'NvidiaList', 'RecommendList', 'HardwareTagList', 'HardwareOverlayList',
     'PresetCards', 'RevertLastButton', 'RevertSnapshotButton', 'ResetStagedButton', 'PresetDriftCard', 'PresetDriftText', 'PresetDriftReapplyButton', 'PresetDriftAdoptButton',
@@ -1052,6 +1052,17 @@ function Show-IgwtGuiPresetCompare {
     return [bool](Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) compared with this PC" -Text ($lines -join $nl) -AcceptText $accept)
 }
 
+function Format-IgwtGuiNameList {
+    <# .SYNOPSIS Catalog ids as their names in plain words, the first -Max of them and "and N more" (4.0 section 7, plain words). #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string[]]$Ids = @(), [int]$Max = 5)
+    $names = @{}; foreach ($x in @($script:Gui.Catalog)) { if ($x) { $names[[string]$x.id] = [string]$x.name } }
+    $list = @($Ids | Where-Object { $_ } | ForEach-Object { if ($names.ContainsKey([string]$_)) { $names[[string]$_] } else { [string]$_ } })
+    $text = (@($list | Select-Object -First $Max) -join ', ')
+    if ($list.Count -gt $Max) { $text += " and $($list.Count - $Max) more" }
+    return $text
+}
 function Update-IgwtGuiPresetExtras {
     <# .SYNOPSIS Drift banner, Session Mode status and the custom-preset picker on the Presets page. #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
@@ -1064,7 +1075,7 @@ function Update-IgwtGuiPresetExtras {
     if ($rec -and $script:Gui.Data) {
         $drifted = @(@($rec.ids) | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.State -in 'Off', 'Partial' })
         $script:Gui.Drift = [pscustomobject]@{ Preset = [string]$rec.preset; Name = [string]$rec.name; Drifted = $drifted }
-        $c.PresetDriftText.Text = $(if ($drifted.Count) { "$($drifted.Count) setting(s) changed since you applied $($rec.name) on $(([datetime]$rec.applied).ToString('g')): $($drifted -join ', '). Re-apply the preset, or adopt the current state as a custom preset." } else { "All items of $($rec.name) (applied $(([datetime]$rec.applied).ToString('g'))) are still in place." })
+        $c.PresetDriftText.Text = $(if ($drifted.Count) { "$($drifted.Count) setting(s) changed since you applied $($rec.name) on $(([datetime]$rec.applied).ToString('g')): $(Format-IgwtGuiNameList -Ids $drifted). Re-apply the preset, or adopt the current state as a custom preset." } else { "All items of $($rec.name) (applied $(([datetime]$rec.applied).ToString('g'))) are still in place." })
         $c.PresetDriftCard.Visibility = 'Visible'
     } else { $c.PresetDriftCard.Visibility = 'Collapsed' }
     $st = $null
@@ -3187,7 +3198,10 @@ function Show-IgwtGuiPage {
                 if ($pw) { Write-IgwtGuiDiagnostic -Kind 'pageswitch' -Text ("{0}`t{1:n0}" -f $pw.Page, $pw.Watch.Elapsed.TotalMilliseconds); $script:Gui.PageWatch = $null }
             })
     }
-    foreach ($p in 'PageHome', 'PageOptimize', 'PageHistory', 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    foreach ($p in 'PageHome', 'PageOptimize', 'PageHistory', 'PageSettings', 'PageAdvanced', 'PageDashboard', 'PagePresets', 'PageTweaks', 'PageInspect', 'PageManage', 'PageToolkit', 'PageDiagnostics', 'PageNetTest', 'PageAsr', 'PageDefender', 'PageSecSettings', 'PageFirewall', 'PagePolicy', 'PageCleaner', 'PageRegistryCleaner', 'PageDisk', 'PageStartup', 'PageBackups', 'PageRejected', 'PageAbout') { $c[$p].Visibility = 'Collapsed' }
+    # Advanced tools open with a note that they are for experts (4.0 section 7).
+    $sec = Get-IgwtGuiSectionOf -Page $Page
+    if ($c.ExpertInfoBar) { $c.ExpertInfoBar.Visibility = $(if ($sec -and $sec.Id -eq 'Advanced' -and $Page -ne 'Advanced') { 'Visible' } else { 'Collapsed' }) }
     # 4.0 (D3): the Optimize categories open the new Optimize page unless the table view was chosen.
     $optimize = @($script:IgwtGuiSections | Where-Object { $_.Id -eq 'Optimize' })[0].Pages
     if ($optimize -contains $Page -and -not $script:Gui.OptimizeTable) {
@@ -3221,17 +3235,19 @@ function Show-IgwtGuiPage {
         'Inspect' { $c.PageInspect.Visibility = 'Visible'; if (-not $script:Gui.Inspection -and $script:Gui.Runspace) { Start-IgwtGuiInspect } }
         'Manage' { $c.PageManage.Visibility = 'Visible'; if (-not $script:Gui.Manage -and $script:Gui.Runspace) { Start-IgwtGuiManageRefresh } }
         'Toolkit' { $c.PageToolkit.Visibility = 'Visible'; Update-IgwtGuiToolkitLists; if (-not $script:Gui.Toolkit -and $script:Gui.Runspace) { Start-IgwtGuiToolkitRefresh } }
-        'NetTest' { $c.PageNetTest.Visibility = 'Visible' }
+        'NetTest' { $c.PageNetTest.Visibility = 'Visible'; if (-not $script:Gui.NetOverview -and $script:Gui.Runspace) { Start-IgwtGuiNetOverviewLoad }; Update-IgwtGuiNetCards }
         'Diagnostics' { $c.PageDiagnostics.Visibility = 'Visible'; if (-not $script:Gui.Diag -and $script:Gui.Runspace) { Start-IgwtGuiDiagRefresh } }
         'Cleaner' { $c.PageCleaner.Visibility = 'Visible' }
         'SecSettings' { $c.PageSecSettings.Visibility = 'Visible'; if (-not $script:Gui.SecLoaded -and $script:Gui.Runspace) { Start-IgwtGuiSecSettingsLoad } }
         'RegistryCleaner' { $c.PageRegistryCleaner.Visibility = 'Visible'; if ($script:Gui.RegClean -and -not $script:Gui.RegClean.RemovedLoaded -and $script:Gui.Runspace) { $null = Start-IgwtGuiRegCleanRemovedLoad } }
         'Disk' { $c.PageDisk.Visibility = 'Visible' }
         'Startup' { $c.PageStartup.Visibility = 'Visible' }
-        'History' { $c.PageHistory.Visibility = 'Visible'; if (-not (Get-IgwtGuiHistoryState).Timeline -and $script:Gui.Runspace) { Start-IgwtGuiHistoryLoad }; Update-IgwtGuiHistoryPage }
+        'History' { $c.PageHistory.Visibility = 'Visible'; if (-not (Get-IgwtGuiHistoryState).Timeline -and $script:Gui.Runspace) { Start-IgwtGuiHistoryLoad }; if ($c.HistoryHost.Children.Count -eq 0 -or (Get-IgwtGuiHistoryState).DrawnKey -ne (Get-IgwtGuiHistoryDrawKey)) { Update-IgwtGuiHistoryPage } }
         'Backups' { $c.PageBackups.Visibility = 'Visible'; if (-not $script:Gui.Journal -and $script:Gui.Runspace) { Start-IgwtGuiJournalLoad } }
         'Rejected' { $c.PageRejected.Visibility = 'Visible' }
         'About' { $c.PageAbout.Visibility = 'Visible' }
+        'Settings' { $c.PageSettings.Visibility = 'Visible' }
+        'Advanced' { $c.PageAdvanced.Visibility = 'Visible'; Update-IgwtGuiAdvancedPage }
     }
 }
 
@@ -3365,6 +3381,7 @@ function Save-IgwtGuiScreenshots {
     # The change journal (read-only), and History with the first session that is still in place opened for undo,
     # so the render shows a value changed since iG set it with its choices in the card (mockup 3).
     Set-IgwtGuiJournal -Timeline (Get-IgwtJournalTimeline)
+    $script:Gui.NetOverview = Get-IgwtNetworkOverview
     Set-IgwtGuiHistoryData -Timeline (Get-IgwtJournalTimeline) -Plan @(Get-IgwtRevertPlan -All)
     $demo = @(Get-IgwtGuiHistorySessions -Timeline $script:Gui.Hist.Timeline -Plan @($script:Gui.Hist.AllPlan) | Where-Object { $_.Conflicts -gt 0 }) | Select-Object -First 1
     if ($demo) { $script:Gui.Hist.Filter = 'Changed since'; $script:Gui.Hist.Open = [string]$demo.Id; $script:Gui.Hist.Plan = @(Get-IgwtRevertPlan -SessionId ([string]$demo.Id)) }
@@ -3519,6 +3536,11 @@ function Save-IgwtGuiScreenshots {
             $script:Gui.C.FwOvScroll.ScrollToHome()
         }
         $index++
+    }
+    # Diagnostics (IGWT_THEME_TIMING=1): how long a theme switch takes with every page built (4.0 section 7).
+    if ($env:IGWT_THEME_TIMING -eq '1') {
+        $tt = foreach ($name in 'Light', 'Dark', 'HighContrast', 'Dark') { $sw = [System.Diagnostics.Stopwatch]::StartNew(); $null = Set-IgwtGuiTheme -Target $script:Gui.Window -Name $name; $script:Gui.Window.UpdateLayout(); [pscustomobject]@{ Theme = $name; Ms = [math]::Round($sw.Elapsed.TotalMilliseconds) } }
+        @($tt) | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Folder 'theme-timing.json') -Encoding UTF8
     }
     $timings.ToArray() | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $Folder 'page-timings.json') -Encoding UTF8
     [ordered]@{ Checked = $textScan.Checked; Leaks = $textScan.Leaks.ToArray(); FilledLists = @($textScan.FilledLists | Sort-Object); EmptyLists = @($textScan.EmptyLists | Where-Object { -not $textScan.FilledLists.Contains($_) } | Sort-Object); ScanMs = [math]::Round($textScan.Watch.Elapsed.TotalMilliseconds) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Folder 'text-leaks.json') -Encoding UTF8

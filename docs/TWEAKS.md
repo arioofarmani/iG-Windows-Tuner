@@ -1650,7 +1650,7 @@ Sets PUAProtection = Enabled, MAPSReporting = Advanced (cloud-delivered protecti
 
 *Evidence notes:* Only applies while Microsoft Defender Antivirus is the active antivirus.
 
-**Revert:** Revert restores the exact values captured in the JSON snapshot taken right before apply (including values that did not exist). Windows default for Defender PUAProtection: 0. Windows default for Defender MAPSReporting: 2. Windows default for Defender SubmitSamplesConsent: 1.
+**Revert:** Revert restores the exact values captured in the JSON snapshot taken right before apply (including values that did not exist). Defender PUAProtection: reset to default keeps the current value (its Windows default differs by build). Windows default for Defender MAPSReporting: 2. Windows default for Defender SubmitSamplesConsent: 1.
 
 ### Gaming-friendly Defender scans
 
