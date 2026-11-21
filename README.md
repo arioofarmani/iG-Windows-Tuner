@@ -6,7 +6,7 @@
 
 Tune performance, security and privacy for competitive gaming, with every change previewed, recorded and reversible.
 
-[![Latest release](https://img.shields.io/badge/release-v3.8.2-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-v4.0.0-0078D4)](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest)
 ![Windows 11](https://img.shields.io/badge/Windows%2011-24H2%2B-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
 [![CI](https://github.com/arioofarmani/iG-Windows-Tuner/actions/workflows/ci.yml/badge.svg)](https://github.com/arioofarmani/iG-Windows-Tuner/actions/workflows/ci.yml)
@@ -19,7 +19,7 @@ Tune performance, security and privacy for competitive gaming, with every change
 <table>
 <tr>
 <td align="center" width="25%"><h3>129</h3>catalog items, each with its sources</td>
-<td align="center" width="25%"><h3>1,460</h3>automated tests</td>
+<td align="center" width="25%"><h3>1,757</h3>automated tests</td>
 <td align="center" width="25%"><h3>3 levels</h3>of undo: change, session or everything</td>
 <td align="center" width="25%"><h3>0</h3>telemetry, services or scheduled tasks</td>
 </tr>
@@ -199,13 +199,13 @@ iG Windows Tuner is not the right tool for everything, and these are good projec
 
 **Requirements:** Windows 11 24H2 or newer (build 26100+). Windows PowerShell 5.1 is included with Windows; nothing else to install.
 
-1. Download `iGWindowsTuner-3.8.2.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
+1. Download `iGWindowsTuner-4.0.0.zip` from [Releases](https://github.com/arioofarmani/iG-Windows-Tuner/releases/latest) and [check its SHA256](#check-it-yourself).
 2. Extract it. Files from a downloaded zip carry Mark-of-the-Web: review them, then run `Unblock-File` if you trust them.
 3. Run `Start-iGWindowsTuner.cmd`.
 4. Look around first. Without administrator rights the app is read-only, and nothing changes until you press **Apply**.
 5. Pick a preset or a single setting, read the preview and apply. Windows asks for administrator rights when needed.
 
-**To undo:** Backups & Logs > Change journal, then revert a change, a session or everything.
+**To undo:** History, then Undo on a session, or Reset everything iG changed.
 
 Prefer the command line? Start with what changes nothing:
 
@@ -220,7 +220,7 @@ You should not have to take our word for it, so here is what the scanners say, i
 
 ### VirusTotal results
 
-3.8.2 has not been scanned yet; the results below are for 3.8.1. The launcher is the same file in both.
+4.0.0 has not been scanned yet; the results below are for 3.8.1. The launcher is the same file in both (SHA256 `11e4ed3e…6cc66110`).
 
 #### 3.8.1
 
@@ -239,10 +239,10 @@ Results checked on 14 November 2026. The 3.8.1 main script has not been scanned 
 
 ### Check it yourself
 
-**Confirm your download is the published file.** The result must be the SHA256 shown on the [3.8.2 release page](https://github.com/arioofarmani/iG-Windows-Tuner/releases/tag/v3.8.2):
+**Confirm your download is the published file.** The result must be the SHA256 shown on the [4.0.0 release page](https://github.com/arioofarmani/iG-Windows-Tuner/releases/tag/v4.0.0) (`2213AC1D833070108BD2D06D241A7AF7344DB679B6347537F8C37E7487B4D812`):
 
 ```powershell
-Get-FileHash .\iGWindowsTuner-3.8.2.zip -Algorithm SHA256
+Get-FileHash .\iGWindowsTuner-4.0.0.zip -Algorithm SHA256
 ```
 
 **Look without changing anything.** Read-only mode blocks every change inside the app's engine:
@@ -272,7 +272,7 @@ Get-FileHash .\iGWindowsTuner-3.8.2.zip -Algorithm SHA256
 - **No telemetry.** The network is used only when you ask: the network test, DNS benchmark and winget.
 - **No persistence.** No service and no scheduled task. Checks run while the app is open.
 - **Readable.** PowerShell and JSON, plus small C# helpers in plain source, compiled on your PC. Nothing is downloaded or decoded at run time.
-- **Tested.** 1,460 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
+- **Tested.** 1,757 automated tests, static analysis and a Defender scan on every release, plus independent code reviews published in [docs/REVIEW.md](docs/REVIEW.md).
 
 > [!IMPORTANT]
 > System tuning can affect stability, security and compatibility. Create a backup before significant changes, measure before and after, and check that your games still work. The built-in undo is not a replacement for a complete backup. This project is a preview, provided as-is.

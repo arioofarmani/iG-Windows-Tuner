@@ -21,14 +21,15 @@ The redesign release. The window is rebuilt around seven sections, and every cha
 - Every Medium finding of the 3.8.1 review is fixed, except one kept by design with its reason (resetting to the Windows default does not ask the risk question). Among them:
   - security policy values with line breaks are refused, and the evidence export no longer keeps your public IP address;
   - Defender changes that Tamper Protection or a policy blocks are no longer shown as done;
-  - undoing removes no longer tries to reinstall apps, and SMB1 comes back with its client and server parts;
+  - a failed app removal no longer tries to reinstall the apps removed before it, and undoing "SMB 1.0 off" restores its client and server parts too;
   - the registry cleaner no longer offers settings keys of installed programs;
   - a PC onboarded to Microsoft Defender for Endpoint is treated as managed.
 - Changing the theme could freeze the window.
 - Staging a preset no longer replaces the changes you staged by hand without asking.
+- History, Optimize and Play open faster; no page blocks the window for more than 200 ms after start-up.
 
 ### Good to know
 
-- Tested with the full headless suite, the offscreen render suite in every theme at 100, 150 and 200 %, the UI Automation suite on the real window, and ten real change-and-undo round trips on a Windows 11 PC (tweak, policy, firewall, ASR, Defender, audit, Session Mode, startup, registry leftover, conflict handling).
+- Tested with the full headless suite (1,757 tests), the offscreen render suite in every theme at 100, 150 and 200 %, the UI Automation suite on the real window, and ten real change-and-undo round trips on a Windows 11 PC (tweak, policy, firewall, ASR, Defender, audit, Session Mode, startup, registry leftover, conflict handling).
 - Settings, backups and the change journal from 3.x are kept and read by 4.0.
 - Full list: docs\CHANGELOG.md. Design notes: docs\DECISIONS.md.
