@@ -47,6 +47,21 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - Play: each preset card shows Preview first, then the button that stages it.
 - When another administrator's account starts iG, the window says whose per-user settings it shows, and reads the signed-in user's settings in every view.
 
+### Security screens (section 5b)
+
+- Security has four tabs: Overview, Protection (Defender settings and attack surface rules), Firewall and Policies.
+- Defender values, attack surface rule modes and security settings are staged and applied from the bar at the bottom, like tweaks. The bar names what it will apply and how many changes wait on other pages.
+- Toolbars show at most six buttons; less used actions are under More.
+- After a firewall change on a remote session, Undo appears only once you keep the change; a run of several firewall batches ends with one summary that points to History.
+
+### Fixed (section 5b)
+
+- Undoing an ASR change, moving rules from Audit to Block and importing firewall rules now name the rules that failed instead of reporting success.
+- Security settings that your organization also manages now ask before they are changed locally.
+- A failed automatic restore of forensic logging is shown as failed, with a way to retry.
+- Firewall: selecting many rules no longer slows the window; a failed save of a rule's category or ignored finding is reported.
+- The persistence inspector judges services hosted by svchost by their DLL, and no longer flags Windows tasks that load a DLL by its bare name.
+- Firewall conflict analysis understands subnets, masks and address ranges, and that a rule without an app package also applies to apps.
 ### Security engine (section 5a)
 
 - iG never lowers a protection level, also between two "on" levels: for example Cloud block level Zero tolerance to High, Network protection or AI agent protection Block to Audit, or a weaker LAN Manager level. Turning a protection up still works.

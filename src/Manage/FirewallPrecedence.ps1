@@ -36,6 +36,28 @@ function Test-IgwtFirewallSetCovers {
     return [bool]@($sb | Where-Object { $sa -contains $_ }).Count
 }
 
+function ConvertTo-IgwtFirewallAddressRanges {
+    <#
+    .SYNOPSIS
+        IPv4 addresses of a rule as numeric ranges (Low, High): 10.0.0.5, 10.0.0.0/8, 10.0.0.0/255.0.0.0
+        and 10.0.0.1-10.0.0.9. Returns $null when any item is something else (a keyword such as
+        LocalSubnet, or IPv6), so callers fall back to the text compare (review FW F-15). Pure.
+    #>
+    [CmdletBinding()]
+    param([string[]]$Items = @())
+    $toNum = { param($s) $ip = $null; if (-not [System.Net.IPAddress]::TryParse([string]$s, [ref]$ip) -or $ip.AddressFamily -ne 'InterNetwork') { return $null }; $b = $ip.GetAddressBytes(); return ([long]$b[0] -shl 24) + ([long]$b[1] -shl 16) + ([long]$b[2] -shl 8) + [long]$b[3] }
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($raw in @($Items | Where-Object { $_ })) {
+        $i = ([string]$raw).Trim()
+        if ($i -match '^([\d\.]+)-([\d\.]+)$') { $lo = & $toNum $Matches[1]; $hi = & $toNum $Matches[2]; if ($null -eq $lo -or $null -eq $hi) { return $null }; $out.Add([pscustomobject]@{ Low = [Math]::Min($lo, $hi); High = [Math]::Max($lo, $hi) }); continue }
+        if ($i -match '^([\d\.]+)/(\d{1,2})$') { $base = & $toNum $Matches[1]; $bits = [int]$Matches[2]; if ($null -eq $base -or $bits -gt 32) { return $null }; $size = [long][Math]::Pow(2, 32 - $bits); $lo = $base - ($base % $size); $out.Add([pscustomobject]@{ Low = $lo; High = $lo + $size - 1 }); continue }
+        if ($i -match '^([\d\.]+)/([\d\.]+)$') { $base = & $toNum $Matches[1]; $mask = & $toNum $Matches[2]; if ($null -eq $base -or $null -eq $mask) { return $null }; $lo = $base -band $mask; $out.Add([pscustomobject]@{ Low = $lo; High = $lo + (4294967295L -bxor $mask) }); continue }
+        $n = & $toNum $i
+        if ($null -eq $n) { return $null }
+        $out.Add([pscustomobject]@{ Low = $n; High = $n })
+    }
+    return ,$out.ToArray()
+}
 function Get-IgwtFirewallRuleScope {
     <#
     .SYNOPSIS
@@ -90,8 +112,10 @@ function Test-IgwtFirewallScopeRelation {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)]$A, [Parameter(Mandatory = $true)]$B)
-    if ($A.Protocol -eq '?' -or $B.Protocol -eq '?' -or $A.Package -ne $B.Package) { return '' }
+    if ($A.Protocol -eq '?' -or $B.Protocol -eq '?') { return '' }
     $covers = $true
+    # A rule without an app package (or owner) also applies to app-container traffic (review FW F-15 c).
+    if ($A.Package -ne $B.Package) { if ($B.Package -eq '|') { $covers = $false } elseif ($A.Package -ne '|') { return '' } }
     # Single-value dimensions: Any covers everything; otherwise equal values only. (Loop variables
     # are $va/$vb: PowerShell names are case-insensitive, so $a would overwrite the parameter $A.)
     foreach ($pair in @(@($A.Program, $B.Program), @($A.Service, $B.Service), @($A.Protocol, $B.Protocol))) {
@@ -108,6 +132,17 @@ function Test-IgwtFirewallScopeRelation {
         $va = $pair[0]; $vb = $pair[1]
         if ($null -eq $va -or $null -eq $vb -or $va.Any) { continue }
         if ($vb.Any) { $covers = $false; continue }
+        # IPv4 addresses on both sides: compare as numeric ranges (subnets, masks and ranges, review FW F-15).
+        if ($pair[2]) {
+            $ra = ConvertTo-IgwtFirewallAddressRanges -Items @($va.Items); $rb = ConvertTo-IgwtFirewallAddressRanges -Items @($vb.Items)
+            if ($null -ne $ra -and $null -ne $rb) {
+                $overlap = $false; $inside = $true
+                foreach ($y in $rb) { $in = $false; foreach ($x in $ra) { if ($x.Low -le $y.High -and $y.Low -le $x.High) { $overlap = $true }; if ($y.Low -ge $x.Low -and $y.High -le $x.High) { $in = $true } }; if (-not $in) { $inside = $false } }
+                if (-not $overlap) { return '' }
+                if (-not $inside) { $covers = $false }
+                continue
+            }
+        }
         $shared = $false; $all = $true
         foreach ($i in $vb.Items) { if ($va.Items.Contains($i)) { $shared = $true } else { $all = $false } }
         if (-not $shared) { if ($pair[2] -and ((& $isAddr $va) -or (& $isAddr $vb))) { $covers = $false; continue }; return '' }

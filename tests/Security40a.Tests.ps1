@@ -221,8 +221,12 @@ Describe 'Firewall and Manage engine (FW F-04 to F-25)' {
             Test-IgwtFirewallScopeRelation -A (& $mk '80' 'Any') -B (& $mk 'Any' 'Any') | Should -Be 'Overlaps'
             Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.0.0.5') -B (& $mk 'Any' 'Any') | Should -Be 'Overlaps'
             Test-IgwtFirewallScopeRelation -A (& $mk 'Any' 'Any') -B (& $mk '80' 'Any') | Should -Be 'Covers'
-            # Different spellings of a subnet are a possible overlap, not "no conflict".
-            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.0.0.0/8') -B (& $mk 'Any' '10.1.2.3') | Should -Be 'Overlaps'
+            # IPv4 subnets, masks and ranges compare as numbers (5b); keywords stay a possible overlap.
+            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.0.0.0/8') -B (& $mk 'Any' '10.1.2.3') | Should -Be 'Covers'
+            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '192.168.1.0/255.255.255.0') -B (& $mk 'Any' '192.168.1.0/24') | Should -Be 'Covers'
+            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.1.2.3') -B (& $mk 'Any' '10.0.0.0/8') | Should -Be 'Overlaps'
+            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' 'LocalSubnet') -B (& $mk 'Any' '192.168.1.0/24') | Should -Be 'Overlaps'
+            Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.0.0.0/8') -B (& $mk 'Any' '192.168.1.5') | Should -Be ''
             Test-IgwtFirewallScopeRelation -A (& $mk 'Any' '10.0.0.1') -B (& $mk 'Any' '10.0.0.2') | Should -Be ''
         }
     }

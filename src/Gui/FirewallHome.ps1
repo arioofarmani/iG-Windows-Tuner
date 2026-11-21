@@ -264,14 +264,18 @@ function Update-IgwtGuiFirewallDetail {
     $sel = @($Rows | Where-Object { $_ })
     $buttons = @{ FwEnableButton = 'enable'; FwDisableButton = 'disable'; FwAllowButton = 'allow'; FwBlockButton = 'block'; FwEditButton = 'edit'; FwDuplicateButton = 'duplicate'; FwDeleteButton = 'delete' }
     $why = @()
+    # Read once per selection, not per row and button (review FWH-2).
+    $remote = Test-IgwtRemoteSession
     foreach ($b in $buttons.Keys) {
         $a = @($script:Gui.Grids.Firewall.Actions | Where-Object { $_.Id -eq $buttons[$b] })[0]
         $block = Get-IgwtGridActionBlock -Action $a -Rows $sel
         if (-not $block -and $sel.Count) {
             $op = @{ enable = 'Enable'; disable = 'Disable'; allow = 'SetAction'; block = 'SetAction'; edit = 'Edit'; duplicate = 'Duplicate'; delete = 'Delete' }[$buttons[$b]]
             $settings = @{ Action = $(if ($buttons[$b] -eq 'allow') { 'Allow' } else { 'Block' }) }
-            $refused = @($sel | ForEach-Object { Get-IgwtFirewallChangeBlock -Operation $op -Rule $_.Rule -Settings $settings -RemoteSession (Test-IgwtRemoteSession) } | Where-Object { $_ })
-            if ($refused.Count -eq $sel.Count) { $block = $refused[0] }
+            # A button stays on when one selected rule allows it: stop at the first such rule.
+            $first = $null; $allowed = $false
+            foreach ($row in $sel) { $why = Get-IgwtFirewallChangeBlock -Operation $op -Rule $row.Rule -Settings $settings -RemoteSession $remote; if (-not $why) { $allowed = $true; break }; if (-not $first) { $first = $why } }
+            if (-not $allowed) { $block = $first }
         }
         $c[$b].IsEnabled = -not $block
         [System.Windows.Controls.ToolTipService]::SetShowOnDisabled($c[$b], $true)
@@ -479,7 +483,7 @@ function Invoke-IgwtGuiFirewallFindingAction {
         'Ignore' {
             $reason = Read-IgwtGuiText -Title 'iG Windows Tuner - ignore finding' -Prompt "Why is this finding fine for '$($r.DisplayName)'? It stays hidden for 90 days (remembered for this PC)."
             if (-not $reason) { return }
-            $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -IgnoreFinding $RiskId -Reason $reason -Until (Get-Date).AddDays(90)
+            try { $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -IgnoreFinding $RiskId -Reason $reason -Until (Get-Date).AddDays(90) } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             Set-IgwtGuiStatus 'Finding ignored for 90 days. It is still listed under the rule as ignored.'
             Start-IgwtGuiFirewallRefresh
             return
@@ -504,7 +508,7 @@ function Show-IgwtGuiFirewallMoveMenu {
             param($s, $e)
             $null = $e
             $parts = ([string]$s.Tag) -split '\|', 2
-            $null = Set-IgwtFirewallOverride -RuleId $parts[1] -Category $parts[0]
+            try { $null = Set-IgwtFirewallOverride -RuleId $parts[1] -Category $parts[0] } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             Set-IgwtGuiStatus 'Category changed for this rule (remembered for this PC; export it from the Overview).'
             Start-IgwtGuiFirewallRefresh
         }
@@ -520,7 +524,7 @@ function Invoke-IgwtGuiFirewallNotBloated {
     param()
     $r = Get-IgwtGuiFirewallSelectedRule
     if (-not $r) { return }
-    $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -NotBloated
+    try { $null = Set-IgwtFirewallOverride -RuleId ([string]$r.Name) -NotBloated } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
     Set-IgwtGuiStatus "'$($r.DisplayName)' is no longer counted as bloated on this PC."
     Start-IgwtGuiFirewallRefresh
 }
@@ -705,7 +709,7 @@ function Step-IgwtGuiFirewallWizard {
         'Ignore' {
             $reason = Read-IgwtGuiText -Title 'iG Windows Tuner - ignore finding' -Prompt "Why is '$($s.Finding.Title)' fine for '$($s.Rule.DisplayName)'? Hidden for 90 days."
             if (-not $reason) { return }
-            $null = Set-IgwtFirewallOverride -RuleId $s.RuleId -IgnoreFinding ([string]$s.Finding.RiskId) -Reason $reason -Until (Get-Date).AddDays(90)
+            try { $null = Set-IgwtFirewallOverride -RuleId $s.RuleId -IgnoreFinding ([string]$s.Finding.RiskId) -Reason $reason -Until (Get-Date).AddDays(90) } catch { Show-IgwtGuiError -Message "Not saved: $($_.Exception.Message)" -Context 'Firewall'; return }
             $z.Ignored++
         }
     }
@@ -749,6 +753,8 @@ function Start-IgwtGuiFirewallQueue {
     [CmdletBinding()]
     param([System.Collections.Generic.List[object]]$Queue)
     if (-not $Queue -or -not $Queue.Count) { return }
+    # A new run (not the continuation of one) remembers how many batches it has, for one summary at the end.
+    if (-not [object]::ReferenceEquals($Queue, $script:Gui.FirewallQueue)) { $script:Gui.FirewallQueueBatches = $Queue.Count }
     $next = $Queue[0]; $Queue.RemoveAt(0)
     $script:Gui.FirewallQueue = $Queue
     Invoke-IgwtGuiFirewallChange -Operation $next.Operation -Rows $next.Rows -Settings $next.Settings -NoConfirm

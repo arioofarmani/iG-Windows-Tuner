@@ -887,8 +887,9 @@ function Update-IgwtGuiPending {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds or refreshes in-memory objects only; changes no system state.')]
     [CmdletBinding()]
     param()
-    $n = @($script:Gui.Staged.Keys).Count
-    $null = Update-IgwtGuiChangeBarText -Count $n -Target $script:Gui.C.PendingText
+    # 4.0 D6: the bar counts the provider it acts on (the page's own, else tweaks), see ChangeProviders.ps1.
+    $st = Get-IgwtGuiChangeProviderState -Page ([string]$script:Gui.CurrentPage)
+    $null = Update-IgwtGuiChangeBarText -Count $st.Count -Target $script:Gui.C.PendingText -Text $st.Text
     Update-IgwtGuiButtons
 }
 
@@ -899,7 +900,7 @@ function Update-IgwtGuiButtons {
     $c = $script:Gui.C
     # An Apply on its way counts as busy from the user's Yes to the end of its batch (review 3.8.1 G-04).
     $busy = Test-IgwtGuiApplyBusy
-    $n = @($script:Gui.Staged.Keys).Count
+    $n = (Get-IgwtGuiChangeProviderState -Page ([string]$script:Gui.CurrentPage)).Count
     $c.PreviewButton.IsEnabled = (-not $busy) -and $n -gt 0
     $c.ApplyButton.IsEnabled = (-not $busy) -and $n -gt 0 -and $script:Gui.IsAdmin
     $c.DiscardButton.IsEnabled = (-not $busy) -and $n -gt 0
@@ -2740,7 +2741,7 @@ function Select-IgwtGuiDefenderRecommended {
 }
 
 function Invoke-IgwtGuiDefenderChange {
-    <# .SYNOPSIS Checks the new value of the selected Defender setting, confirms, then changes it in the worker (snapshot first) and reads the settings again. #>
+    <# .SYNOPSIS Checks the new value of the selected Defender setting and stages it for the ChangeBar (4.0 D6). Nothing changes until Apply. #>
     [CmdletBinding()]
     param()
     $c = $script:Gui.C
@@ -2763,25 +2764,55 @@ function Invoke-IgwtGuiDefenderChange {
     $why = Test-IgwtDefenderSettingValue -Definition $def -Value $value -Current $s.Current
     if ($why) { $script:Gui.C.DefValueHelp.Text = "Not allowed: $why"; Set-IgwtGuiStatus "Not allowed: $why"; return }
     if (Test-IgwtDefenderValueEqual -Definition $def -A $s.Current -B $value) { Set-IgwtGuiStatus "'$($s.Name)' is already $($s.Display)."; return }
-    $newText = Format-IgwtDefenderSettingValue -Definition $def -Value $value
-    $text = "Change '$($s.Name)' from $($s.Display) to ${newText}?"
-    if ([string]$s.Edit -eq 'parser') { $text += "`n`nNetwork Inspection parsers are only ever turned on; there is nothing to revert." }
-    else { $text += "`n`nA snapshot is written first, so you can revert this in Backups & Logs." }
-    $params = @{ Setting = @{ ([string]$s.Property) = $value } }
+    # 4.0 D6: the value is staged; the ChangeBar previews and applies every staged Defender change at once.
+    $script:Gui.DefStaged[[string]$s.Property] = [pscustomobject]@{ Property = [string]$s.Property; Name = [string]$s.Name; From = [string]$s.Display; To = (Format-IgwtDefenderSettingValue -Definition $def -Value $value); Value = $value; Parser = ([string]$s.Edit -eq 'parser') }
+    Update-IgwtGuiPending
+    Set-IgwtGuiStatus "Staged: '$($s.Name)' -> $($script:Gui.DefStaged[[string]$s.Property].To). Apply it in the bar below."
+}
+
+function Get-IgwtGuiDefenderStagedText {
+    <# .SYNOPSIS The staged Defender changes as lines ("Name: from -> to"). Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    return ((@($script:Gui.DefStaged.Values | ForEach-Object { "$($_.Name): $($_.From) -> $($_.To)$(if ($_.Parser) { ' (parsers are only ever turned on)' })" })) -join "`n")
+}
+
+function Show-IgwtGuiDefenderStaged {
+    <# .SYNOPSIS Shows the staged Defender changes (ChangeBar Preview); nothing changes. #>
+    [CmdletBinding()]
+    param()
+    $null = Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - staged Defender changes' -Text "$(Get-IgwtGuiDefenderStagedText)`n`nA snapshot is written before Apply, so each change can be undone in History."
+}
+
+function Invoke-IgwtGuiDefenderStagedApply {
+    <# .SYNOPSIS Confirms and applies every staged Defender change in one engine call (snapshot first), then reads the settings again. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Asks first; the change runs through Invoke-IgwtDefenderSettingChange, which supports ShouldProcess.')]
+    [CmdletBinding()]
+    param()
+    if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text (Get-IgwtGuiChangeBlockReason -What 'change Defender settings'); return }
+    if (-not @($script:Gui.DefStaged.Keys).Count) { return }
+    $setting = [ordered]@{}; foreach ($v in $script:Gui.DefStaged.Values) { $setting[$v.Property] = $v.Value }
+    $params = @{ Setting = $setting }
+    $text = "Apply these Defender changes?`n`n$(Get-IgwtGuiDefenderStagedText)`n`nA snapshot is written first, so you can undo them in History."
     $m = $script:Gui.Management
-    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override the local value."; $params.AcknowledgeManaged = $true }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override the local values."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender settings' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtDefenderSettingChange' -Parameters $params -Blocking -BusyText 'Changing the Defender setting (snapshot first)...' -OnComplete {
+    $started = Start-IgwtGuiJob -Command 'Invoke-IgwtDefenderSettingChange' -Parameters $params -Blocking -BusyText 'Changing Defender settings (snapshot first)...' -OnComplete {
         param($out, $errs)
         $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The setting was not changed: $(@($errs)[0])" -Icon 'Error' }
-        elseif ($res -and @($res.Results).Count) {
-            $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
-            $tail = $(if ($res.Snapshot) { "`n`nSnapshot: $($res.Snapshot)" } else { '' })
-            $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + $tail) -Icon $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 'Warning' } else { 'Information' })
-        } else { Set-IgwtGuiStatus 'Nothing to change.' }
+        if (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "The settings were not changed: $(@($errs)[0])" -Icon 'Error' }
+        else {
+            $script:Gui.DefStaged.Clear(); Update-IgwtGuiPending
+            if ($res -and @($res.Results).Count) {
+                $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Target): $($_.Change)$(if ($_.Message) { " - $($_.Message)" })" })
+                $tail = $(if ($res.Snapshot) { "`n`nSnapshot: $($res.Snapshot)" } else { '' })
+                $null = Show-IgwtGuiMessage -Text (($lines -join "`n") + $tail) -Icon $(if (@($res.Results | Where-Object { $_.Result -ne 'Applied' }).Count) { 'Warning' } else { 'Information' })
+            } else { Set-IgwtGuiStatus 'Nothing to change.' }
+        }
         Start-IgwtGuiDefenderRefresh
     }
+    $null = $started
 }
 
 function Update-IgwtGuiDefenderPolicyHelp {
@@ -3143,6 +3174,7 @@ function Show-IgwtGuiPage {
     param([Parameter(Mandatory = $true)][string]$Page)
     $c = $script:Gui.C
     $script:Gui.CurrentPage = $Page
+    if ($script:Gui.ChangeProviders -and $c.PendingText) { Update-IgwtGuiPending }
     $c.Breadcrumb.Text = Get-IgwtGuiBreadcrumb -Page $Page
     # The Security sub-pages carry the breadcrumb in their title (Security > Firewall).
     $c.Breadcrumb.Visibility = $(if ($Page -in 'Asr', 'Defender', 'SecSettings', 'Firewall') { 'Collapsed' } else { 'Visible' })
@@ -3570,6 +3602,8 @@ function Show-IgwtGui {
     Add-IgwtGuiStartupMark -Name 'policy'
     Initialize-IgwtGuiRegistryCleanerPage
     Initialize-IgwtGuiSecSettingsPage
+    Initialize-IgwtGuiChangeProviders
+    Initialize-IgwtGuiSecurityToolbars
     Add-IgwtGuiStartupMark -Name 'registryCleaner'
     $c.HeaderVersion.Text = "v$script:IgwtVersion  |  Gaming performance and security toolbox"
     $c.AboutText.Text = Get-IgwtAboutText
@@ -3688,9 +3722,9 @@ function Show-IgwtGui {
         }
     Register-IgwtGuiHandler -Control $c.SessionStartButton -Event 'Click' -Handler { Start-IgwtGuiSession }
     Register-IgwtGuiHandler -Control $c.SessionStopButton -Event 'Click' -Handler { Stop-IgwtGuiSession }
-    Register-IgwtGuiHandler -Control $c.PreviewButton -Event 'Click' -Handler { Invoke-IgwtGuiPreview }
-    Register-IgwtGuiHandler -Control $c.ApplyButton -Event 'Click' -Handler { Invoke-IgwtGuiApply }
-    Register-IgwtGuiHandler -Control $c.DiscardButton -Event 'Click' -Handler { $script:Gui.Staged.Clear(); $script:Gui.PresetOperation = $null; Update-IgwtGuiTweakList; Set-IgwtGuiStatus 'All staged changes discarded.' }
+    Register-IgwtGuiHandler -Control $c.PreviewButton -Event 'Click' -Handler { Invoke-IgwtGuiChangeBarAction -Action Preview }
+    Register-IgwtGuiHandler -Control $c.ApplyButton -Event 'Click' -Handler { Invoke-IgwtGuiChangeBarAction -Action Apply }
+    Register-IgwtGuiHandler -Control $c.DiscardButton -Event 'Click' -Handler { Invoke-IgwtGuiChangeBarAction -Action Discard }
     Register-IgwtGuiHandler -Control $c.RefreshButton -Event 'Click' -Handler { Start-IgwtGuiRefresh -IncludeHealth }
     Register-IgwtGuiHandler -Control $c.BusyCancelButton -Event 'Click' -Handler { Stop-IgwtGuiReadJobs }
     Register-IgwtGuiHandler -Control $c.ExportReportButton -Event 'Click' -Handler {

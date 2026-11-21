@@ -87,8 +87,10 @@ function New-IgwtPersistenceEntry {
             $m = [regex]::Match([string]$Command, '(?i)^"?[^"]*?\.exe"?\s+(?:/\w+\s+)*"?([^",]+\.(?:dll|ocx|cpl))')
             if ($m.Success) {
                 $dll = [Environment]::ExpandEnvironmentVariables($m.Groups[1].Value.Trim())
+                # A bare name (Startupscan.dll) is found by Windows in System32; one found nowhere is not judged.
+                if (-not [System.IO.Path]::IsPathRooted($dll)) { $dll = Join-Path ([Environment]::GetFolderPath('System')) $dll }
                 $ds = Get-IgwtFileSignature -Path $dll
-                if (-not $ds.IsMicrosoft) {
+                if (-not $ds.IsMicrosoft -and [string]$ds.Status -notin 'NotFound', 'NoFile') {
                     if ($Severity -eq 'Info') { $Severity = 'Review' }
                     $sig = [pscustomobject]@{ Status = $sig.Status; Signer = $sig.Signer; IsMicrosoft = $false }
                     $Note = (@($Note, "Loads $dll ($(if ($ds.Status) { $ds.Status } else { 'not checked' })$(if ($ds.Signer) { ", $($ds.Signer)" }))." ) | Where-Object { $_ }) -join ' '
@@ -102,6 +104,27 @@ function New-IgwtPersistenceEntry {
     }
 }
 
+function Set-IgwtPersistenceServiceDll {
+    <#
+    .SYNOPSIS
+        A service hosted by svchost is judged by its ServiceDll, not by the Microsoft-signed host (review
+        FW F-25): a DLL that is not Microsoft-signed makes the entry Review and visible. Changes only the
+        in-memory entry; reads the registry.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes an in-memory object only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Entry, [Parameter(Mandatory = $true)][string]$ServiceName)
+    if (-not $Entry.File -or [System.IO.Path]::GetFileNameWithoutExtension([string]$Entry.File) -ne 'svchost') { return }
+    $v = $null
+    try { $v = Get-IgwtRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName\Parameters" -Name 'ServiceDll' } catch { return }
+    if (-not $v -or -not $v.Exists -or -not [string]$v.Value) { return }
+    $dll = [Environment]::ExpandEnvironmentVariables([string]$v.Value)
+    $sig = Get-IgwtFileSignature -Path $dll
+    if ($sig.IsMicrosoft) { return }
+    $Entry.IsMicrosoft = $false
+    if ($Entry.Severity -eq 'Info') { $Entry.Severity = 'Review' }
+    $Entry.Note = (@($Entry.Note, "Runs $dll in svchost ($(if ($sig.Status) { $sig.Status } else { 'not checked' })$(if ($sig.Signer) { ", $($sig.Signer)" }))." ) | Where-Object { $_ }) -join ' '
+}
 function Get-IgwtRunKeyEntries {
     [CmdletBinding()]
     param()
@@ -163,6 +186,7 @@ function Get-IgwtPersistenceInventory {
             if (-not [string]$s.PathName) { if ($IncludeMicrosoft) { $entries.Add((New-IgwtPersistenceEntry -Category 'Services' -Location 'Services' -Name "$($s.DisplayName) ($($s.Name))" -Command '' -NoSignature -Enabled ([string]$s.StartMode -ne 'Disabled') -Note 'Image path not readable without administrator rights.')) }; continue }
             $e = New-IgwtPersistenceEntry -Category 'Services' -Location 'Services' -Name "$($s.DisplayName) ($($s.Name))" -Command ([string]$s.PathName) -Enabled ([string]$s.StartMode -ne 'Disabled') `
                 -ActionKind $(if (Get-IgwtServiceProtection -Name ([string]$s.Name)) { 'None' } else { 'Service' }) -ActionTarget ([string]$s.Name) -Note "Startup: $($s.StartMode), state: $($s.State)"
+            Set-IgwtPersistenceServiceDll -Entry $e -ServiceName ([string]$s.Name)
             if ($IncludeMicrosoft -or -not $e.IsMicrosoft) { $entries.Add($e) }
         }
     } catch { Write-Verbose 'Services unavailable.' }

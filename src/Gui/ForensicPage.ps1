@@ -195,8 +195,12 @@ function Invoke-IgwtGuiForensicStop {
         param($out, $errs)
         $script:Gui.Forensic.Stopping = $false
         $r = @($out) | Select-Object -Last 1
-        if (-not $r -or -not $r.Stopped) { Show-IgwtGuiError -Message $(if ($r) { $r.Message } else { "Forensic logging could not be stopped: $(@($errs)[0])" }) -Context 'Forensic logging' }
-        else { Show-IgwtGuiToast -Text $r.Message -Tone Success }
+        if (-not $r -or -not $r.Stopped) {
+            $why = $(if ($r) { [string]$r.Message } else { "Forensic logging could not be stopped: $(@($errs)[0])" })
+            # Remembered for the banner, which no longer says "ended while the app was closed" (review FOR-2).
+            $script:Gui.Forensic.StopFailed = $why
+            Show-IgwtGuiError -Message $why -Context 'Forensic logging'
+        } else { $script:Gui.Forensic.StopFailed = ''; Show-IgwtGuiToast -Text $r.Message -Tone Success }
         Update-IgwtGuiForensicSession
         Start-IgwtGuiForensicRefresh
     }
@@ -239,6 +243,7 @@ function Update-IgwtGuiForensicBanner {
     if ($Session.Corrupt) { $c.ForensicBannerText.Text = "$($Session.Message) Stop and restore$admin."; return }
     if ($Session.Status -eq 'starting') { $c.ForensicBannerText.Text = "Starting forensic logging did not finish (the app may have closed). Stop and restore the previous settings$admin."; return }
     if ($Session.Status -eq 'rollback-incomplete') { $c.ForensicBannerText.Text = "Forensic logging could not be fully undone: $($Session.Message) Stop and restore to try again$admin."; return }
+    if ($script:Gui.Forensic.StopFailed) { $c.ForensicBannerText.Text = "Restoring the logging settings failed: $($script:Gui.Forensic.StopFailed) The session's settings are still on. Stop and restore to try again$admin."; return }
     $since = '{0:HH:mm}' -f $Session.Started
     if ($Session.Expired -and -not $script:Gui.Forensic.Running) {
         $c.ForensicBannerText.Text = "A forensic logging session ended at $('{0:yyyy-MM-dd HH:mm}' -f $Session.Until) while iG Windows Tuner was closed; its settings are still on. Stop and restore them now$(if ((Test-IgwtReadOnly) -or -not $script:Gui.IsAdmin) { ' (needs administrator rights, not in read-only mode)' })."

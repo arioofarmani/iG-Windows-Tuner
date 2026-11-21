@@ -234,6 +234,8 @@ function Update-IgwtGuiSecStaged {
     $n = @($script:Gui.SecStaged.Keys).Count
     $c.SecStagedText.Text = $(if ($n) { "$n staged: " + (@($script:Gui.SecStaged.Values | ForEach-Object { $_.Name }) -join '; ') } else { 'Nothing staged. Select a setting, choose a value and press Stage.' })
     foreach ($b in 'SecPreviewButton', 'SecApplyButton', 'SecClearButton') { $c[$b].IsEnabled = ($n -gt 0) }
+    # 4.0 D6: the ChangeBar shows and applies these staged changes.
+    if ($c.PendingText) { Update-IgwtGuiPending }
     if ($script:Gui.ReadOnly -or -not $script:Gui.IsAdmin) { $c.SecApplyButton.IsEnabled = $false; $c.SecApplyButton.ToolTip = (Get-IgwtGuiChangeBlockReason -What 'change security settings') }
 }
 
@@ -251,17 +253,27 @@ function Invoke-IgwtGuiSecSettingsPreview {
     param([switch]$Apply)
     $changes = @($script:Gui.SecStaged.Values | ForEach-Object { @{ Id = $_.Id; Value = $_.Value } })
     if (-not $changes.Count) { return }
-    $null = Start-IgwtGuiJob -Command 'Get-IgwtSecSettingChangePlan' -Parameters @{ Changes = $changes; AcknowledgeRisk = $true; AcknowledgeManaged = $true } -Channel 'secsettingsplan' -Blocking -BusyText 'Checking the staged changes (read-only)...' -Context @{ Apply = [bool]$Apply; Changes = $changes } -OnComplete {
+    $null = Start-IgwtGuiJob -Command 'Get-IgwtSecSettingChangePlan' -Parameters @{ Changes = $changes; AcknowledgeRisk = $true } -Channel 'secsettingsplan' -Blocking -BusyText 'Checking the staged changes (read-only)...' -Context @{ Apply = [bool]$Apply; Changes = $changes } -OnComplete {
         param($out, $errs, $ctx)
         $plan = @($out) | Where-Object { $_ -and $_.PSObject.Properties['Rows'] } | Select-Object -Last 1
         if (@($errs).Count -or -not $plan) { Show-IgwtGuiError -Message "The plan could not be made: $(if (@($errs).Count) { @($errs)[0] } else { 'no result' })" -Context 'Security settings'; return }
         $text = (@(Format-IgwtSecSettingPlan -Plan $plan) -join "`n")
         if (-not $ctx.Apply) { $null = Show-IgwtGuiTextDialog -Title 'Security settings - preview' -Text $text; return }
-        if (-not $plan.CanApply) { $null = Show-IgwtGuiTextDialog -Title 'Security settings - nothing to apply' -Text $text; return }
+        # SS-1: managed rows are confirmed here, not acknowledged silently (the plan ran without AcknowledgeManaged).
+        $managed = @($plan.Rows | Where-Object { $_.Status -eq 'NeedsManagedAck' })
+        $blocking = @($plan.Rows | Where-Object { $_.Status -eq 'Refused' })
+        if (-not $plan.CanApply -and (-not $managed.Count -or $blocking.Count)) { $null = Show-IgwtGuiTextDialog -Title 'Security settings - nothing to apply' -Text $text; return }
         if (-not (Show-IgwtGuiTextDialog -Title 'Security settings - apply these changes?' -Text $text -AcceptText 'Continue' -CancelText 'Cancel')) { return }
-        $high = @($plan.Rows | Where-Object { $_.Status -eq 'Change' -and $_.Risk -eq 'high' })
+        $high = @($plan.Rows | Where-Object { $_.Status -in 'Change', 'NeedsManagedAck' -and $_.Risk -eq 'high' })
         if ($high.Count -and -not (Show-IgwtGuiSecSettingConfirm -Rows $high)) { return }
-        $null = Start-IgwtGuiJob -Command 'Invoke-IgwtSecSettingChange' -Parameters @{ Changes = $ctx.Changes; AcknowledgeRisk = [bool]$high.Count; AcknowledgeManaged = $true; Confirm = $false } -Blocking -BusyText 'Applying security settings (journaled, with rollback)...' -OnComplete {
+        if ($managed.Count) {
+            $m = $script:Gui.Management
+            $who = $(if ($m -and @($m.Authorities).Count) { " ($(@($m.Authorities) -join ', '))" } else { '' })
+            $names = (@($managed | ForEach-Object { '- ' + [string]$_.Name }) -join [Environment]::NewLine)
+            $msg = "This PC is managed by your organization$who. These settings are also set by its policy, which can override or conflict with a local change:`n`n$names`n`nChange them locally anyway?"
+            if ((Show-IgwtGuiMessage -Title 'This PC is managed' -Buttons 'YesNo' -Icon 'Warning' -Text $msg) -ne 'Yes') { return }
+        }
+        $null = Start-IgwtGuiJob -Command 'Invoke-IgwtSecSettingChange' -Parameters @{ Changes = $ctx.Changes; AcknowledgeRisk = [bool]$high.Count; AcknowledgeManaged = [bool]$managed.Count; Confirm = $false } -Blocking -BusyText 'Applying security settings (journaled, with rollback)...' -OnComplete {
             param($out2, $errs2)
             $res = @($out2) | Where-Object { $_ -and $_.PSObject.Properties['SessionId'] } | Select-Object -Last 1
             if (@($errs2).Count -or -not $res) { Show-IgwtGuiError -Message "Nothing was changed: $(if (@($errs2).Count) { @($errs2)[0] } else { 'no result' })" -Context 'Security settings'; Start-IgwtGuiSecSettingsLoad; return }
@@ -334,4 +346,30 @@ function Show-IgwtGuiSecSettingConfirm {
     Register-IgwtGuiHandler -Control $ok -Event 'Click' -Handler { param($s, $e) $null = $e; [System.Windows.Window]::GetWindow($s).DialogResult = $true }
     $w.Content = $sp
     return [bool]$w.ShowDialog()
+}
+
+function Get-IgwtGuiSecStagedCount {
+    <# .SYNOPSIS How many Security Settings changes are staged (ChangeBar provider). #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param()
+    if (-not $script:Gui.SecStaged) { return 0 }
+    return @($script:Gui.SecStaged.Keys).Count
+}
+
+function Invoke-IgwtGuiSecSettingsApply {
+    <# .SYNOPSIS Applies the staged Security Settings changes after their preview (ChangeBar provider). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Shows the preview and confirmations before the engine changes anything.')]
+    [CmdletBinding()]
+    param()
+    Invoke-IgwtGuiSecSettingsPreview -Apply
+}
+
+function Clear-IgwtGuiSecSettingsStage {
+    <# .SYNOPSIS Unstages every Security Settings change (ChangeBar provider). #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes window state only.')]
+    [CmdletBinding()]
+    param()
+    $script:Gui.SecStaged = [ordered]@{}; Update-IgwtGuiSecStaged; Set-IgwtGuiSecSettingsRows
+    Set-IgwtGuiStatus 'Staged security setting changes discarded.'
 }

@@ -73,8 +73,8 @@ function Update-IgwtGuiChangeBarText {
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes window text only.')]
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][int]$Count, $Target)
-    $text = $(if ($Count -eq 0) { 'Nothing staged' } elseif ($Count -eq 1) { '1 change ready' } else { "$Count changes ready" })
+    param([Parameter(Mandatory = $true)][int]$Count, $Target, [string]$Text)
+    $text = $(if ($Text) { $Text } elseif ($Count -eq 0) { 'Nothing staged' } elseif ($Count -eq 1) { '1 change ready' } else { "$Count changes ready" })
     if ($Target) {
         $Target.Text = $text
         [System.Windows.Automation.AutomationProperties]::SetName($Target, $text)

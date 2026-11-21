@@ -356,46 +356,103 @@ function Update-IgwtGuiAsrExclusionList {
 #region Changes
 
 function Invoke-IgwtGuiAsrChange {
-    <# .SYNOPSIS Confirms, runs one ASR change in the background (snapshot first), offers Undo and reads the real modes back. #>
+    <# .SYNOPSIS Confirms, runs one ASR change in the background (snapshot first), offers Undo and reads the real modes back. -Staged clears the ChangeBar's ASR changes when it ran. #>
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][hashtable]$Parameters, [Parameter(Mandatory = $true)][string]$Description)
+    param([Parameter(Mandatory = $true)][hashtable]$Parameters, [Parameter(Mandatory = $true)][string]$Description, [switch]$Staged)
     if (-not $script:Gui.IsAdmin -or (Test-IgwtReadOnly)) { Set-IgwtGuiStatus 'ASR changes need administrator rights and are off in read-only mode.'; return }
     if ((Show-IgwtGuiMessage -Text "$Description`n`nA snapshot is written first; Undo restores the earlier modes." -Title 'iG Windows Tuner - ASR Center' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtAsrChange' -Parameters $Parameters -Blocking -BusyText 'Changing ASR settings (snapshot first)...' -OnComplete {
-        param($out, $errs)
-        $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count -or -not $res) { Show-IgwtGuiError -Message "The change was not made: $(@($errs)[0])" -Context 'ASR' }
-        else {
-            $failed = @($res.Results | Where-Object Result -EQ 'Failed')
-            if ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) ASR change(s) failed: $($failed[0].Target): $($failed[0].Message)" -Context 'ASR' }
-            if ($res.Changes -gt 0 -and $res.Snapshot) { Show-IgwtGuiToast -Text "$(@($res.Results | Where-Object Result -NE 'Failed').Count) ASR change(s) made." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiAsrUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
-            elseif ($res.Changes -eq 0) { Show-IgwtGuiToast -Text 'Nothing to change.' -Tone Info }
-        }
-        # Always show what Defender reports now, not what was asked for.
+    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtAsrChange' -Parameters $Parameters -Blocking -BusyText 'Changing ASR settings (snapshot first)...' -Context @{ Staged = [bool]$Staged } -OnComplete {
+        param($out, $errs, $ctx)
+        $ran = Complete-IgwtGuiAsrChange -Out $out -Errors $errs
+        if ($ran -and $ctx.Staged) { $script:Gui.AsrStaged.Clear(); Update-IgwtGuiPending }
         Start-IgwtGuiAsrRefresh
     }
+}
+
+function Complete-IgwtGuiAsrChange {
+    <#
+    .SYNOPSIS
+        The result of an ASR change, for every path that makes one (set mode, bulk, Audit to Block,
+        exclusions): the error, the rules that failed (review ASR-2) and the Undo toast. Returns true
+        when the engine ran (even with failed rules).
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param($Out, $Errors)
+    $res = @($Out) | Select-Object -Last 1
+    if (@($Errors).Count -or -not $res) { Show-IgwtGuiError -Message "The change was not made: $(@($Errors)[0])" -Context 'ASR'; return $false }
+    $failed = @($res.Results | Where-Object Result -EQ 'Failed')
+    if ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) ASR change(s) failed: $($failed[0].Target): $($failed[0].Message)" -Context 'ASR' }
+    if ($res.Changes -gt 0 -and $res.Snapshot) { Show-IgwtGuiToast -Text "$(@($res.Results | Where-Object Result -NE 'Failed').Count) ASR change(s) made." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiAsrUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
+    elseif ($res.Changes -eq 0 -and -not $failed.Count) { Show-IgwtGuiToast -Text 'Nothing to change.' -Tone Info }
+    return $true
 }
 
 function Invoke-IgwtGuiAsrUndo {
+    <# .SYNOPSIS Undoes an ASR change from its snapshot; rules that could not be restored are named (review ASR-1). #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Snapshot)
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtRevert' -Parameters @{ SnapshotPath = $Snapshot } -Blocking -BusyText 'Undoing the ASR change...' -OnComplete {
+    $started = Start-IgwtGuiJob -Command 'Invoke-IgwtRevert' -Parameters @{ SnapshotPath = $Snapshot } -Blocking -BusyText 'Undoing the ASR change...' -OnComplete {
         param($out, $errs)
-        if (@($errs).Count) { Show-IgwtGuiError -Message "Undo failed: $(@($errs)[0])" -Context 'ASR' } else { Show-IgwtGuiToast -Text 'The ASR change was undone.' -Tone Info }
+        $res = @($out) | Select-Object -Last 1
+        $failed = @($(if ($res) { $res.Results }) | Where-Object { $_ -and $_.Result -eq 'Failed' })
+        if (@($errs).Count) { Show-IgwtGuiError -Message "Undo failed: $(@($errs)[0])" -Context 'ASR' }
+        elseif ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) ASR rule(s) were not restored: $($failed[0].Id) $($failed[0].Message) The list shows the mode each rule has now." -Context 'ASR' }
+        else { Show-IgwtGuiToast -Text 'The ASR change was undone.' -Tone Info }
         Start-IgwtGuiAsrRefresh
     }
+    if ($started -eq $false) { Set-IgwtGuiStatus 'Undo did not start: another change is running. Undo it from History when it has finished.' }
 }
 
 function Invoke-IgwtGuiAsrSetMode {
+    <# .SYNOPSIS Stages the picked mode for the selected rule (4.0 D6); the ChangeBar applies it. #>
     [CmdletBinding()]
     param()
     $row = Get-IgwtGuiGridItem -Name Asr
     $mode = Get-IgwtGuiAsrPickedMode
     if (-not $row -or -not $mode) { return }
-    $extra = ''
-    if ($mode -in 'Block', 'Warn' -and [string]$row.ImpactKey -in 'medium', 'high') { $extra = "`n`nGamer impact is $($row.ImpactKey): $($row.Rule.GamerImpact) Check its events first." }
-    if ($mode -eq 'NotConfigured' -and [string]$row.Rule.Category -eq 'standard') { $extra = "`n`nThis is a standard protection rule that Microsoft recommends keeping in Block." }
-    Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = @{ ([string]$row.Id) = $mode } } -Description "Set '$($row.Name)' from $($row.Mode) to $($script:IgwtAsrModeLabel[$mode])?$extra"
+    $note = ''
+    if ($mode -in 'Block', 'Warn' -and [string]$row.ImpactKey -in 'medium', 'high') { $note = "Gamer impact is $($row.ImpactKey): $($row.Rule.GamerImpact) Check its events first." }
+    if ($mode -eq 'NotConfigured' -and [string]$row.Rule.Category -eq 'standard') { $note = 'This is a standard protection rule that Microsoft recommends keeping in Block.' }
+    Add-IgwtGuiAsrStaged -Rows @($row) -Mode $mode -Note $note
+}
+
+function Add-IgwtGuiAsrStaged {
+    <# .SYNOPSIS Stages a mode for rules (the ChangeBar's ASR provider); a rule set back to its current mode is unstaged. #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes window state only.')]
+    [CmdletBinding()]
+    param([object[]]$Rows = @(), [Parameter(Mandatory = $true)][string]$Mode, [string]$Note = '')
+    foreach ($r in @($Rows | Where-Object { $_ })) {
+        if ([string]$r.Rule.Mode -eq $Mode) { $script:Gui.AsrStaged.Remove([string]$r.Id); continue }
+        $script:Gui.AsrStaged[[string]$r.Id] = [pscustomobject]@{ Id = [string]$r.Id; Name = [string]$r.Name; From = [string]$r.Mode; Mode = $Mode; Note = $Note }
+    }
+    Update-IgwtGuiPending
+    $n = @($script:Gui.AsrStaged.Keys).Count
+    Set-IgwtGuiStatus "$n ASR change(s) staged. Apply them in the bar below.$(if ($Note) { ' ' + $Note })"
+}
+
+function Get-IgwtGuiAsrStagedText {
+    <# .SYNOPSIS The staged ASR changes as lines. Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+    return ((@($script:Gui.AsrStaged.Values | ForEach-Object { "- $($_.Name): $($_.From) -> $($script:IgwtAsrModeLabel[$_.Mode])$(if ($_.Note) { " ($($_.Note))" })" })) -join "`n")
+}
+
+function Show-IgwtGuiAsrStaged {
+    <# .SYNOPSIS Shows the staged ASR changes (ChangeBar Preview); nothing changes. #>
+    [CmdletBinding()]
+    param()
+    $null = Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - staged ASR changes' -Text (Get-IgwtGuiAsrStagedText)
+}
+
+function Invoke-IgwtGuiAsrStagedApply {
+    <# .SYNOPSIS Applies every staged ASR mode in one confirmed engine call (ChangeBar Apply). #>
+    [CmdletBinding()]
+    param()
+    if (-not @($script:Gui.AsrStaged.Keys).Count) { return }
+    $map = @{}; foreach ($v in $script:Gui.AsrStaged.Values) { $map[$v.Id] = $v.Mode }
+    Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = $map } -Description "Apply $($map.Count) ASR change(s)?`n`n$(Get-IgwtGuiAsrStagedText)" -Staged
 }
 
 function Invoke-IgwtGuiAsrBulkMode {
@@ -410,10 +467,9 @@ function Invoke-IgwtGuiAsrBulkMode {
         $ok.Add($r)
     }
     if ($ok.Count -eq 0) { $null = Show-IgwtGuiMessage -Text ("Nothing to change." + $(if ($skip.Count) { "`n`n" + ($skip -join "`n") } else { '' })) -Title 'iG Windows Tuner - ASR Center' -Icon 'Information'; return }
-    $map = @{}; foreach ($r in $ok) { $map[[string]$r.Id] = $Mode }
-    $lines = @($ok | ForEach-Object { "- $($_.Name): $($_.Mode) -> $($script:IgwtAsrModeLabel[$Mode])" })
-    if ($skip.Count) { $lines += ''; $lines += 'Left as they are:'; $lines += @($skip | ForEach-Object { "- $_" }) }
-    Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = $map } -Description ("Set $($ok.Count) rule(s) to $($script:IgwtAsrModeLabel[$Mode])?`n`n" + ($lines -join "`n"))
+    # 4.0 D6: staged for the ChangeBar; the rules left alone are named.
+    Add-IgwtGuiAsrStaged -Rows $ok.ToArray() -Mode $Mode
+    if ($skip.Count) { $null = Show-IgwtGuiMessage -Text ("Staged $($ok.Count) rule(s). Left as they are:`n`n" + ($skip -join "`n")) -Title 'iG Windows Tuner - ASR Center' -Icon 'Information' }
 }
 
 function Invoke-IgwtGuiAsrExclusion {
@@ -509,14 +565,9 @@ function Show-IgwtGuiAsrPromote {
     else { $lines.Add('No rule is quiet enough to block now. Review the programs on the Events tab, add exclusions for the ones you trust, then try again.') }
     $accept = $(if ($ready.Count) { "Move $($ready.Count) rule(s) to Block" } else { '' })
     if (-not (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - Audit to Block (preview, nothing changed yet)' -Text ($lines -join [Environment]::NewLine) -AcceptText $accept -CancelText 'Close')) { return }
-    $map = @{}; foreach ($p in $ready) { $map[$p.Id] = 'Block' }
-    $null = Start-IgwtGuiJob -Command 'Invoke-IgwtAsrChange' -Parameters @{ RuleMode = $map } -Blocking -BusyText 'Moving rules to Block (snapshot first)...' -OnComplete {
-        param($out, $errs)
-        $res = @($out) | Select-Object -Last 1
-        if (@($errs).Count -or -not $res) { Show-IgwtGuiError -Message "The change was not made: $(@($errs)[0])" -Context 'ASR' }
-        elseif ($res.Snapshot) { Show-IgwtGuiToast -Text "$($res.Changes) rule(s) moved to Block." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiAsrUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
-        Start-IgwtGuiAsrRefresh
-    }
+    # 4.0 D6: staged for the ChangeBar (its Apply reports failed rules, review ASR-2).
+    $rows = @($ready | ForEach-Object { [pscustomobject]@{ Id = [string]$_.Id; Name = [string]$_.Name; Mode = 'Audit'; Rule = [pscustomobject]@{ Mode = 'Audit' } } })
+    Add-IgwtGuiAsrStaged -Rows $rows -Mode 'Block'
 }
 
 #endregion

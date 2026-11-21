@@ -1564,9 +1564,9 @@
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <Button x:Name="AsrHardeningButton" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
-                            <Button x:Name="AsrSelfButton" Style="{StaticResource AccentButton}" Content="ASR Center" ToolTip="You are here: Security > ASR Center."/>
-                            <Button x:Name="AsrDefenderButton" Content="Defender settings" Margin="0" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy."/>
+                            <Button x:Name="AsrHardeningButton" Visibility="Collapsed" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
+                            <Button x:Name="AsrSelfButton" Visibility="Collapsed" Style="{StaticResource AccentButton}" Content="ASR Center" ToolTip="You are here: Security > ASR Center."/>
+                            <Button x:Name="AsrDefenderButton" Visibility="Collapsed" Content="Defender settings" Margin="0" ToolTip="Every Microsoft Defender Antivirus setting and Defender Group Policy."/>
                         </StackPanel>
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -1613,7 +1613,7 @@
                                                     </StackPanel>
                                                 </Border>
                                                 <TextBlock x:Name="AsrModeHelp" Style="{StaticResource TextCaption}" TextWrapping="Wrap" Margin="0,4,0,6"/>
-                                                <Button x:Name="AsrSetModeButton" Content="Set mode" HorizontalAlignment="Left" Margin="0,0,0,6" ToolTip="Change this rule to the selected mode after a confirmation (snapshot first). Needs administrator rights."/>
+                                                <Button x:Name="AsrSetModeButton" Content="Stage mode" HorizontalAlignment="Left" Margin="0,0,0,6" ToolTip="Stage the selected mode for this rule. Apply it in the bar below (snapshot first, with Undo)."/>
                                                 <TextBlock Style="{StaticResource TextSection}" Text="Exclusions" Margin="0,8,0,4"/>
                                                 <TextBlock Style="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Prefer the exact program file. Windows folders, whole drives, Downloads, Desktop, temp folders and user-profile folders are refused."/>
                                                 <ListBox x:Name="AsrExclusionList" MinHeight="54" MaxHeight="120" Margin="0,6,0,0" AutomationProperties.Name="Exclusions" ToolTip="Exclusions that apply to the selected rule (per-rule) or to every rule (global)."/>
@@ -1673,9 +1673,9 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <Button x:Name="DefHardeningButton" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
-                            <Button x:Name="DefAsrButton" Content="ASR Center" ToolTip="Attack surface reduction rules."/>
-                            <Button x:Name="DefSelfButton" Style="{StaticResource AccentButton}" Content="Defender settings" Margin="0" ToolTip="You are here: Security > Defender settings."/>
+                            <Button x:Name="DefHardeningButton" Visibility="Collapsed" Content="Hardening items" ToolTip="Back to the Security items of the catalog."/>
+                            <Button x:Name="DefAsrButton" Visibility="Collapsed" Content="ASR Center" ToolTip="Attack surface reduction rules."/>
+                            <Button x:Name="DefSelfButton" Visibility="Collapsed" Style="{StaticResource AccentButton}" Content="Defender settings" Margin="0" ToolTip="You are here: Security > Defender settings."/>
                         </StackPanel>
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -1704,7 +1704,7 @@
                                 <TextBox x:Name="DefValueText" AutomationProperties.Name="New value" Margin="0,4,0,4" ToolTip="Type the new value."/>
                                 <TextBlock x:Name="DefValueHelp" Style="{StaticResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <WrapPanel>
-                                    <Button x:Name="DefApplyButton" Style="{StaticResource AccentButton}" Content="Apply value" ToolTip="Check the value, then change it after a confirmation (snapshot first). Needs administrator rights."/>
+                                    <Button x:Name="DefApplyButton" Style="{StaticResource AccentButton}" Content="Stage value" ToolTip="Check the value and stage it. Apply it in the bar below (snapshot first, with Undo)."/>
                                     <Button x:Name="DefRecommendButton" Content="Use recommended" Margin="0" ToolTip="Pick the recommended value for this setting (you still press Apply value)."/>
                                 </WrapPanel>
                             </StackPanel>
@@ -1783,9 +1783,9 @@
                     </Grid>
                     <DockPanel Grid.Row="2" Margin="0,8,0,0">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button x:Name="SecPreviewButton" AutomationProperties.AutomationId="SecPreviewButton" Content="Preview..." IsEnabled="False" ToolTip="Show what the staged changes would do (read-only)." ToolTipService.ShowOnDisabled="True"/>
-                            <Button x:Name="SecApplyButton" AutomationProperties.AutomationId="SecApplyButton" Style="{StaticResource AccentButton}" Content="Apply..." IsEnabled="False" ToolTip="Preview, confirm and apply the staged changes as one journaled change with undo." ToolTipService.ShowOnDisabled="True"/>
-                            <Button x:Name="SecClearButton" AutomationProperties.AutomationId="SecClearButton" Content="Clear" IsEnabled="False" Margin="0" ToolTip="Remove every staged change." ToolTipService.ShowOnDisabled="True"/>
+                            <Button x:Name="SecPreviewButton" Visibility="Collapsed" AutomationProperties.AutomationId="SecPreviewButton" Content="Preview..." IsEnabled="False" ToolTip="Show what the staged changes would do (read-only)." ToolTipService.ShowOnDisabled="True"/>
+                            <Button x:Name="SecApplyButton" Visibility="Collapsed" AutomationProperties.AutomationId="SecApplyButton" Style="{StaticResource AccentButton}" Content="Apply..." IsEnabled="False" ToolTip="Preview, confirm and apply the staged changes as one journaled change with undo." ToolTipService.ShowOnDisabled="True"/>
+                            <Button x:Name="SecClearButton" Visibility="Collapsed" AutomationProperties.AutomationId="SecClearButton" Content="Clear" IsEnabled="False" Margin="0" ToolTip="Remove every staged change." ToolTipService.ShowOnDisabled="True"/>
                         </StackPanel>
                         <TextBlock x:Name="SecStagedText" AutomationProperties.AutomationId="SecStagedText" Style="{StaticResource TextMuted}" VerticalAlignment="Center" TextWrapping="Wrap" Text="Nothing staged."/>
                     </DockPanel>

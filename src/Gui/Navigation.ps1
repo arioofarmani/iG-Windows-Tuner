@@ -8,7 +8,9 @@ $script:IgwtGuiSections = @(
     [pscustomobject]@{ Id = 'Home'; Title = 'Home'; Glyph = [string][char]0xE80F; Pages = @('Home', 'Dashboard'); Bottom = $false; Advanced = $false; Help = 'What to do next, recent changes and health checks' }
     [pscustomobject]@{ Id = 'Play'; Title = 'Play'; Glyph = [string][char]0xE7FC; Pages = @('Presets'); Bottom = $false; Advanced = $false; Help = 'Presets and Session Mode' }
     [pscustomobject]@{ Id = 'Optimize'; Title = 'Optimize'; Glyph = [string][char]0xE945; Pages = @('Power & CPU', 'Graphics & Display', 'Input', 'Background & Privacy', 'System'); Bottom = $false; Advanced = $false; Help = 'Settings that change how Windows runs games' }
-    [pscustomobject]@{ Id = 'Security'; Title = 'Security'; Glyph = [string][char]0xE72E; Pages = @('Security', 'Asr', 'Defender', 'SecSettings', 'Firewall'); Bottom = $false; Advanced = $false; Help = 'Security score, Defender, attack surface rules and firewall' }
+    [pscustomobject]@{ Id = 'Security'; Title = 'Security'; Glyph = [string][char]0xE72E; Pages = @('Security', 'Defender', 'Asr', 'Firewall', 'SecSettings'); Bottom = $false; Advanced = $false; Help = 'Security score, Defender, attack surface rules and firewall'
+        # 4.0 D6: four tabs (Overview, Protection, Firewall, Policies); Defender and ASR share the Protection tab.
+        Groups = @{ 'Defender' = 'Protection'; 'Asr' = 'Protection' } }
     [pscustomobject]@{ Id = 'Network'; Title = 'Network'; Glyph = [string][char]0xE701; Pages = @('NetTest', 'Network', 'Diagnostics'); Bottom = $false; Advanced = $false; Help = 'Network test, network settings and diagnostics' }
     [pscustomobject]@{ Id = 'Clean'; Title = 'Clean'; Glyph = [string][char]0xE74D; Pages = @('Cleaner', 'RegistryCleaner', 'Storage', 'Disk', 'Startup'); Bottom = $false; Advanced = $false; Help = 'Files, registry leftovers, storage and startup apps' }
     [pscustomobject]@{ Id = 'History'; Title = 'History'; Glyph = [string][char]0xE81C; Pages = @('History', 'Backups'); Bottom = $false; Advanced = $false; Help = 'Every change with Undo' }
@@ -20,7 +22,7 @@ $script:IgwtGuiSections = @(
 $script:IgwtGuiPageLabels = @{
     'Home' = 'Overview'; 'Dashboard' = 'Health checks'; 'Presets' = 'Presets'
     'Power & CPU' = 'Power & CPU'; 'Graphics & Display' = 'Graphics & Display'; 'Input' = 'Input'; 'Background & Privacy' = 'Background & Privacy'; 'System' = 'System'
-    'Security' = 'Overview'; 'Asr' = 'Attack surface rules'; 'Defender' = 'Defender'; 'SecSettings' = 'Security settings'; 'Firewall' = 'Firewall'
+    'Security' = 'Overview'; 'Asr' = 'Attack surface rules'; 'Defender' = 'Defender settings'; 'SecSettings' = 'Policies'; 'Firewall' = 'Firewall'
     'NetTest' = 'Network test'; 'Network' = 'Network settings'; 'Diagnostics' = 'Diagnostics'
     'Cleaner' = 'Files'; 'RegistryCleaner' = 'Registry leftovers'; 'Storage' = 'Storage Sense'; 'Disk' = 'Disk'; 'Startup' = 'Startup apps'
     'History' = 'Changes'; 'Backups' = 'Backups and logs'; 'Inspect' = 'Expert inspectors'; 'Policy' = 'Group Policy'; 'Manage' = 'Services and tasks'; 'Toolkit' = 'Toolkit'
@@ -162,10 +164,33 @@ function Show-IgwtGuiSection {
     Open-IgwtGuiPage -Page $page
 }
 
+function Get-IgwtGuiSectionTabList {
+    <#
+    .SYNOPSIS
+        The tabs of a section: one per page, except that pages of one group (Section.Groups, page ->
+        group name) share one tab, which opens the group's last page. Returns Label, Key, Pages and
+        Target (the page the tab opens). Pure.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$Section, [string[]]$Pages = @(), [hashtable]$LastInGroup = @{})
+    $groups = $(if ($Section.PSObject.Properties['Groups'] -and $Section.Groups) { $Section.Groups } else { @{} })
+    $seen = @{}
+    foreach ($p in $Pages) {
+        $g = [string]$groups[$p]
+        if (-not $g) { [pscustomobject]@{ Label = (Get-IgwtGuiPageLabel -Page $p); Key = $p; Pages = @($p); Target = $p }; continue }
+        if ($seen.ContainsKey($g)) { continue }
+        $seen[$g] = $true
+        $members = @($Pages | Where-Object { [string]$groups[$_] -eq $g })
+        $target = $(if ($LastInGroup.ContainsKey($g) -and $members -contains [string]$LastInGroup[$g]) { [string]$LastInGroup[$g] } else { $members[0] })
+        [pscustomobject]@{ Label = $g; Key = "group:$g"; Pages = $members; Target = $target }
+    }
+}
+
 function Update-IgwtGuiSectionTabs {
     <#
     .SYNOPSIS
-        The tab row above the page: one tab per page of the section (single choice, announced as
+        The tab row above the page: one tab per page of the section, pages of a group (Protection:
+        Defender and ASR) share one tab and get a second, smaller row (single choice, announced as
         toggles). Hidden for one-page sections and for Optimize, whose page has its own category chips.
         The Risk Zone tab follows the persona.
     #>
@@ -176,20 +201,37 @@ function Update-IgwtGuiSectionTabs {
     if (-not $host2) { return }
     $pages = @($Section.Pages | Where-Object { $_ -ne 'Risk Zone' -or -not $script:Gui.Persona -or $script:Gui.Persona.ShowRiskZone })
     if ($pages.Count -lt 2 -or $Section.Id -eq 'Optimize') { $host2.Visibility = 'Collapsed'; return }
-    if ([string]$host2.Tag -ne "$($Section.Id)|$($pages -join '|')") {
-        $host2.Children.Clear()
-        foreach ($p in $pages) {
-            $chip = New-Object System.Windows.Controls.Primitives.ToggleButton
-            $chip.Content = Get-IgwtGuiPageLabel -Page $p
-            $chip.Tag = $p
-            $chip.SetResourceReference([System.Windows.FrameworkElement]::StyleProperty, 'FilterChip')
-            [System.Windows.Automation.AutomationProperties]::SetName($chip, "$($Section.Title): $(Get-IgwtGuiPageLabel -Page $p)")
-            Register-IgwtGuiHandler -Control $chip -Event 'Click' -Handler { param($s, $e) Open-IgwtGuiPage -Page ([string]$s.Tag) }
-            $null = $host2.Children.Add($chip)
-        }
-        $host2.Tag = "$($Section.Id)|$($pages -join '|')"
+    if (-not $script:Gui.TabGroupPage) { $script:Gui.TabGroupPage = @{} }
+    $tabs = @(Get-IgwtGuiSectionTabList -Section $Section -Pages $pages -LastInGroup $script:Gui.TabGroupPage)
+    $current = @($tabs | Where-Object { $_.Pages -contains $Page }) | Select-Object -First 1
+    if ($current -and $current.Key -like 'group:*') { $script:Gui.TabGroupPage[$current.Label] = $Page }
+    $host2.Children.Clear()
+    foreach ($tb in $tabs) {
+        $chip = New-Object System.Windows.Controls.Primitives.ToggleButton
+        $chip.Content = $tb.Label; $chip.Tag = $tb.Target
+        $chip.SetResourceReference([System.Windows.FrameworkElement]::StyleProperty, 'FilterChip')
+        [System.Windows.Automation.AutomationProperties]::SetName($chip, "$($Section.Title): $($tb.Label)")
+        $chip.IsChecked = ($current -and $tb.Key -eq $current.Key)
+        Register-IgwtGuiHandler -Control $chip -Event 'Click' -Handler { param($s, $e) Open-IgwtGuiPage -Page ([string]$s.Tag) }
+        $null = $host2.Children.Add($chip)
     }
-    foreach ($chip in $host2.Children) { $chip.IsChecked = ([string]$chip.Tag -eq $Page) }
+    # The pages of the open group, as a second, quieter row after a separator.
+    if ($current -and @($current.Pages).Count -gt 1) {
+        $sep = New-Object System.Windows.Controls.TextBlock; $sep.Text = [string][char]0x203A; $sep.VerticalAlignment = 'Center'; $sep.Margin = [System.Windows.Thickness]::new(4, 0, 8, 2); $sep.FontSize = 18
+        $sep.SetResourceReference([System.Windows.Controls.TextBlock]::ForegroundProperty, 'BrushTextMuted')
+        $null = $host2.Children.Add($sep)
+        foreach ($p in $current.Pages) {
+            $sub = New-Object System.Windows.Controls.Primitives.ToggleButton
+            $sub.Content = Get-IgwtGuiPageLabel -Page $p; $sub.Tag = $p
+            $sub.SetResourceReference([System.Windows.FrameworkElement]::StyleProperty, 'FilterChip')
+            $sub.Opacity = 0.9; $sub.FontSize = 12
+            [System.Windows.Automation.AutomationProperties]::SetName($sub, "$($current.Label): $(Get-IgwtGuiPageLabel -Page $p)")
+            $sub.IsChecked = ($p -eq $Page)
+            Register-IgwtGuiHandler -Control $sub -Event 'Click' -Handler { param($s, $e) Open-IgwtGuiPage -Page ([string]$s.Tag) }
+            $null = $host2.Children.Add($sub)
+        }
+    }
+    $host2.Tag = "$($Section.Id)|$Page"
     $host2.Visibility = 'Visible'
 }
 

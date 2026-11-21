@@ -293,13 +293,19 @@ function Complete-IgwtGuiFirewallChange {
     if ($failed.Count) { $script:Gui.FirewallQueue = $null; Show-IgwtGuiError -Message "$($failed.Count) firewall change(s) failed: $($failed[0].Target): $($failed[0].Message) (the remaining batches were not run)" -Context 'Firewall' }
     if ($applied.Count -and $snapshot) {
         $script:Gui.FirewallLastSnapshot = $snapshot
-        Show-IgwtGuiToast -Text "$($applied.Count) firewall rule(s) changed." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument $snapshot
+        # Keep-changes first (remote session): an automatic revert leaves no stale Undo toast behind (review FWP-3).
         if ($Result.RemoteSession) {
             if (-not (Show-IgwtGuiKeepChangesDialog -Seconds 60)) { $script:Gui.FirewallQueue = $null; Invoke-IgwtGuiFirewallUndo -Snapshot $snapshot; return }
         }
+        Show-IgwtGuiToast -Text "$($applied.Count) firewall rule(s) changed." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument $snapshot
     }
     if ($names.Count) { Update-IgwtGuiFirewallRows -Name $names.ToArray() }
     if ($script:Gui.FirewallQueue -and $script:Gui.FirewallQueue.Count) { Start-IgwtGuiFirewallQueue -Queue $script:Gui.FirewallQueue }
+    elseif ([int]$script:Gui.FirewallQueueBatches -gt 1 -and -not $failed.Count) {
+        # One summary for a run of several batches (review FWH-4): each batch is its own card with Undo in History.
+        Show-IgwtGuiToast -Text "$($script:Gui.FirewallQueueBatches) firewall batches applied. Each can be undone in History." -Tone Success -ActionText 'Open History' -Action { param($x) $null = $x; Open-IgwtGuiPage -Page 'History' } -ActionArgument ''
+        $script:Gui.FirewallQueueBatches = 0
+    }
 }
 
 function Update-IgwtGuiFirewallSummary {
@@ -720,7 +726,10 @@ function Invoke-IgwtGuiFirewallImport {
             param($o2, $e2)
             $res = @($o2) | Select-Object -Last 1
             if (-not $res) { Show-IgwtGuiError -Message "Import failed: $(@($e2)[0])" -Context 'Firewall'; return }
-            if ($res.Snapshot) { Show-IgwtGuiToast -Text "$($res.Changes) rule(s) imported." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
+            # Rules that failed are named, not hidden behind the count (review FWP-5).
+            $bad = @($res.Results | Where-Object { $_.Result -eq 'Failed' })
+            if ($bad.Count) { Show-IgwtGuiError -Message "$($bad.Count) rule(s) were not imported: $($bad[0].Target): $($bad[0].Message)" -Context 'Firewall' }
+            if ($res.Snapshot) { Show-IgwtGuiToast -Text "$(@($res.Results | Where-Object { $_.Result -ne 'Failed' }).Count) rule(s) imported." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiFirewallUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
             Start-IgwtGuiFirewallRefresh
         }
     }
