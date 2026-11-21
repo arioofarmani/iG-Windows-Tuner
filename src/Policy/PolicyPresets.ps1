@@ -210,7 +210,7 @@ function Invoke-IgwtPolicyBatch {
     $plan = $Plan
     $refused = @($plan.Rows | Where-Object { $_.Status -eq 'Refused' })
     if ($plan.Refusals.Count -or $refused.Count) { throw "Refused: $(@($plan.Refusals) + @($refused | ForEach-Object { "$($_.Name): $($_.Reason)" }) -join ' ')" }
-    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local policies. Pass -AcknowledgeManaged to apply the preset locally." }
+    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); your organization's policy can override local policies. Pass -AcknowledgeManaged to apply the preset locally." }
     if (@($plan.Rows | Where-Object { $_.Kind -in 'audit', 'secpol', 'mppref' -and $_.Status -eq 'Unknown' }).Count) { throw 'This preset changes audit, security or Defender settings that could not be read; run it elevated.' }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Applying a policy preset needs administrator rights.' }
     $todo = @($plan.Rows | Where-Object { $_.Status -eq 'Change' })

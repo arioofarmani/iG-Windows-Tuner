@@ -23,7 +23,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | `-IncludeMicrosoft` | With -Persistence: include Microsoft-signed entries (slower). |
 | `-Updates` | Read-only Windows Update status: services, pending restart, Windows Update for Business policies, history. |
 | `-Diagnostics` | Read-only diagnostics: All, DpcIsr, Reliability, Crashes, Boot, Drivers. -Days sets the history window. |
-| `-Days` | With -AsrAudit: how many days of events to read (1-90, default 14). |
+| `-Days` | With -AsrAudit: how many days of events to read (1-90, default 14). With -Diagnostics and -SystemReport: the history window (default 30). With -DefenderThreats: only detections of the last N days (default: all). |
 | `-SystemReport` | Full read-only system report written to -ReportPath (.html or .json). -Quick skips the slow sections. |
 | `-Quick` | With -SystemReport: skip persistence signatures and DPC sampling. |
 | `-RiskZone` | Lists every rejected tweak: the ones you can apply at your own risk (with warnings and what they turn off or on) and the ones that are not offered, with the reason. Read-only. |
@@ -119,7 +119,7 @@ This page is generated from the script's comment-based help (`Get-Help .\iGWindo
 | Parameter | Description |
 |---|---|
 | `-DefenderCenter` | Defender & Security Control Center: All, Status, Settings, Exclusions, Firewall, Web, DeviceControl or Logging. Read-only; exclusions and some logs need administrator rights. |
-| `-DefenderThreats` | Threat history (Get-MpThreatDetection); -Days limits it. Read-only. |
+| `-DefenderThreats` | Threat history (Get-MpThreatDetection), all of it unless -Days limits it. Read-only. |
 | `-RemoveExclusion` | Removes one Defender antivirus exclusion, as Kind:Value (Path, Process, Extension, IpAddress), after you type YES (-Yes skips the prompt). iG Windows Tuner never adds exclusions. Use -DryRun first. |
 | `-DefenderScan` | Starts a Quick, Full or Custom (-ScanPath) scan, or Offline (restarts the PC; needs -ConfirmRestart). |
 | `-ScanPath` | Folder or file for -DefenderScan Custom. |

@@ -143,7 +143,7 @@ function Initialize-IgwtGuiAsrPage {
         $plan = @(Get-IgwtAsrRecommendationPlan -Status $script:Gui.AsrStatus)
         if ($plan.Count -eq 0) { Show-IgwtGuiToast -Text 'Every rule already meets its recommendation.' -Tone Info; return }
         $lines = @($plan | ForEach-Object { "- $($_.Name): $($_.From) -> $($_.To)" })
-        Invoke-IgwtGuiAsrChange -Parameters @{ Recommended = $true } -Description ("Apply the recommended modes to $($plan.Count) rule(s)? No rule is lowered.`n`n" + ($lines -join "`n"))
+        Invoke-IgwtGuiAsrChange -Parameters @{ Recommended = $true } -Description ("Apply the recommended modes to $(Format-IgwtCount -Count ($plan.Count) -Noun 'rule')? No rule is lowered.`n`n" + ($lines -join "`n"))
     }
     foreach ($rb in 'AsrModeNotConfigured', 'AsrModeAudit', 'AsrModeWarn', 'AsrModeBlock') { Register-IgwtGuiHandler -Control $c[$rb] -Event 'Click' -Handler { Update-IgwtGuiAsrButtons } }
     Register-IgwtGuiHandler -Control $c.AsrSetModeButton -Event 'Click' -Handler { Invoke-IgwtGuiAsrSetMode }
@@ -199,9 +199,9 @@ function Set-IgwtGuiAsrStatus {
     $parts = New-Object System.Collections.Generic.List[string]
     if (-not $Status.DefenderActive) { $parts.Add('Microsoft Defender Antivirus is not the active antivirus, so ASR rules do not apply on this PC.') }
     $below = [int]$s.BelowRecommendation
-    $parts.Add($(if ($below) { "$below rule(s) below the recommendation" } else { 'Every rule meets its recommendation' }) + (". {0} Block, {1} Warn, {2} Audit, {3} off." -f $s.Block, $s.Warn, $s.Audit, ($s.NotConfigured + $s.Off)))
+    $parts.Add($(if ($below) { "$(Format-IgwtCount -Count $below -Noun 'rule') below the recommendation" } else { 'Every rule meets its recommendation' }) + (". {0} Block, {1} Warn, {2} Audit, {3} off." -f $s.Block, $s.Warn, $s.Audit, ($s.NotConfigured + $s.Off)))
     if ($Status.CloudProtection -eq $false) { $parts.Add('Cloud-delivered protection is off; three rules depend on it.') }
-    if ($s.PolicyManaged) { $parts.Add("$($s.PolicyManaged) rule(s) are managed by Group Policy or MDM (locked).") }
+    if ($s.PolicyManaged) { $parts.Add("$(Format-IgwtCount -Count ($s.PolicyManaged) -Noun 'rule' -Verb 'are') managed by Group Policy or MDM (locked).") }
     $c.AsrSummaryText.Text = $parts -join ' '
     $attention = ($below -gt 0 -or -not $Status.DefenderActive)
     $c.AsrSummaryIcon.Text = $(if ($attention) { [string][char]0xE7BA } else { [string][char]0xE73E })
@@ -382,8 +382,8 @@ function Complete-IgwtGuiAsrChange {
     $res = @($Out) | Select-Object -Last 1
     if (@($Errors).Count -or -not $res) { Show-IgwtGuiError -Message "The change was not made: $(@($Errors)[0])" -Context 'ASR'; return $false }
     $failed = @($res.Results | Where-Object Result -EQ 'Failed')
-    if ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) ASR change(s) failed: $($failed[0].Target): $($failed[0].Message)" -Context 'ASR' }
-    if ($res.Changes -gt 0 -and $res.Snapshot) { Show-IgwtGuiToast -Text "$(@($res.Results | Where-Object Result -NE 'Failed').Count) ASR change(s) made." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiAsrUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
+    if ($failed.Count) { Show-IgwtGuiError -Message "$(Format-IgwtCount -Count ($failed.Count) -Noun 'ASR change') failed: $($failed[0].Target): $($failed[0].Message)" -Context 'ASR' }
+    if ($res.Changes -gt 0 -and $res.Snapshot) { Show-IgwtGuiToast -Text "$(Format-IgwtCount -Count (@($res.Results | Where-Object Result -NE 'Failed').Count) -Noun 'ASR change') made." -Tone Success -ActionText 'Undo' -Action { param($snap) Invoke-IgwtGuiAsrUndo -Snapshot $snap } -ActionArgument ([string]$res.Snapshot) }
     elseif ($res.Changes -eq 0 -and -not $failed.Count) { Show-IgwtGuiToast -Text 'Nothing to change.' -Tone Info }
     return $true
 }
@@ -397,7 +397,7 @@ function Invoke-IgwtGuiAsrUndo {
         $res = @($out) | Select-Object -Last 1
         $failed = @($(if ($res) { $res.Results }) | Where-Object { $_ -and $_.Result -eq 'Failed' })
         if (@($errs).Count) { Show-IgwtGuiError -Message "Undo failed: $(@($errs)[0])" -Context 'ASR' }
-        elseif ($failed.Count) { Show-IgwtGuiError -Message "$($failed.Count) ASR rule(s) were not restored: $($failed[0].Id) $($failed[0].Message) The list shows the mode each rule has now." -Context 'ASR' }
+        elseif ($failed.Count) { Show-IgwtGuiError -Message "$(Format-IgwtCount -Count ($failed.Count) -Noun 'ASR rule' -Verb 'were') not restored: $($failed[0].Id) $($failed[0].Message) The list shows the mode each rule has now." -Context 'ASR' }
         else { Show-IgwtGuiToast -Text 'The ASR change was undone.' -Tone Info }
         Start-IgwtGuiAsrRefresh
     }
@@ -428,7 +428,7 @@ function Add-IgwtGuiAsrStaged {
     }
     Update-IgwtGuiPending
     $n = @($script:Gui.AsrStaged.Keys).Count
-    Set-IgwtGuiStatus "$n ASR change(s) staged. Apply them in the bar below.$(if ($Note) { ' ' + $Note })"
+    Set-IgwtGuiStatus "$(Format-IgwtCount -Count $n -Noun 'ASR change') staged. Apply them in the bar below.$(if ($Note) { ' ' + $Note })"
 }
 
 function Get-IgwtGuiAsrStagedText {
@@ -452,7 +452,7 @@ function Invoke-IgwtGuiAsrStagedApply {
     param()
     if (-not @($script:Gui.AsrStaged.Keys).Count) { return }
     $map = @{}; foreach ($v in $script:Gui.AsrStaged.Values) { $map[$v.Id] = $v.Mode }
-    Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = $map } -Description "Apply $($map.Count) ASR change(s)?`n`n$(Get-IgwtGuiAsrStagedText)" -Staged
+    Invoke-IgwtGuiAsrChange -Parameters @{ RuleMode = $map } -Description "Apply $(Format-IgwtCount -Count ($map.Count) -Noun 'ASR change')?`n`n$(Get-IgwtGuiAsrStagedText)" -Staged
 }
 
 function Invoke-IgwtGuiAsrBulkMode {
@@ -469,7 +469,7 @@ function Invoke-IgwtGuiAsrBulkMode {
     if ($ok.Count -eq 0) { $null = Show-IgwtGuiMessage -Text ("Nothing to change." + $(if ($skip.Count) { "`n`n" + ($skip -join "`n") } else { '' })) -Title 'iG Windows Tuner - ASR Center' -Icon 'Information'; return }
     # 4.0 D6: staged for the ChangeBar; the rules left alone are named.
     Add-IgwtGuiAsrStaged -Rows $ok.ToArray() -Mode $Mode
-    if ($skip.Count) { $null = Show-IgwtGuiMessage -Text ("Staged $($ok.Count) rule(s). Left as they are:`n`n" + ($skip -join "`n")) -Title 'iG Windows Tuner - ASR Center' -Icon 'Information' }
+    if ($skip.Count) { $null = Show-IgwtGuiMessage -Text ("Staged $(Format-IgwtCount -Count ($ok.Count) -Noun 'rule'). Left as they are:`n`n" + ($skip -join "`n")) -Title 'iG Windows Tuner - ASR Center' -Icon 'Information' }
 }
 
 function Invoke-IgwtGuiAsrExclusion {
@@ -540,7 +540,7 @@ function Get-IgwtAsrPromotionPlan {
         [pscustomobject]@{
             Id = [string]$r.Id; Name = [string]$r.Name; Events = $events; Impact = [string]$r.GamerImpactLevel; Suggestion = $suggest; Recommended = ($suggest -eq 'Block')
             Programs = @($programs | ForEach-Object { "$($_.Path) ($($_.Count)x): $($_.Suggestion)" })
-            Why = $(switch ($suggest) { 'Block' { 'No events in the period: blocking it is unlikely to break anything.' } 'Review' { "$events event(s): check the programs it reported; exclude the ones you trust, then block." } default { 'This rule does not support Block.' } })
+            Why = $(switch ($suggest) { 'Block' { 'No events in the period: blocking it is unlikely to break anything.' } 'Review' { "$(Format-IgwtCount -Count $events -Noun 'event'): check the programs it reported; exclude the ones you trust, then block." } default { 'This rule does not support Block.' } })
         }
     }
 }
@@ -556,14 +556,14 @@ function Show-IgwtGuiAsrPromote {
     $lines = New-Object System.Collections.Generic.List[string]
     $lines.Add("Rules in Audit and their events of the last $($script:Gui.AsrAudit.Days) days:"); $lines.Add('')
     foreach ($p in $plan) {
-        $lines.Add("[$($p.Suggestion)] $($p.Name): $($p.Events) event(s), gamer impact $($p.Impact)")
+        $lines.Add("[$($p.Suggestion)] $($p.Name): $(Format-IgwtCount -Count ($p.Events) -Noun 'event'), gamer impact $($p.Impact)")
         $lines.Add("    $($p.Why)")
         foreach ($x in @($p.Programs | Select-Object -First 5)) { $lines.Add("    - $x") }
     }
     $lines.Add('')
-    if ($ready.Count) { $lines.Add("Moving the $($ready.Count) quiet rule(s) to Block. The others stay in Audit; review their programs on the Events tab first.") }
+    if ($ready.Count) { $lines.Add("Moving the $(Format-IgwtCount -Count ($ready.Count) -Noun 'quiet rule') to Block. The others stay in Audit; review their programs on the Events tab first.") }
     else { $lines.Add('No rule is quiet enough to block now. Review the programs on the Events tab, add exclusions for the ones you trust, then try again.') }
-    $accept = $(if ($ready.Count) { "Move $($ready.Count) rule(s) to Block" } else { '' })
+    $accept = $(if ($ready.Count) { "Move $(Format-IgwtCount -Count ($ready.Count) -Noun 'rule') to Block" } else { '' })
     if (-not (Show-IgwtGuiTextDialog -Title 'iG Windows Tuner - Audit to Block (preview, nothing changed yet)' -Text ($lines -join [Environment]::NewLine) -AcceptText $accept -CancelText 'Close')) { return }
     # 4.0 D6: staged for the ChangeBar (its Apply reports failed rules, review ASR-2).
     $rows = @($ready | ForEach-Object { [pscustomobject]@{ Id = [string]$_.Id; Name = [string]$_.Name; Mode = 'Audit'; Rule = [pscustomobject]@{ Mode = 'Audit' } } })

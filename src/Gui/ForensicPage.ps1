@@ -132,14 +132,14 @@ function Format-IgwtGuiForensicPlan {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)]$Plan, [int]$Minutes)
     $lines = New-Object System.Collections.Generic.List[string]
-    $lines.Add("Forensic logging, profile $($Plan.Profile), $(if ($Minutes) { "for $(if ($Minutes -ge 60) { "$($Minutes / 60) hour(s)" } else { "$Minutes minutes" })" } else { 'until you stop it' }).")
+    $lines.Add("Forensic logging, profile $($Plan.Profile), $(if ($Minutes) { "for $(if ($Minutes -ge 60) { "$(Format-IgwtCount -Count ($Minutes / 60) -Noun 'hour')" } else { "$Minutes minutes" })" } else { 'until you stop it' }).")
     $lines.Add('')
     foreach ($op in @($Plan.Ops)) {
         $state = $(if ($op.Refused) { "not changed: $($op.Refused)" } elseif ($op.Changes) { "$($op.Current) -> $($op.New)" } else { "already $($op.New)" })
         $lines.Add(("  {0,-12} {1,-32} {2,-13} {3}" -f $op.Source, $op.Target, $op.Setting, $state))
     }
     $lines.Add('')
-    $lines.Add("$($Plan.Changes) change(s). Every setting is saved first and restored exactly when the session ends. Event logs are never cleared.")
+    $lines.Add("$(Format-IgwtCount -Count ($Plan.Changes) -Noun 'change'). Every setting is saved first and restored exactly when the session ends. Event logs are never cleared.")
     foreach ($n in @($Plan.Notes)) { $lines.Add($n) }
     return ($lines -join [Environment]::NewLine)
 }

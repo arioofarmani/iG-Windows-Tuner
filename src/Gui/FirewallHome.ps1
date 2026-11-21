@@ -100,7 +100,7 @@ function Update-IgwtGuiFirewallOverview {
     $c.FwOvAttentionTitle.Text = $(if ($n) { "$n rule$(if ($n -ne 1) { 's' }) need$(if ($n -eq 1) { 's' }) attention" } else { 'Nothing needs attention' })
     $c.FwOvAttentionIcon.Text = $(if ($n) { [string][char]0xE7BA } else { [string][char]0xE73E })
     $c.FwOvAttentionIcon.Foreground = Get-IgwtGuiToneBrush -Tone $(if ($n) { 'Warn' } else { 'Pass' })
-    $c.FwOvAttentionText.Text = $(if ($n) { "$($s.Severity.Critical) critical and $($s.Severity.High) high-severity finding(s)$(if ($s.Exposed) { "; $($s.Exposed) rule(s) match a port that is open right now" }). Lower findings: $([int]$s.Severity.Medium + [int]$s.Severity.Low)." } else { "No critical or high-severity findings. $([int]$s.Severity.Medium + [int]$s.Severity.Low) lower finding(s) are listed under Security Risks." })
+    $c.FwOvAttentionText.Text = $(if ($n) { "$($s.Severity.Critical) critical and $(Format-IgwtCount -Count ($s.Severity.High) -Noun 'high-severity finding')$(if ($s.Exposed) { "; $(Format-IgwtCount -Count ($s.Exposed) -Noun 'rule' -Verb 'match') a port that is open right now" }). Lower findings: $([int]$s.Severity.Medium + [int]$s.Severity.Low)." } else { "No critical or high-severity findings. $(Format-IgwtCount -Count ([int]$s.Severity.Medium + [int]$s.Severity.Low) -Noun 'lower finding' -Verb 'are') listed under Security Risks." })
     $open = @($a.Findings | Where-Object { -not $_.Ignored }).Count
     $c.FwOvReviewButton.Content = $(if ($open) { "Review $open finding$(if ($open -ne 1) { 's' })" } else { 'No findings to review' })
     $c.FwOvReviewButton.IsEnabled = [bool]$open
@@ -122,7 +122,7 @@ function Update-IgwtGuiFirewallOverview {
         [pscustomobject]@{ Label = 'Windows Connections'; Value = [int]$g.WindowsConnections; Brush = (Get-IgwtGuiToneBrush -Tone 'Info') }
         [pscustomobject]@{ Label = 'User Installed'; Value = [int]$g.UserInstalled; Brush = (Get-IgwtGuiToneBrush -Tone 'Accent') }
         [pscustomobject]@{ Label = 'Custom Rules'; Value = [int]$g.CustomRules; Brush = (Get-IgwtGuiToneBrush -Tone 'Pass') })
-    $c.FwOvOriginText.Text = "$($s.Total) rules: $($g.CoreServices) Core Services, $($g.WindowsConnections) Windows Connections, $($g.UserInstalled) User Installed and $($g.CustomRules) Custom Rules. $($s.LowConfidence) classification(s) have low confidence."
+    $c.FwOvOriginText.Text = "$($s.Total) rules: $($g.CoreServices) Core Services, $($g.WindowsConnections) Windows Connections, $($g.UserInstalled) User Installed and $($g.CustomRules) Custom Rules. $(Format-IgwtCount -Count ($s.LowConfidence) -Noun 'classification' -Verb 'have') low confidence."
     Set-IgwtGuiFirewallChart -Panel $c.FwOvDirChart -Bars @(
         [pscustomobject]@{ Label = 'Inbound allow'; Value = [int]$s.InboundAllow; Brush = (Get-IgwtGuiToneBrush -Tone 'Warn') }
         [pscustomobject]@{ Label = 'Inbound block'; Value = [int]$s.InboundBlock; Brush = (Get-IgwtGuiToneBrush -Tone 'Pass') }
@@ -726,7 +726,7 @@ function Complete-IgwtGuiFirewallWizard {
     if (-not $z) { return }
     $script:IgwtFwWiz = $null
     $nl = [Environment]::NewLine
-    $head = "Reviewed $([Math]::Min($z.Index, $z.Steps.Count)) of $($z.Steps.Count) finding(s): $($z.Decisions.Count) fix(es), $($z.Skipped) skipped, $($z.Ignored) ignored."
+    $head = "Reviewed $([Math]::Min($z.Index, $z.Steps.Count)) of $(Format-IgwtCount -Count ($z.Steps.Count) -Noun 'finding'): $(Format-IgwtCount -Count ($z.Decisions.Count) -Noun 'fix' -Plural 'fixes'), $($z.Skipped) skipped, $($z.Ignored) ignored."
     if ($z.Ignored) { Start-IgwtGuiFirewallRefresh }
     if (-not $z.Decisions.Count) { $null = Show-IgwtGuiMessage -Text $head -Title 'iG Windows Tuner - review summary'; return }
     $batches = @(Get-IgwtFirewallFixPlan -Decisions $z.Decisions.ToArray() -Rows $script:Gui.Firewall.Rules)
@@ -812,7 +812,7 @@ function Start-IgwtGuiFirewallConnections {
         $rows = @($out | Where-Object { $_ })
         if (-not $rows.Count -and @($errs).Count) { Set-IgwtGridState -Grid $script:Gui.Grids.FirewallConnections -State Error -Message ([string]@($errs)[0]); return }
         Set-IgwtGridRows -Grid $script:Gui.Grids.FirewallConnections -Rows $rows
-        $script:Gui.C.FwConnText.Text = "$(@($rows | Where-Object Protocol -EQ 'TCP').Count) TCP connection(s) and $(@($rows | Where-Object Protocol -EQ 'UDP').Count) UDP endpoint(s), read $((Get-Date).ToString('HH:mm:ss')). Nothing is changed."
+        $script:Gui.C.FwConnText.Text = "$(Format-IgwtCount -Count (@($rows | Where-Object Protocol -EQ 'TCP').Count) -Noun 'TCP connection') and $(Format-IgwtCount -Count (@($rows | Where-Object Protocol -EQ 'UDP').Count) -Noun 'UDP endpoint'), read $((Get-Date).ToString('HH:mm:ss')). Nothing is changed."
     }
 }
 

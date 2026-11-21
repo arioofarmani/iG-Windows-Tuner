@@ -652,7 +652,7 @@ function Update-IgwtGuiFromData {
     $lines = New-Object System.Collections.Generic.List[string]
     if ($Data.Pending) {
         $what = $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart Windows' } else { 'Sign out and back in' })
-        $lines.Add("$what to finish applying $(@($Data.Pending.Tweaks).Count) change(s): $(@($Data.Pending.Tweaks) -join ', ').")
+        $lines.Add("$what to finish applying $(Format-IgwtCount -Count (@($Data.Pending.Tweaks).Count) -Noun 'change'): $(@($Data.Pending.Tweaks) -join ', ').")
     }
     if (-not $script:Gui.IsAdmin) { $lines.Add('Read-only mode: you can browse, preview, export reports and clean your own temp files and caches. Use "Restart as administrator" to apply tweaks or run system cleanup.') }
     foreach ($w in @($Data.Preflight.Warnings)) { if ($w -notlike 'Not elevated*') { $lines.Add([string]$w) } }
@@ -719,7 +719,7 @@ function Update-IgwtGuiDashboard {
     if ($sec) {
         $open = @($sec.ToFix).Count
         $secTone = $(if ([int]$sec.Score -ge 90) { 'Pass' } elseif ([int]$sec.Score -ge 70) { 'Warn' } else { 'Fail' })
-        Set-IgwtGuiTile -Name 'Sec' -Value "$($sec.Score)/100" -Note "$($sec.Grade). $(if ($open) { "$open thing(s) to fix" } else { 'Nothing to fix' })" -Tone $secTone
+        Set-IgwtGuiTile -Name 'Sec' -Value "$($sec.Score)/100" -Note "$($sec.Grade). $(if ($open) { "$(Format-IgwtCount -Count $open -Noun 'thing') to fix" } else { 'Nothing to fix' })" -Tone $secTone
         $c.DashSecSummary.Text = "$($sec.Score)/100, $($sec.Grade)"
         foreach ($f in @($sec.ToFix)) {
             $route = (New-IgwtGuiSecurityCheckRow -Check $f).Route
@@ -745,13 +745,13 @@ function Update-IgwtGuiDashboard {
     $snaps = @($Data.Snapshots | Where-Object { $_ -and (Test-IgwtSnapshotHasChange -Snapshot $_) }).Count
     if ($Data.Pending) {
         $what = $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart Windows' } else { 'Sign out and back in' })
-        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart needed' } else { 'Sign-out needed' }) -Note "To finish $(@($Data.Pending.Tweaks).Count) change(s)" -Tone 'Warn'
-        & $add 'Important' "$what to finish your changes" "$(@($Data.Pending.Tweaks).Count) change(s) wait for it: $(@($Data.Pending.Tweaks) -join ', ')" ''
+        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($Data.Pending.Requires -eq 'reboot') { 'Restart needed' } else { 'Sign-out needed' }) -Note "To finish $(Format-IgwtCount -Count (@($Data.Pending.Tweaks).Count) -Noun 'change')" -Tone 'Warn'
+        & $add 'Important' "$what to finish your changes" "$(Format-IgwtCount -Count (@($Data.Pending.Tweaks).Count) -Noun 'change' -Verb 'wait') for it: $(@($Data.Pending.Tweaks) -join ', ')" ''
     } else {
-        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($snaps) { "$snaps snapshot(s)" } else { 'No changes yet' }) -Note 'Every change can be undone in Backups & Logs' -Tone 'Info'
+        Set-IgwtGuiTile -Name 'Changes' -Value $(if ($snaps) { "$(Format-IgwtCount -Count $snaps -Noun 'snapshot')" } else { 'No changes yet' }) -Note 'Every change can be undone in Backups & Logs' -Tone 'Info'
     }
     Update-IgwtGuiDashRecent -Snapshots @($Data.Snapshots)
-    if ($Data.PSObject.Properties['Hardware'] -and $Data.Hardware) { $c.DashHwSummary.Text = "$(@($Data.Hardware.Tags).Count) tags, $(@($Data.Hardware.Overlays).Count) overlay(s)" }
+    if ($Data.PSObject.Properties['Hardware'] -and $Data.Hardware) { $c.DashHwSummary.Text = "$(@($Data.Hardware.Tags).Count) tags, $(Format-IgwtCount -Count (@($Data.Hardware.Overlays).Count) -Noun 'overlay')" }
 
     # Do this next: important first, at most five, numbered.
     $ordered = @($actions | Sort-Object @{ Expression = { if ($_.Level -eq 'Important') { 0 } else { 1 } } })
@@ -765,7 +765,7 @@ function Update-IgwtGuiDashboard {
         })
     $c.DashAllClear.Visibility = $(if ($top.Count) { 'Collapsed' } else { 'Visible' })
     $more = $ordered.Count - $top.Count
-    $c.DashMoreText.Text = "$more more item(s) in the sections below."
+    $c.DashMoreText.Text = "$(Format-IgwtCount -Count $more -Noun 'more item') in the sections below."
     $c.DashMoreText.Visibility = $(if ($more -gt 0) { 'Visible' } else { 'Collapsed' })
     # 4.0 Home (D2) shows the same data.
     if ($c.PageHome -and $c.PageHome.Visibility -eq 'Visible') { Update-IgwtGuiHomePage }
@@ -880,7 +880,7 @@ function Update-IgwtGuiTweakHeader {
     elseif ($script:Gui.Category -eq 'System') { $c.TweakPageTitle.Text = 'System and diagnostics' }
     elseif ($script:Gui.Category -eq 'Risk Zone') { $c.TweakPageTitle.Text = 'Risk Zone: rejected tweaks at your own risk' }
     elseif ($script:Gui.Category) { $c.TweakPageTitle.Text = $script:Gui.Category }
-    $c.TweakPageSubtitle.Text = $(if ($script:Gui.Category -eq 'Risk Zone' -and -not $search) { "$count rejected tweak(s). iG Windows Tuner does not recommend these: each is placebo, obsolete or risky, and its details list what it turns off or on. Turning one on asks you to type a confirmation; every change is snapshot-backed and can be reverted." } else { "$count tweak(s). Switches show the real current state; switching stages a change. Nothing happens until you press Apply." })
+    $c.TweakPageSubtitle.Text = $(if ($script:Gui.Category -eq 'Risk Zone' -and -not $search) { "$(Format-IgwtCount -Count $count -Noun 'rejected tweak'). iG Windows Tuner does not recommend these: each is placebo, obsolete or risky, and its details list what it turns off or on. Turning one on asks you to type a confirmation; every change is snapshot-backed and can be reverted." } else { "$(Format-IgwtCount -Count $count -Noun 'tweak'). Switches show the real current state; switching stages a change. Nothing happens until you press Apply." })
 }
 
 function Update-IgwtGuiPending {
@@ -1001,10 +1001,10 @@ function Update-IgwtGuiPresetCards {
             Id = [string]$p.id; Name = [string]$p.name; Tagline = [string]$p.tagline; Description = [string]$p.description
             Summary = "$($members.Count) tweaks in this preset; $toChange differ from your current state.$overlayText$(if ($toChange) { ' By category: ' + ((@(Get-IgwtGuiPresetDiff -Preset $p).ByCategory | ForEach-Object { "$($_.Name) $($_.Count)" }) -join ', ') + '.' })"
             CompareTag = "compare:$($p.id)"
-            ButtonText = $(if ($toChange -gt 0) { "Stage $toChange change(s)" } else { 'Nothing to change' })
+            ButtonText = $(if ($toChange -gt 0) { "Stage $(Format-IgwtCount -Count $toChange -Noun 'change')" } else { 'Nothing to change' })
             # 4.0 D5: Preview comes first; repeated buttons name their preset for screen readers.
             PreviewName = "Preview the $([string]$p.name) preset"
-            StageName = "$(if ($toChange -gt 0) { "Stage $toChange change(s)" } else { 'Nothing to change' }) for the $([string]$p.name) preset"
+            StageName = "$(if ($toChange -gt 0) { "Stage $(Format-IgwtCount -Count $toChange -Noun 'change')" } else { 'Nothing to change' }) for the $([string]$p.name) preset"
         }
     }
     $script:Gui.C.PresetCards.ItemsSource = @($cards)
@@ -1042,13 +1042,13 @@ function Show-IgwtGuiPresetCompare {
     $nl = [Environment]::NewLine
     if (-not $d.Count) { $null = Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) compared with this PC" -Text "Nothing to change: every item of $($Preset.name) is already on."; return $false }
     $lines = New-Object System.Collections.Generic.List[string]
-    $lines.Add("$($Preset.name): $($d.Count) change(s) compared with this PC. Nothing changes until you stage, preview and apply.")
+    $lines.Add("$($Preset.name): $(Format-IgwtCount -Count ($d.Count) -Noun 'change') compared with this PC. Nothing changes until you stage, preview and apply.")
     $lines.Add('By category: ' + ((@($d.ByCategory) | ForEach-Object { "$($_.Name) $($_.Count)" }) -join ', ') + '.')
     foreach ($grp in @($d.Rows | Group-Object Category)) {
         $lines.Add(''); $lines.Add("$($grp.Name) ($($grp.Count))")
         foreach ($r in $grp.Group) { $lines.Add(("  {0,-46} {1,-8} -> {2,-3}  impact {3}, {4}" -f $(if ($r.Name.Length -gt 46) { $r.Name.Substring(0, 45) + '~' } else { $r.Name }), $r.Now, $r.After, $r.Impact, $r.Level)) }
     }
-    $accept = $(if ($script:Gui.IsAdmin -and -not (Test-IgwtReadOnly)) { "Stage $($d.Count) change(s)" } else { '' })
+    $accept = $(if ($script:Gui.IsAdmin -and -not (Test-IgwtReadOnly)) { "Stage $(Format-IgwtCount -Count ($d.Count) -Noun 'change')" } else { '' })
     return [bool](Show-IgwtGuiTextDialog -Title "iG Windows Tuner - $($Preset.name) compared with this PC" -Text ($lines -join $nl) -AcceptText $accept)
 }
 
@@ -1075,7 +1075,7 @@ function Update-IgwtGuiPresetExtras {
     if ($rec -and $script:Gui.Data) {
         $drifted = @(@($rec.ids) | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.State -in 'Off', 'Partial' })
         $script:Gui.Drift = [pscustomobject]@{ Preset = [string]$rec.preset; Name = [string]$rec.name; Drifted = $drifted }
-        $c.PresetDriftText.Text = $(if ($drifted.Count) { "$($drifted.Count) setting(s) changed since you applied $($rec.name) on $(([datetime]$rec.applied).ToString('g')): $(Format-IgwtGuiNameList -Ids $drifted). Re-apply the preset, or adopt the current state as a custom preset." } else { "All items of $($rec.name) (applied $(([datetime]$rec.applied).ToString('g'))) are still in place." })
+        $c.PresetDriftText.Text = $(if ($drifted.Count) { "$(Format-IgwtCount -Count ($drifted.Count) -Noun 'setting') changed since you applied $($rec.name) on $(([datetime]$rec.applied).ToString('g')): $(Format-IgwtGuiNameList -Ids $drifted). Re-apply the preset, or adopt the current state as a custom preset." } else { "All items of $($rec.name) (applied $(([datetime]$rec.applied).ToString('g'))) are still in place." })
         $c.PresetDriftCard.Visibility = 'Visible'
     } else { $c.PresetDriftCard.Visibility = 'Collapsed' }
     $st = $null
@@ -1222,7 +1222,7 @@ function Invoke-IgwtGuiPresetAction {
             'Adopt' {
                 $d = $script:Gui.Drift
                 if (-not $d) { return }
-                $n = Show-IgwtGuiInputDialog -Title 'Adopt as custom preset' -Prompt "Save $($d.Name) without the $(@($d.Drifted).Count) item(s) you changed, as:" -Default "$($d.Name) (as is)"
+                $n = Show-IgwtGuiInputDialog -Title 'Adopt as custom preset' -Prompt "Save $($d.Name) without the $(Format-IgwtCount -Count (@($d.Drifted).Count) -Noun 'item') you changed, as:" -Default "$($d.Name) (as is)"
                 if (-not $n) { return }
                 $saved = Save-IgwtDriftAsPreset -Name $n -Preset $d.Preset
                 Set-IgwtGuiStatus "Saved '$($saved.name)'."
@@ -1292,8 +1292,8 @@ function Complete-IgwtGuiSessionStop {
     $res = @($Result.Results)
     $done = @($res | Where-Object { $_.Result -eq 'Reverted' }).Count
     $bad = @($res | Where-Object { $_.Result -eq 'Failed' })
-    if ($bad.Count) { $null = Show-IgwtGuiMessage -Icon 'Warning' -Text "Session Mode: $done setting(s) restored, $($bad.Count) not restored, so the session stays active and End session can try again:`n`n$((@($bad | ForEach-Object { "$($_.Id): $($_.Message)" }) -join "`n"))" }
-    else { Set-IgwtGuiStatus "Session Mode ended; $done setting(s) restored." }
+    if ($bad.Count) { $null = Show-IgwtGuiMessage -Icon 'Warning' -Text "Session Mode: $(Format-IgwtCount -Count $done -Noun 'setting') restored, $($bad.Count) not restored, so the session stays active and End session can try again:`n`n$((@($bad | ForEach-Object { "$($_.Id): $($_.Message)" }) -join "`n"))" }
+    else { Set-IgwtGuiStatus "Session Mode ended; $(Format-IgwtCount -Count $done -Noun 'setting') restored." }
 }
 
 function Update-IgwtGuiUserHiveBanner {
@@ -1428,7 +1428,7 @@ function Start-IgwtGuiRefresh {
     $null = Start-IgwtGuiJob -Command 'Get-IgwtGuiData' -Channel 'state' -Parameters @{ IncludeHealth = [bool]$IncludeHealth } -BusyText 'Reading the current system state (read-only)...' -OnComplete {
         param($out, $errs)
         $data = @($out) | Select-Object -Last 1
-        if ($data) { Update-IgwtGuiFromData -Data $data; Set-IgwtGuiStatus "State refreshed at $((Get-Date).ToString('HH:mm:ss'))." }
+        if ($data) { Update-IgwtGuiFromData -Data $data; if (-not $script:Gui.FirstDataShown) { $script:Gui.FirstDataShown = $true; Write-IgwtGuiDiagnostic -Kind 'loaded' -Text 'first system state shown' }; Set-IgwtGuiStatus "State refreshed at $((Get-Date).ToString('HH:mm:ss'))." }
         else { Set-IgwtGuiStatus 'Could not read the system state; see the log.' }
     }
 }
@@ -1486,10 +1486,10 @@ function Invoke-IgwtGuiApply {
         return
     }
     if (-not $SkipConfirm) {
-        $msg = "Apply $total staged change(s)?`n`niG Windows Tuner first creates a System Restore point and a JSON snapshot of every value it changes, so you can revert."
+        $msg = "Apply $(Format-IgwtCount -Count $total -Noun 'staged change')?`n`niG Windows Tuner first creates a System Restore point and a JSON snapshot of every value it changes, so you can revert."
         $risky = @($sets.Apply | Where-Object { $id = $_; [string]($script:Gui.Catalog | Where-Object { $_.id -eq $id }).evidence.tier -eq 'R' })
-        if ($risky.Count) { $msg += "`n`nIncludes RISK ZONE (rejected) tweak(s), applied at your own risk: $($risky -join ', ')." }
-        if ($expert.Count) { $msg += "`n`nIncludes EXPERT toggle(s): $($expert -join ', ')." }
+        if ($risky.Count) { $msg += "`n`nIncludes RISK ZONE (rejected) tweaks, applied at your own risk: $($risky -join ', ')." }
+        if ($expert.Count) { $msg += "`n`nIncludes EXPERT settings: $($expert -join ', ')." }
         if ((Show-IgwtGuiMessage -Text $msg -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     }
     Set-IgwtGuiApplyPending -Pending $true
@@ -1516,11 +1516,12 @@ function Complete-IgwtGuiApply {
     }
     $operation = 'Apply'
     # A preset's resets belong to the preset's own session (3.6, DECISIONS T16); turn-offs do not.
-    if ($script:Gui.PresetOperation -and $sets.Off.Count -eq 0 -and ($sets.Reset.Count -eq 0 -or [string]$script:Gui.PresetOperation -like 'Preset:*')) { $operation = $script:Gui.PresetOperation }
+    # The name holds only while the staged list is the one it was given for (a cancelled preview leaves it behind, HC-1).
+    if ($script:Gui.PresetOperation -and [string]$script:Gui.PresetOperationKey -eq (Get-IgwtGuiStagedKey) -and $sets.Off.Count -eq 0 -and ($sets.Reset.Count -eq 0 -or [string]$script:Gui.PresetOperation -like 'Preset:*')) { $operation = $script:Gui.PresetOperation }
     $ackManaged = $false
     $authority = @($sets.Apply | Where-Object { $s = $script:Gui.Data.States[[string]$_]; $s -and $s.PSObject.Properties['Authority'] -and $s.Authority })
     if ($authority.Count) {
-        $a = Show-IgwtGuiMessage -Text "This PC is managed by a domain or MDM. These policy items can be overridden by your organization: $($authority -join ', ').`n`nYes: change them locally anyway.`nNo: apply everything else and leave them (report-only)." -Buttons 'YesNoCancel' -Icon 'Warning'
+        $a = Show-IgwtGuiMessage -Text "This PC is managed by your organization (domain, MDM or Defender for Endpoint). These policy items can be overridden by your organization: $($authority -join ', ').`n`nYes: change them locally anyway.`nNo: apply everything else and leave them (report-only)." -Buttons 'YesNoCancel' -Icon 'Warning'
         if ($a -eq 'Cancel') { Set-IgwtGuiApplyPending -Pending $false; return }
         $ackManaged = ($a -eq 'Yes')
     }
@@ -1534,12 +1535,12 @@ function Complete-IgwtGuiApply {
         $r = @($out) | Select-Object -Last 1
         # Only what this batch handled leaves the staged list; changes staged meanwhile stay (review 3.8.1 G-05).
         $left = Remove-IgwtGuiStagedIds -Sets $ctx
-        if ($left) { Set-IgwtGuiStatus "$left change(s) staged while applying are still waiting." }
+        if ($left) { Set-IgwtGuiStatus "Still waiting: $(Format-IgwtCount -Count $left -Noun 'change') staged while applying." }
         $script:Gui.PresetOperation = $null
         if ($r) {
             $ok = @($r.Results | Where-Object { $_.Result -in 'Applied', 'Reverted' }).Count
             $failed = @($r.Results | Where-Object { $_.Result -eq 'Failed' })
-            $lines = @("$ok change(s) applied or reverted, $($failed.Count) failed.")
+            $lines = @("$(Format-IgwtCount -Count $ok -Noun 'change') applied or reverted, $($failed.Count) failed.")
             foreach ($f in $failed) { $lines += "FAILED $($f.Id): $($f.Message)" }
             foreach ($u in @($r.Results | Where-Object { $_.Result -in 'Applied' -and $_.PSObject.Properties['Verified'] -and -not $_.Verified })) { $lines += "Not verified $($u.Id): $($u.Message)" }
             if ($r.RestorePoint) { $lines += "Restore point: $(if ($r.RestorePoint.Created) { 'created' } else { "not created ($($r.RestorePoint.Reason))" })" }
@@ -1815,7 +1816,7 @@ function Update-IgwtGuiKernelList {
     }
     $onlyChanged = [bool]$c.InspectKernelChangedBox.IsChecked
     Set-IgwtGuiGridRows -Name 'InspectKernelList' -Rows @(foreach ($key in @($k.Keys)) { foreach ($v in @($key.Values)) { if (-not $onlyChanged -or $v.Status -ne 'Default') { New-IgwtGuiKernelRow -Value $v -Key ([string]$key.Name) } } })
-    $c.InspectKernelSummary.Text = "$($k.Changed) documented value(s) differ from the Windows default. Undocumented values are listed so you can see what other tools changed."
+    $c.InspectKernelSummary.Text = "$(Format-IgwtCount -Count ($k.Changed) -Noun 'documented value' -Verb 'differ') from the Windows default. Undocumented values are listed so you can see what other tools changed."
 }
 
 function Set-IgwtGuiInspection {
@@ -1832,7 +1833,7 @@ function Set-IgwtGuiInspection {
     $irq = $Inspection.Interrupts
     if ($irq -and -not ($irq.PSObject.Properties['Error'] -and $irq.Error)) {
         Set-IgwtGuiGridRows -Name 'InspectIrqList' -Rows @($irq.Devices | ForEach-Object { New-IgwtGuiIrqRow -Device $_ })
-        $c.InspectIrqSummary.Text = "$($irq.MessageSignaled) device(s) use message-signaled interrupts, $($irq.LineBased) line-based. $($irq.Note)"
+        $c.InspectIrqSummary.Text = "$(Format-IgwtCount -Count ($irq.MessageSignaled) -Noun 'device' -Verb 'use') message-signaled interrupts, $($irq.LineBased) line-based. $($irq.Note)"
     } elseif ($irq) { $c.InspectIrqSummary.Text = "Not readable: $($irq.Error)"; Set-IgwtGuiGridRows -Name 'InspectIrqList' -ErrorText "Not readable: $($irq.Error)" }
     $nic = $Inspection.Network
     if ($nic -and -not ($nic.PSObject.Properties['Error'] -and $nic.Error)) { $c.InspectNicList.ItemsSource = @($nic.Adapters | ForEach-Object { New-IgwtGuiNicRow -Adapter $_ }) }
@@ -2035,12 +2036,12 @@ function Update-IgwtGuiManageLists {
     if (& $has $m.Persistence 'Entries') {
         Set-IgwtGridRows -Grid $grids.Persist -Rows @($m.Persistence.Entries | ForEach-Object { New-IgwtGuiPersistenceRow -Entry $_ })
         $k = $m.Persistence.Counts
-        $c.ManagePersistSummary.Text = "$($k.Total) entries (Microsoft-signed services, drivers and tasks hidden), $($k.Warn) warning(s), $($k.Review) to review. $($m.Persistence.Note)"
+        $c.ManagePersistSummary.Text = "$($k.Total) entries (Microsoft-signed services, drivers and tasks hidden), $(Format-IgwtCount -Count ($k.Warn) -Noun 'warning'), $($k.Review) to review. $($m.Persistence.Note)"
     } else { $c.ManagePersistSummary.Text = & $err $m.Persistence; Set-IgwtGridState -Grid $grids.Persist -State Error -Message (& $err $m.Persistence) }
     if (& $has $m.Hosts 'Entries') {
         $h = $m.Hosts
         $lines = @($h.Entries | Where-Object { $_.Flag -ne 'Expected' } | Select-Object -First 8 | ForEach-Object { "[$($_.Flag)] $($_.Address) $($_.HostName)" })
-        $c.ManageHostsText.Text = "Hosts file ($($h.Path)): $(@($h.Entries).Count) entr(ies), $($h.Unexpected) flagged. $($h.Note)$(if ($lines.Count) { [Environment]::NewLine + ($lines -join [Environment]::NewLine) })"
+        $c.ManageHostsText.Text = "Hosts file ($($h.Path)): $(Format-IgwtCount -Count (@($h.Entries).Count) -Noun 'entry' -Plural 'entries'), $($h.Unexpected) flagged. $($h.Note)$(if ($lines.Count) { [Environment]::NewLine + ($lines -join [Environment]::NewLine) })"
     }
     Update-IgwtGuiButtons
 }
@@ -2522,10 +2523,12 @@ function Invoke-IgwtGuiNetApply {
     if (-not $r -or -not $r.Recommendations) { return }
     if (-not $script:Gui.IsAdmin) { $null = Show-IgwtGuiMessage -Text ((Get-IgwtGuiChangeBlockReason -What 'apply the recommended adjustments') + ' You can still review them here.'); return }
     $count = 0
+    $alone = (@($script:Gui.Staged.Keys).Count -eq 0)
     foreach ($id in @($r.Recommendations.TweakIds)) { Set-IgwtGuiStage -Id $id -Mode 'on'; $count++ }
-    $script:Gui.PresetOperation = 'Apply:NetworkTest'
+    # Only a list of the recommendations alone is journaled as the network test's session; with other staged changes it is a normal apply.
+    if ($alone) { Set-IgwtGuiPresetOperation -Name 'Apply:NetworkTest' }
     Update-IgwtGuiPending
-    Set-IgwtGuiStatus "Staged $count recommended network adjustment(s). Review the preview, then apply."
+    Set-IgwtGuiStatus "Staged $(Format-IgwtCount -Count $count -Noun 'recommended network adjustment'). Review the preview, then apply."
     Invoke-IgwtGuiPreview
 }
 
@@ -2859,7 +2862,7 @@ function Invoke-IgwtGuiDefenderPolicyChange {
     $params = @{ Id = [string]$row.Id; State = [string]$pick.Value }
     if (@($pick.Values.Keys).Count) { $params.Values = $pick.Values }
     $m = $script:Gui.Management
-    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override it."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Defender Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Set-IgwtLocalPolicy' -Parameters $params -Blocking -BusyText 'Setting the Group Policy (backup first)...' -OnComplete {
         param($out, $errs)
@@ -3065,7 +3068,7 @@ function Invoke-IgwtGuiToolkitApps {
     $ids = @(Get-IgwtGuiGridItems -Name ToolkitAppList | ForEach-Object { [string]$_.Source.Id })
     if ($Operation -ne 'UpgradeAll' -and $ids.Count -eq 0) { Set-IgwtGuiStatus 'Select one or more apps first.'; return }
     if ($Operation -ne 'Uninstall' -and -not (Confirm-IgwtGuiWingetAgreements)) { Set-IgwtGuiStatus 'Not installed: the winget agreements were not accepted.'; return }
-    $what = $(if ($Operation -eq 'UpgradeAll') { 'Upgrade every package from the winget source' } else { "$Operation $($ids.Count) app(s):`n$(@(Get-IgwtGuiGridItems -Name ToolkitAppList | ForEach-Object { "  $($_.Source.Name) ($($_.Source.Id))" }) -join "`n")" })
+    $what = $(if ($Operation -eq 'UpgradeAll') { 'Upgrade every package from the winget source' } else { "$Operation $(Format-IgwtCount -Count ($ids.Count) -Noun 'app'):`n$(@(Get-IgwtGuiGridItems -Name ToolkitAppList | ForEach-Object { "  $($_.Source.Name) ($($_.Source.Id))" }) -join "`n")" })
     if ((Show-IgwtGuiMessage -Text "$what`n`nwinget runs each installer silently; progress is shown in the log. Continue?" -Title 'iG Windows Tuner - Toolkit' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $cmd = 'Invoke-IgwtToolkitApp'; $params = @{ Operation = $Operation; Id = $ids; AcceptAgreements = ($Operation -ne 'Uninstall') }
     if ($Operation -eq 'UpgradeAll') { $cmd = 'Invoke-IgwtWingetUpgradeAll'; $params = @{ AcceptAgreements = $true } }
@@ -3088,7 +3091,7 @@ function Export-IgwtGuiAppSelection {
     $dlg = New-Object Microsoft.Win32.SaveFileDialog
     $dlg.Filter = 'iG Windows Tuner app selection (*.json)|*.json'; $dlg.FileName = 'igwt-apps.json'
     if (-not $dlg.ShowDialog($script:Gui.Window)) { return }
-    try { $null = Export-IgwtAppSelection -Path $dlg.FileName -Id $ids; Set-IgwtGuiStatus "Saved $($ids.Count) app(s) to $($dlg.FileName)." }
+    try { $null = Export-IgwtAppSelection -Path $dlg.FileName -Id $ids; Set-IgwtGuiStatus "Saved $(Format-IgwtCount -Count ($ids.Count) -Noun 'app') to $($dlg.FileName)." }
     catch { $null = Show-IgwtGuiMessage -Text $_.Exception.Message -Icon 'Warning' }
 }
 
@@ -3106,7 +3109,7 @@ function Import-IgwtGuiAppSelection {
     $list.SelectedItems.Clear()
     foreach ($row in @($list.Items)) { if ($ids -contains [string]$row.Source.Id) { $null = $list.SelectedItems.Add($row) } }
     $missing = @($ids | Where-Object { $i = $_; -not @($g.Index.Rows | Where-Object { [string]$_.Source.Id -eq $i }).Count })
-    Set-IgwtGuiStatus "Selected $(@($list.SelectedItems).Count) app(s) from the list.$(if ($missing.Count) { " Not in the curated list (install them with the CLI): $($missing -join ', ')." })"
+    Set-IgwtGuiStatus "Selected $(Format-IgwtCount -Count (@($list.SelectedItems).Count) -Noun 'app') from the list.$(if ($missing.Count) { " Not in the curated list (install them with the CLI): $($missing -join ', ')." })"
 }
 
 function Invoke-IgwtGuiToolkitFeature {
@@ -3733,14 +3736,15 @@ function Show-IgwtGui {
             $d = $script:Gui.Drift
             if (-not $d) { return }
             if (-not (Test-IgwtGuiCanRestage)) { return }
+            if (-not (Confirm-IgwtGuiReplaceStaged -What "Re-applying $($d.Name)")) { return }
             $script:Gui.Staged.Clear()
             foreach ($id in @($d.Drifted)) {
                 $dt = $script:Gui.Catalog | Where-Object { $_.id -eq [string]$id } | Select-Object -First 1
                 if ($dt -and -not $dt.expert -and [string]$dt.evidence.tier -ne 'R') { Set-IgwtGuiStage -Id ([string]$id) -Mode 'on' }
             }
-            $script:Gui.PresetOperation = "Preset:$($d.Preset)"
+            Set-IgwtGuiPresetOperation -Name "Preset:$($d.Preset)"
             Update-IgwtGuiPending
-            Set-IgwtGuiStatus "Staged $(@($d.Drifted).Count) change(s) to re-apply $($d.Name). Preview or Apply."
+            Set-IgwtGuiStatus "Staged $(Format-IgwtCount -Count (@($d.Drifted).Count) -Noun 'change') to re-apply $($d.Name). Preview or Apply."
         }
     Register-IgwtGuiHandler -Control $c.SessionStartButton -Event 'Click' -Handler { Start-IgwtGuiSession }
     Register-IgwtGuiHandler -Control $c.SessionStopButton -Event 'Click' -Handler { Stop-IgwtGuiSession }

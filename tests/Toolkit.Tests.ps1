@@ -156,7 +156,7 @@ Describe 'CLI help' {
         $help = $ast.GetHelpContent()
         $help | Should -Not -BeNullOrEmpty
         $documented = @($help.Parameters.Keys | ForEach-Object { $_.ToUpperInvariant() })
-        foreach ($p in @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath } | Where-Object { $_ -ne 'ElevatedRelaunch' })) { $documented | Should -Contain $p.ToUpperInvariant() -Because $p }
+        foreach ($p in @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath } | Where-Object { $_ -notin 'ElevatedRelaunch', 'ElevatedWorkingDirectory', 'ElevatedNoConfirm' })) { $documented | Should -Contain $p.ToUpperInvariant() -Because $p }
     }
 }
 

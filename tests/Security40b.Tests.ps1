@@ -90,12 +90,12 @@ Describe 'ASR results (ASR-1, ASR-2) and Security Settings managed rows (SS-1)' 
                 Mock Show-IgwtGuiToast { }
                 $res = [pscustomobject]@{ Changes = 1; Snapshot = 's'; Results = @([pscustomobject]@{ Target = 'Rule A'; Result = 'Failed'; Message = 'managed by policy' }, [pscustomobject]@{ Target = 'Rule B'; Result = 'Applied'; Message = '' }) }
                 Complete-IgwtGuiAsrChange -Out @($res) -Errors @() | Should -BeTrue
-                $script:Err | Should -Match '1 ASR change\(s\) failed: Rule A: managed by policy'
+                $script:Err | Should -Match '1 ASR change failed: Rule A: managed by policy'
                 $script:Err = $null
                 Mock Start-IgwtGuiJob { & $OnComplete @([pscustomobject]@{ Results = @([pscustomobject]@{ Id = 'rule-x'; Result = 'Failed'; Message = 'still Block.' }) }) @() $null; $true }
                 Mock Start-IgwtGuiAsrRefresh { }
                 Invoke-IgwtGuiAsrUndo -Snapshot 's'
-                $script:Err | Should -Match '1 ASR rule\(s\) were not restored: rule-x'
+                $script:Err | Should -Match '1 ASR rule was not restored: rule-x'
             } finally { $script:Gui = $saved }
         }
     }
@@ -169,11 +169,11 @@ Describe 'Firewall screens (FWH-2, FWH-3, FWH-4, FWP-3, FWP-5) and forensic logg
     It 'shows one summary for a run of several batches, and the Undo toast only after Keep (FWH-4, FWP-3)' {
         $src = Get-Content (Join-Path $script:Root 'src\Gui\FirewallPage.ps1') -Raw
         $src | Should -Match 'firewall batches applied\. Each can be undone in History'
-        $keep = $src.IndexOf('Show-IgwtGuiKeepChangesDialog -Seconds 60'); $toast = $src.IndexOf('firewall rule(s) changed.')
+        $keep = $src.IndexOf('Show-IgwtGuiKeepChangesDialog -Seconds 60'); $toast = $src.IndexOf("-Noun 'firewall rule') changed.")
         $keep | Should -BeLessThan $toast
     }
     It 'names rules that were not imported (FWP-5)' {
-        (Get-Content (Join-Path $script:Root 'src\Gui\FirewallPage.ps1') -Raw) | Should -Match 'rule\(s\) were not imported'
+        (Get-Content (Join-Path $script:Root 'src\Gui\FirewallPage.ps1') -Raw) | Should -Match ([regex]::Escape("-Noun 'rule' -Verb 'were') not imported"))
     }
     It 'says when the automatic forensic restore failed instead of "ended while closed" (FOR-2)' {
         if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') { Set-ItResult -Skipped -Because 'WPF needs an STA thread.'; return }

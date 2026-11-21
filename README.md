@@ -27,11 +27,35 @@ Tune performance, security and privacy for competitive gaming, with every change
 
 </div>
 
-![The iG Windows Tuner dashboard: the one thing that needs attention, status at a glance and every recent change with Undo](docs/screenshots/3.6/dashboard.png)
+![The iG Windows Tuner Home page: the one thing that needs attention, three status tiles and every recent change with Undo](docs/screenshots/4.0/home.png)
 
 Most Windows optimizers ask you to trust a list of tweaks. iG Windows Tuner works differently: every setting cites its source, every change is previewed, the result is read back from Windows, and the value from before can be restored exactly, including values that did not exist.
 
 It makes no promise of extra FPS. Tweaks that are placebo, obsolete or risky are documented as [rejected](docs/REJECTED_TWEAKS.md), with the reason.
+
+## New in 4.0
+
+A new window. Seven sections instead of 24 pages, one bar at the bottom that applies every change, and every Medium finding of the 3.8.1 review handled.
+
+<table>
+<tr>
+<td width="33%"><img src="docs/screenshots/4.0/optimize.png" alt="Optimize: one list of settings with category chips, each with its evidence, anti-cheat status and undo, and a details panel for the selected setting"></td>
+<td width="33%"><img src="docs/screenshots/4.0/history.png" alt="History: session cards from the change journal; a setting that changed since iG set it asks whether to keep it or put the old value back"></td>
+<td width="33%"><img src="docs/screenshots/4.0/network.png" alt="Network: the network test with DNS servers and encryption, the network profile with a switch, and the programs the firewall blocks"></td>
+</tr>
+<tr>
+<td valign="top"><b>Optimize.</b> One list with category chips and a details panel: what each setting does, its sources, anti-cheat status and how it is undone.</td>
+<td valign="top"><b>History.</b> Every change as a session card. Undo checks each value first and asks when something else changed it since.</td>
+<td valign="top"><b>Network.</b> The network test, your DNS servers (encrypted or not, with a benchmark), the network profile and the programs your firewall blocks.</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/4.0/security.png" alt="Security: Overview, Protection, Firewall and Policies tabs; every hardening item with its current state, confidence and the exact change"></td>
+<td><img src="docs/screenshots/4.0/advanced-tools.png" alt="Advanced tools: an overview card for each expert tool with what it is for and an Open button"></td>
+<td valign="top"><b>Security</b> has four tabs: Overview, Protection, Firewall and Policies. Defender values, attack surface rules and security settings are staged and applied like tweaks.<br><br><b>Advanced tools</b> open on an overview that explains each tool before you use it.</td>
+</tr>
+</table>
+
+<sub>The 4.0 screenshots are offscreen renders with sample data (fictional programs and hardware).</sub>
 
 ## New in 3.8.2
 

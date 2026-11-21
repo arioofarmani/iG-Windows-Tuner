@@ -1,8 +1,8 @@
 # Changelog
 
-## 4.0.0 (in progress)
+## 4.0.0 (2026-11-21)
 
-The redesign release. Section 1 (groundwork) fixes the security, privacy and data-loss findings left from the 3.8.1 review (DECISIONS Y1 to Y11).
+The redesign release: seven sections instead of 24 pages, one bar that applies every change, and every Medium finding of the 3.8.1 review handled (DECISIONS Y1 to SA10). Section 1 (groundwork) fixes the security, privacy and data-loss findings first.
 
 ### Security
 
@@ -58,6 +58,12 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 
 - Changing the theme could freeze the window: a refresh waited for console input that never came.
 - Menus opened from toolbars and lists no longer log WPF binding errors.
+- Running a changing command from a normal PowerShell asked again for confirmation after -Confirm:$false, and relative paths were read from System32; both now work as typed. -Json asks you to start PowerShell as administrator instead of losing the output.
+- -DefenderThreats showed only the last 14 days and refused -Days.
+- Staging a preset or a fix for changed settings replaced the changes you had staged without asking.
+- A PC onboarded to Microsoft Defender for Endpoint is now treated as managed.
+- The CPU check for the 13th/14th-gen instability fix missed 14th-gen processors.
+- The data conversion tool could rewrite tweak files and then stop on a newer preset; it now checks everything first.
 
 ### Network and Clean (section 6)
 

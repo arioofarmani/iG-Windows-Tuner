@@ -35,12 +35,12 @@ if ($SnapshotFolder -and -not $SnapshotDestination) { throw '-SnapshotFolder nee
 
 Set-IgwtEnvironment -DataFolder $DataFolder -WhatIf:$false
 try {
-    $report = @(Convert-IgwtDataToV2 -DataFolder $DataFolder)
+    $report = @(Convert-IgwtDataToV2 -DataFolder $DataFolder -WhatIf:$WhatIfPreference)   # module functions do not inherit the script's -WhatIf (review T-11)
     $report | Format-Table -AutoSize File, Kind, Items, FromSchema, Changed | Out-String -Width 160 | Write-Output
     Write-Output ("{0} file(s) checked, {1} converted{2}." -f $report.Count, @($report | Where-Object { $_.Changed }).Count, $(if ($WhatIfPreference) { ' (WhatIf: nothing written)' } else { '' }))
     if ($SnapshotFolder) {
         foreach ($f in (Get-ChildItem -LiteralPath $SnapshotFolder -Filter 'snapshot-*.json' -File)) {
-            $out = Convert-IgwtSnapshotToV2 -Path $f.FullName -Destination $SnapshotDestination
+            $out = Convert-IgwtSnapshotToV2 -Path $f.FullName -Destination $SnapshotDestination -WhatIf:$WhatIfPreference
             if ($out) { Write-Output "Snapshot copy: $out" }
         }
     }

@@ -41,7 +41,7 @@ function Get-IgwtCpuInfo {
         Model             = $model
         Stepping          = $stepping
         MicrocodeRevision = $rev
-        IsVminAffected    = ($family -eq 6 -and $script:IgwtVminModels -contains $model -and $name -match '1[34]th Gen Intel')
+        IsVminAffected    = ($family -eq 6 -and $script:IgwtVminModels -contains $model -and $name -match 'Intel' -and $name -match '\b(?:i[3579]-?)?1[34]\d{3}')   # 14th-gen names have no "14th Gen" text (review HL-1)
         IsHybrid          = ($cpu -and [int]$cpu.NumberOfLogicalProcessors -lt (2 * [int]$cpu.NumberOfCores))
     }
 }

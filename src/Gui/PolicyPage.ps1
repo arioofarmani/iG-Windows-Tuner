@@ -115,7 +115,7 @@ function Complete-IgwtGuiPolicyData {
     $script:Gui.PolicyScope = ''
     $script:Gui.Grids.Policy.Scope = @{}
     Set-IgwtGridRows -Grid $script:Gui.Grids.Policy -Rows $script:Gui.PolicyRows
-    $c.PolSummaryText.Text = "$($Data.Count) policies, $($Data.Configured) configured in the Local Group Policy." + $(if (@($Data.Errors).Count) { " $(@($Data.Errors).Count) template file(s) could not be read." } else { '' })
+    $c.PolSummaryText.Text = "$($Data.Count) policies, $($Data.Configured) configured in the Local Group Policy." + $(if (@($Data.Errors).Count) { " $(Format-IgwtCount -Count (@($Data.Errors).Count) -Noun 'template file') could not be read." } else { '' })
     $c.PolSummaryIcon.Text = [string][char]0xE946
 }
 
@@ -204,7 +204,7 @@ function Invoke-IgwtGuiPolicySet {
     if (@($pick.Values.Keys).Count) { $params.Values = $pick.Values }
     $text = "Set '$($d.Name)' to $($pick.Label)?`n`n$($d.Id)`n`nA backup of the Local Group Policy is taken first; Undo restores it."
     $m = $script:Gui.Management
-    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): a domain or MDM policy can override it."; $params.AcknowledgeManaged = $true }
+    if ($m -and $m.Managed) { $text += "`n`nThis PC is managed ($(@($m.Authorities) -join ', ')): your organization's policy can override it."; $params.AcknowledgeManaged = $true }
     if ((Show-IgwtGuiMessage -Text $text -Title 'iG Windows Tuner - Group Policy' -Buttons 'YesNo' -Icon 'Question') -ne 'Yes') { return }
     $null = Start-IgwtGuiJob -Command 'Set-IgwtLocalPolicy' -Parameters $params -Blocking -BusyText 'Setting the policy (backup first)...' -OnComplete {
         param($out, $errs)

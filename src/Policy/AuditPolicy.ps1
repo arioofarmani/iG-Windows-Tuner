@@ -163,7 +163,7 @@ function Set-IgwtAuditPolicy {
     $current = Get-IgwtAuditPolicy
     $plan = Get-IgwtAuditChangePlan -Changes $Changes -Current $current
     $m = Get-IgwtManagementState
-    if ($m.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($(@($m.Authorities) -join ', ')); a domain or MDM audit policy can override local settings. Pass -AcknowledgeManaged to change it locally." }
+    if ($m.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($(@($m.Authorities) -join ', ')); your organization's audit policy can override local settings. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing the audit policy needs administrator rights.' }
     $todo = @($plan.Ops | Where-Object { $_.Changes })
     if (-not $PSCmdlet.ShouldProcess('Audit policy', "Set $($todo.Count) subcategory setting(s)")) { return $null }

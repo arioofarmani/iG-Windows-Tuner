@@ -95,7 +95,7 @@ function Set-IgwtGuiHomeSnooze {
     $map[[string]$card.Key] = $now.AddDays($Days).ToUniversalTime().ToString('o')
     Set-IgwtGuiViewValue -Name 'HomeSnooze' -Value $map
     Update-IgwtGuiHomeCard
-    Set-IgwtGuiStatus "Hidden for $Days day(s): $($card.Title)."
+    Set-IgwtGuiStatus "Hidden for $(Format-IgwtCount -Count $Days -Noun 'day'): $($card.Title)."
 }
 
 function Show-IgwtGuiHomeWhy {
@@ -143,16 +143,17 @@ function Invoke-IgwtGuiHomeAction {
                 $ids = @(Get-IgwtDriftReapplyIds -Rows $pick.Rows)
                 if (-not $ids.Count) { return }
                 if (-not (Test-IgwtGuiCanRestage)) { return }
+                if (-not (Confirm-IgwtGuiReplaceStaged -What 'Re-applying the changed settings')) { return }
                 $script:Gui.Staged.Clear()
                 foreach ($id in $ids) { Set-IgwtGuiStage -Id $id -Mode 'on' }
-                $script:Gui.PresetOperation = 'DriftFix'
+                Set-IgwtGuiPresetOperation -Name 'DriftFix'
                 Update-IgwtGuiPending
                 Invoke-IgwtGuiPreview
             } elseif ($pick.Action -eq 'Accept') {
                 $null = Start-IgwtGuiJob -Command 'Invoke-IgwtDriftAccept' -Parameters @{ Rows = @($pick.Rows); Confirm = $false } -Blocking -BusyText 'Recording the accepted values...' -OnComplete {
                     param($out, $errs)
                     $r = @($out | Where-Object { $_ }) | Select-Object -Last 1
-                    if ($r) { Set-IgwtGuiStatus "Accepted the current value of $($r.Accepted) setting(s); iG no longer tracks the values it set there." }
+                    if ($r) { Set-IgwtGuiStatus "Accepted the current value of $(Format-IgwtCount -Count ($r.Accepted) -Noun 'setting'); iG no longer tracks the values it set there." }
                     elseif (@($errs).Count) { $null = Show-IgwtGuiMessage -Text "Not recorded: $(@($errs)[0])" -Icon 'Error' }
                     Start-IgwtGuiHomeCard
                 }

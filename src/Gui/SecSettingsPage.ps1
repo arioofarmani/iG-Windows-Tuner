@@ -281,7 +281,7 @@ function Invoke-IgwtGuiSecSettingsPreview {
             $lines = @($res.Results | ForEach-Object { "[$($_.Result)] $($_.Name) $($_.Message)" })
             if ($res.Restart -eq 'reboot') { $lines += ''; $lines += 'Restart Windows to finish. Have your BitLocker recovery key ready if the system drive is encrypted.' }
             $ok = @($res.Results | Where-Object Result -EQ 'Committed').Count
-            if ($ok) { Show-IgwtGuiToast -Text "$ok security setting(s) changed." -Tone Success -ActionText 'Undo' -Action { param($sid) Invoke-IgwtGuiSecSettingsUndo -SessionId $sid } -ActionArgument ([string]$res.SessionId) }
+            if ($ok) { Show-IgwtGuiToast -Text "$(Format-IgwtCount -Count $ok -Noun 'security setting') changed." -Tone Success -ActionText 'Undo' -Action { param($sid) Invoke-IgwtGuiSecSettingsUndo -SessionId $sid } -ActionArgument ([string]$res.SessionId) }
             $null = Show-IgwtGuiTextDialog -Title 'Security settings - result' -Text ($lines -join "`n")
             Start-IgwtGuiSecSettingsLoad
         }

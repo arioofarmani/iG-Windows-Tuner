@@ -644,6 +644,8 @@
 
     <!-- Combo box -->
     <Style TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
         <Setter Property="Padding" Value="10,6"/>
@@ -793,6 +795,8 @@
         <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
     </Style>
     <Style TargetType="{x:Type TreeViewItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -835,6 +839,8 @@
 
     <!-- Navigation -->
     <Style x:Key="NavItem" TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource BrushText}"/>
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBody}"/>
         <Setter Property="Padding" Value="12,7"/>
@@ -867,6 +873,8 @@
     </Style>
     <!-- A group label in the navigation (3.3 X11): not selectable, not focusable. -->
     <Style x:Key="NavHeader" TargetType="{x:Type ListBoxItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
         <Setter Property="IsTabStop" Value="False"/>
@@ -1340,6 +1348,11 @@
     <!-- Menu items built in code: set the alignments the default style otherwise binds to an ancestor ItemsControl,
          which fails for items added after creation (51 binding errors in the 4.0 UI Automation run). -->
     <Style TargetType="{x:Type MenuItem}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <!-- List items built in code: same reason as MenuItem (the default style binds the alignments to an ancestor ItemsControl). -->
+    <Style TargetType="{x:Type ListBoxItem}">
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>

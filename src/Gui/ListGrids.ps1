@@ -388,7 +388,7 @@ function New-IgwtGuiSnapshotRow {
     $r = [ordered]@{
         Key = [string]$s.Path; Path = [string]$s.Path; File = [string]$s.File; When = $when; Operation = $op; KindText = $kind
         Entries = @($s.Applied).Count; Failed = $failed; Detail = [string]$s.Detail; HasChange = $changed
-        Summary = $(if ($changed) { "$(@($s.Applied).Count) applied/reverted entr(ies), $failed failed. $($s.Detail)" } else { "Nothing changed, so there is nothing to revert. $($s.Detail)" })
+        Summary = $(if ($changed) { "$(Format-IgwtCount -Count (@($s.Applied).Count) -Noun 'applied/reverted entry' -Plural 'applied/reverted entries'), $failed failed. $($s.Detail)" } else { "Nothing changed, so there is nothing to revert. $($s.Detail)" })
     }
     Add-IgwtGuiStatusField -Row $r -Name 'FailedCol' -Text $(if (-not $changed) { 'Nothing changed' } elseif ($failed) { "$failed failed" } else { 'None' }) -Tone $(if ($failed -or -not $changed) { 'Warn' } else { 'Pass' })
     [pscustomobject]$r

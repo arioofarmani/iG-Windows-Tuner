@@ -182,7 +182,8 @@ try {
         $fwNote = "$($audit.Count) rules classified ($($unclassified.Count) without a category), $($quick.Count) quick wins, $(@($done).Count) disabled ($($stillOn.Count) still on), $($notBack.Count) rule(s) not back after revert ($(if ($revertFw) { 'reverted' } else { 'nothing to revert' })), baseline $($base.Count) rules; audit $($audit.LoadMs) ms"
     } catch { $fwNote = "error: $($_.Exception.Message)" }
 
-    $pass = ($applyFailed.Count -eq 0 -and $revertFailed.Count -eq 0 -and $mismatch.Count -eq 0 -and $presetFail.Count -eq 0 -and $sessionOk -and $cleanOk -and $customOk -and $fwOk)
+    # Not verified, not On after apply and state differences after revert fail the run too (review T-09: they were listed but passed).
+    $pass = ($applyFailed.Count -eq 0 -and $notVerified.Count -eq 0 -and $notOn.Count -eq 0 -and $revertFailed.Count -eq 0 -and $mismatch.Count -eq 0 -and $stateDiff.Count -eq 0 -and $presetFail.Count -eq 0 -and $sessionOk -and $cleanOk -and $customOk -and $fwOk)
     $results = [ordered]@{
         Pass = $pass; Build = (Get-IgwtOsInfo).FullBuild; Applied = @($apply.Results | Where-Object Result -EQ 'Applied').Count
         ApplyFailed = $applyFailed; NotVerified = $notVerified; NotOnAfterApply = $notOn; RevertFailed = $revertFailed

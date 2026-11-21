@@ -402,7 +402,7 @@ function Set-IgwtSecurityPolicy {
     $before = Export-IgwtSecurityPolicy
     $plan = Get-IgwtSecurityChangePlan -Changes $Changes -Current $before
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
-    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local security settings. Pass -AcknowledgeManaged to change it locally." }
+    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); your organization's policy can override local security settings. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing the local security policy needs administrator rights.' }
     if (-not $PSCmdlet.ShouldProcess('Local security policy', "Set $(@($plan.Rows).Count) setting(s)")) { return $null }
     if (-not $script:IgwtSettings.TestMode) { Initialize-IgwtDataRoot }

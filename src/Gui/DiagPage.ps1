@@ -126,16 +126,16 @@ function Set-IgwtGuiDiagCards {
         ((@("Peak DPC $($x.Dpc.Max) %, peak ISR $($x.Isr.Max) %, $([Math]::Round([double]$x.Interrupts.Average)) interrupts/s") + @($x.TopProcesses | Select-Object -First 5 | ForEach-Object { "$($_.Name): $($_.CpuPercent) % CPU, $($_.WorkingSetMB) MB" }) + @($x.Advice)) -join [Environment]::NewLine)
     } else { & $set 'Dpc' '-' (& $err $x) $null }
     $x = $(if (& $has $d 'Reliability') { $d.Reliability } else { $null })
-    if (& $has $x 'Records') { & $set 'Stability' $(if ($null -ne $x.Current) { "$($x.Current) / 10" } else { 'n/a' }) "$(@($x.Records).Count) record(s) in $($x.Days) days" $null }
+    if (& $has $x 'Records') { & $set 'Stability' $(if ($null -ne $x.Current) { "$($x.Current) / 10" } else { 'n/a' }) "$(Format-IgwtCount -Count (@($x.Records).Count) -Noun 'record') in $($x.Days) days" $null }
     else { & $set 'Stability' '-' (& $err $x) $null }
     $x = $(if (& $has $d 'Crashes') { $d.Crashes } else { $null })
     if (& $has $x 'Counts') {
         $k = $x.Counts
         $system = [int]$k.BugCheck + [int]$k.KernelPower41 + [int]$k.UnexpectedShutdown
-        & $set 'Crash' $(if ($system) { "$system system crash(es)" } else { 'No system crashes' }) "Blue screens $($k.BugCheck), power loss $($k.KernelPower41), app crashes $($k.AppCrash) ($($x.Days) days)" (@($x.Advice) -join [Environment]::NewLine)
+        & $set 'Crash' $(if ($system) { "$(Format-IgwtCount -Count $system -Noun 'system crash' -Plural 'system crashes')" } else { 'No system crashes' }) "Blue screens $($k.BugCheck), power loss $($k.KernelPower41), app crashes $($k.AppCrash) ($($x.Days) days)" (@($x.Advice) -join [Environment]::NewLine)
     } else { & $set 'Crash' '-' (& $err $x) $null }
     $x = $(if (& $has $d 'Boot') { $d.Boot } else { $null })
-    if ((& $has $x 'Boots') -and -not $x.Error) { & $set 'Boot' "$($x.AverageBootSeconds) s" "Average of $(@($x.Boots).Count) boot(s)" $null }
+    if ((& $has $x 'Boots') -and -not $x.Error) { & $set 'Boot' "$($x.AverageBootSeconds) s" "Average of $(Format-IgwtCount -Count (@($x.Boots).Count) -Noun 'boot')" $null }
     elseif (& $has $x 'Boots') { & $set 'Boot' '-' ([string]$x.Error) $null }
     else { & $set 'Boot' '-' (& $err $x) $null }
 }

@@ -50,7 +50,7 @@ function Select-IgwtHomeCard {
     }
     foreach ($s in @($InputData.Incomplete)) {
         $cards.Add([pscustomobject]@{ Key = "incomplete:$($s.Id)"; Priority = 1; Kind = 'incomplete'; Title = 'A change did not finish'
-                Text = "'$($s.Title)' stopped part-way ($(@($s.Steps).Count) step(s) may have changed something). Roll it back?"; Action = 'recover'; SessionId = [string]$s.Id
+                Text = "'$($s.Title)' stopped part-way ($(Format-IgwtCount -Count (@($s.Steps).Count) -Noun 'step') may have changed something). Roll it back?"; Action = 'recover'; SessionId = [string]$s.Id
                 Why = "The app or the PC stopped while this change was running. Do it shows the steps and restores each one to the value recorded before it, as a new journaled change. Nothing happens until you confirm." })
     }
     $d = $InputData.Drift
@@ -60,7 +60,7 @@ function Select-IgwtHomeCard {
             $ids = @($bad | ForEach-Object { [string]$_.Item } | Select-Object -Unique)
             $names = @($bad | ForEach-Object { if ($_.PSObject.Properties['Name'] -and $_.Name) { [string]$_.Name } else { [string]$_.Item } } | Select-Object -Unique)
             $cards.Add([pscustomobject]@{ Key = "drift:$((Get-IgwtJournalHash -Line ((@($bad | ForEach-Object { [string]$_.Key } | Sort-Object)) -join '|')).Substring(0, 16))"; Priority = 2; Kind = 'drift'
-                    Title = "$($ids.Count) setting(s) changed since iG set them"; Text = "$(($names | Select-Object -First 3) -join '; ')$(if ($names.Count -gt 3) { '; and more' }). Re-apply them or accept the current values?"; Action = 'drift'
+                    Title = "$(Format-IgwtCount -Count ($ids.Count) -Noun 'setting') changed since iG set $(if ($ids.Count -eq 1) { 'it' } else { 'them' })"; Text = "$(($names | Select-Object -First 3) -join '; ')$(if ($names.Count -gt 3) { '; and more' }). $(if ($ids.Count -eq 1) { 'Re-apply it or accept the current value?' } else { 'Re-apply them or accept the current values?' })"; Action = 'drift'
                     Why = "$($d.Summary) Something else changed these values after iG set them: you, an app, a policy or Windows. $(if (@($d.Updates).Count) { "Windows updates installed in between: $((@($d.Updates) | Select-Object -First 3 | ForEach-Object { $_.Title }) -join '; '). They may or may not be related." } else { '' })".Trim() })
         }
     }
@@ -72,7 +72,7 @@ function Select-IgwtHomeCard {
     }
     if ($InputData.Preset -and @($InputData.Unverified).Count) {
         $u = @($InputData.Unverified)
-        $cards.Add([pscustomobject]@{ Key = "unverified:$($InputData.Preset.Id):$((Get-IgwtJournalHash -Line ($u -join '|')).Substring(0, 16))"; Priority = 4; Kind = 'unverified'; Title = "$($u.Count) Unverified item(s) in $($InputData.Preset.Name)"
+        $cards.Add([pscustomobject]@{ Key = "unverified:$($InputData.Preset.Id):$((Get-IgwtJournalHash -Line ($u -join '|')).Substring(0, 16))"; Priority = 4; Kind = 'unverified'; Title = "$(Format-IgwtCount -Count ($u.Count) -Noun 'Unverified item') in $($InputData.Preset.Name)"
                 Text = "$($u -join ', '): no Microsoft or hardware-vendor documentation backs them."; Action = 'unverified'; Items = $u
                 Why = 'Unverified means the item has no Microsoft or hardware-vendor documentation as a source. It still applies and reverts like any item; you may prefer to leave it out (customize the preset) until it is documented.' })
     }

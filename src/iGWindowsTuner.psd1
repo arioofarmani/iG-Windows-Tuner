@@ -1,6 +1,6 @@
 @{
     RootModule           = 'iGWindowsTuner.psm1'
-    ModuleVersion        = '3.9.0'
+    ModuleVersion        = '4.0.0'
     GUID                 = '220c64d8-0ab0-4ba8-afd9-1e09b4c9bb4d'
     Author               = 'iG Windows Tuner contributors'
     CompanyName          = 'iG Windows Tuner'
@@ -20,7 +20,7 @@
         'Write-IgwtLog', 'Get-IgwtLogBuffer', 'Get-IgwtLogEntries', 'Set-IgwtLogSink',
         'Set-IgwtEnvironment', 'Test-IgwtReadOnly', 'Get-IgwtEnvironment', 'Get-IgwtDataPath', 'Initialize-IgwtDataRoot',
         'Get-IgwtCleanerRules', 'Test-IgwtCleanerCatalog', 'Invoke-IgwtCleanerScan', 'Invoke-IgwtCleanerClean', 'Set-IgwtCleanerTestRoot',
-        'Get-IgwtDiskUsage', 'Format-IgwtBytes',
+        'Get-IgwtDiskUsage', 'Format-IgwtBytes', 'Format-IgwtCount',
         'Get-IgwtRegCleanExclusions', 'Save-IgwtRegCleanExclusions', 'Get-IgwtRegistryLeftovers', 'Get-IgwtRegCleanFinding', 'Get-IgwtRegCleanPlan', 'Format-IgwtRegCleanPlan', 'Invoke-IgwtRegistryCleanup',
         'Convert-IgwtDataToV2', 'Convert-IgwtSnapshotToV2', 'Get-IgwtHardwareTagDefinitions',
         'Get-IgwtHardwareFacts', 'Get-IgwtHardwareProfile', 'Get-IgwtHardwareOverlays', 'Resolve-IgwtPresetSelection', 'Test-IgwtHardwareCatalog',

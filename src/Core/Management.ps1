@@ -96,7 +96,10 @@ function Get-IgwtManagementState {
         DomainJoined = [bool]$join.DomainJoined; DomainName = [string]$join.DomainName; EntraJoined = [bool]$join.EntraJoined; TenantId = [string]$join.TenantId
         MdmEnrolled = ($mdm.Count -gt 0); MdmProviders = @($mdm | ForEach-Object { $_.Provider } | Select-Object -Unique)
         DefenderForEndpoint = [bool]$sec.DefenderForEndpoint; DefenderMode = [string]$sec.DefenderMode; ThirdPartyAntivirus = @($sec.ThirdPartyAntivirus)
-        Managed = ([bool]$join.DomainJoined -or $mdm.Count -gt 0)
+        # Defender for Endpoint security settings management can set Defender, firewall and ASR settings without
+        # domain or MDM enrollment, and Microsoft documents no local value that says it is on (review C3): an
+        # onboarded PC counts as managed, so local policy changes ask for -AcknowledgeManaged first.
+        Managed = ([bool]$join.DomainJoined -or $mdm.Count -gt 0 -or [bool]$sec.DefenderForEndpoint)
         Authorities = $authorities.ToArray()
     }
     if (-not $script:IgwtSettings.TestMode) { $script:IgwtManagementCache = $state }
@@ -115,7 +118,7 @@ function Get-IgwtItemAuthority {
     if (-not $Management) { return $null }
     if (-not $Management.Managed) { return $null }
     if (-not [string]$Tweak.gpoPath) { return $null }
-    return "This PC is managed ($(@($Management.Authorities) -join ', ')); a domain or MDM policy can override this setting, and local changes need -AcknowledgeManaged."
+    return "This PC is managed ($(@($Management.Authorities) -join ', ')); a domain, MDM or Defender for Endpoint policy can override this setting, and local changes need -AcknowledgeManaged."
 }
 
 function Format-IgwtManagementState {

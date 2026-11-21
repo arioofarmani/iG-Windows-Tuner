@@ -471,7 +471,7 @@ function Set-IgwtLocalPolicy {
     $classArg = @{}; if ($Class) { $classArg.Class = $Class }
     $plan = Get-IgwtPolicyChangePlan -Id $Id -State $State -Values $Values @classArg
     if ($plan.Refusals.Count) { throw "Refused: $($plan.Refusals -join ' ')" }
-    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); a domain or MDM policy can override local policies. Pass -AcknowledgeManaged to change it locally." }
+    if ($plan.Managed -and -not $AcknowledgeManaged) { throw "This PC is managed ($($plan.Authorities -join ', ')); your organization's policy can override local policies. Pass -AcknowledgeManaged to change it locally." }
     if (-not $script:IgwtSettings.TestMode -and -not (Test-IgwtIsAdmin)) { throw 'Changing Local Group Policy needs administrator rights.' }
     if (-not $PSCmdlet.ShouldProcess("$($plan.Policy.DisplayName) ($($plan.Class))", "Set $State")) { return $null }
     $backup = Backup-IgwtLocalGpo -Reason "before $($plan.Policy.Id) -> $State"

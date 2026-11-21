@@ -73,7 +73,7 @@ function Set-IgwtGuiJournal {
     $c.JournalStatusText.Text = switch ([string]$Timeline.Status) {
         'Empty' { 'No changes recorded yet. The journal starts with the first change.' }
         'Broken' { "The journal failed its integrity check and is read-only, so no change runs: $($Timeline.Reason)" }
-        default { "$($Timeline.Sessions) session(s), $($rows.Count) change(s); $inEffect still in effect. Integrity check passed ($($Timeline.Count) entries)." }
+        default { "$(Format-IgwtCount -Count ($Timeline.Sessions) -Noun 'session'), $(Format-IgwtCount -Count ($rows.Count) -Noun 'change'); $inEffect still in effect. Integrity check passed ($($Timeline.Count) entries)." }
     }
     Update-IgwtGuiJournalButtons
 }
@@ -161,7 +161,7 @@ function Format-IgwtGuiJournalPlan {
     $nl = [Environment]::NewLine
     $lines = New-Object System.Collections.Generic.List[string]
     $ready = @($Plan | Where-Object Status -EQ 'Ready').Count; $conf = @($Plan | Where-Object Status -EQ 'Conflict').Count
-    $lines.Add("$ready value(s) will be restored; $conf changed since iG set them (you choose); $(@($Plan).Count - $ready - $conf) unchanged or refused.")
+    $lines.Add("$(Format-IgwtCount -Count $ready -Noun 'value') will be restored; $conf changed since iG set them (you choose); $(@($Plan).Count - $ready - $conf) unchanged or refused.")
     $lines.Add('')
     foreach ($p in $Plan) {
         $lines.Add(('{0,-9} {1}' -f $p.Status, $p.Item))
