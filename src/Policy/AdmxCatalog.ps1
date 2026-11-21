@@ -5,7 +5,7 @@
 # project. The parsed catalog is cached per user, keyed by a hash of the definition files.
 
 $script:IgwtAdmxCache = $null
-$script:IgwtAdmxCacheVersion = 2
+$script:IgwtAdmxCacheVersion = 3
 
 function Get-IgwtAdmxFolders {
     <#
@@ -147,7 +147,8 @@ function ConvertFrom-IgwtAdmxElement {
                 })
         }
         'list' {
-            $e.ValuePrefix = $Node.GetAttribute('valuePrefix'); $e.Additive = ($Node.GetAttribute('additive') -eq 'true')
+            # valuePrefix="" (names 1..n) differs from no valuePrefix (name = data), review P-09.
+            $e.ValuePrefix = $Node.GetAttribute('valuePrefix'); $e.HasPrefix = $Node.HasAttribute('valuePrefix'); $e.Additive = ($Node.GetAttribute('additive') -eq 'true')
             $e.ExplicitValue = ($Node.GetAttribute('explicitValue') -eq 'true'); $e.Expandable = ($Node.GetAttribute('expandable') -eq 'true')
         }
     }

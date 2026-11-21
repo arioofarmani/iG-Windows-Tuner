@@ -47,6 +47,27 @@ The redesign release. Section 1 (groundwork) fixes the security, privacy and dat
 - Play: each preset card shows Preview first, then the button that stages it.
 - When another administrator's account starts iG, the window says whose per-user settings it shows, and reads the signed-in user's settings in every view.
 
+### Security engine (section 5a)
+
+- iG never lowers a protection level, also between two "on" levels: for example Cloud block level Zero tolerance to High, Network protection or AI agent protection Block to Audit, or a weaker LAN Manager level. Turning a protection up still works.
+- Defender options that switch scans or updates off are refused: scheduled scan day "Never", the delayed "Critical" update channels, and catch-up and grace periods longer than a week or a day.
+- Undoing an older Group Policy change is refused while later Group Policy or Security Settings changes are still in place; undo the newest first. A restore that fails part-way puts the folders back as they were.
+- Security Settings says for each Group Policy row whether it is in effect after the refresh, or which value Windows still reads.
+- Inbox app removals are marked as one-way: History offers no Undo for them; reinstall the app from the Microsoft Store.
+- More Windows tasks are protected in services and tasks: Defrag (which also runs SSD TRIM), Store app updates, servicing, certificates, activation and update remediation.
+- The persistence inspector flags startup entries that run PowerShell, cmd, mshta or rundll32 with suspicious arguments or an unsigned DLL, also under Microsoft task folders.
+
+### Fixed (section 5a)
+
+- A misspelled account name in a user-rights change wrote an error message into the security template; it is refused now.
+- Baseline security options with SDDL values (for example RestrictRemoteSAM) were refused because the value was cut at its semicolons.
+- On Windows in another language, audit settings that could not be read counted as "no auditing", so a change could stop auditing; they are now shown as unknown and never changed.
+- Reverting a policy preset stopped at the first part that failed; every part is restored now and the message names what failed.
+- Lists with an empty value prefix in administrative templates are written with names 1, 2, 3 like the Group Policy editor.
+- In a 32-bit PowerShell, Local Group Policy backups and restores used the folder Windows ignores.
+- A forensic logging session that ended while iG was closed stayed on until Stop was pressed; the next elevated start restores it.
+- The ASR audit view recommended Block for a rule switched to Audit today, counting the whole log as audit time.
+- Firewall: a profile setting kept by Group Policy was reported as changed; an undo after a protocol change kept the old ports; imports accepted edge traversal and a text "false" turned rules on; a block rule for one port was said to make an allow rule for every port useless; SMB and other System listeners showed as blocked while File and Printer Sharing rules were on; elevating with another administrator's account marked the Xbox app rules as bloat.
 ### Fixed (section 4)
 
 - In the change journal tab, pressing Esc or Cancel on a "changed since" question skipped that setting but still undid the rest; now it stops the whole undo.

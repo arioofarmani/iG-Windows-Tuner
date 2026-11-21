@@ -155,6 +155,24 @@ function Get-IgwtDefenderSettingStatus {
     }
 }
 
+function Test-IgwtDefenderStrengthLower {
+    <# .SYNOPSIS True when -Value is weaker than -Current in the setting's strength order (strongest first); false without an order or when either value is not in it. Pure. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)]$Definition, [AllowNull()]$Value, [AllowNull()]$Current)
+    if ($null -eq $Definition.strength -or $null -eq $Value -or $null -eq $Current) { return $false }
+    $order = @(@($Definition.strength) | ForEach-Object { [long]$_ })
+    $iv = [array]::IndexOf($order, [long]$Value); $ic = [array]::IndexOf($order, [long]$Current)
+    return ($iv -ge 0 -and $ic -ge 0 -and $iv -gt $ic)
+}
+
+function Format-IgwtDefenderLowerText {
+    <# .SYNOPSIS The refusal text for a change that lowers a protection level. Pure. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)]$Definition, [AllowNull()]$Value, [AllowNull()]$Current)
+    return "Lowers $($Definition.name) from $(Format-IgwtDefenderSettingValue -Definition $Definition -Value $Current) to $(Format-IgwtDefenderSettingValue -Definition $Definition -Value $Value): iG Windows Tuner never lowers a protection level."
+}
 function Test-IgwtDefenderSettingValue {
     <#
     .SYNOPSIS
@@ -177,6 +195,8 @@ function Test-IgwtDefenderSettingValue {
             if ($kind -eq 'parser') { return "Network Inspection parsers are only ever turned on ($labels)." }
             return "Only the protective value can be set ($labels): iG Windows Tuner never turns a protection off."
         }
+        # Block -> Audit is still "on", but weaker (review F-02).
+        if ($PSBoundParameters.ContainsKey('Current') -and (Test-IgwtDefenderStrengthLower -Definition $Definition -Value $Value -Current $Current)) { return (Format-IgwtDefenderLowerText -Definition $Definition -Value $Value -Current $Current) }
         return $null
     }
     switch ([string]$Definition.type) {
@@ -185,6 +205,9 @@ function Test-IgwtDefenderSettingValue {
             if (-not $hit) { return "$Value is not a listed value." }
             if ($hit.refused) { return "'$($hit.label)' is refused: $($hit.why)" }
             if ($hit.noSet) { return "'$($hit.label)' cannot be set directly." }
+            # Values of shared lists that weaken this setting (review F-03), for example scan day Never.
+            $own = @(@($Definition.refuse) | Where-Object { $_ -and [long]$_.v -eq [long]$Value }) | Select-Object -First 1
+            if ($own) { return "'$($hit.label)' is refused: $($own.why)" }
         }
         'uint' {
             $min = $(if ($null -ne $Definition.min) { [long]$Definition.min } else { 0L })
@@ -203,8 +226,10 @@ function Test-IgwtDefenderSettingValue {
         }
         'list' { return 'Lists are set through Group Policy only.' }
     }
-    if ($kind -eq 'level' -and $PSBoundParameters.ContainsKey('Current') -and $null -ne $Current -and (Get-IgwtDefenderSettingStatus -Definition $Definition -Value $Current) -eq 'On' -and (Get-IgwtDefenderSettingStatus -Definition $Definition -Value $Value) -ne 'On') {
-        return "Lowers $($Definition.name) from $(Format-IgwtDefenderSettingValue -Definition $Definition -Value $Current) to $(Format-IgwtDefenderSettingValue -Definition $Definition -Value $Value): iG Windows Tuner never lowers a protection level."
+    if ($kind -eq 'level' -and $PSBoundParameters.ContainsKey('Current') -and $null -ne $Current) {
+        # With a strength order, any weaker value is a lowering, also between two "on" values (review F-02).
+        if ($null -ne $Definition.strength) { if (Test-IgwtDefenderStrengthLower -Definition $Definition -Value $Value -Current $Current) { return (Format-IgwtDefenderLowerText -Definition $Definition -Value $Value -Current $Current) } }
+        elseif ((Get-IgwtDefenderSettingStatus -Definition $Definition -Value $Current) -eq 'On' -and (Get-IgwtDefenderSettingStatus -Definition $Definition -Value $Value) -ne 'On') { return (Format-IgwtDefenderLowerText -Definition $Definition -Value $Value -Current $Current) }
     }
     return $null
 }

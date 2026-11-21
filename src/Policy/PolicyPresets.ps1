@@ -280,10 +280,17 @@ function Restore-IgwtPolicyPreset {
     $r = Read-IgwtJsonFile -Path $Record
     if ([string]$r.kind -ne 'igwt-policy-preset') { throw "'$Record' is not a policy preset record." }
     if (-not $PSCmdlet.ShouldProcess([string]$r.preset, 'Revert policy preset')) { return $null }
-    $done = @()
-    if ($r.secpolBackup) { $null = Restore-IgwtSecurityPolicy -BackupPath ([string]$r.secpolBackup); $done += 'security policy' }
-    if ($r.auditBackup) { $null = Restore-IgwtAuditPolicy -BackupPath ([string]$r.auditBackup); $done += 'audit policy' }
-    if ($r.gpoBackup) { $null = Restore-IgwtLocalGpo -BackupPath ([string]$r.gpoBackup) -NoRefresh:$NoRefresh; Clear-IgwtCache -Prefix 'pol:' -WhatIf:$false; $done += 'Local GPO' }
+    # Each part on its own (review P-22): a failing part no longer stops the others, and the message says which failed.
+    $done = @(); $failed = @()
+    $stages = @(
+        @('security policy', [string]$r.secpolBackup, { param($b) $null = Restore-IgwtSecurityPolicy -BackupPath $b }),
+        @('audit policy', [string]$r.auditBackup, { param($b) $null = Restore-IgwtAuditPolicy -BackupPath $b }),
+        @('Local GPO', [string]$r.gpoBackup, { param($b) $null = Restore-IgwtLocalGpo -BackupPath $b -NoRefresh:$NoRefresh; Clear-IgwtCache -Prefix 'pol:' -WhatIf:$false }))
+    foreach ($s in $stages) {
+        if (-not $s[1]) { continue }
+        try { & $s[2] $s[1]; $done += $s[0] } catch { $failed += "$($s[0]): $($_.Exception.Message)" }
+    }
+    if ($failed.Count) { throw "Policy preset $($r.preset) was reverted only in part. Restored: $(if ($done.Count) { $done -join ', ' } else { 'nothing' }). Failed: $($failed -join '; ')" }
     Write-IgwtLog -Message "Policy preset $($r.preset) reverted ($($done -join ', '))."
     return [pscustomobject]@{ Preset = [string]$r.preset; Restored = $done; StillOn = @($r.parsersTurnedOn | Where-Object { $_ }) }
 }

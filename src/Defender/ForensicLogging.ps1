@@ -252,7 +252,7 @@ function Get-IgwtForensicLoggingPlan {
         if ($o.FirewallBlocked) { & $add 'Firewall' $p.Profile 'LogBlocked' $p.LogBlocked $true $why }
         if ($o.FirewallAllowed) { & $add 'Firewall' $p.Profile 'LogAllowed' $p.LogAllowed $true $why }
     }
-    $wfpWhy = $(if ($State.Wfp.ManagedBy -eq 'Policy') { "This PC is managed ($(@($State.Wfp.Authorities) -join ', ')): its audit policy comes from there." } elseif (-not $State.Wfp.Readable) { 'The audit policy can only be read and changed as administrator.' } else { '' })
+    $wfpWhy = $(if ($State.Wfp.ManagedBy -eq 'Policy') { "This PC is managed ($(@($State.Wfp.Authorities) -join ', ')): its audit policy comes from there." } elseif (-not $State.Wfp.Readable) { 'The audit policy can only be read and changed as administrator.' } elseif (@(@($State.Wfp.Connection, $State.Wfp.PacketDrop) | Where-Object { [string]$_ -notin 'None', 'Success', 'Failure', 'SuccessAndFailure' }).Count) { 'The audit settings could not be read in this Windows language (localized auditpol output), so iG does not change them (review F-10).' } else { '' })
     $merge = { param($cur, [bool]$success, [bool]$failure) $s = $success -or $cur -in 'Success', 'SuccessAndFailure'; $f = $failure -or $cur -in 'Failure', 'SuccessAndFailure'; if ($s -and $f) { 'SuccessAndFailure' } elseif ($s) { 'Success' } elseif ($f) { 'Failure' } else { 'None' } }
     if ($o.WfpConnection) { & $add 'Wfp' 'Filtering Platform Connection' 'Audit' $State.Wfp.Connection (& $merge $State.Wfp.Connection $true $true) $wfpWhy }
     if ($o.WfpPacketDrop) { & $add 'Wfp' 'Filtering Platform Packet Drop' 'Audit' $State.Wfp.PacketDrop (& $merge $State.Wfp.PacketDrop $false $true) $wfpWhy }

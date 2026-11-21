@@ -147,12 +147,45 @@ function Get-IgwtTattooAdoptionPlan {
             $why = Test-IgwtPolicyOpAllowed -Op ([pscustomobject]@{ Op = 'Set'; Key = $r.Key; ValueName = $r.ValueName; Type = $cur.Kind; Value = $cur.Value })
             if ($why) { $refusal = "cannot be adopted: $why Remove it instead." }
             elseif ($cur.Kind -notin 'String', 'ExpandString', 'Binary', 'DWord', 'MultiString', 'QWord') { $refusal = "type $($cur.Kind) cannot be written to Registry.pol." }
+        } else {
+            # Removing a value that keeps a protection on would lower it with only a "tattooed" label (review P-25).
+            $why = Get-IgwtProtectiveValueReason -Key $r.Key -ValueName $r.ValueName -Value (@($cur.Value) -join ',')
+            if ($why) { $refusal = "cannot be removed: it keeps a protection on ($why). Change it with Group Policy or Security Settings instead." }
         }
         [pscustomobject]@{ Key = $r.Key; ValueName = $r.ValueName; Kind = $cur.Kind; Value = $cur.Value; WrittenBy = $r.WrittenBy; Refusal = $refusal }
     }
     [pscustomobject]@{ Action = $Action; Ops = @($ops); NotFound = $missing; Enabled = (Test-IgwtPolicyBridgeEnabled) }
 }
 
+function Get-IgwtProtectiveValueReason {
+    <#
+    .SYNOPSIS
+        Why a machine policy value keeps a protection on, or '' (review P-25): a policy denylist or
+        weakening entry covers the value and does not refuse its current data, or a protection rank
+        lists the data above its weakest value. Used before a tattooed value is removed. Pure.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)][string]$Key, [Parameter(Mandatory = $true)][string]$ValueName, [AllowEmptyString()][string]$Value)
+    $k = $Key -replace '^(?i)(HKLM:\\|HKEY_LOCAL_MACHINE\\|MACHINE\\)', ''
+    $weak = $(try { Get-IgwtSecSettingsData } catch { $null })
+    $guards = @(@(Get-IgwtPolicyDenylist) + @($(if ($weak) { $weak.Weakening.entries })) | Where-Object { $_ })
+    foreach ($g in $guards) {
+        if ($g.PSObject.Properties['class'] -and [string]$g.class -eq 'User') { continue }
+        if ($k -notmatch "^(?i)(?:$($g.key))$" -or $ValueName -notmatch "^(?i)(?:$($g.valueName))$") { continue }
+        $vals = @($g.values | ForEach-Object { [string]$_ })
+        if ($vals -contains 'any' -or $vals -contains $Value) { continue }
+        return [string]$g.reason
+    }
+    foreach ($r in @($(if ($weak) { $weak.Weakening.ranks }) | Where-Object { $_ })) {
+        if ([string]$r.class -eq 'User') { continue }
+        if ($k -notmatch "^(?i)(?:$($r.key))$" -or $ValueName -notmatch "^(?i)(?:$($r.valueName))$") { continue }
+        $order = @($r.order | ForEach-Object { [string]$_ })
+        $i = [array]::IndexOf($order, $Value)
+        if ($i -ge 0 -and $i -lt $order.Count - 1) { return [string]$r.reason }
+    }
+    return ''
+}
 function Invoke-IgwtTattooAdoption {
     <#
     .SYNOPSIS

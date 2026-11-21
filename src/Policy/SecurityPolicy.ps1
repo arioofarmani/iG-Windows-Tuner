@@ -144,7 +144,8 @@ function ConvertTo-IgwtSidList {
     param([AllowEmptyString()][string]$Value)
     @(([string]$Value).Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object {
             if ($_ -match '^\*?(S-1-[\d-]+)$') { $Matches[1] }
-            else { try { (New-Object System.Security.Principal.NTAccount($_)).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $_ } }
+            # Inside catch, $_ is the error record, not the name (review P-16): keep the name itself.
+            else { $n = $_; try { (New-Object System.Security.Principal.NTAccount($n)).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $n } }
         })
 }
 
@@ -310,6 +311,28 @@ function Test-IgwtSecurityPolicySafeguards {
 
 #region Write path
 
+function New-IgwtSecurityChange {
+    <#
+    .SYNOPSIS
+        One security-template change (Section, Key, Value). User-rights values are translated to *SID
+        form; an account name that does not exist is refused instead of written (review P-16). The
+        value is taken as it is, so Registry Values that hold ';' (SDDL) stay whole (review P-20).
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory change object only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Section, [Parameter(Mandatory = $true)][string]$Key, [AllowEmptyString()][string]$Value)
+    $alias = @{ 'systemaccess' = 'System Access'; 'system access' = 'System Access'; 'privilegerights' = 'Privilege Rights'; 'privilege rights' = 'Privilege Rights'; 'registryvalues' = 'Registry Values'; 'registry values' = 'Registry Values' }
+    $sec = $alias[$Section.ToLowerInvariant()]
+    if (-not $sec) { throw "Unknown section '$Section' (use SystemAccess, PrivilegeRights or RegistryValues)." }
+    $v = $Value
+    if ($sec -eq 'Privilege Rights') {
+        $ids = @(ConvertTo-IgwtSidList -Value ($v -replace '\|', ','))
+        $bad = @($ids | Where-Object { $_ -notmatch '^S-1-' })
+        if ($bad.Count) { throw "Account '$($bad -join "', '")' was not found on this PC; nothing was changed. Check the name, or use its SID (*S-1-...)." }
+        $v = (@($ids | ForEach-Object { "*$_" }) -join ',')
+    }
+    return [pscustomobject]@{ Section = $sec; Key = $Key; Value = $v }
+}
 function ConvertFrom-IgwtSecurityChangeText {
     <#
     .SYNOPSIS
@@ -328,9 +351,7 @@ function ConvertFrom-IgwtSecurityChangeText {
         if ($slash -lt 1) { throw "Invalid change '$part': the key needs a section (SystemAccess\, PrivilegeRights\ or RegistryValues\)." }
         $sec = $alias[$name.Substring(0, $slash).ToLowerInvariant()]
         if (-not $sec) { throw "Unknown section '$($name.Substring(0, $slash))' (use SystemAccess, PrivilegeRights or RegistryValues)." }
-        $key = $name.Substring($slash + 1)
-        if ($sec -eq 'Privilege Rights') { $value = (@(ConvertTo-IgwtSidList -Value ($value -replace '\|', ',') | ForEach-Object { if ($_ -match '^S-1-') { "*$_" } else { $_ } }) -join ',') }
-        [pscustomobject]@{ Section = $sec; Key = $key; Value = $value }
+        New-IgwtSecurityChange -Section $sec -Key $name.Substring($slash + 1) -Value $value
     }
 }
 

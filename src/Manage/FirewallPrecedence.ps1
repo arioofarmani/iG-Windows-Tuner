@@ -56,18 +56,25 @@ function Get-IgwtFirewallRuleScope {
         foreach ($i in ($t -split ',\s*')) { if ($i) { $null = $h.Add($i.Trim()) } }
         return @{ Any = $false; Items = $h }
     }
-    $lp = [string]$r.LocalPort
-    $ports = @{ Any = ($lp -in '', 'Any'); Ranges = @(); Keywords = $null }
-    if (-not $ports.Any) {
-        $kw = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        $ports.Ranges = @(foreach ($part in ($lp -split ',\s*')) { $m = [regex]::Match($part.Trim(), '^(\d+)(?:-(\d+))?$'); if ($m.Success) { , @([int]$m.Groups[1].Value, $(if ($m.Groups[2].Success) { [int]$m.Groups[2].Value } else { [int]$m.Groups[1].Value })) } elseif ($part) { $null = $kw.Add($part.Trim()) } })
-        $ports.Keywords = $kw
+    $portSet = {
+        param($text)
+        $lp = [string]$text
+        $ports = @{ Any = ($lp -in '', 'Any'); Ranges = @(); Keywords = $null }
+        if (-not $ports.Any) {
+            $kw = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $ports.Ranges = @(foreach ($part in ($lp -split ',\s*')) { $m = [regex]::Match($part.Trim(), '^(\d+)(?:-(\d+))?$'); if ($m.Success) { , @([int]$m.Groups[1].Value, $(if ($m.Groups[2].Success) { [int]$m.Groups[2].Value } else { [int]$m.Groups[1].Value })) } elseif ($part) { $null = $kw.Add($part.Trim()) } })
+            $ports.Keywords = $kw
+        }
+        return $ports
     }
+    $ports = & $portSet $r.LocalPort
     $profiles = @($r.ProfileList | Where-Object { $_ })
     [pscustomobject]@{
         Program = $program; Service = $(if ([string]$r.Service -and [string]$r.Service -ne 'Any') { ([string]$r.Service).ToLowerInvariant() } else { 'any' })
         Package = (([string]$r.Package) + '|' + ([string]$r.Owner)).ToLowerInvariant()
         Protocol = $(if ([string]$r.Protocol) { [string]$r.Protocol } else { '?' }); Ports = $ports
+        # Remote port and local address too (review FW F-15): without them a block for port 80 "covered" an allow for any port.
+        RemotePorts = (& $portSet $r.RemotePort); Local = (& $set $r.LocalAddress)
         Remote = (& $set $r.RemoteAddress); Icmp = (& $set $r.IcmpType)
         Profiles = $(if (-not $profiles.Count -or $profiles -contains 'Any') { & $set 'Any' } else { & $set ($profiles -join ',') })
         Interface = (& $set $r.InterfaceType)
@@ -93,18 +100,23 @@ function Test-IgwtFirewallScopeRelation {
         if ($vb -eq 'any') { $covers = $false; continue }
         if ($va -ne $vb) { return '' }
     }
-    # Set dimensions (remote address, ICMP type, profiles, interface types).
-    foreach ($pair in @(@($A.Remote, $B.Remote), @($A.Icmp, $B.Icmp), @($A.Profiles, $B.Profiles), @($A.Interface, $B.Interface))) {
+    # Set dimensions (addresses, ICMP type, profiles, interface types). Addresses written as subnets, ranges or
+    # keywords (10.0.0.0/8, LocalSubnet) are compared as text only, so different spellings are a possible overlap,
+    # never coverage (review FW F-15).
+    $isAddr = { param($s) foreach ($i in @($s.Items)) { if ([string]$i -match '[/-]|^[A-Za-z]') { return $true } }; return $false }
+    foreach ($pair in @(@($A.Remote, $B.Remote, $true), @($A.Local, $B.Local, $true), @($A.Icmp, $B.Icmp, $false), @($A.Profiles, $B.Profiles, $false), @($A.Interface, $B.Interface, $false))) {
         $va = $pair[0]; $vb = $pair[1]
-        if ($va.Any) { continue }
+        if ($null -eq $va -or $null -eq $vb -or $va.Any) { continue }
         if ($vb.Any) { $covers = $false; continue }
         $shared = $false; $all = $true
         foreach ($i in $vb.Items) { if ($va.Items.Contains($i)) { $shared = $true } else { $all = $false } }
-        if (-not $shared) { return '' }
+        if (-not $shared) { if ($pair[2] -and ((& $isAddr $va) -or (& $isAddr $vb))) { $covers = $false; continue }; return '' }
         if (-not $all) { $covers = $false }
     }
-    # Local ports: numeric ranges; keywords (RPC, IPHTTPS ...) only match the same keyword.
-    $pa = $A.Ports; $pb = $B.Ports
+    # Ports (local, then remote): numeric ranges; keywords (RPC, IPHTTPS ...) only match the same keyword.
+    foreach ($pp in @(@($A.Ports, $B.Ports), @($A.RemotePorts, $B.RemotePorts))) {
+    $pa = $pp[0]; $pb = $pp[1]
+    if ($null -eq $pa -or $null -eq $pb) { continue }
     if (-not $pa.Any) {
         if ($pb.Any) { $covers = $false }
         else {
@@ -118,6 +130,7 @@ function Test-IgwtFirewallScopeRelation {
             if (-not $shared) { return '' }
             if (-not $all) { $covers = $false }
         }
+    }
     }
     if ($covers) { return 'Covers' }
     return 'Overlaps'

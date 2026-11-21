@@ -217,8 +217,12 @@ function Update-IgwtGuiForensicSession {
     $s = $null
     try { $s = Get-IgwtForensicSession } catch { Write-Verbose "Session not read: $($_.Exception.Message)" }
     Update-IgwtGuiForensicBanner -Session $s
-    # Ended while the app is open: restore automatically (needs a writable, elevated window).
-    if ($s -and -not $s.Corrupt -and $s.Expired -and ($script:Gui.Forensic.Running -or $script:Gui.Forensic.RetryStop) -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
+    # Ended while the app is open, or found ended at the first check of an elevated, writable window (it ended while
+    # iG was closed, review F-04): restore automatically, once. The session was time-boxed by the user; iG adds no
+    # scheduled task to end it (no persistence), so the next elevated start does it.
+    $first = $false
+    if ($script:Gui.Data -and -not $script:Gui.Forensic.Checked) { $first = $true; $script:Gui.Forensic.Checked = $true }
+    if ($s -and -not $s.Corrupt -and $s.Expired -and [string]$s.Status -notin 'starting', 'rollback-incomplete' -and ($script:Gui.Forensic.Running -or $script:Gui.Forensic.RetryStop -or $first) -and -not (Test-IgwtReadOnly) -and $script:Gui.IsAdmin) { Invoke-IgwtGuiForensicStop -Automatic }
     $script:Gui.Forensic.Running = [bool]($s -and -not $s.Expired)
 }
 

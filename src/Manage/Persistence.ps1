@@ -53,6 +53,20 @@ function Get-IgwtFileSignature {
     return $r
 }
 
+# Arguments that script hosts get from malware: an encoded command, a web address or a user-writable folder (review FW F-25).
+$script:IgwtPersistenceSuspiciousArgs = '(?i)(\s-e(nc(odedcommand)?)?\s|https?://|\\appdata\\|\\users\\public\\|\\temp\\|\\programdata\\[^\\]+\.(ps1|vbs|js|hta)\b)'
+
+function Get-IgwtPersistenceHosts {
+    <# .SYNOPSIS The script hosts of the firewall knowledge base (data\firewall\apps.json scriptHosts), lower case; empty when unreadable. Read-only. #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+    if ($null -eq $script:IgwtPersistenceHostCache) {
+        $script:IgwtPersistenceHostCache = @(try { @((Get-IgwtFirewallKnowledgeBase).Apps.scriptHosts | ForEach-Object { ([string]$_).ToLowerInvariant() }) } catch { Write-Verbose "Script hosts not read: $($_.Exception.Message)" })
+    }
+    return $script:IgwtPersistenceHostCache
+}
+
 function New-IgwtPersistenceEntry {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory object only.')]
     [CmdletBinding()]
@@ -60,6 +74,28 @@ function New-IgwtPersistenceEntry {
     $file = Resolve-IgwtCommandPath -Command $Command
     $sig = $(if ($NoSignature) { [pscustomobject]@{ Status = ''; Signer = ''; IsMicrosoft = $false } } else { Get-IgwtFileSignature -Path $file })
     if ($Severity -eq 'Info' -and -not $NoSignature -and $sig.Status -notin 'Valid', '') { $Severity = 'Review' }
+    # A Microsoft-signed host (PowerShell, cmd, mshta, rundll32 ...) says nothing about what it runs (review FW F-25):
+    # suspicious arguments make the entry Warn, and a loaded DLL that is not Microsoft-signed makes it Review; such
+    # entries are never hidden as Microsoft.
+    $leaf = $(if ($file) { ([System.IO.Path]::GetFileName([string]$file)).ToLowerInvariant() } else { '' })
+    if (-not $NoSignature -and $leaf -and $leaf -in @(Get-IgwtPersistenceHosts)) {
+        if ([string]$Command -match $script:IgwtPersistenceSuspiciousArgs) {
+            $Severity = 'Warn'; $sig = [pscustomobject]@{ Status = $sig.Status; Signer = $sig.Signer; IsMicrosoft = $false }
+            $Note = (@($Note, "Runs through $leaf with arguments often used by malware (encoded commands, web addresses or user-writable folders).") | Where-Object { $_ }) -join ' '
+        } else {
+            # A host that loads a library (the first .dll, .ocx or .cpl argument after the program).
+            $m = [regex]::Match([string]$Command, '(?i)^"?[^"]*?\.exe"?\s+(?:/\w+\s+)*"?([^",]+\.(?:dll|ocx|cpl))')
+            if ($m.Success) {
+                $dll = [Environment]::ExpandEnvironmentVariables($m.Groups[1].Value.Trim())
+                $ds = Get-IgwtFileSignature -Path $dll
+                if (-not $ds.IsMicrosoft) {
+                    if ($Severity -eq 'Info') { $Severity = 'Review' }
+                    $sig = [pscustomobject]@{ Status = $sig.Status; Signer = $sig.Signer; IsMicrosoft = $false }
+                    $Note = (@($Note, "Loads $dll ($(if ($ds.Status) { $ds.Status } else { 'not checked' })$(if ($ds.Signer) { ", $($ds.Signer)" }))." ) | Where-Object { $_ }) -join ' '
+                }
+            }
+        }
+    }
     [pscustomobject]@{
         Category = $Category; Location = $Location; Name = $Name; Command = $Command; File = $file; Signature = $sig.Status; Signer = $sig.Signer; IsMicrosoft = $sig.IsMicrosoft
         Enabled = $Enabled; Severity = $Severity; Note = $Note; ActionKind = $ActionKind; ActionTarget = $ActionTarget

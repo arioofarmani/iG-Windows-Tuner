@@ -63,6 +63,13 @@ function Test-IgwtSecSettingsCatalog {
             if ([string]$e.source -ne 'source pending' -and -not (& $https $e.source)) { "security\weakening.json: $($e.valueName) needs an https source or 'source pending'." }
             if ([string]$e.class -notin 'Machine', 'User', 'Both') { "security\weakening.json: $($e.valueName) class must be Machine, User or Both." }
         }
+        foreach ($e in @($docs['weakening.json'].ranks | Where-Object { $_ })) {
+            foreach ($rx in @($e.key, $e.valueName)) { try { $null = [regex]::new([string]$rx) } catch { "security\weakening.json: '$rx' is not a valid regular expression." } }
+            if (@($e.order).Count -lt 2) { "security\weakening.json: rank $($e.valueName) needs at least two values, strongest first." }
+            if (-not $e.reason) { "security\weakening.json: rank $($e.valueName) has no reason." }
+            if ([string]$e.source -ne 'source pending' -and -not (& $https $e.source)) { "security\weakening.json: rank $($e.valueName) needs an https source or 'source pending'." }
+            if ([string]$e.class -notin 'Machine', 'User', 'Both') { "security\weakening.json: rank $($e.valueName) class must be Machine, User or Both." }
+        }
     }
     if ($docs['settings-meta.json']) {
         $m = $docs['settings-meta.json']

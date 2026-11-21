@@ -8,6 +8,9 @@ function Get-IgwtFirewallInstalledPackages {
     <# .SYNOPSIS Names of the AppX packages installed for the current user (read-only), for bloatWhen conditions; $null when unreadable. #>
     [CmdletBinding()]
     param()
+    # Started with another administrator's account, the elevated account's packages say nothing about the gamer's
+    # (review FW F-17): unknown, so conditional bloat (Xbox apps and Game Bar) is not applied.
+    if (Get-IgwtOtherAdminElevation) { return $null }
     try { return @(Get-AppxPackage -ErrorAction Stop | ForEach-Object { [string]$_.Name } | Select-Object -Unique) } catch { Write-Verbose "Packages not readable: $($_.Exception.Message)"; return $null }
 }
 

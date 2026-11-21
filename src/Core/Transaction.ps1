@@ -223,13 +223,13 @@ function ConvertTo-IgwtJournalParameters {
 }
 
 $script:IgwtChangeProviders['module'] = @{
-    Reversible = { param($r) if ($script:IgwtModuleOperations[$r.Operation]) { 'exact' } else { 'oneWay' } }
+    Reversible = { param($r) if ($r.OneWay -or -not $script:IgwtModuleOperations[$r.Operation]) { 'oneWay' } else { 'exact' } }
     Resolve    = {
         param($t, $catalog)
         $null = $catalog
         $op = [string]$t['op']
         if (-not $script:IgwtModuleOperations.ContainsKey($op) -or -not ([string]$t['key']).StartsWith("module|$op|")) { throw "'$($t['key'])' is not a module writer the tool owns." }
-        return [pscustomobject]@{ Operation = $op; Kind = $script:IgwtModuleOperations[$op] }
+        return [pscustomobject]@{ Operation = $op; Kind = $script:IgwtModuleOperations[$op]; OneWay = [bool]((Test-IgwtMapKey $t 'oneWay') -and $t['oneWay']) }
     }
     # The writer's state is in its own snapshot or backup; the journal holds the reference.
     Get        = { param($r, $ctx) $null = $ctx; [ordered]@{ op = $r.Operation } }
@@ -359,6 +359,9 @@ function Invoke-IgwtModuleOperationStep {
     $hashOf = $(if ($Detail) { $Detail } else { ConvertTo-IgwtCanonicalJson $desired })
     $detailHash = (Get-IgwtJournalHash -Line $hashOf).Substring(0, 16)
     $target = [ordered]@{ provider = 'module'; key = "module|$Command|$detailHash"; item = "module:$Command"; op = $Command }
+    # An inbox app removal cannot be undone exactly: the provisioned copy is not restored and the files may be gone
+    # (review FW F-24), so History offers no Undo for it.
+    if ($Command -eq 'Invoke-IgwtManagedChange' -and [string]$Parameters['Kind'] -eq 'appx') { $target['oneWay'] = $true }
     $params = @{}; foreach ($k in $Parameters.Keys) { $params[$k] = $Parameters[$k] }
     $script:IgwtModuleStep = [pscustomobject]@{ Command = $Command; Parameters = $params; Result = $null; Ref = ''; Session = $Session.Id; Step = $Session.Step + 1 }
     try {
@@ -957,7 +960,7 @@ function Get-IgwtJournalTimeline {
             $key = [string]$st.Target['key']
             $last = $Journal.Last[$key]
             $current = ($st.Result -eq 'Committed' -and $st.Op -eq 'change' -and $last -and [string]$last['kind'] -eq 'committed' -and [string]$last['session'] -eq $s.Id -and [string]$last['op'] -eq 'change')
-            $oneWay = ([string]$st.Target['provider'] -eq 'module' -and $script:IgwtModuleOperations.ContainsKey([string]$st.Target['op']) -and -not $script:IgwtModuleOperations[[string]$st.Target['op']])
+            $oneWay = ([string]$st.Target['provider'] -eq 'module' -and (($script:IgwtModuleOperations.ContainsKey([string]$st.Target['op']) -and -not $script:IgwtModuleOperations[[string]$st.Target['op']]) -or ((Test-IgwtMapKey $st.Target 'oneWay') -and $st.Target['oneWay'])))
             $rows.Add([pscustomobject]@{
                     Key = "$($s.Id)|$($st.Step)"; Session = $s.Id; SessionTitle = $s.Title; Origin = $otype; When = $s.StartedUtc
                     Outcome = $(if ($s.Ended) { $s.Outcome } else { 'unfinished' }); Step = $st.Step; Op = $st.Op; Item = $st.Item; Target = $key

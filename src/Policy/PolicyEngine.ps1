@@ -120,7 +120,8 @@ function Get-IgwtPolicyRegistryOps {
                     foreach ($k in @($v.Keys)) { & $add 'Set' $e.Key ([string]$k) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$v[$k]) }
                 } else {
                     $n = 0
-                    foreach ($item in @($v)) { $n++; & $add 'Set' $e.Key ("{0}{1}" -f $(if ($e.ValuePrefix) { $e.ValuePrefix } else { '' }), $(if ($e.ValuePrefix) { $n } else { [string]$item })) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$item) }
+                    $hasPrefix = $(if ($null -ne $e.HasPrefix) { [bool]$e.HasPrefix } else { [bool]$e.ValuePrefix })
+                foreach ($item in @($v)) { $n++; & $add 'Set' $e.Key ("{0}{1}" -f $(if ($hasPrefix) { [string]$e.ValuePrefix } else { '' }), $(if ($hasPrefix) { $n } else { [string]$item })) $(if ($e.Expandable) { 'ExpandString' } else { 'String' }) ([string]$item) }
                 }
             }
         }

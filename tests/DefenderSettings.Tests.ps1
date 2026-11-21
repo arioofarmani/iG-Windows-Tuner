@@ -94,7 +94,9 @@ Describe 'Defender setting values and rules' {
             & $t 'PUAProtection' 1 2 | Should -BeNullOrEmpty
             & $t 'CloudBlockLevel' 2 0 | Should -BeNullOrEmpty
             & $t 'CloudBlockLevel' 0 4 | Should -Match 'never lowers'
-            & $t 'CloudBlockLevel' 2 6 | Should -BeNullOrEmpty
+            # Zero tolerance -> High is still "on" but weaker: refused since 4.0 (review F-02); raising stays allowed.
+            & $t 'CloudBlockLevel' 2 6 | Should -Match 'never lowers'
+            & $t 'CloudBlockLevel' 6 2 | Should -BeNullOrEmpty
             & $t 'DisableTamperProtection' $true $null | Should -Match 'never changes it'
             & $t 'LowThreatDefaultAction' 2 $null | Should -Match 'Group Policy'
             & $t 'DisableQuicParsing' $true $null | Should -Match 'only ever turned on'
@@ -108,7 +110,9 @@ Describe 'Defender setting values and rules' {
             & $t 'AiAgentProtection' 'Audit' $null | Should -BeNullOrEmpty
             & $t 'AiAgentProtection' 0 $null | Should -Match 'never turns a protection off'
             & $t 'BruteForceProtectionConfiguredState' 'Off' $null | Should -Match 'refused'
-            & $t 'ScanScheduleDay' 'Never' $null | Should -BeNullOrEmpty
+            # Never turns the scheduled scan off: refused since 4.0 (review F-03); a weekday stays an option.
+            & $t 'ScanScheduleDay' 'Never' $null | Should -Match 'refused'
+            & $t 'ScanScheduleDay' 'Friday' $null | Should -BeNullOrEmpty
         }
     }
     It 'reports On, Off, Below, Optional and Info' {
